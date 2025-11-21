@@ -12,6 +12,7 @@
 #include "uart.h"
 #include "pmm.h"
 #include "vmm.h"
+#include "heap.h"
 #include <ide.h>
 #include <string.h>
 #include "test.h"
@@ -62,6 +63,7 @@ void _start(void)
 
     pmm_init(hhdm_request.response->offset);
     vmm_init(hhdm_request.response->offset);
+    heap_init(hhdm_request.response->offset);
 
     // Initialize VMM
     pml4_t kernel_pml4 = vmm_new_pml4();

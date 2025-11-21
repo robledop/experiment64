@@ -11,6 +11,10 @@ bool test_memcmp(void);
 bool test_pmm_alloc_free(void);
 bool test_vmm_map(void);
 bool test_ide_read_write(void);
+bool test_kmalloc_small(void);
+bool test_kmalloc_large(void);
+bool test_kzalloc(void);
+bool test_krealloc(void);
 
 struct test_case tests[] = {
     {"strlen", test_strlen},
@@ -22,6 +26,10 @@ struct test_case tests[] = {
     {"pmm_alloc_free", test_pmm_alloc_free},
     {"vmm_map", test_vmm_map},
     {"ide_read_write", test_ide_read_write},
+    {"kmalloc_small", test_kmalloc_small},
+    {"kmalloc_large", test_kmalloc_large},
+    {"kzalloc", test_kzalloc},
+    {"krealloc", test_krealloc},
     {NULL, NULL}};
 
 void run_tests(void)
