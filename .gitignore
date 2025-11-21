@@ -1,5 +1,7 @@
 *.d
 *.o
+*.log
+*.img
 build/
 limine/
 rootfs/

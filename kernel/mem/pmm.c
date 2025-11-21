@@ -3,11 +3,9 @@
 #include "string.h"
 #include "terminal.h"
 
-__attribute__((used, section(".requests")))
-static volatile struct limine_memmap_request memmap_request = {
+__attribute__((used, section(".requests"))) static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
-};
+    .revision = 0};
 
 static uint8_t *bitmap = NULL;
 static size_t bitmap_size = 0;
@@ -28,12 +26,13 @@ static int bitmap_test(size_t bit)
     return bitmap[bit / 8] & (1 << (bit % 8));
 }
 
-void pmm_init(void)
+void pmm_init(uint64_t hhdm_offset)
 {
     if (memmap_request.response == NULL)
     {
         printf("Error: Limine memmap request failed\n");
-        for (;;) __asm__("hlt");
+        for (;;)
+            __asm__("hlt");
     }
 
     struct limine_memmap_response *memmap = memmap_request.response;
@@ -64,7 +63,7 @@ void pmm_init(void)
         {
             if (entry->length >= bitmap_size)
             {
-                bitmap = (uint8_t *)entry->base;
+                bitmap = (uint8_t *)(entry->base + hhdm_offset);
                 // Initialize bitmap to all 1s (used)
                 memset(bitmap, 0xFF, bitmap_size);
                 break;
@@ -75,7 +74,8 @@ void pmm_init(void)
     if (bitmap == NULL)
     {
         printf("Error: Could not find memory for PMM bitmap\n");
-        for (;;) __asm__("hlt");
+        for (;;)
+            __asm__("hlt");
     }
 
     // 3. Mark usable regions as free (0) in the bitmap
@@ -92,7 +92,9 @@ void pmm_init(void)
     }
 
     // 4. Mark the bitmap itself as used
-    uint64_t bitmap_start_page = (uint64_t)bitmap / PAGE_SIZE;
+    // Note: bitmap pointer is virtual (HHDM), we need physical address for page calculation
+    uint64_t bitmap_phys = (uint64_t)bitmap - hhdm_offset;
+    uint64_t bitmap_start_page = bitmap_phys / PAGE_SIZE;
     uint64_t bitmap_pages = (bitmap_size + PAGE_SIZE - 1) / PAGE_SIZE;
     for (uint64_t i = 0; i < bitmap_pages; i++)
     {

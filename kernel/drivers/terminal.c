@@ -135,18 +135,38 @@ void printf(const char *format, ...)
         if (*format == '%')
         {
             format++;
+
+            // Handle length modifiers
+            int is_long = 0;
+            if (*format == 'l')
+            {
+                is_long = 1;
+                format++;
+                if (*format == 'l')
+                {
+                    is_long = 2; // Treat long long same as long for now (64-bit)
+                    format++;
+                }
+            }
+
             if (*format == 's')
             {
                 const char *s = va_arg(args, const char *);
-                terminal_write_string(s);
+                terminal_write_string(s ? s : "(null)");
             }
-            else if (*format == 'd')
+            else if (*format == 'd' || *format == 'i')
             {
-                int d = va_arg(args, int);
+                long d;
+                if (is_long)
+                    d = va_arg(args, long);
+                else
+                    d = va_arg(args, int);
+
                 char buf[32];
                 int i = 0;
                 bool neg = d < 0;
-                unsigned int u = neg ? -d : d;
+                unsigned long u = neg ? -d : d;
+
                 if (u == 0)
                     buf[i++] = '0';
                 while (u)
@@ -159,9 +179,34 @@ void printf(const char *format, ...)
                 while (i > 0)
                     terminal_putc(buf[--i]);
             }
-            else if (*format == 'x')
+            else if (*format == 'u')
             {
-                unsigned int x = va_arg(args, unsigned int);
+                unsigned long u;
+                if (is_long)
+                    u = va_arg(args, unsigned long);
+                else
+                    u = va_arg(args, unsigned int);
+
+                char buf[32];
+                int i = 0;
+                if (u == 0)
+                    buf[i++] = '0';
+                while (u)
+                {
+                    buf[i++] = (u % 10) + '0';
+                    u /= 10;
+                }
+                while (i > 0)
+                    terminal_putc(buf[--i]);
+            }
+            else if (*format == 'x' || *format == 'X' || *format == 'p')
+            {
+                unsigned long x;
+                if (is_long || *format == 'p')
+                    x = va_arg(args, unsigned long);
+                else
+                    x = va_arg(args, unsigned int);
+
                 char buf[32];
                 int i = 0;
                 if (x == 0)

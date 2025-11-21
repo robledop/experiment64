@@ -99,9 +99,14 @@ image.hdd: $(KERNEL) limine limine.conf
 	mcopy -i part.img -s $(ROOTFS)/* ::/
 	dd if=part.img of=image.hdd bs=1M seek=1 conv=notrunc
 	./limine/limine bios-install image.hdd
-	rm -f part.img
-	rm -rf $(ROOTFS)
 
 .PHONY: run
-run: image.hdd
+run: clean
+	$(MAKE) image.hdd
 	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
+
+.PHONY: tests
+tests: clean
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
+	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -serial stdio -display none -device isa-debug-exit,iobase=0x501,iosize=0x04 | tee test.log
+	grep "ALL TESTS PASSED" test.log

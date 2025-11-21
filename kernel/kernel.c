@@ -10,8 +10,11 @@
 #include "apic.h"
 #include "keyboard.h"
 #include "uart.h"
+#include "pmm.h"
+#include "vmm.h"
 #include <ide.h>
 #include <string.h>
+#include "test.h"
 
 __attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER;
@@ -51,6 +54,32 @@ void _start(void)
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
     terminal_init(framebuffer);
+
+    if (hhdm_request.response == NULL)
+    {
+        hcf();
+    }
+
+    pmm_init(hhdm_request.response->offset);
+    vmm_init(hhdm_request.response->offset);
+
+    // Initialize VMM
+    pml4_t kernel_pml4 = vmm_new_pml4();
+    if (kernel_pml4 != NULL)
+    {
+        vmm_switch_pml4(kernel_pml4);
+        printf("VMM Initialized.\n");
+    }
+    else
+    {
+        printf("VMM Initialization Failed.\n");
+        hcf();
+    }
+
+#ifdef TEST_MODE
+    run_tests();
+    hcf();
+#endif
 
     ide_init();
     printf("IDE Initialized.\n");
