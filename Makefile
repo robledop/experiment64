@@ -26,7 +26,7 @@ ROOTFS=rootfs
 override CFLAGS += \
     -I. \
     -Iinclude \
-    -std=c11 \
+    -std=c2x \
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \
@@ -35,7 +35,9 @@ override CFLAGS += \
     -m64 \
     -march=x86-64 \
     -mno-80387 \
-    -mno-red-zone
+    -mno-red-zone \
+    -MMD \
+    -MP
 
 # Internal linker flags that should not be changed by the user.
 override LDFLAGS += \
@@ -49,6 +51,7 @@ override LDFLAGS += \
 override CFILES := $(shell find kernel -type f -name '*.c')
 override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
+override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
 .PHONY: all
 all: $(KERNEL)
@@ -64,6 +67,8 @@ build/%.o: kernel/%.c
 build/%.o: kernel/%.S
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Wa,-msyntax=intel -Wa,-mnaked-reg -c $< -o $@
+
+-include $(DEPS)
 
 .PHONY: clean
 clean:
@@ -99,4 +104,4 @@ image.hdd: $(KERNEL) limine limine.conf
 
 .PHONY: run
 run: image.hdd
-	qemu-system-x86_64 -M q35 -m 2G -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
+	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on

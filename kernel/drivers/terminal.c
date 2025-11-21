@@ -2,7 +2,6 @@
 #include "font.h"
 #include "uart.h"
 #include <stdarg.h>
-#include <stdbool.h>
 
 static struct limine_framebuffer *terminal_fb = NULL;
 static int terminal_x = 0;

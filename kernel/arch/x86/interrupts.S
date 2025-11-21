@@ -51,7 +51,7 @@ isr_common_stub:
     push r15
 
     mov rdi, rsp
-    call exception_handler
+    call interrupt_handler
 
     pop r15
     pop r14
@@ -82,3 +82,5 @@ isr_stub_table:
         ISR_ENTRY %i
         .set i, i + 1
     .endr
+
+.section .note.GNU-stack,"",@progbits

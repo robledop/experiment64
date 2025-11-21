@@ -1,5 +1,18 @@
 #include "gdt.h"
 
+#define GDT_ACCESS_PRESENT 0x80
+#define GDT_ACCESS_RING0 0x00
+#define GDT_ACCESS_RING3 0x60
+#define GDT_ACCESS_S 0x10 // 1 for code/data, 0 for system
+#define GDT_ACCESS_EXEC 0x08
+#define GDT_ACCESS_DC 0x04 // Direction/Conforming
+#define GDT_ACCESS_RW 0x02 // Readable/Writable
+#define GDT_ACCESS_AC 0x01 // Accessed
+
+#define GDT_FLAG_GRAN 0x80
+#define GDT_FLAG_SIZE 0x40 // 32-bit
+#define GDT_FLAG_LONG 0x20 // 64-bit
+
 struct gdt_desc
 {
     uint16_t limit;
@@ -28,14 +41,19 @@ void gdt_init(void)
     gdt[0] = (struct gdt_desc){0, 0, 0, 0, 0, 0};
 
     // 1: Kernel Code (0x08)
-    // Access: Present(1) | Ring0(00) | Code/Data(1) | Exec(1) | DC(0) | RW(1) | Ac(0) = 10011010 = 0x9A
-    // Flags: Gran(0) | Long(1) | Size(0) = 0010 = 0x2
-    // Note: In 64-bit mode, Base and Limit are ignored.
-    gdt[1] = (struct gdt_desc){0, 0, 0, 0x9A, 0x20, 0};
+    // Access: Present | Ring0 | Code/Data | Exec | RW
+    // Flags: Long Mode
+    gdt[1] = (struct gdt_desc){0, 0, 0,
+                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_EXEC | GDT_ACCESS_RW,
+                               GDT_FLAG_LONG,
+                               0};
 
     // 2: Kernel Data (0x10)
-    // Access: Present(1) | Ring0(00) | Code/Data(1) | Exec(0) | DC(0) | RW(1) | Ac(0) = 10010010 = 0x92
-    gdt[2] = (struct gdt_desc){0, 0, 0, 0x92, 0x00, 0};
+    // Access: Present | Ring0 | Code/Data | RW
+    gdt[2] = (struct gdt_desc){0, 0, 0,
+                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_RW,
+                               0x00,
+                               0};
 
     __asm__ volatile("lgdt %0" : : "m"(gdtp));
 

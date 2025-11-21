@@ -134,3 +134,10 @@ void apic_init(void)
 
     printf("APIC: Initialized.\n");
 }
+
+void apic_enable_irq(uint8_t irq, uint8_t vector)
+{
+    uint64_t entry_val = vector;
+    entry_val |= ((uint64_t)0 << 56); // Destination APIC ID 0
+    ioapic_set_entry(irq, entry_val);
+}

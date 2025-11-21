@@ -5,6 +5,18 @@
 #include "keyboard.h"
 #include "pic.h"
 #include "apic.h"
+#include "ide.h"
+
+#define IDT_FLAG_PRESENT 0x80
+#define IDT_FLAG_RING0 0x00
+#define IDT_FLAG_RING3 0x60
+#define IDT_FLAG_INTGATE 0x0E
+#define IDT_FLAG_TRAPGATE 0x0F
+
+#define IRQ_BASE 32
+#define IRQ_KEYBOARD 1
+#define IRQ_IDE_PRIMARY 14
+#define IRQ_IDE_SECONDARY 15
 
 // We need the framebuffer request to get the framebuffer
 extern volatile struct limine_framebuffer_request framebuffer_request;
@@ -28,6 +40,7 @@ struct idt_ptr
 
 __attribute__((aligned(0x10))) static struct idt_entry idt[256];
 static struct idt_ptr idtr;
+static isr_handler_t isr_handlers[256];
 
 extern void *isr_stub_table[];
 
@@ -42,47 +55,69 @@ void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
     idt[num].zero = 0;
 }
 
-void exception_handler(struct interrupt_frame *frame)
+void register_interrupt_handler(uint8_t vector, isr_handler_t handler)
 {
-    // Handle IRQs
-    if (frame->int_no >= 32 && frame->int_no < 48)
+    isr_handlers[vector] = handler;
+}
+
+void register_trap_handler(uint8_t vector, isr_handler_t handler)
+{
+    isr_handlers[vector] = handler;
+    idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
+}
+
+static void keyboard_isr(struct interrupt_frame *frame)
+{
+    (void)frame;
+    keyboard_handler_main();
+}
+
+static void ide_primary_isr(struct interrupt_frame *frame)
+{
+    (void)frame;
+    ide_irq_handler(0);
+}
+
+static void ide_secondary_isr(struct interrupt_frame *frame)
+{
+    (void)frame;
+    ide_irq_handler(1);
+}
+
+void interrupt_handler(struct interrupt_frame *frame)
+{
+    if (isr_handlers[frame->int_no])
     {
-        if (frame->int_no == 33)
+        isr_handlers[frame->int_no](frame);
+    }
+    else if (frame->int_no < 32)
+    {
+        struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+
+        // Clear screen to red
+        for (size_t y = 0; y < fb->height; y++)
         {
-            keyboard_handler_main();
+            uint32_t *fb_ptr = (uint32_t *)((uint8_t *)fb->address + y * fb->pitch);
+            for (size_t x = 0; x < fb->width; x++)
+            {
+                fb_ptr[x] = 0xFF880000; // Red
+            }
         }
 
+        terminal_init(fb);
+        terminal_set_cursor(10, 10);
+        terminal_set_color(0xFFFFFFFF);
+        printf("PANIC: EXCEPTION OCCURRED! Vector: %d", frame->int_no);
+
+        for (;;)
+        {
+            __asm__("hlt");
+        }
+    }
+
+    if (frame->int_no >= 32)
+    {
         apic_send_eoi();
-        return;
-    }
-
-    // Disable interrupts
-    __asm__ volatile("cli");
-
-    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-
-    // Clear screen to red
-    for (size_t y = 0; y < fb->height; y++)
-    {
-        uint32_t *fb_ptr = (uint32_t *)((uint8_t *)fb->address + y * fb->pitch);
-        for (size_t x = 0; x < fb->width; x++)
-        {
-            fb_ptr[x] = 0xFF880000; // Red
-        }
-    }
-
-    terminal_init(fb);
-    terminal_set_cursor(10, 10);
-    terminal_set_color(0xFFFFFFFF);
-    printf("PANIC: EXCEPTION OCCURRED! Vector: %d", frame->int_no);
-
-    // TODO: Print interrupt number and error code
-    // Since we don't have printf/itoa yet, we can't easily print numbers.
-    // But the red screen confirms the handler ran.
-
-    for (;;)
-    {
-        __asm__("hlt");
     }
 }
 
@@ -93,8 +128,17 @@ void idt_init(void)
 
     for (int i = 0; i < 256; i++)
     {
-        idt_set_gate(i, (uint64_t)isr_stub_table[i], 0x08, 0x8E);
+        // Use Interrupt Gates (0x0E) for all entries to automatically disable interrupts
+        // upon entry. This avoids the need for manual 'cli' instructions in handlers.
+        // If we wanted to allow nested interrupts (e.g. for system calls or non-critical exceptions),
+        // we would use Trap Gates (0x0F) here.
+        idt_set_gate(i, (uint64_t)isr_stub_table[i], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING0 | IDT_FLAG_INTGATE);
+        isr_handlers[i] = NULL;
     }
+
+    register_interrupt_handler(IRQ_BASE + IRQ_KEYBOARD, keyboard_isr);
+    register_interrupt_handler(IRQ_BASE + IRQ_IDE_PRIMARY, ide_primary_isr);
+    register_interrupt_handler(IRQ_BASE + IRQ_IDE_SECONDARY, ide_secondary_isr);
 
     __asm__ volatile("lidt %0" : : "m"(idtr));
     __asm__ volatile("sti");

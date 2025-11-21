@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include "limine.h"
+#include <limine.h>
 #include "font.h"
 #include "gdt.h"
 #include "idt.h"
@@ -11,6 +10,8 @@
 #include "apic.h"
 #include "keyboard.h"
 #include "uart.h"
+#include <ide.h>
+#include <string.h>
 
 __attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER;
@@ -50,6 +51,49 @@ void _start(void)
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
     terminal_init(framebuffer);
+
+    ide_init();
+    printf("IDE Initialized.\n");
+    for (int i = 0; i < 4; i++)
+    {
+        if (ide_devices[i].exists)
+        {
+            printf("IDE Drive %d: %s - %d Sectors\n", i, ide_devices[i].model, ide_devices[i].size);
+        }
+    }
+
+    // Test IDE Write/Read
+    if (ide_devices[0].exists)
+    {
+        printf("Testing IDE Drive 0...\n");
+        uint8_t write_buf[512];
+        uint8_t read_buf[512];
+
+        // Fill with pattern
+        for (int i = 0; i < 512; i++)
+            write_buf[i] = (uint8_t)i;
+
+        // Write to sector 2
+        ide_write_sectors(0, 2, 1, write_buf);
+
+        // Clear read buffer
+        memset(read_buf, 0, 512);
+
+        // Read from sector 2
+        ide_read_sectors(0, 2, 1, read_buf);
+
+        // Verify
+        if (memcmp(write_buf, read_buf, 512) == 0)
+        {
+            printf("IDE Test Passed: Data matches!\n");
+        }
+        else
+        {
+            printf("IDE Test Failed: Data mismatch!\n");
+            printf("Expected: %x, Got: %x\n", write_buf[0], read_buf[0]);
+        }
+    }
+
     terminal_clear(0xFF000088); // Dark Blue Background
 
     terminal_set_cursor(10, 10);
