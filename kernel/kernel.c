@@ -1,0 +1,73 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include "limine.h"
+#include "font.h"
+#include "gdt.h"
+#include "idt.h"
+#include "terminal.h"
+#include "cpu.h"
+#include "pic.h"
+#include "apic.h"
+#include "keyboard.h"
+#include "uart.h"
+
+__attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER;
+__attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER;
+
+// Set the base revision to 2, this is recommended as of late 2024
+__attribute__((used, section(".requests"))) static volatile LIMINE_BASE_REVISION(2);
+
+__attribute__((used, section(".requests"))) volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0};
+
+__attribute__((used, section(".requests"))) volatile struct limine_hhdm_request hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST,
+    .revision = 0};
+
+void _start(void)
+{
+    // Ensure the bootloader actually understands our base revision (see spec).
+    if (LIMINE_BASE_REVISION_SUPPORTED == false)
+    {
+        hcf();
+    }
+
+    enable_sse();
+
+    uart_init();
+    gdt_init();
+    idt_init();
+    apic_init();
+    keyboard_init();
+
+    if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1)
+    {
+        hcf();
+    }
+
+    struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
+
+    terminal_init(framebuffer);
+    terminal_clear(0xFF000088); // Dark Blue Background
+
+    terminal_set_cursor(10, 10);
+    terminal_set_color(0xFFFFFFFF);
+    printf("Hello World!\n");
+
+    terminal_set_cursor(10, 20);
+    terminal_set_color(0xFF00FF00);
+    printf("Limine Bootloader\n");
+
+    terminal_set_cursor(10, 30);
+    terminal_set_color(0xFF00FFFF);
+    printf("SSE Enabled\n");
+
+    terminal_set_cursor(10, 40);
+    terminal_set_color(0xFFFFFF00);
+    printf("GDT & IDT Initialized\n");
+    printf("Keyboard Initialized. Type something!\n");
+
+    hcf();
+}

@@ -1,0 +1,7 @@
+*.d
+*.o
+build/
+limine/
+rootfs/
+image.iso
+image.hdd
