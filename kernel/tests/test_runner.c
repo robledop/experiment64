@@ -29,6 +29,7 @@ bool test_vfs_open(void);
 bool test_vfs_write(void);
 bool test_vfs_read(void);
 bool test_vfs_close(void);
+bool test_syscall_instruction(void);
 
 struct test_case tests[] = {
     {"strlen", test_strlen},
@@ -58,6 +59,7 @@ struct test_case tests[] = {
     {"vfs_write", test_vfs_write},
     {"vfs_read", test_vfs_read},
     {"vfs_close", test_vfs_close},
+    {"syscall_instruction", test_syscall_instruction},
     {0, 0}};
 
 void run_tests(void)

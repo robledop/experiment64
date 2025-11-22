@@ -78,7 +78,10 @@ typedef struct
     uint32_t first_cluster;
 } fat32_file_info_t;
 
+#include "vfs.h"
+
 int fat32_init(fat32_fs_t *fs, uint8_t drive_index, uint32_t partition_lba);
+vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba);
 int fat32_read_file(fat32_fs_t *fs, const char *filename, uint8_t *buffer, uint32_t buffer_size);
 void fat32_list_dir(fat32_fs_t *fs, const char *path);
 int fat32_stat(fat32_fs_t *fs, const char *filename, fat32_file_info_t *info);

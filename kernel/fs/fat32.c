@@ -383,6 +383,185 @@ int fat32_stat(fat32_fs_t *fs, const char *path, fat32_file_info_t *info)
     return 0;
 }
 
+// VFS Integration
+
+static uint64_t fat32_vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+{
+    fat32_fs_t *fs = (fat32_fs_t *)node->device;
+    uint32_t current_cluster = node->inode;
+    uint32_t bytes_per_cluster = fs->bytes_per_cluster;
+
+    if (offset >= node->size)
+        return 0;
+    if (offset + size > node->size)
+        size = node->size - offset;
+
+    // Skip clusters
+    uint32_t clusters_to_skip = offset / bytes_per_cluster;
+    uint32_t cluster_offset = offset % bytes_per_cluster;
+
+    for (uint32_t i = 0; i < clusters_to_skip; i++)
+    {
+        uint32_t next_cluster;
+        if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
+            return 0;
+        if (next_cluster >= 0x0FFFFFF8)
+            return 0;
+        current_cluster = next_cluster;
+    }
+
+    uint64_t bytes_read = 0;
+    uint8_t *cluster_buf = kmalloc(bytes_per_cluster);
+    if (!cluster_buf)
+        return 0;
+
+    while (bytes_read < size)
+    {
+        if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
+            break;
+
+        uint32_t chunk_size = bytes_per_cluster - cluster_offset;
+        if (chunk_size > size - bytes_read)
+            chunk_size = size - bytes_read;
+
+        memcpy(buffer + bytes_read, cluster_buf + cluster_offset, chunk_size);
+        bytes_read += chunk_size;
+        cluster_offset = 0;
+
+        if (bytes_read < size)
+        {
+            uint32_t next_cluster;
+            if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
+                break;
+            if (next_cluster >= 0x0FFFFFF8)
+                break;
+            current_cluster = next_cluster;
+        }
+    }
+
+    kfree(cluster_buf);
+    return bytes_read;
+}
+
+static uint64_t fat32_vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+{
+    // TODO: Implement full write support via VFS (allocating clusters etc)
+    // For now, we can reuse fat32_write_file if we had the filename, but we only have inode.
+    // This requires refactoring fat32_write_file to work with inodes/clusters directly.
+    (void)node;
+    (void)offset;
+    (void)size;
+    (void)buffer;
+    return 0;
+}
+
+static void fat32_vfs_open(vfs_inode_t *node) { (void)node; }
+static void fat32_vfs_close(vfs_inode_t *node) { (void)node; }
+
+static vfs_dirent_t *fat32_vfs_readdir(vfs_inode_t *node, uint32_t index)
+{
+    fat32_fs_t *fs = (fat32_fs_t *)node->device;
+    uint32_t current_cluster = node->inode;
+    uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
+    if (!cluster_buf)
+        return NULL;
+
+    uint32_t count = 0;
+    vfs_dirent_t *dirent = NULL;
+
+    while (1)
+    {
+        if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
+            break;
+
+        fat32_directory_entry_t *entry = (fat32_directory_entry_t *)cluster_buf;
+        int entries_per_cluster = fs->bytes_per_cluster / sizeof(fat32_directory_entry_t);
+
+        for (int i = 0; i < entries_per_cluster; i++)
+        {
+            if (entry[i].name[0] == 0x00)
+                goto end;
+            if (entry[i].name[0] == 0xE5)
+                continue;
+            if (entry[i].attr & ATTR_LONG_NAME)
+                continue;
+
+            if (count == index)
+            {
+                dirent = kmalloc(sizeof(vfs_dirent_t));
+                fat_name_to_str((char *)entry[i].name, dirent->name);
+                dirent->inode = (entry[i].fst_clus_hi << 16) | entry[i].fst_clus_lo;
+                if (dirent->inode == 0)
+                    dirent->inode = fs->root_cluster;
+                goto end;
+            }
+            count++;
+        }
+
+        uint32_t next;
+        if (fat32_read_fat_entry(fs, current_cluster, &next) != 0)
+            break;
+        if (next >= 0x0FFFFFF8)
+            break;
+        current_cluster = next;
+    }
+
+end:
+    kfree(cluster_buf);
+    return dirent;
+}
+
+static vfs_inode_t *fat32_vfs_finddir(vfs_inode_t *node, char *name)
+{
+    fat32_fs_t *fs = (fat32_fs_t *)node->device;
+    uint32_t dir_cluster = node->inode;
+
+    fat32_directory_entry_t entry;
+    if (fat32_find_entry(fs, dir_cluster, name, &entry, NULL, NULL) != 0)
+        return NULL;
+
+    vfs_inode_t *new_node = kmalloc(sizeof(vfs_inode_t));
+    memset(new_node, 0, sizeof(vfs_inode_t));
+
+    new_node->inode = (entry.fst_clus_hi << 16) | entry.fst_clus_lo;
+    if (new_node->inode == 0)
+        new_node->inode = fs->root_cluster;
+
+    new_node->size = entry.file_size;
+    new_node->flags = (entry.attr & ATTR_DIRECTORY) ? VFS_DIRECTORY : VFS_FILE;
+    new_node->device = fs;
+    new_node->read = fat32_vfs_read;
+    new_node->write = fat32_vfs_write;
+    new_node->open = fat32_vfs_open;
+    new_node->close = fat32_vfs_close;
+    new_node->finddir = fat32_vfs_finddir;
+    new_node->readdir = fat32_vfs_readdir;
+
+    return new_node;
+}
+
+vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba)
+{
+    fat32_fs_t *fs = kmalloc(sizeof(fat32_fs_t));
+    if (fat32_init(fs, drive_index, partition_lba) != 0)
+    {
+        kfree(fs);
+        return NULL;
+    }
+
+    vfs_inode_t *root = kmalloc(sizeof(vfs_inode_t));
+    memset(root, 0, sizeof(vfs_inode_t));
+    root->flags = VFS_DIRECTORY;
+    root->inode = fs->root_cluster;
+    root->device = fs;
+    root->finddir = fat32_vfs_finddir;
+    root->readdir = fat32_vfs_readdir;
+    root->open = fat32_vfs_open;
+    root->close = fat32_vfs_close;
+
+    return root;
+}
+
 int fat32_read_file(fat32_fs_t *fs, const char *filename, uint8_t *buffer, uint32_t buffer_size)
 {
     fat32_file_info_t info;
@@ -392,25 +571,15 @@ int fat32_read_file(fat32_fs_t *fs, const char *filename, uint8_t *buffer, uint3
     if (info.attributes & ATTR_DIRECTORY)
         return 4; // Is a directory
 
-    // Allocate a temporary buffer for the cluster
-    uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
-    if (!cluster_buf)
-        return 5; // Memory error
+    vfs_inode_t temp_node;
+    memset(&temp_node, 0, sizeof(vfs_inode_t));
+    temp_node.device = fs;
+    temp_node.inode = info.first_cluster;
+    temp_node.size = info.size;
 
-    // Read the cluster
-    if (fat32_read_cluster(fs, info.first_cluster, cluster_buf) != 0)
-    {
-        kfree(cluster_buf);
-        return 6; // Read error
-    }
-
-    // Copy only the requested amount or file size, whichever is smaller
-    uint32_t copy_size = info.size;
-    if (copy_size > buffer_size)
-        copy_size = buffer_size;
-
-    memcpy(buffer, cluster_buf, copy_size);
-    kfree(cluster_buf);
+    uint64_t read = fat32_vfs_read(&temp_node, 0, buffer_size, buffer);
+    if (read == 0 && info.size > 0 && buffer_size > 0)
+        return 6;
 
     return 0;
 }

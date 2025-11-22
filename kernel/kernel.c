@@ -18,6 +18,8 @@
 #include "test.h"
 #include "ide.h"
 #include "string.h"
+#include "vfs.h"
+#include "syscall.h"
 
 __attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER;
@@ -46,6 +48,7 @@ void _start(void)
     uart_init();
     gdt_init();
     idt_init();
+    syscall_init();
     apic_init();
     keyboard_init();
 
@@ -68,6 +71,19 @@ void _start(void)
     heap_init(hhdm_request.response->offset);
     ide_init();
     bio_init();
+    vfs_init();
+
+    // Mount FAT32 partition (Drive 0, Partition 1 - LBA 2048)
+    // TODO: Use GPT to find this dynamically
+    vfs_root = fat32_mount(0, 2048);
+    if (vfs_root)
+    {
+        printf("VFS: Mounted FAT32 on /\n");
+    }
+    else
+    {
+        printf("VFS: Failed to mount FAT32\n");
+    }
 
 #ifdef TEST_MODE
     run_tests();
