@@ -48,7 +48,8 @@ syscall_entry:
     mov rdx, [rsp + 8]  # RDX = old RSI (arg2)
     mov rsi, [rsp]      # RSI = old RDI (arg1)
     mov rdi, rax        # RDI = RAX (syscall num)
-    
+    mov r8, rsp         # R8 = pointer to regs
+
     call syscall_handler
     
     # Restore registers

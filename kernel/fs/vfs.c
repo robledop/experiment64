@@ -49,3 +49,55 @@ vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
         return node->finddir(node, name);
     return 0;
 }
+
+vfs_inode_t *vfs_resolve_path(const char *path)
+{
+    if (!path || !vfs_root)
+        return 0;
+
+    vfs_inode_t *current = vfs_root;
+
+    // Handle absolute paths (treat as relative to root for now)
+    while (*path == '/')
+        path++;
+
+    if (*path == 0)
+        return current; // Root
+
+    char name[128]; // Max filename length
+    int name_idx = 0;
+
+    while (*path)
+    {
+        if (*path == '/')
+        {
+            name[name_idx] = 0;
+            if (name_idx > 0)
+            {
+                vfs_inode_t *next = vfs_finddir(current, name);
+                if (!next)
+                    return 0;
+                current = next;
+            }
+            name_idx = 0;
+        }
+        else
+        {
+            if (name_idx < 127)
+                name[name_idx++] = *path;
+        }
+        path++;
+    }
+
+    // Last component
+    if (name_idx > 0)
+    {
+        name[name_idx] = 0;
+        vfs_inode_t *next = vfs_finddir(current, name);
+        if (!next)
+            return 0;
+        current = next;
+    }
+
+    return current;
+}

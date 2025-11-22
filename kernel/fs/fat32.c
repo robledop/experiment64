@@ -184,12 +184,23 @@ static int fat_name_cmp(const char *filename, const char *fat_name)
 {
     char temp[13];
     fat_name_to_str((char *)fat_name, temp);
-    // Simple case-insensitive comparison would be better, but let's assume input is correct case or do simple match
-    // Actually, FAT stores uppercase.
 
-    // Let's convert input filename to uppercase for comparison if we had toupper.
-    // For now, let's just compare with the converted fat name.
-    return strcmp(filename, temp);
+    const char *s1 = filename;
+    const char *s2 = temp;
+    while (*s1 && *s2)
+    {
+        char c1 = *s1;
+        char c2 = *s2;
+        if (c1 >= 'a' && c1 <= 'z')
+            c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z')
+            c2 -= 32;
+        if (c1 != c2)
+            return 1;
+        s1++;
+        s2++;
+    }
+    return *s1 - *s2;
 }
 
 static int fat32_find_entry(fat32_fs_t *fs, uint32_t dir_cluster, const char *name, fat32_directory_entry_t *output_entry, uint32_t *found_cluster, uint32_t *found_offset)

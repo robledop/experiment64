@@ -12,10 +12,16 @@ static buffer_head_t *lru_tail = NULL;
 
 void bio_init(void)
 {
+    printf("BIO: Init starting...\n");
     memset(cache, 0, sizeof(cache));
     for (int i = 0; i < BIO_CACHE_SIZE; i++)
     {
         cache[i].data = kmalloc(BIO_BLOCK_SIZE);
+        if (!cache[i].data)
+        {
+            printf("BIO: kmalloc failed at index %d\n", i);
+            return;
+        }
         // Initialize as free/empty
 
         // Add to LRU list (initially all in list)

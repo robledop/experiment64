@@ -72,7 +72,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) image.iso image.hdd test.log part.img
 
 .PHONY: distclean
 distclean: clean
@@ -82,7 +82,37 @@ limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v8.x-binary --depth=1
 	make -C limine
 
-image.hdd: $(KERNEL) limine limine.conf
+# Userland
+USER_BUILD_DIR = user/build
+USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -Iuser/libc/include -g
+USER_LDFLAGS = -Wl,-Ttext=0x400000 -Wl,--build-id=none
+
+LIBC_SRC = $(wildcard user/libc/src/*.c)
+LIBC_ASM = $(wildcard user/libc/src/*.S)
+LIBC_OBJ = $(LIBC_SRC:user/libc/src/%.c=$(USER_BUILD_DIR)/libc/src/%.o) \
+           $(LIBC_ASM:user/libc/src/%.S=$(USER_BUILD_DIR)/libc/src/%.o)
+
+$(USER_BUILD_DIR)/libc/src/%.o: user/libc/src/%.c
+	mkdir -p $(dir $@)
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+$(USER_BUILD_DIR)/libc/src/%.o: user/libc/src/%.S
+	mkdir -p $(dir $@)
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+$(USER_BUILD_DIR)/user_prog: user/user_prog.S
+	mkdir -p $(dir $@)
+	$(CC) -nostdlib -static -fPIE -m64 -march=x86-64 -Wa,-msyntax=intel -Wl,-Ttext=0x400000 -o $@ $<
+
+$(USER_BUILD_DIR)/init: user/init.c $(LIBC_OBJ)
+	mkdir -p $(dir $@)
+	$(CC) $(USER_CFLAGS) $(USER_LDFLAGS) -o $@ user/init.c $(LIBC_OBJ)
+
+$(USER_BUILD_DIR)/shell: user/shell.c $(LIBC_OBJ)
+	mkdir -p $(dir $@)
+	$(CC) $(USER_CFLAGS) $(USER_LDFLAGS) -o $@ user/shell.c $(LIBC_OBJ)
+
+image.hdd: $(KERNEL) limine limine.conf $(USER_BUILD_DIR)/user_prog $(USER_BUILD_DIR)/init $(USER_BUILD_DIR)/shell
 	rm -f image.hdd part.img
 	dd if=/dev/zero of=image.hdd bs=1M count=128
 	parted -s image.hdd mklabel gpt
@@ -98,6 +128,9 @@ image.hdd: $(KERNEL) limine limine.conf
 	cp -v $(KERNEL) $(ROOTFS)/boot/
 	cp -v limine.conf limine/limine-bios.sys $(ROOTFS)/boot/limine/
 	cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI $(ROOTFS)/EFI/BOOT/
+	cp -v $(USER_BUILD_DIR)/user_prog $(ROOTFS)/prog
+	cp -v $(USER_BUILD_DIR)/init $(ROOTFS)/init
+	cp -v $(USER_BUILD_DIR)/shell $(ROOTFS)/shell
 	echo "Hello FAT32" > $(ROOTFS)/test.txt
 	mcopy -i part.img -s $(ROOTFS)/* ::/
 	dd if=part.img of=image.hdd bs=1M seek=1 conv=notrunc

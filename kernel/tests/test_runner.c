@@ -29,7 +29,13 @@ bool test_vfs_open(void);
 bool test_vfs_write(void);
 bool test_vfs_read(void);
 bool test_vfs_close(void);
+bool test_syscall_write_exit(void);
+bool test_syscall_getpid(void);
+bool test_syscall_yield(void);
+bool test_syscall_spawn(void);
 bool test_syscall_instruction(void);
+bool test_process_creation(void);
+bool test_scheduler(void);
 
 struct test_case tests[] = {
     {"strlen", test_strlen},
@@ -59,7 +65,13 @@ struct test_case tests[] = {
     {"vfs_write", test_vfs_write},
     {"vfs_read", test_vfs_read},
     {"vfs_close", test_vfs_close},
-    {"syscall_instruction", test_syscall_instruction},
+    {"process_creation", test_process_creation},
+    {"syscall_write_exit", test_syscall_write_exit},
+    {"syscall_getpid", test_syscall_getpid},
+    {"syscall_yield", test_syscall_yield},
+    {"syscall_spawn", test_syscall_spawn},
+    // {"syscall_instruction", test_syscall_instruction},
+    {"scheduler", test_scheduler},
     {0, 0}};
 
 void run_tests(void)

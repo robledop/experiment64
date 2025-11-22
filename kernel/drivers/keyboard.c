@@ -5,6 +5,11 @@
 
 #define KEYBOARD_DATA_PORT 0x60
 
+#define BUFFER_SIZE 128
+static char buffer[BUFFER_SIZE];
+static int write_ptr = 0;
+static int read_ptr = 0;
+
 // US QWERTY Scancode Set 1
 static char scancode_to_char[] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
@@ -35,8 +40,22 @@ void keyboard_handler_main(void)
             char c = scancode_to_char[scancode];
             if (c)
             {
-                printf("%c", c);
+                int next = (write_ptr + 1) % BUFFER_SIZE;
+                if (next != read_ptr)
+                {
+                    buffer[write_ptr] = c;
+                    write_ptr = next;
+                }
             }
         }
     }
+}
+
+char keyboard_get_char(void)
+{
+    if (read_ptr == write_ptr)
+        return 0;
+    char c = buffer[read_ptr];
+    read_ptr = (read_ptr + 1) % BUFFER_SIZE;
+    return c;
 }

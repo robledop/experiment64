@@ -132,6 +132,14 @@ void apic_init(void)
 
     ioapic_set_entry(1, entry_val);
 
+    // Initialize LAPIC Timer
+    // Divide by 16
+    lapic_write(LAPIC_TDCR, 0x3);
+    // Set Initial Count (approx 10ms on QEMU, need calibration on real hw)
+    lapic_write(LAPIC_TICR, 10000000);
+    // Set LVT Timer: Vector 32, Periodic Mode
+    lapic_write(LAPIC_LVT_TIMER, 32 | 0x20000);
+
     printf("APIC: Initialized.\n");
 }
 

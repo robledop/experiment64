@@ -2,8 +2,21 @@
 
 #include <stdint.h>
 
-void syscall_init(void);
+#define SYS_WRITE 0
+#define SYS_READ 1
+#define SYS_EXEC 2
+#define SYS_EXIT 3
+#define SYS_FORK 4
+#define SYS_WAIT 5
+#define SYS_GETPID 6
+#define SYS_YIELD 7
+#define SYS_SPAWN 8
 
+void syscall_init(void);
+void syscall_set_exit_hook(void (*hook)(int));
+void syscall_set_stack(uint64_t stack_top);
+
+// For testing purposes
 #ifdef TEST_MODE
 extern volatile uint64_t test_syscall_count;
 extern volatile uint64_t test_syscall_last_num;

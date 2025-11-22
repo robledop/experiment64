@@ -37,7 +37,7 @@ typedef struct vfs_inode
     vfs_readdir_t readdir;
     vfs_finddir_t finddir;
     struct vfs_inode *ptr; // Used for mountpoints and symlinks
-    void *device;         // Private data for the driver
+    void *device;          // Private data for the driver
 } vfs_inode_t;
 
 extern vfs_inode_t *vfs_root;
@@ -49,3 +49,4 @@ void vfs_open(vfs_inode_t *node);
 void vfs_close(vfs_inode_t *node);
 vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index);
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
+vfs_inode_t *vfs_resolve_path(const char *path);

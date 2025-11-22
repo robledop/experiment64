@@ -19,6 +19,7 @@ typedef struct
 #define MSR_KERNEL_GS_BASE 0xC0000102
 
 void enable_sse(void);
+void init_fpu_state(fpu_state_t *state);
 void save_fpu_state(fpu_state_t *state);
 void restore_fpu_state(fpu_state_t *state);
 void hcf(void);

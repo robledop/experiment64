@@ -6,6 +6,7 @@
 #include "pic.h"
 #include "apic.h"
 #include "ide.h"
+#include "process.h"
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -64,6 +65,13 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
 {
     isr_handlers[vector] = handler;
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
+}
+
+static void timer_isr(struct interrupt_frame *frame)
+{
+    (void)frame;
+    apic_send_eoi();
+    schedule();
 }
 
 static void keyboard_isr(struct interrupt_frame *frame)
@@ -149,6 +157,7 @@ void idt_init(void)
         isr_handlers[i] = NULL;
     }
 
+    register_interrupt_handler(IRQ_BASE + 0, timer_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_KEYBOARD, keyboard_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_PRIMARY, ide_primary_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_SECONDARY, ide_secondary_isr);

@@ -15,6 +15,11 @@ void enable_sse(void)
     cr4 |= (1 << 9);  // Set OSFXSR (OS Support for FXSAVE/FXRSTOR)
     cr4 |= (1 << 10); // Set OSXMMEXCPT (OS Support for Unmasked SIMD Floating-Point Exceptions)
     __asm__ volatile("mov %0, %%cr4" ::"r"(cr4));
+
+    // Initialize FPU/SSE state
+    __asm__ volatile("fninit");
+    uint32_t mxcsr = 0x1F80; // Mask all exceptions
+    __asm__ volatile("ldmxcsr %0" ::"m"(mxcsr));
 }
 
 void save_fpu_state(fpu_state_t *state)
@@ -47,4 +52,22 @@ void hcf(void)
     {
         __asm__("hlt");
     }
+}
+
+void init_fpu_state(fpu_state_t *state)
+{
+    // Zero out the state
+    for (int i = 0; i < 512; i++)
+    {
+        state->data[i] = 0;
+    }
+
+    // Set MXCSR to default (0x1F80) - All exceptions masked
+    // MXCSR is at offset 24
+    uint32_t *mxcsr = (uint32_t *)&state->data[24];
+    *mxcsr = 0x1F80;
+
+    // Set FCW to default (0x037F) - Extended precision, all exceptions masked
+    uint16_t *fcw = (uint16_t *)&state->data[0];
+    *fcw = 0x037F;
 }
