@@ -99,10 +99,18 @@ int printf(const char *format, ...)
             count++;
             break;
         }
+        case 'p':
+        {
+            unsigned long ptr = va_arg(args, unsigned long);
+            putchar('0');
+            putchar('x');
+            print_hex(ptr);
+            break;
+        }
         case 'x':
         {
-            unsigned long x = va_arg(args, unsigned long);
-            print_hex(x);
+            unsigned long ptr = va_arg(args, unsigned long);
+            print_hex(ptr);
             break;
         }
         default:

@@ -122,6 +122,90 @@ pml4_t vmm_new_pml4(void)
     return (pml4_t)phys;
 }
 
+static void copy_page_table_level(uint64_t *dest_table, uint64_t *src_table, int level)
+{
+    for (int i = 0; i < 512; i++)
+    {
+        if (src_table[i] & PTE_PRESENT)
+        {
+            // Skip huge pages (likely identity map from bootloader)
+            if (level > 1 && (src_table[i] & PTE_HUGE))
+            {
+                continue;
+            }
+
+            if (level == 1) // PT level
+            {
+                // Allocate new page
+                void *new_phys = pmm_alloc_page();
+                if (!new_phys)
+                    continue;
+
+                void *src_phys = (void *)(src_table[i] & 0x000FFFFFFFFFF000);
+
+                // Copy data
+                memcpy((void *)((uint64_t)new_phys + g_hhdm_offset),
+                       (void *)((uint64_t)src_phys + g_hhdm_offset),
+                       PAGE_SIZE);
+
+                // Map in dest
+                dest_table[i] = (uint64_t)new_phys | (src_table[i] & 0xFFF);
+            }
+            else
+            {
+                // Allocate new table
+                void *new_table_phys = pmm_alloc_page();
+                if (!new_table_phys)
+                    continue;
+
+                uint64_t *new_table_virt = (uint64_t *)((uint64_t)new_table_phys + g_hhdm_offset);
+                memset(new_table_virt, 0, PAGE_SIZE);
+
+                dest_table[i] = (uint64_t)new_table_phys | (src_table[i] & 0xFFF);
+
+                uint64_t src_next_phys = src_table[i] & 0x000FFFFFFFFFF000;
+                uint64_t *src_next_virt = (uint64_t *)(src_next_phys + g_hhdm_offset);
+
+                copy_page_table_level(new_table_virt, src_next_virt, level - 1);
+            }
+        }
+    }
+}
+
+pml4_t vmm_copy_pml4(pml4_t src_pml4)
+{
+    pml4_t new_pml4 = vmm_new_pml4();
+    if (!new_pml4)
+        return NULL;
+
+    uint64_t *dest_virt = (uint64_t *)((uint64_t)new_pml4 + g_hhdm_offset);
+    uint64_t *src_virt = (uint64_t *)((uint64_t)src_pml4 + g_hhdm_offset);
+
+    // Copy user space (0-255)
+    for (int i = 0; i < 256; i++)
+    {
+        if (src_virt[i] & PTE_PRESENT)
+        {
+            // Allocate PDPT
+            void *new_pdpt_phys = pmm_alloc_page();
+            if (!new_pdpt_phys)
+                continue;
+
+            uint64_t *new_pdpt_virt = (uint64_t *)((uint64_t)new_pdpt_phys + g_hhdm_offset);
+            memset(new_pdpt_virt, 0, PAGE_SIZE);
+
+            dest_virt[i] = (uint64_t)new_pdpt_phys | (src_virt[i] & 0xFFF);
+
+            uint64_t src_pdpt_phys = src_virt[i] & 0x000FFFFFFFFFF000;
+            uint64_t *src_pdpt_virt = (uint64_t *)(src_pdpt_phys + g_hhdm_offset);
+
+            copy_page_table_level(new_pdpt_virt, src_pdpt_virt, 3);
+        }
+    }
+
+    return new_pml4;
+}
+
 void vmm_switch_pml4(pml4_t pml4)
 {
     __asm__ volatile("mov %0, %%cr3" : : "r"(pml4) : "memory");

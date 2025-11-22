@@ -6,7 +6,7 @@
 #include "string.h"
 #include "terminal.h"
 
-bool elf_load(const char *path, uint64_t *entry_point, pml4_t pml4)
+bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4_t pml4)
 {
     vfs_inode_t *node = vfs_resolve_path(path);
     if (!node)
@@ -14,6 +14,9 @@ bool elf_load(const char *path, uint64_t *entry_point, pml4_t pml4)
         printf("ELF: Failed to resolve path %s\n", path);
         return false;
     }
+
+    if (max_vaddr)
+        *max_vaddr = 0;
 
     Elf64_Ehdr header;
     if (vfs_read(node, 0, sizeof(header), (uint8_t *)&header) != sizeof(header))
@@ -53,6 +56,11 @@ bool elf_load(const char *path, uint64_t *entry_point, pml4_t pml4)
 
             uint64_t page_start = start_addr & ~(PAGE_SIZE - 1);
             uint64_t page_end = (end_addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+            if (max_vaddr && page_end > *max_vaddr)
+            {
+                *max_vaddr = page_end;
+            }
 
             for (uint64_t addr = page_start; addr < page_end; addr += PAGE_SIZE)
             {

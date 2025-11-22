@@ -59,4 +59,4 @@ typedef struct
 
 #define ELF_MAGIC 0x464C457F
 
-bool elf_load(const char *path, uint64_t *entry_point, pml4_t pml4);
+bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4_t pml4);

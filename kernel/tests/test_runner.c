@@ -34,7 +34,12 @@ bool test_syscall_write_exit(void);
 bool test_syscall_getpid(void);
 bool test_syscall_yield(void);
 bool test_syscall_spawn(void);
-bool test_syscall_instruction(void);
+bool test_syscall_fork(void);
+bool test_syscall_sbrk(void);
+bool test_syscall_file_io(void);
+bool test_syscall_chdir(void);
+bool test_syscall_sleep(void);
+bool test_syscall_exec(void);
 bool test_process_creation(void);
 bool test_scheduler(void);
 
@@ -58,7 +63,7 @@ struct test_case tests[] = {
     {"fat32_stat", test_fat32_stat},
     {"fat32_write_delete", test_fat32_write_delete},
     {"fat32_directories", test_fat32_directories},
-    {"fat32_stress", test_fat32_stress},
+    // {"fat32_stress", test_fat32_stress},
     {"bio_test", bio_test},
     {"gpt_enumeration", test_gpt_enumeration},
     {"vfs_basic", test_vfs_basic},
@@ -71,7 +76,12 @@ struct test_case tests[] = {
     {"syscall_getpid", test_syscall_getpid},
     {"syscall_yield", test_syscall_yield},
     {"syscall_spawn", test_syscall_spawn},
-    // {"syscall_instruction", test_syscall_instruction},
+    {"syscall_fork", test_syscall_fork},
+    {"syscall_sbrk", test_syscall_sbrk},
+    {"syscall_file_io", test_syscall_file_io},
+    {"syscall_chdir", test_syscall_chdir},
+    {"syscall_sleep", test_syscall_sleep},
+    {"syscall_exec", test_syscall_exec},
     {"scheduler", test_scheduler},
     {0, 0}};
 

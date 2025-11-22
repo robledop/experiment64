@@ -5,6 +5,7 @@
 #include "cpu.h"
 
 #define PROCESS_NAME_MAX 64
+#define MAX_FDS 16
 
 typedef enum
 {
@@ -29,6 +30,14 @@ struct context
     uint64_t rip;
 };
 
+#include "vfs.h"
+
+typedef struct
+{
+    struct vfs_inode *inode;
+    uint64_t offset;
+} file_descriptor_t;
+
 typedef struct Process
 {
     int pid;
@@ -39,6 +48,9 @@ typedef struct Process
     struct Process *parent; // Parent process
     int exit_code;
     bool terminated;
+    uint64_t heap_end; // Current program break
+    file_descriptor_t *fd_table[MAX_FDS];
+    char cwd[VFS_MAX_PATH];
 } process_t;
 
 typedef struct Thread
@@ -52,18 +64,23 @@ typedef struct Thread
     uint64_t user_stack;     // For spawn
     uint64_t saved_user_rsp; // Saved user RSP during syscalls
     fpu_state_t fpu_state;   // FPU/SSE state
+    uint64_t sleep_until;    // Wake tick for sleep syscall
     struct Thread *next;
 } thread_t;
 
 extern process_t *process_list;
 extern process_t *current_process;
 extern thread_t *current_thread;
+extern volatile uint64_t scheduler_ticks;
 
 void process_init(void);
 process_t *process_create(const char *name);
 thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user);
 thread_t *get_current_thread(void);
+void scheduler_tick(void);
 
 void schedule(void);
 void yield(void);
 void switch_to(thread_t *prev, thread_t *next);
+
+void process_spawn_init(void);

@@ -67,22 +67,20 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
 }
 
-static void timer_isr(struct interrupt_frame *frame)
+static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
-    (void)frame;
+    scheduler_tick();
     apic_send_eoi();
     schedule();
 }
 
-static void keyboard_isr(struct interrupt_frame *frame)
+static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
-    (void)frame;
     keyboard_handler_main();
 }
 
-static void ide_primary_isr(struct interrupt_frame *frame)
+static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
-    (void)frame;
     ide_irq_handler(0);
 }
 

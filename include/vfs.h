@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#define VFS_MAX_PATH 256
+
 #define VFS_FILE 0x01
 #define VFS_DIRECTORY 0x02
 #define VFS_CHARDEVICE 0x03
@@ -11,6 +13,8 @@
 #define VFS_MOUNTPOINT 0x08
 
 struct vfs_inode;
+
+extern struct vfs_inode *vfs_root;
 
 typedef struct
 {
@@ -50,3 +54,5 @@ void vfs_close(vfs_inode_t *node);
 vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index);
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
 vfs_inode_t *vfs_resolve_path(const char *path);
+
+void vfs_mount_root(void);

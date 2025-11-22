@@ -8,8 +8,14 @@ int main(void)
     while (1)
     {
         printf("Starting shell...\n");
-        int pid = spawn("/shell");
-        if (pid > 0)
+        int pid = fork();
+        if (pid == 0)
+        {
+            exec("/bin/shell");
+            printf("Failed to exec shell\n");
+            exit(1);
+        }
+        else if (pid > 0)
         {
             int status;
             wait(&status);
@@ -17,8 +23,8 @@ int main(void)
         }
         else
         {
-            printf("Failed to start shell\n");
-            // Avoid busy loop if spawn fails repeatedly
+            printf("Failed to fork\n");
+            // Avoid busy loop if fork fails repeatedly
             for (volatile int i = 0; i < 10000000; i++)
                 ;
         }

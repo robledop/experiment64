@@ -53,6 +53,8 @@ syscall_entry:
     call syscall_handler
     
     # Restore registers
+.global syscall_return
+syscall_return:
     pop rdi
     pop rsi
     pop rdx
@@ -72,5 +74,12 @@ syscall_entry:
     mov rsp, [rip + user_rsp_scratch]
     
     sysretq
+
+.global fork_return
+fork_return:
+    # Child process starts here
+    # RAX should be 0 for child
+    xor rax, rax
+    jmp syscall_return
 
 .section .note.GNU-stack,"",@progbits

@@ -1,6 +1,7 @@
 #include "vfs.h"
 #include "string.h"
 #include "terminal.h"
+#include "fat32.h"
 
 vfs_inode_t *vfs_root = 0;
 
@@ -8,6 +9,21 @@ void vfs_init()
 {
     // Initialize root as null or a temporary placeholder if needed
     vfs_root = 0;
+}
+
+void vfs_mount_root(void)
+{
+    // Mount FAT32 partition (Drive 0, Partition 1 - LBA 2048)
+    // TODO: Use GPT to find this dynamically
+    vfs_root = fat32_mount(0, 2048);
+    if (vfs_root)
+    {
+        printf("VFS: Mounted FAT32 on /\n");
+    }
+    else
+    {
+        printf("VFS: Failed to mount FAT32\n");
+    }
 }
 
 uint64_t vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)

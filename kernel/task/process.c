@@ -14,6 +14,28 @@ process_t *current_process = NULL; // Need to maintain this
 thread_t *current_thread = NULL;
 static int next_pid = 1;
 static int next_tid = 1;
+volatile uint64_t scheduler_ticks = 0;
+
+void scheduler_tick(void)
+{
+    scheduler_ticks++;
+
+    process_t *p = process_list;
+    while (p)
+    {
+        thread_t *t = p->threads;
+        while (t)
+        {
+            if (t->state == THREAD_BLOCKED && t->sleep_until && t->sleep_until <= scheduler_ticks)
+            {
+                t->state = THREAD_READY;
+                t->sleep_until = 0;
+            }
+            t = t->next;
+        }
+        p = p->next;
+    }
+}
 
 void process_init(void)
 {
@@ -27,6 +49,8 @@ void process_init(void)
     memset(kernel_process, 0, sizeof(process_t));
     kernel_process->pid = next_pid++;
     strcpy(kernel_process->name, "kernel");
+    kernel_process->cwd[0] = '/';
+    kernel_process->cwd[1] = '\0';
 
     // Use current CR3
     uint64_t cr3;
@@ -67,6 +91,16 @@ process_t *process_create(const char *name)
 
     proc->pid = next_pid++;
     strncpy(proc->name, name, PROCESS_NAME_MAX - 1);
+    if (current_process && current_process->cwd[0])
+    {
+        strncpy(proc->cwd, current_process->cwd, VFS_MAX_PATH - 1);
+        proc->cwd[VFS_MAX_PATH - 1] = '\0';
+    }
+    else
+    {
+        proc->cwd[0] = '/';
+        proc->cwd[1] = '\0';
+    }
 
     proc->next = process_list;
     process_list = proc;

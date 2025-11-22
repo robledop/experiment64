@@ -3,6 +3,7 @@
 
 #include <sys/syscall.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef long ssize_t;
 
@@ -15,5 +16,11 @@ int wait(int *status);
 int getpid(void);
 void yield(void);
 int spawn(const char *path);
+void *sbrk(intptr_t increment);
+int open(const char *path);
+int close(int fd);
+int sys_readdir(int fd, void *dent);
+int chdir(const char *path);
+int sleep(int milliseconds);
 
 #endif

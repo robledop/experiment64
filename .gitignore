@@ -6,5 +6,7 @@
 build/
 limine/
 rootfs/
+.venv/
+copilot.*
 image.iso
 image.hdd

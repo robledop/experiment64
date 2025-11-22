@@ -10,5 +10,11 @@
 #define SYS_GETPID 6
 #define SYS_YIELD 7
 #define SYS_SPAWN 8
+#define SYS_SBRK 9
+#define SYS_OPEN 10
+#define SYS_CLOSE 11
+#define SYS_READDIR 12
+#define SYS_CHDIR 13
+#define SYS_SLEEP 14
 
 #endif

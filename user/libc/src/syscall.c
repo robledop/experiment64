@@ -75,3 +75,35 @@ int spawn(const char *path)
 {
     return syscall1(SYS_SPAWN, (long)path);
 }
+
+void *sbrk(intptr_t increment)
+{
+    return (void *)syscall1(SYS_SBRK, (long)increment);
+}
+
+int open(const char *path)
+{
+    return syscall1(SYS_OPEN, (long)path);
+}
+
+int close(int fd)
+{
+    return syscall1(SYS_CLOSE, fd);
+}
+
+int sys_readdir(int fd, void *dent)
+{
+    return syscall2(SYS_READDIR, fd, (long)dent);
+}
+
+int chdir(const char *path)
+{
+    return syscall1(SYS_CHDIR, (long)path);
+}
+
+int sleep(int milliseconds)
+{
+    if (milliseconds < 0)
+        milliseconds = 0;
+    return syscall1(SYS_SLEEP, milliseconds);
+}

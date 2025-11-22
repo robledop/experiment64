@@ -68,19 +68,19 @@ void apic_init(void)
     struct madt *madt = acpi_find_table("APIC");
     if (madt == NULL)
     {
-        printf("APIC: MADT not found!\n");
+        boot_message(WARNING_LEVEL_ERROR, "APIC: MADT not found!");
         return;
     }
 
     if (hhdm_request.response == NULL)
     {
-        printf("APIC: HHDM response not found!\n");
+        boot_message(WARNING_LEVEL_ERROR, "APIC: HHDM response not found!");
         return;
     }
     uint64_t hhdm_offset = hhdm_request.response->offset;
 
     lapic_base = madt->local_apic_address + hhdm_offset;
-    printf("APIC: LAPIC base: %lx\n", lapic_base);
+    boot_message(WARNING_LEVEL_INFO, "APIC: LAPIC base: %lx", lapic_base);
 
     // Parse MADT entries to find IOAPIC and ISOs
     uint8_t *entry = (uint8_t *)(madt + 1);
@@ -93,12 +93,12 @@ void apic_init(void)
         {
             struct madt_ioapic *ioapic = (struct madt_ioapic *)entry;
             ioapic_base = ioapic->ioapic_address + hhdm_offset;
-            printf("APIC: IOAPIC base: %lx\n", ioapic_base);
+            boot_message(WARNING_LEVEL_INFO, "APIC: IOAPIC base: %lx", ioapic_base);
         }
         else if (header->type == 2) // ISO
         {
             struct madt_iso *iso = (struct madt_iso *)entry;
-            printf("APIC: ISO bus=%d irq=%d gsi=%d flags=%x\n", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
+            boot_message(WARNING_LEVEL_INFO, "APIC: ISO bus=%d irq=%d gsi=%d flags=%x", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
             // TODO: Handle ISOs properly (e.g. active low/high, edge/level)
             // For now, we assume standard ISA overrides usually map IRQ 1 -> GSI 1
         }
@@ -140,7 +140,7 @@ void apic_init(void)
     // Set LVT Timer: Vector 32, Periodic Mode
     lapic_write(LAPIC_LVT_TIMER, 32 | 0x20000);
 
-    printf("APIC: Initialized.\n");
+    boot_message(WARNING_LEVEL_INFO, "APIC: Initialized.");
 }
 
 void apic_enable_irq(uint8_t irq, uint8_t vector)
