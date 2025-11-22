@@ -107,7 +107,20 @@ void interrupt_handler(struct interrupt_frame *frame)
         terminal_init(fb);
         terminal_set_cursor(10, 10);
         terminal_set_color(0xFFFFFFFF);
-        printf("PANIC: EXCEPTION OCCURRED! Vector: %d", frame->int_no);
+        printf("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
+        printf("Error Code: 0x%lx\n", frame->err_code);
+        printf("RIP: 0x%lx\n", frame->rip);
+        printf("CS: 0x%lx\n", frame->cs);
+        printf("RFLAGS: 0x%lx\n", frame->rflags);
+        printf("RSP: 0x%lx\n", frame->rsp);
+        printf("SS: 0x%lx\n", frame->ss);
+
+        if (frame->int_no == 14)
+        {
+            uint64_t cr2;
+            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+            printf("CR2 (Page Fault Address): 0x%lx\n", cr2);
+        }
 
         for (;;)
         {

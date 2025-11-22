@@ -84,10 +84,12 @@ limine:
 
 image.hdd: $(KERNEL) limine limine.conf
 	rm -f image.hdd part.img
-	dd if=/dev/zero of=image.hdd bs=1M count=64
+	dd if=/dev/zero of=image.hdd bs=1M count=128
 	parted -s image.hdd mklabel gpt
 	parted -s image.hdd mkpart ESP fat32 1MiB 63MiB
 	parted -s image.hdd set 1 esp on
+	parted -s image.hdd mkpart DATA fat32 63MiB 95MiB
+	parted -s image.hdd mkpart LINUX ext2 95MiB 100%
 	dd if=/dev/zero of=part.img bs=1M count=62
 	mformat -i part.img -F ::
 	rm -rf $(ROOTFS)
@@ -96,6 +98,7 @@ image.hdd: $(KERNEL) limine limine.conf
 	cp -v $(KERNEL) $(ROOTFS)/boot/
 	cp -v limine.conf limine/limine-bios.sys $(ROOTFS)/boot/limine/
 	cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI $(ROOTFS)/EFI/BOOT/
+	echo "Hello FAT32" > $(ROOTFS)/test.txt
 	mcopy -i part.img -s $(ROOTFS)/* ::/
 	dd if=part.img of=image.hdd bs=1M seek=1 conv=notrunc
 	./limine/limine bios-install image.hdd

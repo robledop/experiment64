@@ -2,6 +2,7 @@
 #include "pmm.h"
 #include "string.h"
 #include <stdint.h>
+#include "terminal.h"
 
 static uint64_t g_hhdm_offset = 0;
 
@@ -151,4 +152,22 @@ uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt)
         return 0;
 
     return (pt_virt[pt_idx] & 0x000FFFFFFFFFF000) + (virt & 0xFFF);
+}
+
+void vmm_finalize(void)
+{
+    pml4_t kernel_pml4 = vmm_new_pml4();
+    if (kernel_pml4 != NULL)
+    {
+        vmm_switch_pml4(kernel_pml4);
+        printf("VMM Initialized.\n");
+    }
+    else
+    {
+        printf("VMM Initialization Failed.\n");
+        // We can't easily HCF here without including cpu.h, but let's just print for now.
+        // The caller should handle critical failure if needed, or we add hcf() here.
+        while (1)
+            __asm__("hlt");
+    }
 }

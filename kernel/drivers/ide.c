@@ -150,7 +150,25 @@ void ide_init(void)
             }
             ide_devices[count].model[40] = 0; // Null terminate
 
+            // Fix spaces
+            for (int k = 39; k > 0; k--)
+            {
+                if (ide_devices[count].model[k] == ' ')
+                    ide_devices[count].model[k] = 0;
+                else
+                    break;
+            }
+
             count++;
+        }
+    }
+
+    printf("IDE Initialized.\n");
+    for (int i = 0; i < 4; i++)
+    {
+        if (ide_devices[i].exists)
+        {
+            printf("IDE Drive %d: %s - %d Sectors\n", i, ide_devices[i].model, ide_devices[i].size);
         }
     }
 

@@ -13,9 +13,11 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "heap.h"
-#include <ide.h>
-#include <string.h>
+#include "bio.h"
+#include "fat32.h"
 #include "test.h"
+#include "ide.h"
+#include "string.h"
 
 __attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER;
@@ -64,66 +66,14 @@ void _start(void)
     pmm_init(hhdm_request.response->offset);
     vmm_init(hhdm_request.response->offset);
     heap_init(hhdm_request.response->offset);
-
-    // Initialize VMM
-    pml4_t kernel_pml4 = vmm_new_pml4();
-    if (kernel_pml4 != NULL)
-    {
-        vmm_switch_pml4(kernel_pml4);
-        printf("VMM Initialized.\n");
-    }
-    else
-    {
-        printf("VMM Initialization Failed.\n");
-        hcf();
-    }
+    ide_init();
+    bio_init();
 
 #ifdef TEST_MODE
     run_tests();
-    hcf();
 #endif
 
-    ide_init();
-    printf("IDE Initialized.\n");
-    for (int i = 0; i < 4; i++)
-    {
-        if (ide_devices[i].exists)
-        {
-            printf("IDE Drive %d: %s - %d Sectors\n", i, ide_devices[i].model, ide_devices[i].size);
-        }
-    }
-
-    // Test IDE Write/Read
-    if (ide_devices[0].exists)
-    {
-        printf("Testing IDE Drive 0...\n");
-        uint8_t write_buf[512];
-        uint8_t read_buf[512];
-
-        // Fill with pattern
-        for (int i = 0; i < 512; i++)
-            write_buf[i] = (uint8_t)i;
-
-        // Write to sector 2
-        ide_write_sectors(0, 2, 1, write_buf);
-
-        // Clear read buffer
-        memset(read_buf, 0, 512);
-
-        // Read from sector 2
-        ide_read_sectors(0, 2, 1, read_buf);
-
-        // Verify
-        if (memcmp(write_buf, read_buf, 512) == 0)
-        {
-            printf("IDE Test Passed: Data matches!\n");
-        }
-        else
-        {
-            printf("IDE Test Failed: Data mismatch!\n");
-            printf("Expected: %x, Got: %x\n", write_buf[0], read_buf[0]);
-        }
-    }
+    vmm_finalize();
 
     terminal_clear(0xFF000088); // Dark Blue Background
 

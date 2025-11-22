@@ -15,6 +15,20 @@ bool test_kmalloc_small(void);
 bool test_kmalloc_large(void);
 bool test_kzalloc(void);
 bool test_krealloc(void);
+bool test_fat32_init(void);
+bool test_fat32_list(void);
+bool test_fat32_read_file(void);
+bool test_fat32_stat(void);
+bool test_fat32_write_delete(void);
+bool test_fat32_directories(void);
+bool test_fat32_stress(void);
+bool bio_test(void);
+bool test_gpt_enumeration(void);
+bool test_vfs_basic(void);
+bool test_vfs_open(void);
+bool test_vfs_write(void);
+bool test_vfs_read(void);
+bool test_vfs_close(void);
 
 struct test_case tests[] = {
     {"strlen", test_strlen},
@@ -30,7 +44,21 @@ struct test_case tests[] = {
     {"kmalloc_large", test_kmalloc_large},
     {"kzalloc", test_kzalloc},
     {"krealloc", test_krealloc},
-    {NULL, NULL}};
+    {"fat32_init", test_fat32_init},
+    {"fat32_list", test_fat32_list},
+    {"fat32_read_file", test_fat32_read_file},
+    {"fat32_stat", test_fat32_stat},
+    {"fat32_write_delete", test_fat32_write_delete},
+    {"fat32_directories", test_fat32_directories},
+    {"fat32_stress", test_fat32_stress},
+    {"bio_test", bio_test},
+    {"gpt_enumeration", test_gpt_enumeration},
+    {"vfs_basic", test_vfs_basic},
+    {"vfs_open", test_vfs_open},
+    {"vfs_write", test_vfs_write},
+    {"vfs_read", test_vfs_read},
+    {"vfs_close", test_vfs_close},
+    {0, 0}};
 
 void run_tests(void)
 {
@@ -44,12 +72,12 @@ void run_tests(void)
         printf("TEST %s: ", tests[i].name);
         if (tests[i].func())
         {
-            printf("PASSED\n");
+            printf("\033[32mPASSED\033[0m\n");
             passed++;
         }
         else
         {
-            printf("FAILED\n");
+            printf("\033[31mFAILED\033[0m\n");
         }
     }
 
@@ -57,11 +85,11 @@ void run_tests(void)
 
     if (passed == total)
     {
-        printf("ALL TESTS PASSED\n");
+        printf("\033[32mALL TESTS PASSED\033[0m\n");
     }
     else
     {
-        printf("SOME TESTS FAILED\n");
+        printf("\033[31mSOME TESTS FAILED\033[0m\n");
     }
 
     // Exit QEMU
