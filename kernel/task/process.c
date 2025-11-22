@@ -5,21 +5,20 @@
 #include "cpu.h"
 #include "vmm.h"
 #include "syscall.h"
-
-extern uint64_t user_rsp_scratch;
-extern uint64_t syscall_stack_top;
+#include "spinlock.h"
 
 process_t *process_list = NULL;
-process_t *current_process = NULL; // Need to maintain this
-thread_t *current_thread = NULL;
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
+
+spinlock_t scheduler_lock;
 
 void scheduler_tick(void)
 {
     scheduler_ticks++;
 
+    spinlock_acquire(&scheduler_lock);
     process_t *p = process_list;
     while (p)
     {
@@ -35,15 +34,18 @@ void scheduler_tick(void)
         }
         p = p->next;
     }
+    spinlock_release(&scheduler_lock);
 }
 
 void process_init(void)
 {
+    spinlock_init(&scheduler_lock);
+
     // Initialize the first kernel process (idle task / initial kernel task)
     process_t *kernel_process = kmalloc(sizeof(process_t));
     if (!kernel_process)
     {
-        printf("Process: Failed to allocate kernel process\n");
+        boot_message(ERROR, "Process: Failed to allocate kernel process");
         return;
     }
     memset(kernel_process, 0, sizeof(process_t));
@@ -60,7 +62,7 @@ void process_init(void)
     thread_t *kernel_thread = kmalloc(sizeof(thread_t));
     if (!kernel_thread)
     {
-        printf("Process: Failed to allocate kernel thread\n");
+        boot_message(ERROR, "Process: Failed to allocate kernel thread");
         return;
     }
     memset(kernel_thread, 0, sizeof(thread_t));
@@ -70,16 +72,16 @@ void process_init(void)
     kernel_thread->state = THREAD_RUNNING;
 
     // For the initial kernel thread, we assume we are running on a valid stack.
-    // We can't easily determine the top of the current stack without more info.
-    // But for now, this is just the bootstrap thread.
-    kernel_thread->kstack_top = syscall_stack_top;
+    cpu_t *cpu = get_cpu();
+    kernel_thread->kstack_top = cpu->kernel_rsp;
 
     kernel_process->threads = kernel_thread;
     process_list = kernel_process;
-    current_thread = kernel_thread;
-    current_process = kernel_process;
+    
+    // Set current thread for this CPU
+    cpu->active_thread = kernel_thread;
 
-    printf("Process: Initialized kernel process PID %d\n", kernel_process->pid);
+    boot_message(INFO, "Process: Initialized kernel process PID %d", kernel_process->pid);
 }
 
 process_t *process_create(const char *name)
@@ -89,11 +91,16 @@ process_t *process_create(const char *name)
         return NULL;
     memset(proc, 0, sizeof(process_t));
 
+    spinlock_acquire(&scheduler_lock);
     proc->pid = next_pid++;
+    spinlock_release(&scheduler_lock);
+
     strncpy(proc->name, name, PROCESS_NAME_MAX - 1);
-    if (current_process && current_process->cwd[0])
+    
+    process_t *current = get_current_process();
+    if (current && current->cwd[0])
     {
-        strncpy(proc->cwd, current_process->cwd, VFS_MAX_PATH - 1);
+        strncpy(proc->cwd, current->cwd, VFS_MAX_PATH - 1);
         proc->cwd[VFS_MAX_PATH - 1] = '\0';
     }
     else
@@ -102,20 +109,25 @@ process_t *process_create(const char *name)
         proc->cwd[1] = '\0';
     }
 
+    spinlock_acquire(&scheduler_lock);
     proc->next = process_list;
     process_list = proc;
+    spinlock_release(&scheduler_lock);
 
     return proc;
 }
 
-thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user)
+thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]] bool is_user)
 {
     thread_t *thread = kmalloc(sizeof(thread_t));
     if (!thread)
         return NULL;
     memset(thread, 0, sizeof(thread_t));
 
+    spinlock_acquire(&scheduler_lock);
     thread->tid = next_tid++;
+    spinlock_release(&scheduler_lock);
+
     thread->process = process;
     thread->state = THREAD_READY;
 
@@ -130,7 +142,6 @@ thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user)
         return NULL;
     }
     thread->kstack_top = (uint64_t)stack + 16384;
-    // thread->rsp = thread->kstack_top; // No longer used directly
 
     uint64_t *stack_ptr = (uint64_t *)thread->kstack_top;
 
@@ -146,17 +157,26 @@ thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user)
 
     thread->context = ctx;
 
-    (void)is_user; // TODO: Handle user mode stack setup if needed
-
+    spinlock_acquire(&scheduler_lock);
     thread->next = process->threads;
     process->threads = thread;
+    spinlock_release(&scheduler_lock);
 
     return thread;
 }
 
 thread_t *get_current_thread(void)
 {
-    return current_thread;
+    cpu_t *cpu = get_cpu();
+    if (!cpu) return NULL;
+    return cpu->active_thread;
+}
+
+process_t *get_current_process(void)
+{
+    thread_t *t = get_current_thread();
+    if (t) return t->process;
+    return NULL;
 }
 
 void schedule(void)
@@ -165,18 +185,21 @@ void schedule(void)
     uint64_t rflags;
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
-    if (!current_thread)
+    cpu_t *cpu = get_cpu();
+    thread_t *curr = cpu->active_thread;
+
+    if (!curr)
     {
         if (rflags & 0x200)
             __asm__ volatile("sti");
         return;
     }
 
-    // printf("Schedule: current %d\n", current_thread->tid);
+    spinlock_acquire(&scheduler_lock);
 
     thread_t *next_thread = NULL;
-    process_t *p = current_thread->process;
-    thread_t *t = current_thread->next;
+    process_t *p = curr->process;
+    thread_t *t = curr->next;
 
     // Pass 1: Search from current->next to end of all lists.
     while (p)
@@ -202,7 +225,7 @@ void schedule(void)
         t = p->threads;
         while (t)
         {
-            if (t == current_thread)
+            if (t == curr)
                 goto check_done; // Reached current, stop
             if (t->state == THREAD_READY)
             {
@@ -216,9 +239,9 @@ void schedule(void)
 
 check_done:
 found:
-    if (next_thread && next_thread != current_thread)
+    if (next_thread && next_thread != curr)
     {
-        thread_t *prev = current_thread;
+        thread_t *prev = curr;
 
         // Switch address space if processes are different
         if (prev->process != next_thread->process)
@@ -233,21 +256,27 @@ found:
         syscall_set_stack(next_thread->kstack_top);
 
         // Save and restore user_rsp_scratch for syscalls
-        prev->saved_user_rsp = user_rsp_scratch;
-        user_rsp_scratch = next_thread->saved_user_rsp;
+        prev->saved_user_rsp = cpu->user_rsp;
+        cpu->user_rsp = next_thread->saved_user_rsp;
 
         // Save FPU state of previous thread
         save_fpu_state(&prev->fpu_state);
         // Restore FPU state of next thread
         restore_fpu_state(&next_thread->fpu_state);
 
-        current_thread = next_thread;
-        current_process = current_thread->process;
-        current_thread->state = THREAD_RUNNING;
+        cpu->active_thread = next_thread;
+        next_thread->state = THREAD_RUNNING;
         if (prev->state == THREAD_RUNNING)
             prev->state = THREAD_READY;
-        // printf("Switching to %d\n", next_thread->tid);
+        
         switch_to(prev, next_thread);
+        
+        // Lock is released by the new thread (either thread_trampoline or here)
+        spinlock_release(&scheduler_lock);
+    }
+    else
+    {
+        spinlock_release(&scheduler_lock);
     }
 
     // Restore interrupt state

@@ -2,13 +2,13 @@ from PIL import Image, ImageDraw, ImageFont
 import pathlib
 text = "experiment 64"
 font_path = "/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf"
-font_size = 48
+font_size = 32
 font = ImageFont.truetype(font_path, font_size)
 # measure text
 bbox = font.getbbox(text)
 text_width = bbox[2] - bbox[0]
 text_height = bbox[3] - bbox[1]
-padding = 20
+padding = 10
 width = text_width + padding * 2
 height = text_height + padding * 2
 img = Image.new("RGB", (width, height), (0, 0, 0))

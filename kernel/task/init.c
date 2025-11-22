@@ -17,7 +17,7 @@ void init_process_entry(void)
     __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
     if (!elf_load("/bin/init", &entry_point, &max_vaddr, (pml4_t)cr3))
     {
-        printf("Failed to load /bin/init\n");
+        boot_message(ERROR, "Failed to load /bin/init");
         while (1)
             __asm__("hlt");
     }
@@ -43,6 +43,7 @@ void init_process_entry(void)
     uint64_t rflags = 0x202;
 
     __asm__ volatile(
+        "swapgs\n"
         "mov %0, %%ds\n"
         "mov %0, %%es\n"
         "mov %0, %%fs\n"
@@ -62,7 +63,7 @@ void process_spawn_init(void)
 {
     process_t *init_proc = process_create("init");
     if (!init_proc)
-        printf("Failed to create init process\n");
+        boot_message(ERROR, "Failed to create init process");
 
     // Set init process PML4 to current kernel PML4
     uint64_t cr3;
@@ -71,7 +72,7 @@ void process_spawn_init(void)
 
     thread_t *t = thread_create(init_proc, init_process_entry, false);
     if (!t)
-        printf("Failed to create init thread\n");
+        boot_message(ERROR, "Failed to create init thread");
     else
-        printf("Created init thread %d\n", t->tid);
+        boot_message(INFO, "Created init thread %d", t->tid);
 }

@@ -2,6 +2,7 @@
 #include "string.h"
 #include "terminal.h"
 #include "fat32.h"
+#include "gpt.h"
 
 vfs_inode_t *vfs_root = 0;
 
@@ -11,18 +12,42 @@ void vfs_init()
     vfs_root = 0;
 }
 
+static void mount_callback(partition_info_t *part)
+{
+    if (vfs_root)
+        return; // Already mounted
+
+    const char *type = gpt_get_guid_name(part->type_guid);
+    // Check for Microsoft Basic Data (FAT32) or EFI System Partition
+    if (strcmp(type, "Microsoft Basic Data") == 0 || strcmp(type, "EFI System Partition") == 0)
+    {
+        boot_message(INFO, "VFS: Found candidate partition at LBA %ld", part->start_lba);
+        vfs_root = fat32_mount(part->drive, part->start_lba);
+        if (vfs_root)
+        {
+            boot_message(INFO, "VFS: Mounted FAT32 on / from LBA %ld", part->start_lba);
+        }
+    }
+}
+
 void vfs_mount_root(void)
 {
-    // Mount FAT32 partition (Drive 0, Partition 1 - LBA 2048)
-    // TODO: Use GPT to find this dynamically
-    vfs_root = fat32_mount(0, 2048);
-    if (vfs_root)
+    // Try to find partition via GPT on Drive 0
+    gpt_read_partitions(0, mount_callback);
+
+    if (!vfs_root)
     {
-        printf("VFS: Mounted FAT32 on /\n");
-    }
-    else
-    {
-        printf("VFS: Failed to mount FAT32\n");
+        boot_message(WARNING, "VFS: GPT mount failed, trying fallback LBA 2048");
+        // Fallback
+        vfs_root = fat32_mount(0, 2048);
+        if (vfs_root)
+        {
+            boot_message(INFO, "VFS: Mounted FAT32 on / (Fallback)");
+        }
+        else
+        {
+            boot_message(ERROR, "VFS: Failed to mount FAT32");
+        }
     }
 }
 

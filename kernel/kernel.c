@@ -14,10 +14,13 @@
 #include "bio.h"
 #include "test.h"
 #include "ide.h"
+#include "keyboard.h"
 #include "vfs.h"
 #include "syscall.h"
 #include "process.h"
 #include "boot.h"
+#include "smp.h"
+#include "io.h"
 
 static void kernel_splash_ascii(void)
 {
@@ -50,12 +53,14 @@ void kernel_splash(void)
         return;
     }
 
-    terminal_clear(0x00000000);
+    // terminal_clear(0x00000000);
 
-    const uint32_t splash_top_margin = 13; // Matches terminal newline height (8px font + 5px spacing)
+    int cursor_x, cursor_y_start;
+    terminal_get_cursor(&cursor_x, &cursor_y_start);
+
     const uint32_t splash_bottom_margin = 13;
     const uint32_t origin_x = 0;
-    uint32_t origin_y = (fb->height > splash_top_margin) ? splash_top_margin : 0;
+    uint32_t origin_y = (uint32_t)cursor_y_start;
 
     uint32_t max_width = fb->width - origin_x;
     uint32_t max_height = (fb->height > origin_y) ? (fb->height - origin_y) : 0;
@@ -82,9 +87,12 @@ void _start(void)
     enable_sse();
 
     uart_init();
+    smp_init_cpu0();
     gdt_init();
     idt_init();
     apic_init();
+    keyboard_init();
+    smp_boot_aps();
     syscall_init();
 
     uint64_t hhdm_offset = boot_get_hhdm_offset();
@@ -106,9 +114,7 @@ void _start(void)
 #else
     process_spawn_init();
 #endif
-
     vmm_finalize();
-
     kernel_splash();
 
     while (1)

@@ -34,6 +34,10 @@
 .endr
 
 isr_common_stub:
+    test byte ptr [rsp + 24], 3
+    jz 1f
+    swapgs
+1:
     push rax
     push rbx
     push rcx
@@ -68,6 +72,11 @@ isr_common_stub:
     pop rcx
     pop rbx
     pop rax
+    
+    test byte ptr [rsp + 24], 3
+    jz 1f
+    swapgs
+1:
     add rsp, 16
     iretq
 

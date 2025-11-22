@@ -77,17 +77,19 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     keyboard_handler_main();
+    apic_send_eoi();
 }
 
 static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(0);
+    apic_send_eoi();
 }
 
-static void ide_secondary_isr(struct interrupt_frame *frame)
+static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
-    (void)frame;
     ide_irq_handler(1);
+    apic_send_eoi();
 }
 
 void interrupt_handler(struct interrupt_frame *frame)
@@ -136,7 +138,7 @@ void interrupt_handler(struct interrupt_frame *frame)
 
     if (frame->int_no >= 32)
     {
-        apic_send_eoi();
+        // apic_send_eoi(); // Moved to individual handlers to avoid double EOI and handle Spurious Interrupts correctly
     }
 }
 
@@ -160,6 +162,11 @@ void idt_init(void)
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_PRIMARY, ide_primary_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_SECONDARY, ide_secondary_isr);
 
+    idt_reload();
+}
+
+void idt_reload(void)
+{
     __asm__ volatile("lidt %0" : : "m"(idtr));
     __asm__ volatile("sti");
 }

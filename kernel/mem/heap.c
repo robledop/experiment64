@@ -57,7 +57,7 @@ static size_t get_cache_size(int index)
 void heap_init(uint64_t hhdm_offset)
 {
     g_hhdm_offset = hhdm_offset;
-    printf("Heap Initialized. HHDM Offset: 0x%lx\n", g_hhdm_offset);
+    boot_message(INFO, "Heap Initialized. HHDM Offset: 0x%lx", g_hhdm_offset);
 }
 
 static void *alloc_big(size_t size)
@@ -188,7 +188,29 @@ void kfree(void *ptr)
         *(void **)ptr = header->free_list;
         header->free_list = ptr;
         header->free_count++;
-        // TODO: If slab is completely free, we could release the page.
+
+        // If slab is completely free, release the page.
+        size_t capacity = (PAGE_SIZE - sizeof(slab_header_t)) / header->obj_size;
+        if (header->free_count == capacity)
+        {
+            int index = get_cache_index(header->obj_size);
+            if (index >= 0)
+            {
+                slab_header_t **curr = &slab_caches[index];
+                while (*curr)
+                {
+                    if (*curr == header)
+                    {
+                        *curr = header->next;
+                        // Free the page
+                        void *phys = (void *)(page_start - g_hhdm_offset);
+                        pmm_free_pages(phys, 1);
+                        return;
+                    }
+                    curr = &(*curr)->next;
+                }
+            }
+        }
     }
     else
     {
@@ -214,7 +236,7 @@ void *krealloc(void *ptr, size_t new_size)
 
     if (header->magic != HEAP_MAGIC)
     {
-        printf("krealloc: Invalid pointer\n");
+        boot_message(ERROR, "krealloc: Invalid pointer");
         return NULL;
     }
 

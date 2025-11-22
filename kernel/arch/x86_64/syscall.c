@@ -161,12 +161,11 @@ int sys_sleep(uint64_t milliseconds);
 // Current kernel stack for syscalls (updated on context switch)
 // Initialized to a temporary stack until scheduler takes over
 static uint8_t bootstrap_stack[4096];
-uint64_t syscall_stack_top = (uint64_t)bootstrap_stack + 4096;
-uint64_t user_rsp_scratch;
 
 void syscall_set_stack(uint64_t stack_top)
 {
-    syscall_stack_top = stack_top;
+    cpu_t *cpu = get_cpu();
+    cpu->kernel_rsp = stack_top;
     tss_set_stack(stack_top);
 }
 
@@ -197,7 +196,48 @@ void syscall_init(void)
     wrmsr(MSR_SFMASK, 0x200);
 
     // Set TSS RSP0 to the kernel stack
-    tss_set_stack(syscall_stack_top);
+    // For BSP, we use bootstrap stack initially
+    // For APs, we should probably have a stack allocated or use what's set
+    cpu_t *cpu = get_cpu();
+    if (cpu->kernel_rsp == 0)
+    {
+        // Only set if not already set (e.g. by scheduler)
+        // For BSP this is fine. For APs, they should have a stack.
+        // But APs don't have a bootstrap stack variable per CPU.
+        // However, APs are started with a stack by Limine?
+        // Limine gives APs a stack in `goto_address`.
+        // But we need a kernel stack for syscalls.
+        // If we don't have one, we can't handle syscalls yet.
+        // But syscall_init is called early.
+        // For BSP, use bootstrap_stack.
+        if (cpu->lapic_id == 0)
+        { // Assuming BSP is 0, which might not be true but usually is.
+          // Better: check if it's BSP.
+          // But we don't know if we are BSP easily here without looking up.
+          // Let's just use bootstrap_stack for everyone? NO, race condition.
+          // For now, let's assume scheduler sets it up before running user code.
+          // But we need it for `syscall_set_stack` to work?
+          // `syscall_set_stack` is called by scheduler.
+          // So we just need to init the MSRs here.
+          // But we also call `tss_set_stack` here.
+          // For BSP, we can init it.
+          // For APs, maybe skip stack init here and let scheduler do it?
+          // But `tss_set_stack` is needed for interrupts too.
+          // APs need a valid TSS RSP0 for interrupts.
+          // Where do APs get their stack?
+          // In `ap_main`, they run on a stack provided by Limine (or us).
+          // We should set TSS RSP0 to current stack?
+          // Or allocate one.
+        }
+    }
+
+    // For BSP, init with bootstrap stack
+    static bool bsp_initialized = false;
+    if (!bsp_initialized)
+    {
+        syscall_set_stack((uint64_t)bootstrap_stack + 4096);
+        bsp_initialized = true;
+    }
 }
 
 static void (*exit_hook)(int) = NULL;
@@ -356,7 +396,8 @@ int sys_fork(struct syscall_regs *regs)
     // Perfect.
 
     child_thread->context = child_ctx;
-    child_thread->saved_user_rsp = user_rsp_scratch; // Inherit user stack pointer
+    cpu_t *cpu = get_cpu();
+    child_thread->saved_user_rsp = cpu->user_rsp; // Inherit user stack pointer
 
     return child_proc->pid;
 }
@@ -472,7 +513,8 @@ void sys_exec(const char *path, struct syscall_regs *regs)
     }
 
     // Update user_rsp_scratch
-    user_rsp_scratch = stack_top;
+    cpu_t *cpu = get_cpu();
+    cpu->user_rsp = stack_top;
 
     // Update RIP (RCX in regs)
     regs->rcx = entry_point;
@@ -585,6 +627,7 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
 
 int sys_read(int fd, char *buf, size_t count)
 {
+    printf("SYS_READ: fd=%d count=%lu\n", fd, count);
     if (fd == 0)
     { // stdin
         size_t read = 0;

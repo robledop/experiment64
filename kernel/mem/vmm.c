@@ -244,11 +244,11 @@ void vmm_finalize(void)
     if (kernel_pml4 != NULL)
     {
         vmm_switch_pml4(kernel_pml4);
-        printf("VMM Initialized.\n");
+        boot_message(INFO, "VMM Initialized.");
     }
     else
     {
-        printf("VMM Initialization Failed.\n");
+        boot_message(ERROR, "VMM Initialization Failed.");
         // We can't easily HCF here without including cpu.h, but let's just print for now.
         // The caller should handle critical failure if needed, or we add hcf() here.
         while (1)

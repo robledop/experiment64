@@ -76,6 +76,14 @@ void terminal_set_cursor(int x, int y)
         terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
 }
 
+void terminal_get_cursor(int *x, int *y)
+{
+    if (x)
+        *x = terminal_x;
+    if (y)
+        *y = terminal_y;
+}
+
 void terminal_set_color(uint32_t color)
 {
     terminal_color = color;
@@ -602,17 +610,17 @@ void printf(const char *format, ...)
     va_end(args);
 }
 
-void boot_message(warning_level_t level, const char *fmt, ...)
+void boot_message(t level, const char *fmt, ...)
 {
     switch (level)
     {
-    case WARNING_LEVEL_INFO:
+    case INFO:
         printf(KWHT "[ " KBGRN "INFO" KRESET " ] ");
         break;
-    case WARNING_LEVEL_WARNING:
+    case WARNING:
         printf(KWHT "[ " KYEL "WARNING" KRESET " ] ");
         break;
-    case WARNING_LEVEL_ERROR:
+    case ERROR:
         printf(KWHT "[ " KRED "ERROR" KRESET " ] ");
         break;
     }

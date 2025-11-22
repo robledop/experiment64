@@ -41,6 +41,12 @@ switch_to:
 
 .global thread_trampoline
 thread_trampoline:
+    # Release scheduler lock (held by previous thread)
+    # void spinlock_release(spinlock_t *lock);
+    # RDI = &scheduler_lock
+    lea rdi, [rip + scheduler_lock]
+    call spinlock_release
+
     sti
     call r12
     

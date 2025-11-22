@@ -1,5 +1,6 @@
 #include "gdt.h"
 #include "string.h"
+#include "cpu.h"
 
 #define GDT_ACCESS_PRESENT 0x80
 #define GDT_ACCESS_RING0 0x00
@@ -15,47 +16,21 @@
 #define GDT_FLAG_SIZE 0x40 // 32-bit
 #define GDT_FLAG_LONG 0x20 // 64-bit
 
-struct gdt_desc
-{
-    uint16_t limit;
-    uint16_t base_low;
-    uint8_t base_mid;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
-} __attribute__((packed));
-
-struct gdt_system_desc
-{
-    uint16_t limit;
-    uint16_t base_low;
-    uint8_t base_mid;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
-    uint32_t base_upper;
-    uint32_t reserved;
-} __attribute__((packed));
-
-struct gdt_ptr
-{
-    uint16_t limit;
-    uint64_t base;
-} __attribute__((packed));
-
-static struct gdt_desc gdt[7];
-static struct gdt_ptr gdtp;
-static struct tss_entry tss;
-
 void tss_set_stack(uint64_t stack)
 {
-    tss.rsp0 = stack;
+    cpu_t *cpu = get_cpu();
+    cpu->tss.rsp0 = stack;
 }
 
 void gdt_init(void)
 {
-    gdtp.limit = sizeof(gdt) - 1;
-    gdtp.base = (uint64_t)&gdt;
+    cpu_t *cpu = get_cpu();
+    struct gdt_desc *gdt = cpu->gdt;
+    struct tss_entry *tss = &cpu->tss;
+    struct gdt_ptr gdtp;
+
+    gdtp.limit = sizeof(struct gdt_desc) * 7 - 1;
+    gdtp.base = (uint64_t)gdt;
 
     // 0: Null Descriptor
     gdt[0] = (struct gdt_desc){0, 0, 0, 0, 0, 0};
@@ -91,11 +66,11 @@ void gdt_init(void)
                                0};
 
     // 5 & 6: TSS (0x28)
-    memset(&tss, 0, sizeof(tss));
-    tss.iomap_base = sizeof(tss); // Disable IO Map
+    memset(tss, 0, sizeof(struct tss_entry));
+    tss->iomap_base = sizeof(struct tss_entry); // Disable IO Map
 
-    uint64_t tss_base = (uint64_t)&tss;
-    uint64_t tss_limit = sizeof(tss) - 1;
+    uint64_t tss_base = (uint64_t)tss;
+    uint64_t tss_limit = sizeof(struct tss_entry) - 1;
 
     struct gdt_system_desc *tss_desc = (struct gdt_system_desc *)&gdt[5];
     tss_desc->limit = tss_limit & 0xFFFF;
@@ -112,6 +87,8 @@ void gdt_init(void)
     // Reload segments
     // We push the new CS (0x08) and the return address, then do a far return (retfq)
     // to reload CS. DS, ES, FS, GS, SS are loaded with 0x10.
+    // NOTE: We do NOT reload GS because it would clear the GS base address (MSR_GS_BASE)
+    // which holds our cpu_t pointer.
     __asm__ volatile(
         "pushq $0x08\n"
         "leaq 1f(%%rip), %%rax\n"
@@ -122,7 +99,6 @@ void gdt_init(void)
         "movw %%ax, %%ds\n"
         "movw %%ax, %%es\n"
         "movw %%ax, %%fs\n"
-        "movw %%ax, %%gs\n"
         "movw %%ax, %%ss\n"
         : : : "rax", "memory");
 

@@ -2,15 +2,11 @@
 .section .text
 .global syscall_entry
 .extern syscall_handler
-.extern syscall_stack_top
-.extern user_rsp_scratch
 
 syscall_entry:
-    # Save User RSP
-    mov [rip + user_rsp_scratch], rsp
-    
-    # Load Kernel RSP
-    mov rsp, [rip + syscall_stack_top]
+    swapgs
+    mov [gs:8], rsp      # Save User RSP to cpu->user_rsp
+    mov rsp, [gs:16]     # Load Kernel RSP from cpu->kernel_rsp
 
     # Save registers (that we want to preserve)
     push r11 # RFLAGS
@@ -71,7 +67,8 @@ syscall_return:
     pop r11
     
     # Restore User RSP
-    mov rsp, [rip + user_rsp_scratch]
+    mov rsp, [gs:8]
+    swapgs
     
     sysretq
 

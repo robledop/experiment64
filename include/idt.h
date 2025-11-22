@@ -13,5 +13,6 @@ struct interrupt_frame
 typedef void (*isr_handler_t)(struct interrupt_frame *frame);
 
 void idt_init(void);
+void idt_reload(void);
 void register_interrupt_handler(uint8_t vector, isr_handler_t handler);
 void register_trap_handler(uint8_t vector, isr_handler_t handler);

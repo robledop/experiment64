@@ -46,6 +46,13 @@ uint64_t rdmsr(uint32_t msr)
     return ((uint64_t)high << 32) | low;
 }
 
+cpu_t *get_cpu(void)
+{
+    cpu_t *cpu;
+    __asm__ volatile("mov %%gs:0, %0" : "=r"(cpu));
+    return cpu;
+}
+
 void hcf(void)
 {
     for (;;)

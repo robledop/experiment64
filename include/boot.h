@@ -4,3 +4,4 @@
 void boot_init(void);
 void boot_init_terminal(void);
 uint64_t boot_get_hhdm_offset(void);
+struct limine_smp_response *boot_get_smp_response(void);

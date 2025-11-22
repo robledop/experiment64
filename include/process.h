@@ -69,14 +69,20 @@ typedef struct Thread
 } thread_t;
 
 extern process_t *process_list;
-extern process_t *current_process;
-extern thread_t *current_thread;
+// extern process_t *current_process; // Removed
+// extern thread_t *current_thread;   // Removed
 extern volatile uint64_t scheduler_ticks;
 
 void process_init(void);
 process_t *process_create(const char *name);
 thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user);
 thread_t *get_current_thread(void);
+process_t *get_current_process(void);
+
+#define current_thread (get_current_thread())
+#define current_process (get_current_process())
+
+void scheduler_tick(void);
 void scheduler_tick(void);
 
 void schedule(void);

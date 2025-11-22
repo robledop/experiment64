@@ -163,12 +163,12 @@ void ide_init(void)
         }
     }
 
-    printf("IDE Initialized.\n");
+    boot_message(INFO, "IDE Initialized.");
     for (int i = 0; i < 4; i++)
     {
         if (ide_devices[i].exists)
         {
-            printf("IDE Drive %d: %s - %d Sectors\n", i, ide_devices[i].model, ide_devices[i].size);
+            boot_message(INFO, "IDE Drive %d: %s - %d Sectors", i, ide_devices[i].model, ide_devices[i].size);
         }
     }
 

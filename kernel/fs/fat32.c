@@ -33,7 +33,7 @@ int fat32_init(fat32_fs_t *fs, uint8_t drive_index, uint32_t partition_lba)
         // Some formatters might not set this exactly, but let's check bytes per sector
         if (bpb->bytes_per_sector != 512)
         {
-            printf("FAT32: Invalid bytes per sector: %d\n", bpb->bytes_per_sector);
+            boot_message(ERROR, "FAT32: Invalid bytes per sector: %d", bpb->bytes_per_sector);
             kfree(bpb);
             return 1;
         }
@@ -62,10 +62,10 @@ int fat32_init(fat32_fs_t *fs, uint8_t drive_index, uint32_t partition_lba)
     uint32_t data_sectors = total_sectors - data_start_block;
     fs->total_clusters = data_sectors / fs->sectors_per_cluster;
 
-    printf("FAT32 Init: Drive %d, Partition LBA %d\n", drive_index, partition_lba);
-    printf("  Root Cluster: %d\n", fs->root_cluster);
-    printf("  Sectors Per Cluster: %d\n", fs->sectors_per_cluster);
-    printf("  First Data Sector: %d\n", fs->first_data_sector);
+    boot_message(INFO, "FAT32 Init: Drive %d, Partition LBA %d", drive_index, partition_lba);
+    boot_message(INFO, "  Root Cluster: %d", fs->root_cluster);
+    boot_message(INFO, "  Sectors Per Cluster: %d", fs->sectors_per_cluster);
+    boot_message(INFO, "  First Data Sector: %d", fs->first_data_sector);
 
     kfree(bpb);
     return 0;
@@ -454,20 +454,16 @@ static uint64_t fat32_vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size
     return bytes_read;
 }
 
-static uint64_t fat32_vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+static uint64_t fat32_vfs_write([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint64_t offset, [[maybe_unused]] uint64_t size, [[maybe_unused]] uint8_t *buffer)
 {
     // TODO: Implement full write support via VFS (allocating clusters etc)
     // For now, we can reuse fat32_write_file if we had the filename, but we only have inode.
     // This requires refactoring fat32_write_file to work with inodes/clusters directly.
-    (void)node;
-    (void)offset;
-    (void)size;
-    (void)buffer;
     return 0;
 }
 
-static void fat32_vfs_open(vfs_inode_t *node) { (void)node; }
-static void fat32_vfs_close(vfs_inode_t *node) { (void)node; }
+static void fat32_vfs_open([[maybe_unused]] vfs_inode_t *node) {}
+static void fat32_vfs_close([[maybe_unused]] vfs_inode_t *node) {}
 
 static vfs_dirent_t *fat32_vfs_readdir(vfs_inode_t *node, uint32_t index)
 {

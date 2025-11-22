@@ -5,12 +5,13 @@
 #include "limine.h"
 
 #define TERMINAL_MARGIN 10
+// Do not change this
 typedef enum warning_level
 {
-    WARNING_LEVEL_INFO,
-    WARNING_LEVEL_WARNING,
-    WARNING_LEVEL_ERROR,
-} warning_level_t;
+    INFO,
+    WARNING,
+    ERROR,
+} t;
 
 void terminal_init(struct limine_framebuffer *fb);
 void terminal_putc(char c);
@@ -18,6 +19,7 @@ void terminal_write(const char *data, size_t size);
 void terminal_write_string(const char *data);
 void printf(const char *format, ...);
 void terminal_set_cursor(int x, int y);
+void terminal_get_cursor(int *x, int *y);
 void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
-void boot_message(warning_level_t level, const char *fmt, ...);
+void boot_message(t level, const char *fmt, ...);

@@ -16,6 +16,10 @@ __attribute__((used, section(".requests"))) volatile struct limine_hhdm_request 
     .id = LIMINE_HHDM_REQUEST,
     .revision = 0};
 
+__attribute__((used, section(".requests"))) volatile struct limine_smp_request smp_request = {
+    .id = LIMINE_SMP_REQUEST,
+    .revision = 0};
+
 void boot_init(void)
 {
     if (LIMINE_BASE_REVISION_SUPPORTED == false)
@@ -45,4 +49,9 @@ uint64_t boot_get_hhdm_offset(void)
     if (hhdm_request.response)
         return hhdm_request.response->offset;
     return 0;
+}
+
+struct limine_smp_response *boot_get_smp_response(void)
+{
+    return smp_request.response;
 }

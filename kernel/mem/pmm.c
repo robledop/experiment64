@@ -30,7 +30,7 @@ void pmm_init(uint64_t hhdm_offset)
 {
     if (memmap_request.response == NULL)
     {
-        printf("Error: Limine memmap request failed\n");
+        boot_message(ERROR, "Error: Limine memmap request failed");
         for (;;)
             __asm__("hlt");
     }
@@ -73,7 +73,7 @@ void pmm_init(uint64_t hhdm_offset)
 
     if (bitmap == NULL)
     {
-        printf("Error: Could not find memory for PMM bitmap\n");
+        boot_message(ERROR, "Error: Could not find memory for PMM bitmap");
         for (;;)
             __asm__("hlt");
     }
@@ -104,7 +104,7 @@ void pmm_init(uint64_t hhdm_offset)
     // 5. Mark the first page (0x0) as used to avoid null pointer confusion
     bitmap_set(0);
 
-    printf("PMM Initialized. Highest Address: 0x%lx, Bitmap Size: %lu bytes\n", highest_addr, bitmap_size);
+    boot_message(INFO, "PMM Initialized. Highest Address: 0x%lx, Bitmap Size: %lu bytes", highest_addr, bitmap_size);
 }
 
 void *pmm_alloc_page(void)

@@ -12,14 +12,14 @@ static buffer_head_t *lru_tail = NULL;
 
 void bio_init(void)
 {
-    printf("BIO: Init starting...\n");
+    boot_message(INFO, "BIO: Init starting...");
     memset(cache, 0, sizeof(cache));
     for (int i = 0; i < BIO_CACHE_SIZE; i++)
     {
         cache[i].data = kmalloc(BIO_BLOCK_SIZE);
         if (!cache[i].data)
         {
-            printf("BIO: kmalloc failed at index %d\n", i);
+            boot_message(ERROR, "BIO: kmalloc failed at index %d", i);
             return;
         }
         // Initialize as free/empty
@@ -37,7 +37,7 @@ void bio_init(void)
             lru_tail = &cache[i];
         }
     }
-    printf("Buffered I/O Initialized. Cache Size: %d blocks\n", BIO_CACHE_SIZE);
+    boot_message(INFO, "Buffered I/O Initialized. Cache Size: %d blocks", BIO_CACHE_SIZE);
 }
 
 static void move_to_head(buffer_head_t *bh)
