@@ -104,6 +104,7 @@ void _start(void)
     enable_sse();
     uart_init();
     boot_init();
+    boot_init_terminal();
     smp_init_cpu0();
     gdt_init();
     idt_init();
@@ -120,7 +121,7 @@ void _start(void)
     ide_init();
     bio_init();
     vfs_init();
-    boot_init_terminal();
+
     vfs_mount_root();
 
 #ifdef TEST_MODE
