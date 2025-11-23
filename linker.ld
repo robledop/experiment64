@@ -21,7 +21,10 @@ SECTIONS
 
     .data : {
         *(.data .data.*)
-        . = ALIGN(8);
+        . = ALIGN(16);
+        __start_test_array = .;
+        KEEP(*(.test_array))
+        __stop_test_array = .;
         KEEP(*(.requests_start))
         KEEP(*(.requests))
         KEEP(*(.requests_end))
