@@ -25,6 +25,14 @@ void fork_child_trampoline(void)
     fork_return();
 }
 
+static void idle_task(void)
+{
+    while (1)
+    {
+        __asm__ volatile("hlt");
+    }
+}
+
 #ifdef TEST_MODE
 // #define SCHED_LOG(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 #define SCHED_LOG(fmt, ...) ((void)0)
@@ -93,14 +101,24 @@ void process_init(void)
     cpu_t *cpu = get_cpu();
     kernel_thread->kstack_top = cpu->kernel_rsp;
 
-    kernel_thread->is_idle = true;
-    idle_thread = kernel_thread;
-
+    kernel_thread->is_idle = false;
+    
     kernel_process->threads = kernel_thread;
     process_list = kernel_process;
 
     // Set current thread for this CPU
     cpu->active_thread = kernel_thread;
+
+    // Create the actual idle thread
+    idle_thread = thread_create(kernel_process, idle_task, false);
+    if (idle_thread)
+    {
+        idle_thread->is_idle = true;
+    }
+    else
+    {
+        boot_message(ERROR, "Process: Failed to create idle thread");
+    }
 
     boot_message(INFO, "Process: Initialized kernel process PID %d", kernel_process->pid);
 }

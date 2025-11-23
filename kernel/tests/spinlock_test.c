@@ -14,6 +14,7 @@ TEST(test_spinlock_basic)
 
     spinlock_release(&lock);
     ASSERT(!lock.locked);
+    return true;
 }
 
 static spinlock_t g_lock;
@@ -83,4 +84,5 @@ TEST(test_spinlock_contention)
 
     ASSERT(g_thread_done);
     ASSERT(g_counter == 1);
+    return true;
 }
