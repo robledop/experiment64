@@ -14,6 +14,7 @@
 
 extern void syscall_entry(void);
 extern void fork_return(void);
+extern void fork_child_trampoline(void);
 
 #define TIMER_TICK_MS 10
 
@@ -151,7 +152,7 @@ void sys_exit(int code);
 int sys_wait(int *status);
 int sys_getpid(void);
 int sys_read(int fd, char *buf, size_t count);
-void sys_write(int fd, const char *buf, size_t count);
+int sys_write(int fd, const char *buf, size_t count);
 void sys_exec(const char *path, struct syscall_regs *regs);
 int sys_spawn(const char *path);
 int sys_fork(struct syscall_regs *regs);
@@ -247,12 +248,21 @@ void syscall_set_exit_hook(void (*hook)(int))
     exit_hook = hook;
 }
 
-void sys_write(int fd, const char *buf, size_t count)
+int sys_write(int fd, const char *buf, size_t count)
 {
     if (fd == 1 || fd == 2) // stdout or stderr
     {
         terminal_write(buf, count);
+        return count;
     }
+
+    if (fd < 0 || fd >= MAX_FDS || !current_process->fd_table[fd])
+        return -1;
+
+    file_descriptor_t *desc = current_process->fd_table[fd];
+    uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
+    desc->offset += written;
+    return written;
 }
 
 void sys_exit(int code)
@@ -265,6 +275,7 @@ void sys_exit(int code)
     current_process->exit_code = code;
     current_process->terminated = true;
     current_thread->state = THREAD_TERMINATED;
+
     // Save current thread state
     thread_t *current = get_current_thread();
     if (current)
@@ -285,6 +296,8 @@ void spawn_trampoline(void)
     uint64_t entry = current_thread->user_entry;
 
     __asm__ volatile(
+        "cli\n"
+        "swapgs\n"
         "mov %0, %%ds\n"
         "mov %0, %%es\n"
         "mov %0, %%fs\n"
@@ -383,7 +396,7 @@ int sys_fork(struct syscall_regs *regs)
     struct context *child_ctx = (struct context *)((uint64_t)child_regs - context_size);
     memset(child_ctx, 0, context_size);
 
-    child_ctx->rip = (uint64_t)fork_return;
+    child_ctx->rip = (uint64_t)fork_child_trampoline;
     // Other registers in context can be 0, they are kernel registers restored by switch_to.
     // The stack pointer (rsp) will be set to child_ctx by switch_to logic (it loads rsp from thread->context).
     // Wait, switch_to does: mov [prev->context], rsp; mov rsp, [next->context]; pop ... ret
@@ -413,9 +426,21 @@ int sys_chdir(const char *path)
     if (!node)
         return -1;
     if ((node->flags & 0x07) != VFS_DIRECTORY)
+    {
+        if (node != vfs_root)
+        {
+            vfs_close(node);
+            kfree(node);
+        }
         return -1;
+    }
 
     safe_copy(current_process->cwd, sizeof(current_process->cwd), abs_path);
+    if (node != vfs_root)
+    {
+        vfs_close(node);
+        kfree(node);
+    }
     return 0;
 }
 
@@ -443,7 +468,11 @@ int sys_wait(int *status)
     while (1)
     {
         bool has_children = false;
+
+        spinlock_acquire(&scheduler_lock);
         process_t *p = process_list;
+        process_t *prev = NULL;
+
         while (p)
         {
             if (p->parent == current_process)
@@ -453,15 +482,29 @@ int sys_wait(int *status)
                 {
                     if (status)
                         *status = p->exit_code;
+
                     int pid = p->pid;
-                    p->parent = NULL; // Detach
+
+                    // Remove from list
+                    if (prev)
+                        prev->next = p->next;
+                    else
+                        process_list = p->next;
+
+                    spinlock_release(&scheduler_lock);
+
+                    process_destroy(p);
                     return pid;
                 }
             }
+            prev = p;
             p = p->next;
         }
+        spinlock_release(&scheduler_lock);
+
         if (!has_children)
             return -1;
+
         schedule();
     }
 }
@@ -586,8 +629,7 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     switch (syscall_number)
     {
     case SYS_WRITE:
-        sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
-        return 0;
+        return sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
     case SYS_EXIT:
         sys_exit((int)arg1);
         return 0;
@@ -627,27 +669,20 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
 
 int sys_read(int fd, char *buf, size_t count)
 {
-    printf("SYS_READ: fd=%d count=%lu\n", fd, count);
     if (fd == 0)
     { // stdin
         size_t read = 0;
         while (read < count)
         {
+            if (read > 0 && !keyboard_has_char())
+            {
+                break;
+            }
+
             char c = keyboard_get_char();
             if (c)
             {
                 buf[read++] = c;
-            }
-            else
-            {
-                if (read == 0)
-                {
-                    schedule();
-                }
-                else
-                {
-                    break;
-                }
             }
         }
         return read;
@@ -708,13 +743,9 @@ int sys_close(int fd)
     if (!desc)
         return -1;
 
-    vfs_close(desc->inode);
-    // We should probably free the inode if it was allocated by resolve_path/finddir?
-    // vfs_finddir allocates a new inode struct in fat32.
-    // Yes, fat32_vfs_finddir does kmalloc.
-    // So we should free desc->inode too.
     if (desc->inode != vfs_root)
     {
+        vfs_close(desc->inode);
         kfree(desc->inode);
     }
     kfree(desc);

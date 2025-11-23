@@ -47,7 +47,7 @@ static uint32_t apic_get_gsi(uint8_t irq, uint16_t *flags)
     return irq; // Default 1:1 mapping
 }
 
-__attribute__((unused)) static uint32_t lapic_read(uint32_t reg)
+uint32_t apic_lapic_read(uint32_t reg)
 {
     return *((volatile uint32_t *)(lapic_base + reg));
 }
@@ -150,7 +150,7 @@ void apic_init(void)
     apic_local_init();
 
     // Get current LAPIC ID
-    uint32_t lapic_id = lapic_read(LAPIC_ID) >> 24;
+    uint32_t lapic_id = apic_lapic_read(LAPIC_ID) >> 24;
 
     // Map Keyboard (IRQ 1) to Vector 33 (0x21)
     uint16_t kbd_flags = 0;

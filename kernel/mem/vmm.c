@@ -211,6 +211,50 @@ void vmm_switch_pml4(pml4_t pml4)
     __asm__ volatile("mov %0, %%cr3" : : "r"(pml4) : "memory");
 }
 
+static void free_page_table_level(uint64_t *table, int level)
+{
+    for (int i = 0; i < 512; i++)
+    {
+        if (table[i] & PTE_PRESENT)
+        {
+            uint64_t phys = table[i] & 0x000FFFFFFFFFF000;
+            if (level > 1)
+            {
+                // Recurse
+                uint64_t *next_table = (uint64_t *)(phys + g_hhdm_offset);
+                free_page_table_level(next_table, level - 1);
+                // Free the table page
+                pmm_free_page((void *)phys);
+            }
+            else
+            {
+                // Level 1 (PT), this points to a physical page. Free it.
+                pmm_free_page((void *)phys);
+            }
+        }
+    }
+}
+
+void vmm_destroy_pml4(pml4_t pml4)
+{
+    uint64_t *pml4_virt = (uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
+
+    // Only free user space (0-255)
+    for (int i = 0; i < 256; i++)
+    {
+        if (pml4_virt[i] & PTE_PRESENT)
+        {
+            uint64_t phys = pml4_virt[i] & 0x000FFFFFFFFFF000;
+            uint64_t *pdpt = (uint64_t *)(phys + g_hhdm_offset);
+            free_page_table_level(pdpt, 3); // PDPT is level 3
+            pmm_free_page((void *)phys);    // Free the PDPT itself
+        }
+    }
+
+    // Free the PML4 itself
+    pmm_free_page((void *)pml4);
+}
+
 uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt)
 {
     size_t pml4_idx = (virt >> 39) & 0x1FF;

@@ -7,6 +7,8 @@ build/
 limine/
 rootfs/
 .venv/
+.cache/
+compile_commands.json
 copilot.*
 image.iso
 image.hdd

@@ -12,9 +12,24 @@
 #define VFS_SYMLINK 0x06
 #define VFS_MOUNTPOINT 0x08
 
-struct vfs_inode;
+struct stat
+{
+    int dev;
+    int ino;
+    int type;
+    int nlink;
+    uint64_t size;
+    int ref;
+    uint32_t i_atime;
+    uint32_t i_ctime;
+    uint32_t i_mtime;
+    uint32_t i_dtime;
+    int i_uid;
+    int i_gid;
+    int i_flags;
+};
 
-extern struct vfs_inode *vfs_root;
+struct vfs_inode;
 
 typedef struct
 {
@@ -22,24 +37,22 @@ typedef struct
     uint32_t inode;
 } vfs_dirent_t;
 
-typedef uint64_t (*vfs_read_t)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-typedef uint64_t (*vfs_write_t)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-typedef void (*vfs_open_t)(struct vfs_inode *node);
-typedef void (*vfs_close_t)(struct vfs_inode *node);
-typedef vfs_dirent_t *(*vfs_readdir_t)(struct vfs_inode *node, uint32_t index);
-typedef struct vfs_inode *(*vfs_finddir_t)(struct vfs_inode *node, char *name);
+struct inode_operations
+{
+    uint64_t (*read)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
+    uint64_t (*write)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
+    void (*open)(struct vfs_inode *node);
+    void (*close)(struct vfs_inode *node);
+    vfs_dirent_t *(*readdir)(struct vfs_inode *node, uint32_t index);
+    struct vfs_inode *(*finddir)(struct vfs_inode *node, char *name);
+};
 
 typedef struct vfs_inode
 {
     uint32_t flags;
     uint32_t inode;
     uint64_t size;
-    vfs_read_t read;
-    vfs_write_t write;
-    vfs_open_t open;
-    vfs_close_t close;
-    vfs_readdir_t readdir;
-    vfs_finddir_t finddir;
+    struct inode_operations *iops;
     struct vfs_inode *ptr; // Used for mountpoints and symlinks
     void *device;          // Private data for the driver
 } vfs_inode_t;

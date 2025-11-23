@@ -14,6 +14,21 @@ volatile uint64_t scheduler_ticks = 0;
 
 spinlock_t scheduler_lock;
 
+extern void fork_return(void);
+
+void fork_child_trampoline(void)
+{
+    spinlock_release(&scheduler_lock);
+    __asm__ volatile("sti" ::: "memory");
+    fork_return();
+}
+
+#ifdef TEST_MODE
+#define SCHED_LOG(fmt, ...) ((void)0)
+#else
+#define SCHED_LOG(fmt, ...) ((void)0)
+#endif
+
 void scheduler_tick(void)
 {
     scheduler_ticks++;
@@ -77,7 +92,7 @@ void process_init(void)
 
     kernel_process->threads = kernel_thread;
     process_list = kernel_process;
-    
+
     // Set current thread for this CPU
     cpu->active_thread = kernel_thread;
 
@@ -96,7 +111,7 @@ process_t *process_create(const char *name)
     spinlock_release(&scheduler_lock);
 
     strncpy(proc->name, name, PROCESS_NAME_MAX - 1);
-    
+
     process_t *current = get_current_process();
     if (current && current->cwd[0])
     {
@@ -115,6 +130,54 @@ process_t *process_create(const char *name)
     spinlock_release(&scheduler_lock);
 
     return proc;
+}
+
+void process_destroy(process_t *proc)
+{
+    if (!proc)
+        return;
+
+    // Free threads
+    thread_t *t = proc->threads;
+    while (t)
+    {
+        thread_t *next = t->next;
+
+        // Free kernel stack
+        // Stack size is hardcoded 16384 in thread_create
+        void *stack_base = (void *)(t->kstack_top - 16384);
+        kfree(stack_base);
+
+        kfree(t);
+        t = next;
+    }
+
+    // Free file descriptors
+    for (int i = 0; i < MAX_FDS; i++)
+    {
+        if (proc->fd_table[i])
+        {
+            file_descriptor_t *desc = proc->fd_table[i];
+            if (desc->inode)
+            {
+                vfs_close(desc->inode);
+                if (desc->inode != vfs_root)
+                {
+                    kfree(desc->inode);
+                }
+            }
+            kfree(desc);
+            proc->fd_table[i] = NULL;
+        }
+    }
+
+    // Free address space
+    if (proc->pml4 && proc->pid != 1)
+    {
+        vmm_destroy_pml4(proc->pml4);
+    }
+
+    kfree(proc);
 }
 
 thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]] bool is_user)
@@ -168,34 +231,34 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
 thread_t *get_current_thread(void)
 {
     cpu_t *cpu = get_cpu();
-    if (!cpu) return NULL;
+    if (!cpu)
+        return NULL;
     return cpu->active_thread;
 }
 
 process_t *get_current_process(void)
 {
     thread_t *t = get_current_thread();
-    if (t) return t->process;
+    if (t)
+        return t->process;
     return NULL;
 }
 
-void schedule(void)
+// Internal scheduler function. Assumes scheduler_lock is held.
+static void sched(void)
 {
-    // Save interrupt state and disable interrupts
-    uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-
     cpu_t *cpu = get_cpu();
     thread_t *curr = cpu->active_thread;
 
-    if (!curr)
+#ifdef TEST_MODE
+    if (curr)
     {
-        if (rflags & 0x200)
-            __asm__ volatile("sti");
-        return;
+        SCHED_LOG("schedule enter PID %d TID %d state=%d",
+                  curr->process ? curr->process->pid : -1,
+                  curr->tid,
+                  curr->state);
     }
-
-    spinlock_acquire(&scheduler_lock);
+#endif
 
     thread_t *next_thread = NULL;
     process_t *p = curr->process;
@@ -268,16 +331,114 @@ found:
         next_thread->state = THREAD_RUNNING;
         if (prev->state == THREAD_RUNNING)
             prev->state = THREAD_READY;
-        
+
+        SCHED_LOG("switch PID %d TID %d (state=%d) -> PID %d TID %d (state=%d)",
+                  prev->process ? prev->process->pid : -1,
+                  prev->tid,
+                  prev->state,
+                  next_thread->process ? next_thread->process->pid : -1,
+                  next_thread->tid,
+                  next_thread->state);
+
         switch_to(prev, next_thread);
-        
+
         // Lock is released by the new thread (either thread_trampoline or here)
-        spinlock_release(&scheduler_lock);
+        // spinlock_release(&scheduler_lock); // Handled by caller
     }
     else
     {
-        spinlock_release(&scheduler_lock);
+        if (curr)
+        {
+            SCHED_LOG("no switch, staying on PID %d TID %d (state=%d)",
+                      curr->process ? curr->process->pid : -1, curr->tid, curr->state);
+        }
+        // spinlock_release(&scheduler_lock); // Handled by caller
     }
+}
+
+void schedule(void)
+{
+    // Save interrupt state and disable interrupts
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    thread_t *curr = get_current_thread();
+    if (!curr)
+    {
+        if (rflags & 0x200)
+            __asm__ volatile("sti");
+        return;
+    }
+
+    spinlock_acquire(&scheduler_lock);
+    sched();
+    spinlock_release(&scheduler_lock);
+
+    // Restore interrupt state
+    if (rflags & 0x200)
+        __asm__ volatile("sti");
+}
+
+void thread_sleep(void *chan, spinlock_t *lk)
+{
+    thread_t *curr = get_current_thread();
+    if (!curr)
+        return;
+
+    // Save interrupt state and disable interrupts to avoid deadlock with scheduler_lock
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    // Must acquire scheduler_lock to change state and sleep atomically
+    if (lk != &scheduler_lock)
+    {
+        spinlock_acquire(&scheduler_lock);
+        if (lk)
+            spinlock_release(lk);
+    }
+
+    curr->chan = chan;
+    curr->state = THREAD_BLOCKED;
+
+    sched();
+
+    curr->chan = NULL;
+
+    if (lk != &scheduler_lock)
+    {
+        spinlock_release(&scheduler_lock);
+        if (lk)
+            spinlock_acquire(lk);
+    }
+
+    // Restore interrupt state
+    if (rflags & 0x200)
+        __asm__ volatile("sti");
+}
+
+void thread_wakeup(void *chan)
+{
+    // Save interrupt state and disable interrupts
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    spinlock_acquire(&scheduler_lock);
+    process_t *p = process_list;
+    while (p)
+    {
+        thread_t *t = p->threads;
+        while (t)
+        {
+            if (t->state == THREAD_BLOCKED && t->chan == chan)
+            {
+                t->state = THREAD_READY;
+                t->chan = NULL;
+            }
+            t = t->next;
+        }
+        p = p->next;
+    }
+    spinlock_release(&scheduler_lock);
 
     // Restore interrupt state
     if (rflags & 0x200)

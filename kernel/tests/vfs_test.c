@@ -38,10 +38,10 @@ TEST(test_vfs_write)
     const char *new_data = "WriteTest";
     uint64_t written = vfs_write(file, 0, strlen(new_data), (uint8_t *)new_data);
 
-    bool passed = (written == 0);
+    bool passed = (written == strlen(new_data));
     if (!passed)
     {
-        printf("VFS: Write should return 0 (unimplemented), got %lu\n", written);
+        printf("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
     kfree(file);
@@ -61,8 +61,8 @@ TEST(test_vfs_read)
     memset(buffer, 0, 32);
     uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
-    // "Hello FAT32\n" is 12 bytes
-    bool passed = (bytes >= 11 && strncmp(buffer, "Hello FAT32", 11) == 0);
+    // "WriteTest" overwrote start of file
+    bool passed = (bytes >= 9 && strncmp(buffer, "WriteTest", 9) == 0);
     if (!passed)
     {
         printf("VFS: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);

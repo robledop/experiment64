@@ -1,5 +1,7 @@
+#define TEST_MODE
 #ifdef TEST_MODE
 #include "test.h"
+#include <stdbool.h>
 #include "syscall.h"
 #include "idt.h"
 #include "gdt.h"
@@ -14,6 +16,72 @@
 static void *test_env[64];
 static volatile int test_exit_code = 0;
 static int test_runner_pid = 0;
+static uint64_t syscall_test_rflags = 0;
+static bool syscall_test_rflags_valid = false;
+
+static inline void syscall_test_disable_interrupts(void)
+{
+    uint64_t flags;
+    __asm__ volatile("pushfq; pop %0" : "=r"(flags)::"memory");
+    __asm__ volatile("cli" ::: "memory");
+    syscall_test_rflags = flags;
+    syscall_test_rflags_valid = true;
+}
+
+static inline void syscall_test_restore_interrupts(void)
+{
+    if (!syscall_test_rflags_valid)
+        return;
+    if (syscall_test_rflags & (1 << 9))
+        __asm__ volatile("sti" ::: "memory");
+    syscall_test_rflags_valid = false;
+}
+
+static void log_swapgs_event(const char *msg, uint64_t a, uint64_t b)
+{
+    printf("[syscall_test] %s: arg0=%#lx arg1=%#lx\n", msg, a, b);
+}
+
+static void enter_user_mode(uint64_t rip, uint64_t rsp)
+{
+    const uint64_t user_cs = 0x20 | 3;
+    const uint64_t user_ss = 0x18 | 3;
+    const uint64_t rflags = 0x202;
+
+    log_swapgs_event("enter_user_mode before swapgs", rip, rsp);
+
+    __asm__ volatile(
+        "cli\n"
+        "swapgs\n"
+        "mov %0, %%ds\n"
+        "mov %0, %%es\n"
+        "mov %0, %%fs\n"
+        "mov %0, %%gs\n"
+        "pushq %0\n"
+        "pushq %1\n"
+        "pushq %2\n"
+        "pushq %3\n"
+        "pushq %4\n"
+        "iretq\n"
+        :
+        : "r"(user_ss), "r"(rsp), "r"(rflags), "r"(user_cs), "r"(rip)
+        : "memory");
+    __builtin_unreachable();
+}
+
+static void syscall_test_prepare_longjmp(void)
+{
+    log_swapgs_event("exit_hook swapgs before longjmp", current_process ? current_process->pid : 0, 0);
+    syscall_test_disable_interrupts();
+    __asm__ volatile("swapgs" ::: "memory");
+}
+
+static void syscall_test_resume_after_longjmp(void)
+{
+    __asm__ volatile("swapgs" ::: "memory");
+    log_swapgs_event("resumed after longjmp", current_process ? current_process->pid : 0, test_exit_code);
+    syscall_test_restore_interrupts();
+}
 
 static uint8_t write_exit_stub_bytes[] = {
     0xB8, 0x00, 0x00, 0x00, 0x00,                               // mov eax, 0 (SYS_WRITE)
@@ -49,8 +117,15 @@ static uint8_t spawn_stub_bytes[] = {
     0xB8, 0x08, 0x00, 0x00, 0x00, // mov eax, 8 (SYS_SPAWN)
     0xBF, 0x00, 0x01, 0x40, 0x00, // mov edi, 0x400100 (path)
     0x0F, 0x05,                   // syscall
-    // RAX has PID
-    0x89, 0xC7,                   // mov edi, eax
+
+    0x50,                         // push rax (Save PID)
+    0x48, 0x83, 0xEC, 0x08,       // sub rsp, 8
+    0x48, 0x89, 0xE7,             // mov rdi, rsp
+    0xB8, 0x05, 0x00, 0x00, 0x00, // mov eax, 5 (SYS_WAIT)
+    0x0F, 0x05,                   // syscall
+    0x48, 0x83, 0xC4, 0x08,       // add rsp, 8
+    0x5F,                         // pop rdi (Restore PID to EDI)
+
     0xB8, 0x03, 0x00, 0x00, 0x00, // mov eax, 3 (SYS_EXIT)
     0x0F, 0x05                    // syscall
 };
@@ -201,6 +276,7 @@ static void syscall_test_exit_handler(int code)
     test_exit_code = code;
     // We caught the sys_exit from user mode!
     // Return to the test function stack
+    syscall_test_prepare_longjmp();
     __builtin_longjmp(test_env, 1);
 }
 
@@ -240,24 +316,7 @@ TEST(test_syscall_write_exit)
     {
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16; // Top of page, aligned
-        uint64_t user_cs = 0x20 | 3;                 // User Code Selector (Ring 3)
-        uint64_t user_ss = 0x18 | 3;                 // User Data Selector (Ring 3)
-        uint64_t rflags = 0x202;                     // Interrupts enabled (IF=1), Reserved(1)=1
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n" // SS
-            "pushq %1\n" // RSP
-            "pushq %2\n" // RFLAGS
-            "pushq %3\n" // CS
-            "pushq %4\n" // RIP
-            "iretq\n"
-            :
-            : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base)
-            : "memory");
+        enter_user_mode(user_base, user_stack);
 
         // Should not reach here
         printf("Syscall Test: IRETQ failed to jump\n");
@@ -265,6 +324,7 @@ TEST(test_syscall_write_exit)
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         // Returned from longjmp (sys_exit handler)
         // Verify results
         bool passed = true;
@@ -319,29 +379,13 @@ TEST(test_syscall_getpid)
     {
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n" // SS
-            "pushq %1\n" // RSP
-            "pushq %2\n" // RFLAGS
-            "pushq %3\n" // CS
-            "pushq %4\n" // RIP
-            "iretq\n"
-            :
-            : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base)
-            : "memory");
+        enter_user_mode(user_base, user_stack);
 
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         // Returned from longjmp
         bool passed = true;
 
@@ -395,29 +439,13 @@ TEST(test_syscall_yield)
     {
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n" // SS
-            "pushq %1\n" // RSP
-            "pushq %2\n" // RFLAGS
-            "pushq %3\n" // CS
-            "pushq %4\n" // RIP
-            "iretq\n"
-            :
-            : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base)
-            : "memory");
+        enter_user_mode(user_base, user_stack);
 
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         // Returned from longjmp
         bool passed = true;
 
@@ -464,7 +492,7 @@ TEST(test_syscall_spawn)
     memcpy(virt_page, spawn_stub_bytes, sizeof(spawn_stub_bytes));
 
     // Copy the path string to 0x400100
-    const char *path = "/BIN/PROG";
+    const char *path = "/bin/prog";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
 
     // 4. Register exit hook
@@ -475,29 +503,13 @@ TEST(test_syscall_spawn)
     {
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n" // SS
-            "pushq %1\n" // RSP
-            "pushq %2\n" // RFLAGS
-            "pushq %3\n" // CS
-            "pushq %4\n" // RIP
-            "iretq\n"
-            :
-            : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base)
-            : "memory");
+        enter_user_mode(user_base, user_stack);
 
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         // Returned from longjmp
         bool passed = true;
 
@@ -551,29 +563,13 @@ TEST(test_syscall_fork)
     {
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n" // SS
-            "pushq %1\n" // RSP
-            "pushq %2\n" // RFLAGS
-            "pushq %3\n" // CS
-            "pushq %4\n" // RIP
-            "iretq\n"
-            :
-            : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base)
-            : "memory");
+        enter_user_mode(user_base, user_stack);
 
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         // Returned from longjmp
         bool passed = true;
 
@@ -616,26 +612,12 @@ TEST(test_syscall_sbrk)
     if (__builtin_setjmp(test_env) == 0)
     {
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "iretq\n"
-            : : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base) : "memory");
+        enter_user_mode(user_base, user_stack);
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
             printf("Syscall Test: SBRK successful\n");
@@ -662,7 +644,7 @@ TEST(test_syscall_file_io)
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, file_io_stub_bytes, sizeof(file_io_stub_bytes));
 
-    const char *path = "/test.txt";
+    const char *path = "/TEST.TXT";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
     const char *data = "Hello FileIO";
     memcpy((void *)((uint64_t)virt_page + 0x200), data, strlen(data) + 1);
@@ -672,26 +654,12 @@ TEST(test_syscall_file_io)
     if (__builtin_setjmp(test_env) == 0)
     {
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "iretq\n"
-            : : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base) : "memory");
+        enter_user_mode(user_base, user_stack);
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
             printf("Syscall Test: FileIO successful\n");
@@ -726,26 +694,12 @@ TEST(test_syscall_chdir)
     if (__builtin_setjmp(test_env) == 0)
     {
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "iretq\n"
-            : : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base) : "memory");
+        enter_user_mode(user_base, user_stack);
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
             printf("Syscall Test: CHDIR successful\n");
@@ -777,26 +731,12 @@ TEST(test_syscall_sleep)
     if (__builtin_setjmp(test_env) == 0)
     {
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "iretq\n"
-            : : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base) : "memory");
+        enter_user_mode(user_base, user_stack);
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
             printf("Syscall Test: SLEEP successful\n");
@@ -823,7 +763,7 @@ TEST(test_syscall_exec)
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, exec_stub_bytes, sizeof(exec_stub_bytes));
 
-    const char *path = "/BIN/PROG";
+    const char *path = "/bin/prog";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
     uint32_t expected_status = 123;
     memcpy((void *)((uint64_t)virt_page + 0x200), &expected_status, sizeof(uint32_t));
@@ -833,26 +773,12 @@ TEST(test_syscall_exec)
     if (__builtin_setjmp(test_env) == 0)
     {
         uint64_t user_stack = user_base + 4096 - 16;
-        uint64_t user_cs = 0x20 | 3;
-        uint64_t user_ss = 0x18 | 3;
-        uint64_t rflags = 0x202;
-
-        __asm__ volatile(
-            "mov %0, %%ds\n"
-            "mov %0, %%es\n"
-            "mov %0, %%fs\n"
-            "mov %0, %%gs\n"
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "iretq\n"
-            : : "r"(user_ss), "r"(user_stack), "r"(rflags), "r"(user_cs), "r"(user_base) : "memory");
+        enter_user_mode(user_base, user_stack);
         return false;
     }
     else
     {
+        syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
             printf("Syscall Test: EXEC successful\n");

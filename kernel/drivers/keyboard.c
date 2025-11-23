@@ -1,16 +1,23 @@
 #include "keyboard.h"
 #include "io.h"
 #include "pic.h"
-#include "apic.h"
 #include "terminal.h"
+#include "uart.h"
+#include "process.h"
 #include <stdbool.h>
 
 #define KEYBOARD_DATA_PORT 0x60
 
 #define BUFFER_SIZE 128
-static char buffer[BUFFER_SIZE];
-static int write_ptr = 0;
-static int read_ptr = 0;
+// Volatile is necessary here because these variables are modified by the interrupt handler
+// and read by the main thread (sys_read -> keyboard_get_char). Without volatile,
+// the compiler might cache the values in registers and not see the updates from the ISR,
+// causing the shell to think the buffer is empty (freeze).
+static volatile char buffer[BUFFER_SIZE];
+static volatile int write_ptr = 0;
+static volatile int read_ptr = 0;
+
+static thread_t *keyboard_waiter = NULL;
 
 static bool shift_pressed = false;
 static bool ctrl_pressed = false;
@@ -34,139 +41,13 @@ static char scancode_to_char_shifted[] = {
     0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
     0, 0, 0, '+', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-static bool wait_input_clear(void)
-{
-    for (int i = 0; i < 100000; i++)
-    {
-        if ((inb(0x64) & 0x02) == 0)
-            return true;
-    }
-    return false;
-}
-
-static bool wait_output_full(void)
-{
-    for (int i = 0; i < 100000; i++)
-    {
-        if (inb(0x64) & 0x01)
-            return true;
-    }
-    return false;
-}
-
-static bool controller_write_command(uint8_t cmd)
-{
-    if (!wait_input_clear())
-        return false;
-    outb(0x64, cmd);
-    return true;
-}
-
-static bool controller_write_data(uint8_t data)
-{
-    if (!wait_input_clear())
-        return false;
-    outb(0x60, data);
-    return true;
-}
-
-static int controller_read_data(void)
-{
-    if (!wait_output_full())
-        return -1;
-    return inb(0x60);
-}
-
-static void flush_output_buffer(void)
-{
-    while (inb(0x64) & 0x01)
-        inb(0x60);
-}
-
-static void warn_if_false(bool ok, const char *message)
-{
-    if (!ok)
-        printf("[ WARN ] Keyboard: %s\n", message);
-}
-
 void keyboard_init(void)
 {
-    // Keep the PS/2 controller quiet while we reconfigure it.
-    __asm__ volatile("cli");
-
-    warn_if_false(controller_write_command(0xAD), "Failed to disable keyboard port");
-    warn_if_false(controller_write_command(0xA7), "Failed to disable mouse port");
-    flush_output_buffer();
-
-    warn_if_false(controller_write_command(0x20), "Failed to request config byte");
-    int config_read = controller_read_data();
-    if (config_read < 0)
-        config_read = 0;
-    uint8_t config = (uint8_t)config_read;
-
-    config |= 0x01;  // IRQ1 enable
-    config |= 0x40;  // Translation to Set 1
-    config |= 0x20;  // Disable second port
-    config &= ~0x10; // Enable first port clock
-
-    warn_if_false(controller_write_command(0x60), "Failed to select config write");
-    warn_if_false(controller_write_data(config), "Failed to write config byte");
-
-    warn_if_false(controller_write_command(0xAA), "Failed to start controller self-test");
-    int response = controller_read_data();
-    if (response != 0x55)
-        printf("[ WARN ] Keyboard: Controller self-test returned %x\n", response);
-
-    warn_if_false(controller_write_command(0xAB), "Failed to test first port");
-    response = controller_read_data();
-    if (response != 0x00)
-        printf("[ WARN ] Keyboard: Keyboard port test returned %x\n", response);
-
-    warn_if_false(controller_write_command(0xAE), "Failed to enable keyboard port");
-
-    warn_if_false(controller_write_data(0xFF), "Failed to send keyboard reset");
-    response = controller_read_data();
-    if (response != 0xFA)
-        printf("[ WARN ] Keyboard: Reset ACK missing (%x)\n", response);
-    response = controller_read_data();
-    if (response != 0xAA)
-        printf("[ WARN ] Keyboard: BAT missing (%x)\n", response);
-
-    warn_if_false(controller_write_data(0xF0), "Failed to select scan code set");
-    response = controller_read_data();
-    if (response != 0xFA)
-        printf("[ WARN ] Keyboard: Scan code select ACK missing (%x)\n", response);
-    warn_if_false(controller_write_data(0x01), "Failed to set scan code set 1");
-    response = controller_read_data();
-    if (response != 0xFA)
-        printf("[ WARN ] Keyboard: Scan code value ACK missing (%x)\n", response);
-
-    warn_if_false(controller_write_data(0xF4), "Failed to enable keyboard scanning");
-    response = controller_read_data();
-    if (response != 0xFA)
-        printf("[ WARN ] Keyboard: Enable scanning ACK missing (%x)\n", response);
-
-    flush_output_buffer();
-
-    printf("[ INFO ] Keyboard: Init done. Config: %x\n", config);
-
-    uint32_t low = ioapic_read(0x10 + 2 * 1);
-    uint32_t high = ioapic_read(0x10 + 2 * 1 + 1);
-    printf("[ INFO ] Keyboard: IOAPIC Redirection Entry 1: %x %x\n", high, low);
-
-    __asm__ volatile("sti");
 }
 
 void keyboard_handler_main(void)
 {
-    uint8_t status = inb(0x64);
-    if ((status & 0x01) == 0)
-        return;
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
-
-    uint32_t low = ioapic_read(0x10 + 2 * 1);
-    uint32_t high = ioapic_read(0x10 + 2 * 1 + 1);
-    printf("KBD: s=%x c=%x IOAPIC=%x %x\n", status, scancode, high, low);
 
     // Handle modifiers
     if (scancode == 0x2A || scancode == 0x36) // Left/Right Shift Press
@@ -215,7 +96,7 @@ void keyboard_handler_main(void)
         // Key press
         if (scancode < sizeof(scancode_to_char))
         {
-            char c = 0;
+            char c = scancode_to_char[scancode];
             bool use_shift = shift_pressed;
 
             // Handle Caps Lock for letters
@@ -250,17 +131,53 @@ void keyboard_handler_main(void)
                 {
                     buffer[write_ptr] = c;
                     write_ptr = next;
+
+                    if (keyboard_waiter)
+                    {
+                        keyboard_waiter->state = THREAD_READY;
+                        keyboard_waiter = NULL;
+                    }
                 }
             }
         }
     }
 }
 
+bool keyboard_has_char(void)
+{
+    return read_ptr != write_ptr;
+}
+
 char keyboard_get_char(void)
 {
-    if (read_ptr == write_ptr)
-        return 0;
-    char c = buffer[read_ptr];
-    read_ptr = (read_ptr + 1) % BUFFER_SIZE;
-    return c;
+    while (1)
+    {
+        // Disable interrupts to check buffer and sleep atomically
+        uint64_t rflags;
+        __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+        if (read_ptr != write_ptr)
+        {
+            char c = buffer[read_ptr];
+            read_ptr = (read_ptr + 1) % BUFFER_SIZE;
+            // Restore interrupts
+            if (rflags & 0x200)
+                __asm__ volatile("sti");
+            return c;
+        }
+
+        // Buffer empty, sleep
+        thread_t *cur = get_current_thread();
+        if (cur)
+        {
+            keyboard_waiter = cur;
+            cur->state = THREAD_BLOCKED;
+        }
+
+        schedule();
+
+        // Restore interrupts if they were enabled before (schedule restores flags, but just in case)
+        // Actually schedule restores flags, so if we entered with cli, we return with cli.
+        // We loop back to check buffer.
+    }
 }

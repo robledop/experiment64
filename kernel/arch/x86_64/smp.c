@@ -19,7 +19,7 @@ static void ap_main(struct limine_smp_info *info)
 {
     cpu_t *cpu = (cpu_t *)info->extra_argument;
     wrmsr(MSR_GS_BASE, (uint64_t)cpu);
-    wrmsr(MSR_KERNEL_GS_BASE, 0);
+    wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
 
     gdt_init();
     idt_reload();
@@ -55,7 +55,7 @@ void smp_init_cpu0(void)
             cpus[i].active_thread = NULL;
 
             wrmsr(MSR_GS_BASE, (uint64_t)&cpus[i]);
-            wrmsr(MSR_KERNEL_GS_BASE, 0);
+            wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)&cpus[i]);
             break;
         }
     }

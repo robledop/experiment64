@@ -22,12 +22,22 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     if (vfs_read(node, 0, sizeof(header), (uint8_t *)&header) != sizeof(header))
     {
         printf("ELF: Failed to read header\n");
+        if (node != vfs_root)
+        {
+            vfs_close(node);
+            kfree(node);
+        }
         return false;
     }
 
     if (*(uint32_t *)header.e_ident != ELF_MAGIC)
     {
         printf("ELF: Invalid magic\n");
+        if (node != vfs_root)
+        {
+            vfs_close(node);
+            kfree(node);
+        }
         return false;
     }
 
@@ -38,6 +48,11 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     {
         printf("ELF: Failed to read program headers\n");
         kfree(phdrs);
+        if (node != vfs_root)
+        {
+            vfs_close(node);
+            kfree(node);
+        }
         return false;
     }
 
@@ -70,6 +85,11 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
                 if (!phys)
                 {
                     kfree(phdrs);
+                    if (node != vfs_root)
+                    {
+                        vfs_close(node);
+                        kfree(node);
+                    }
                     return false;
                 }
                 // Map as writable initially to copy data
@@ -111,5 +131,10 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
     kfree(phdrs);
     *entry_point = header.e_entry;
+    if (node != vfs_root)
+    {
+        vfs_close(node);
+        kfree(node);
+    }
     return true;
 }

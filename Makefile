@@ -15,7 +15,7 @@ define DEFAULT_VAR =
 endef
 
 # Toolchain configuration.
-$(eval $(call DEFAULT_VAR,CC,cc))
+$(eval $(call DEFAULT_VAR,CC,gcc))
 $(eval $(call DEFAULT_VAR,LD,ld))
 $(eval $(call DEFAULT_VAR,CFLAGS,-O2 -g -Wall -Wextra -pipe))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
@@ -28,10 +28,12 @@ override CFLAGS += \
     -Iinclude \
     -std=c23 \
     -ffreestanding \
+    -nostdlib \
     -fno-stack-protector \
     -fno-stack-check \
     -fno-lto \
     -fPIE \
+    -ggdb \
     -m64 \
     -march=x86-64 \
     -mno-80387 \
@@ -53,6 +55,8 @@ override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
 override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
+QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log
+
 .PHONY: all
 all: $(KERNEL)
 
@@ -72,7 +76,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) image.iso image.hdd test.log part.img
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) image.hdd test.log part.img
 	$(MAKE) -C user clean
 
 .PHONY: distclean
@@ -98,8 +102,24 @@ run: clean
 	$(MAKE) image.hdd
 	qemu-system-x86_64 -M pc -m 2G -smp 4 -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
 
+
+.PHONY: run-gdb
+run-gdb: clean
+	$(MAKE) image.hdd
+	qemu-system-x86_64 -M pc -m 2G -smp 4 -drive file=image.hdd,format=raw -display gtk,zoom-to-fit=on ${QEMUGDB}
+
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
 	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -serial stdio -display none -device isa-debug-exit,iobase=0x501,iosize=0x04 | tee test.log
 	grep "ALL TESTS PASSED" test.log
+
+.PHONY: tests-gdb
+tests-gdb: clean
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
+	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} | tee test.log
+
+
+.PHONY: bear
+bear: clean
+	bear -- $(MAKE) $(KERNEL) userland -j22

@@ -43,6 +43,7 @@ void init_process_entry(void)
     uint64_t rflags = 0x202;
 
     __asm__ volatile(
+        "cli\n"
         "swapgs\n"
         "mov %0, %%ds\n"
         "mov %0, %%es\n"
