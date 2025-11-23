@@ -12,6 +12,21 @@
 #include "heap.h"
 #include <stdint.h>
 
+#ifdef TEST_MODE
+volatile uint64_t test_syscall_count = 0;
+volatile uint64_t test_syscall_last_num = 0;
+volatile uint64_t test_syscall_last_arg1 = 0;
+#endif
+
+uint8_t bootstrap_stack[4096];
+
+void syscall_set_stack(uint64_t stack)
+{
+    cpu_t *cpu = get_cpu();
+    cpu->kernel_rsp = stack;
+    tss_set_stack(stack);
+}
+
 extern void syscall_entry(void);
 extern void fork_return(void);
 extern void fork_child_trampoline(void);
@@ -153,28 +168,12 @@ int sys_wait(int *status);
 int sys_getpid(void);
 int sys_read(int fd, char *buf, size_t count);
 int sys_write(int fd, const char *buf, size_t count);
-void sys_exec(const char *path, struct syscall_regs *regs);
+int sys_exec(const char *path, struct syscall_regs *regs);
 int sys_spawn(const char *path);
 int sys_fork(struct syscall_regs *regs);
 int sys_chdir(const char *path);
 int sys_sleep(uint64_t milliseconds);
-
-// Current kernel stack for syscalls (updated on context switch)
-// Initialized to a temporary stack until scheduler takes over
-static uint8_t bootstrap_stack[4096];
-
-void syscall_set_stack(uint64_t stack_top)
-{
-    cpu_t *cpu = get_cpu();
-    cpu->kernel_rsp = stack_top;
-    tss_set_stack(stack_top);
-}
-
-#ifdef TEST_MODE
-volatile uint64_t test_syscall_count = 0;
-volatile uint64_t test_syscall_last_num = 0;
-volatile uint64_t test_syscall_last_arg1 = 0;
-#endif
+int sys_mknod(const char *path, int mode, int dev);
 
 void syscall_init(void)
 {
@@ -415,6 +414,95 @@ int sys_fork(struct syscall_regs *regs)
     return child_proc->pid;
 }
 
+int sys_getpid(void)
+{
+    return current_process->pid;
+}
+
+int sys_wait(int *status)
+{
+    while (1)
+    {
+        bool has_children = false;
+        process_t *p = process_list;
+        process_t *prev = NULL;
+        while (p)
+        {
+            if (p->parent == current_process)
+            {
+                has_children = true;
+                if (p->terminated)
+                {
+                    if (status)
+                    {
+                        if ((uint64_t)status < 0x800000000000)
+                            *status = p->exit_code;
+                    }
+                    int pid = p->pid;
+
+                    // Remove from list
+                    if (prev)
+                        prev->next = p->next;
+                    else
+                        process_list = p->next;
+
+                    return pid;
+                }
+            }
+            prev = p;
+            p = p->next;
+        }
+        if (!has_children)
+        {
+            return -1;
+        }
+        schedule();
+    }
+}
+
+int sys_exec(const char *path, struct syscall_regs *regs)
+{
+    if (!path || !*path)
+        return -1;
+    char abs_path[SYSCALL_MAX_PATH];
+    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        return -1;
+
+    pml4_t new_pml4 = vmm_new_pml4();
+    if (!new_pml4)
+        return -1;
+
+    uint64_t entry_point;
+    uint64_t max_vaddr;
+    if (!elf_load(abs_path, &entry_point, &max_vaddr, new_pml4))
+    {
+        // vmm_destroy_pml4(new_pml4); // Not implemented fully?
+        return -1;
+    }
+
+    // Switch to new PML4
+    // pml4_t old_pml4 = current_process->pml4;
+    current_process->pml4 = new_pml4;
+    vmm_switch_pml4(new_pml4);
+    // vmm_destroy_pml4(old_pml4);
+
+    uint64_t stack_top = 0x7FFFFFFFF000;
+    uint64_t stack_size = 4 * 4096;
+    uint64_t stack_base = stack_top - stack_size;
+
+    for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
+    {
+        void *phys = pmm_alloc_page();
+        vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+    }
+
+    current_process->heap_end = max_vaddr;
+    regs->rcx = entry_point;
+    get_cpu()->user_rsp = stack_top;
+
+    return 0;
+}
+
 int sys_chdir(const char *path)
 {
     if (!path || !*path)
@@ -446,139 +534,28 @@ int sys_chdir(const char *path)
 
 int sys_sleep(uint64_t milliseconds)
 {
-    if (milliseconds == 0)
-    {
-        schedule();
-        return 0;
-    }
-
-    uint64_t ticks = (milliseconds + TIMER_TICK_MS - 1) / TIMER_TICK_MS;
+    uint64_t start = scheduler_ticks;
+    uint64_t ticks = milliseconds / TIMER_TICK_MS;
     if (ticks == 0)
         ticks = 1;
 
-    uint64_t target = scheduler_ticks + ticks;
-    current_thread->sleep_until = target;
-    current_thread->state = THREAD_BLOCKED;
-    schedule();
+    while (scheduler_ticks < start + ticks)
+    {
+        schedule();
+    }
     return 0;
 }
 
-int sys_wait(int *status)
+int sys_mknod(const char *path, int mode, int dev)
 {
-    while (1)
-    {
-        bool has_children = false;
+    if ((uint64_t)path >= 0x800000000000) // Check if user pointer
+        return -1;
 
-        spinlock_acquire(&scheduler_lock);
-        process_t *p = process_list;
-        process_t *prev = NULL;
+    char kpath[VFS_MAX_PATH];
+    safe_copy(kpath, sizeof(kpath), path);
+    simplify_path(kpath);
 
-        while (p)
-        {
-            if (p->parent == current_process)
-            {
-                has_children = true;
-                if (p->terminated)
-                {
-                    if (status)
-                        *status = p->exit_code;
-
-                    int pid = p->pid;
-
-                    // Remove from list
-                    if (prev)
-                        prev->next = p->next;
-                    else
-                        process_list = p->next;
-
-                    spinlock_release(&scheduler_lock);
-
-                    process_destroy(p);
-                    return pid;
-                }
-            }
-            prev = p;
-            p = p->next;
-        }
-        spinlock_release(&scheduler_lock);
-
-        if (!has_children)
-            return -1;
-
-        schedule();
-    }
-}
-
-int sys_getpid()
-{
-    return current_process->pid;
-}
-
-// Need to declare sys_read
-int sys_read(int fd, char *buf, size_t count);
-
-void sys_exec(const char *path, struct syscall_regs *regs)
-{
-    if (!path || !*path)
-        return;
-    char abs_path[SYSCALL_MAX_PATH];
-    resolve_user_path(path, abs_path, sizeof(abs_path));
-
-    uint64_t entry_point;
-    uint64_t max_vaddr = 0;
-    uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
-    if (!elf_load(abs_path, &entry_point, &max_vaddr, (pml4_t)cr3))
-    {
-        printf("sys_exec: Failed to load %s\n", path);
-        return;
-    }
-    current_process->heap_end = max_vaddr;
-
-    // Allocate new stack
-    uint64_t stack_top = 0x7FFFFFFFF000;
-    uint64_t stack_size = 4 * 4096;
-    uint64_t stack_base = stack_top - stack_size;
-
-    // uint64_t cr3; // Already declared
-    // __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
-    pml4_t pml4 = (pml4_t)cr3;
-
-    for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
-    {
-        void *phys = pmm_alloc_page();
-        if (!phys)
-        {
-            printf("sys_exec: OOM stack\n");
-            return;
-        }
-        vmm_map_page(pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-    }
-
-    // Update user_rsp_scratch
-    cpu_t *cpu = get_cpu();
-    cpu->user_rsp = stack_top;
-
-    // Update RIP (RCX in regs)
-    regs->rcx = entry_point;
-
-    // Reset RFLAGS (R11 in regs)
-    regs->r11 = 0x202;
-
-    // Clear registers
-    regs->rdi = 0;
-    regs->rsi = 0;
-    regs->rdx = 0;
-    regs->r10 = 0;
-    regs->r8 = 0;
-    regs->r9 = 0;
-    // regs->rax is not in struct syscall_regs, but return value of handler sets it.
-    regs->rbx = 0;
-    regs->rbp = 0;
-    regs->r12 = 0;
-    regs->r13 = 0;
-    regs->r14 = 0;
-    regs->r15 = 0;
+    return vfs_mknod(kpath, mode, dev);
 }
 
 int64_t sys_sbrk(int64_t increment)
@@ -661,6 +638,8 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_chdir((const char *)arg1);
     case SYS_SLEEP:
         return sys_sleep(arg1);
+    case SYS_MKNOD:
+        return sys_mknod((const char *)arg1, (int)arg2, (int)arg3);
     default:
         printf("Unknown syscall: %lu\n", syscall_number);
         return -1;
