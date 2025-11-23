@@ -7,7 +7,7 @@
 #include "syscall.h"
 #include "spinlock.h"
 
-process_t *process_list = NULL;
+LIST_HEAD(process_list);
 process_t *kernel_process = NULL;
 thread_t *idle_thread = NULL;
 static int next_pid = 1;
@@ -45,20 +45,18 @@ void scheduler_tick(void)
     scheduler_ticks++;
 
     spinlock_acquire(&scheduler_lock);
-    process_t *p = process_list;
-    while (p)
+    process_t *p;
+    list_for_each_entry(p, &process_list, list)
     {
-        thread_t *t = p->threads;
-        while (t)
+        thread_t *t;
+        list_for_each_entry(t, &p->threads, list)
         {
             if (t->state == THREAD_BLOCKED && t->sleep_until && t->sleep_until <= scheduler_ticks)
             {
                 t->state = THREAD_READY;
                 t->sleep_until = 0;
             }
-            t = t->next;
         }
-        p = p->next;
     }
     spinlock_release(&scheduler_lock);
 }
@@ -102,9 +100,11 @@ void process_init(void)
     kernel_thread->kstack_top = cpu->kernel_rsp;
 
     kernel_thread->is_idle = false;
-    
-    kernel_process->threads = kernel_thread;
-    process_list = kernel_process;
+
+    INIT_LIST_HEAD(&kernel_process->threads);
+    list_add_tail(&kernel_thread->list, &kernel_process->threads);
+
+    list_add_tail(&kernel_process->list, &process_list);
 
     // Set current thread for this CPU
     cpu->active_thread = kernel_thread;
@@ -148,10 +148,14 @@ process_t *process_create(const char *name)
         proc->cwd[1] = '\0';
     }
 
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
     spinlock_acquire(&scheduler_lock);
-    proc->next = process_list;
-    process_list = proc;
+    INIT_LIST_HEAD(&proc->threads);
+    list_add_tail(&proc->list, &process_list);
     spinlock_release(&scheduler_lock);
+    if (rflags & 0x200)
+        __asm__ volatile("sti");
 
     return proc;
 }
@@ -162,10 +166,10 @@ void process_destroy(process_t *proc)
         return;
 
     // Free threads
-    thread_t *t = proc->threads;
-    while (t)
+    thread_t *t, *next_t;
+    list_for_each_entry_safe(t, next_t, &proc->threads, list)
     {
-        thread_t *next = t->next;
+        list_del(&t->list);
 
         // Free kernel stack
         // Stack size is hardcoded 16384 in thread_create
@@ -173,7 +177,6 @@ void process_destroy(process_t *proc)
         kfree(stack_base);
 
         kfree(t);
-        t = next;
     }
 
     // Free file descriptors
@@ -200,6 +203,14 @@ void process_destroy(process_t *proc)
     {
         vmm_destroy_pml4(proc->pml4);
     }
+
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+    spinlock_acquire(&scheduler_lock);
+    list_del(&proc->list);
+    spinlock_release(&scheduler_lock);
+    if (rflags & 0x200)
+        __asm__ volatile("sti");
 
     kfree(proc);
 }
@@ -244,10 +255,13 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
 
     thread->context = ctx;
 
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
     spinlock_acquire(&scheduler_lock);
-    thread->next = process->threads;
-    process->threads = thread;
+    list_add_tail(&thread->list, &process->threads);
     spinlock_release(&scheduler_lock);
+    if (rflags & 0x200)
+        __asm__ volatile("sti");
 
     return thread;
 }
@@ -285,46 +299,71 @@ static void sched(void)
 #endif
 
     thread_t *next_thread = NULL;
+    if (!curr)
+        return;
+
     process_t *p = curr->process;
-    thread_t *t = curr->next;
 
-    // Pass 1: Search from current->next to end of all lists.
-    while (p)
+    // 1. Search remaining threads in current process
+    list_head_t *t_node = curr->list.next;
+    while (t_node != &p->threads)
     {
-        while (t)
+        thread_t *t = list_entry(t_node, thread_t, list);
+        if (t->state == THREAD_READY && !t->is_idle)
+        {
+            next_thread = t;
+            goto found;
+        }
+        t_node = t_node->next;
+    }
+
+    // 2. Search subsequent processes
+    list_head_t *p_node = p->list.next;
+    while (p_node != &process_list)
+    {
+        process_t *next_p = list_entry(p_node, process_t, list);
+        thread_t *t;
+        list_for_each_entry(t, &next_p->threads, list)
         {
             if (t->state == THREAD_READY && !t->is_idle)
             {
                 next_thread = t;
                 goto found;
             }
-            t = t->next;
         }
-        p = p->next;
-        if (p)
-            t = p->threads;
+        p_node = p_node->next;
     }
 
-    // Pass 2: Search from beginning of all lists to current.
-    p = process_list;
-    while (p)
+    // 3. Search from beginning of process list to current process
+    p_node = process_list.next;
+    while (p_node != &p->list)
     {
-        t = p->threads;
-        while (t)
+        process_t *prev_p = list_entry(p_node, process_t, list);
+        thread_t *t;
+        list_for_each_entry(t, &prev_p->threads, list)
         {
-            if (t == curr)
-                goto check_done; // Reached current, stop
             if (t->state == THREAD_READY && !t->is_idle)
             {
                 next_thread = t;
                 goto found;
             }
-            t = t->next;
         }
-        p = p->next;
+        p_node = p_node->next;
     }
 
-check_done:
+    // 4. Search current process from start to current thread
+    t_node = p->threads.next;
+    while (t_node != &curr->list)
+    {
+        thread_t *t = list_entry(t_node, thread_t, list);
+        if (t->state == THREAD_READY && !t->is_idle)
+        {
+            next_thread = t;
+            goto found;
+        }
+        t_node = t_node->next;
+    }
+
     if (!next_thread)
     {
         next_thread = idle_thread;
@@ -452,20 +491,18 @@ void thread_wakeup(void *chan)
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
     spinlock_acquire(&scheduler_lock);
-    process_t *p = process_list;
-    while (p)
+    process_t *p;
+    list_for_each_entry(p, &process_list, list)
     {
-        thread_t *t = p->threads;
-        while (t)
+        thread_t *t;
+        list_for_each_entry(t, &p->threads, list)
         {
             if (t->state == THREAD_BLOCKED && t->chan == chan)
             {
                 t->state = THREAD_READY;
                 t->chan = NULL;
             }
-            t = t->next;
         }
-        p = p->next;
     }
     spinlock_release(&scheduler_lock);
 

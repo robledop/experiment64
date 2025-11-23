@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <stddef.h>
+#include "list.h"
 
 #define BIO_BLOCK_SIZE 512
 
@@ -12,8 +12,7 @@ typedef struct buffer_head
     uint8_t *data;
     uint8_t flags;
     uint32_t ref_count;
-    struct buffer_head *next; // For LRU or Hash
-    struct buffer_head *prev;
+    list_head_t list; // For LRU
 } buffer_head_t;
 
 #define BIO_FLAG_VALID 0x01

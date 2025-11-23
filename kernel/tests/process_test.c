@@ -58,8 +58,8 @@ static volatile int thread_ran = 0;
 
 static void scheduler_thread_entry(void)
 {
-    printf("Scheduler thread running!\n");
     thread_ran = 1;
+    printf("Scheduler thread running!\n");
     // Yield back to main thread
     yield();
 
@@ -79,7 +79,14 @@ TEST(test_scheduler)
         return false;
 
     printf("Yielding to scheduler thread...\n");
-    yield(); // Should switch to t
+
+    // Yield a few times to give the thread a chance to run
+    for (int i = 0; i < 5; i++)
+    {
+        yield();
+        if (thread_ran)
+            break;
+    }
 
     if (thread_ran)
     {

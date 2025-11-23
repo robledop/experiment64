@@ -22,8 +22,6 @@
 #include "smp.h"
 #include "io.h"
 
-void kernel_main_task(void);
-
 void shutdown()
 {
     // Exit QEMU
@@ -139,17 +137,4 @@ void _start(void)
     {
         __asm__ volatile("hlt");
     }
-}
-
-void kernel_main_task(void)
-{
-#ifdef TEST_MODE
-    run_tests();
-#else
-    process_spawn_init();
-#endif
-    vmm_finalize();
-    kernel_splash();
-
-    // If we return, the thread will exit
 }

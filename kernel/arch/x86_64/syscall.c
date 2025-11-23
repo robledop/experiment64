@@ -424,9 +424,8 @@ int sys_wait(int *status)
     while (1)
     {
         bool has_children = false;
-        process_t *p = process_list;
-        process_t *prev = NULL;
-        while (p)
+        process_t *p, *next_p;
+        list_for_each_entry_safe(p, next_p, &process_list, list)
         {
             if (p->parent == current_process)
             {
@@ -440,17 +439,11 @@ int sys_wait(int *status)
                     }
                     int pid = p->pid;
 
-                    // Remove from list
-                    if (prev)
-                        prev->next = p->next;
-                    else
-                        process_list = p->next;
+                    process_destroy(p);
 
                     return pid;
                 }
             }
-            prev = p;
-            p = p->next;
         }
         if (!has_children)
         {

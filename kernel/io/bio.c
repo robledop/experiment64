@@ -7,8 +7,7 @@
 #define BIO_CACHE_SIZE 128
 
 static buffer_head_t cache[BIO_CACHE_SIZE];
-static buffer_head_t *lru_head = NULL;
-static buffer_head_t *lru_tail = NULL;
+static LIST_HEAD(lru_list);
 
 void bio_init(void)
 {
@@ -23,44 +22,18 @@ void bio_init(void)
             return;
         }
         // Initialize as free/empty
+        INIT_LIST_HEAD(&cache[i].list);
 
         // Add to LRU list (initially all in list)
-        if (lru_tail)
-        {
-            lru_tail->next = &cache[i];
-            cache[i].prev = lru_tail;
-            lru_tail = &cache[i];
-        }
-        else
-        {
-            lru_head = &cache[i];
-            lru_tail = &cache[i];
-        }
+        list_add_tail(&cache[i].list, &lru_list);
     }
     boot_message(INFO, "Buffered I/O Initialized. Cache Size: %d blocks", BIO_CACHE_SIZE);
 }
 
 static void move_to_head(buffer_head_t *bh)
 {
-    if (bh == lru_head)
-        return;
-
-    // Detach
-    if (bh->prev)
-        bh->prev->next = bh->next;
-    if (bh->next)
-        bh->next->prev = bh->prev;
-    if (bh == lru_tail)
-        lru_tail = bh->prev;
-
-    // Attach to head
-    bh->next = lru_head;
-    bh->prev = NULL;
-    if (lru_head)
-        lru_head->prev = bh;
-    lru_head = bh;
-    if (!lru_tail)
-        lru_tail = bh;
+    list_del(&bh->list);
+    list_add(&bh->list, &lru_list);
 }
 
 static buffer_head_t *get_blk(uint8_t device, uint32_t block)
@@ -78,8 +51,8 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
 
     // 2. Not found, find free or LRU
     // We pick from tail (LRU)
-    buffer_head_t *bh = lru_tail;
-    while (bh)
+    buffer_head_t *bh;
+    list_for_each_entry_reverse(bh, &lru_list, list)
     {
         if (bh->ref_count == 0)
         {
@@ -103,7 +76,6 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
             move_to_head(bh);
             return bh;
         }
-        bh = bh->prev;
     }
 
     printf("BIO: No free buffers!\n");

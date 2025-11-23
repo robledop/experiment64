@@ -32,6 +32,7 @@ struct context
 
 #include "vfs.h"
 #include "spinlock.h"
+#include "list.h"
 
 typedef struct
 {
@@ -44,8 +45,8 @@ typedef struct Process
     int pid;
     char name[PROCESS_NAME_MAX];
     pml4_t pml4;            // Page directory (physical address)
-    struct Thread *threads; // Head of thread list
-    struct Process *next;   // Global process list
+    list_head_t threads;    // Head of thread list
+    list_head_t list;       // Global process list node
     struct Process *parent; // Parent process
     int exit_code;
     bool terminated;
@@ -68,10 +69,10 @@ typedef struct Thread
     uint64_t sleep_until;    // Wake tick for sleep syscall
     void *chan;              // Sleep channel
     bool is_idle;            // Is this the idle thread?
-    struct Thread *next;
+    list_head_t list;        // Thread list node
 } thread_t;
 
-extern process_t *process_list;
+extern list_head_t process_list;
 extern process_t *kernel_process;
 extern spinlock_t scheduler_lock;
 // extern process_t *current_process; // Removed

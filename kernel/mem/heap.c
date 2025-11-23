@@ -2,6 +2,7 @@
 #include "pmm.h"
 #include "string.h"
 #include "terminal.h"
+#include "list.h"
 
 #define HEAP_MAGIC 0xC0FFEE1234567890
 #define SLAB_MIN_SIZE 32
@@ -15,7 +16,7 @@ typedef struct slab_header
     uint8_t is_slab;
     uint8_t padding[7]; // Align
     // Slab specific
-    struct slab_header *next;
+    list_head_t list;
     size_t obj_size;
     size_t free_count;
     void *free_list;
@@ -28,7 +29,7 @@ typedef struct slab_header
 // Indices: 0, 1,  2,   3,   4,   5,    6
 #define CACHE_COUNT 7
 
-static slab_header_t *slab_caches[CACHE_COUNT] = {0};
+static list_head_t slab_caches[CACHE_COUNT];
 
 static int get_cache_index(size_t size)
 {
@@ -57,6 +58,10 @@ static size_t get_cache_size(int index)
 void heap_init(uint64_t hhdm_offset)
 {
     g_hhdm_offset = hhdm_offset;
+    for (int i = 0; i < CACHE_COUNT; i++)
+    {
+        INIT_LIST_HEAD(&slab_caches[i]);
+    }
     boot_message(INFO, "Heap Initialized. HHDM Offset: 0x%lx", g_hhdm_offset);
 }
 
@@ -82,18 +87,17 @@ static void *alloc_big(size_t size)
 
 static void *alloc_slab(int index)
 {
-    slab_header_t *slab = slab_caches[index];
+    slab_header_t *slab = NULL;
+    slab_header_t *iter;
 
     // Find a slab with free objects
-    // For simplicity, we just look at the head. If full, we might need to search or keep full slabs separate.
-    // Here, we'll just iterate.
-    while (slab)
+    list_for_each_entry(iter, &slab_caches[index], list)
     {
-        if (slab->free_count > 0)
+        if (iter->free_count > 0)
         {
+            slab = iter;
             break;
         }
-        slab = slab->next;
     }
 
     if (!slab)
@@ -108,7 +112,7 @@ static void *alloc_slab(int index)
         slab->magic = HEAP_MAGIC;
         slab->is_slab = 1;
         slab->obj_size = get_cache_size(index);
-        slab->next = NULL;
+        INIT_LIST_HEAD(&slab->list);
 
         // Initialize free list
         size_t available_size = PAGE_SIZE - sizeof(slab_header_t);
@@ -127,11 +131,7 @@ static void *alloc_slab(int index)
         void **last_obj = (void **)(base + (max_objects - 1) * slab->obj_size);
         *last_obj = NULL;
 
-        if (slab_caches[index])
-        {
-            slab->next = slab_caches[index];
-        }
-        slab_caches[index] = slab;
+        list_add(&slab->list, &slab_caches[index]);
     }
 
     void *ptr = slab->free_list;
@@ -196,19 +196,11 @@ void kfree(void *ptr)
             int index = get_cache_index(header->obj_size);
             if (index >= 0)
             {
-                slab_header_t **curr = &slab_caches[index];
-                while (*curr)
-                {
-                    if (*curr == header)
-                    {
-                        *curr = header->next;
-                        // Free the page
-                        void *phys = (void *)(page_start - g_hhdm_offset);
-                        pmm_free_pages(phys, 1);
-                        return;
-                    }
-                    curr = &(*curr)->next;
-                }
+                list_del(&header->list);
+                // Free the page
+                void *phys = (void *)(page_start - g_hhdm_offset);
+                pmm_free_pages(phys, 1);
+                return;
             }
         }
     }
