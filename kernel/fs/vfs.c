@@ -5,8 +5,50 @@
 #include "ext2.h"
 #include "gpt.h"
 #include <stdbool.h>
+#include "heap.h"
 
 vfs_inode_t *vfs_root = 0;
+
+struct mount_point
+{
+    char name[64];
+    vfs_inode_t *root;
+};
+
+static struct mount_point mount_table[16];
+static int mount_count = 0;
+
+void vfs_register_mount(const char *name, vfs_inode_t *root)
+{
+    if (mount_count < 16)
+    {
+        strncpy(mount_table[mount_count].name, name, 63);
+        mount_table[mount_count].root = root;
+        mount_count++;
+    }
+}
+
+vfs_inode_t *vfs_check_mount(const char *name)
+{
+    for (int i = 0; i < mount_count; i++)
+    {
+        if (strcmp(mount_table[i].name, name) == 0)
+        {
+            vfs_inode_t *root = mount_table[i].root;
+            if (root && root->iops && root->iops->clone)
+            {
+                return root->iops->clone(root);
+            }
+
+            // Return a copy
+            vfs_inode_t *copy = kmalloc(sizeof(vfs_inode_t));
+            if (copy)
+                memcpy(copy, mount_table[i].root, sizeof(vfs_inode_t));
+            return copy;
+        }
+    }
+    return NULL;
+}
 
 void vfs_init()
 {
@@ -75,11 +117,11 @@ void vfs_mount_root(void)
         vfs_inode_t *mnt_node = vfs_finddir(vfs_root, "mnt");
         if (mnt_node)
         {
+            kfree(mnt_node); // Free the EXT2 node, we will mount over it
             vfs_inode_t *fat_root = fat32_mount(mnt_part.drive, mnt_part.start_lba);
             if (fat_root)
             {
-                mnt_node->ptr = fat_root;
-                mnt_node->flags |= VFS_MOUNTPOINT;
+                vfs_register_mount("mnt", fat_root);
                 boot_message(INFO, "VFS: Mounted FAT32 on /mnt");
             }
             else
@@ -131,11 +173,17 @@ vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
 {
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->finddir)
     {
-        vfs_inode_t *child = node->iops->finddir(node, name);
-        if (child && (child->flags & VFS_MOUNTPOINT) && child->ptr)
+        // Check mounts if we are at root
+        if (node == vfs_root)
         {
-            return (vfs_inode_t *)child->ptr;
+            vfs_inode_t *mounted = vfs_check_mount(name);
+            if (mounted)
+            {
+                return mounted;
+            }
         }
+
+        vfs_inode_t *child = node->iops->finddir(node, name);
         return child;
     }
     return 0;
@@ -191,4 +239,54 @@ vfs_inode_t *vfs_resolve_path(const char *path)
     }
 
     return current;
+}
+
+int vfs_mknod(char *path, int mode, int dev)
+{
+    if (!path || !vfs_root)
+        return -1;
+
+    char parent_path[VFS_MAX_PATH];
+    char filename[128];
+    char *last_slash = strrchr(path, '/');
+
+    if (last_slash)
+    {
+        int len = last_slash - path;
+        if (len == 0)
+        {
+            strcpy(parent_path, "/");
+        }
+        else
+        {
+            if (len >= VFS_MAX_PATH)
+                return -1;
+            strncpy(parent_path, path, len);
+            parent_path[len] = 0;
+        }
+        if (strlen(last_slash + 1) >= 128)
+            return -1;
+        strcpy(filename, last_slash + 1);
+    }
+    else
+    {
+        strcpy(parent_path, "/");
+        if (strlen(path) >= 128)
+            return -1;
+        strcpy(filename, path);
+    }
+
+    vfs_inode_t *parent = vfs_resolve_path(parent_path);
+    if (!parent)
+    {
+        printf("vfs_mknod: failed to resolve parent path '%s'\n", parent_path);
+        return -1;
+    }
+
+    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->mknod)
+    {
+        return parent->iops->mknod(parent, filename, mode, dev);
+    }
+
+    return -1;
 }
