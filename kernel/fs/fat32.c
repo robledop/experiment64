@@ -697,6 +697,19 @@ static vfs_inode_t *fat32_vfs_finddir(vfs_inode_t *node, char *name)
     return new_node;
 }
 
+static vfs_inode_t *fat32_vfs_clone(vfs_inode_t *node)
+{
+    vfs_inode_t *new_node = kmalloc(sizeof(vfs_inode_t));
+    memcpy(new_node, node, sizeof(vfs_inode_t));
+
+    fat32_inode_data_t *old_data = (fat32_inode_data_t *)node->device;
+    fat32_inode_data_t *new_data = kmalloc(sizeof(fat32_inode_data_t));
+    memcpy(new_data, old_data, sizeof(fat32_inode_data_t));
+    new_node->device = new_data;
+
+    return new_node;
+}
+
 static struct inode_operations fat32_iops = {
     .read = fat32_vfs_read,
     .write = fat32_vfs_write,
@@ -704,6 +717,7 @@ static struct inode_operations fat32_iops = {
     .close = fat32_vfs_close,
     .readdir = fat32_vfs_readdir,
     .finddir = fat32_vfs_finddir,
+    .clone = fat32_vfs_clone,
 };
 
 vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba)
