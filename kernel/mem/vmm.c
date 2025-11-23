@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "terminal.h"
 
-static uint64_t g_hhdm_offset = 0;
+uint64_t g_hhdm_offset = 0;
 
 void vmm_init(uint64_t hhdm_offset)
 {

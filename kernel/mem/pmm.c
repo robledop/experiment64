@@ -114,7 +114,8 @@ void *pmm_alloc_page(void)
         if (!bitmap_test(i))
         {
             bitmap_set(i);
-            return (void *)(i * PAGE_SIZE);
+            void *addr = (void *)(i * PAGE_SIZE);
+            return addr;
         }
     }
     return NULL; // Out of memory

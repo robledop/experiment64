@@ -13,6 +13,8 @@
 
 typedef uint64_t *pml4_t;
 
+extern uint64_t g_hhdm_offset;
+
 void vmm_init(uint64_t hhdm_offset);
 void vmm_map_page(pml4_t pml4, uint64_t virt, uint64_t phys, uint64_t flags);
 void vmm_unmap_page(pml4_t pml4, uint64_t virt);
