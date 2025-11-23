@@ -22,6 +22,7 @@
 #include "smp.h"
 #include "io.h"
 #include "debug.h"
+#include "tsc.h"
 
 void shutdown()
 {
@@ -110,6 +111,7 @@ void _start(void)
     idt_init();
     debug_init();
     apic_init();
+    tsc_init();
     keyboard_init();
     smp_boot_aps();
     syscall_init();

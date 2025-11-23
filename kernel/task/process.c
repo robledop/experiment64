@@ -7,6 +7,8 @@
 #include "syscall.h"
 #include "spinlock.h"
 
+#define TIME_SLICE_TICKS 3 // 50Hz * 3 = 60ms. (Requested 50ms)
+
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t *kernel_process = NULL;
 thread_t *idle_thread = NULL;
@@ -33,9 +35,10 @@ static void idle_task(void)
 #define SCHED_LOG(fmt, ...) ((void)0)
 #endif
 
-void scheduler_tick(void)
+bool scheduler_tick(void)
 {
     scheduler_ticks++;
+    bool need_resched = false;
 
     spinlock_acquire(&scheduler_lock);
     process_t *p;
@@ -48,10 +51,30 @@ void scheduler_tick(void)
             {
                 t->state = THREAD_READY;
                 t->sleep_until = 0;
+                need_resched = true;
             }
         }
     }
+
+    thread_t *curr = get_current_thread();
+    if (curr)
+    {
+        if (curr->is_idle)
+        {
+            need_resched = true;
+        }
+        else if (curr->state == THREAD_RUNNING)
+        {
+            if (curr->ticks_remaining > 0)
+                curr->ticks_remaining--;
+
+            if (curr->ticks_remaining == 0)
+                need_resched = true;
+        }
+    }
+
     spinlock_release(&scheduler_lock);
+    return need_resched;
 }
 
 void process_init(void)
@@ -87,6 +110,7 @@ void process_init(void)
     kernel_thread->tid = next_tid++;
     kernel_thread->process = kernel_process;
     kernel_thread->state = THREAD_RUNNING;
+    kernel_thread->ticks_remaining = TIME_SLICE_TICKS;
 
     // For the initial kernel thread, we assume we are running on a valid stack.
     cpu_t *cpu = get_cpu();
@@ -221,6 +245,7 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
 
     thread->process = process;
     thread->state = THREAD_READY;
+    thread->ticks_remaining = TIME_SLICE_TICKS;
 
     // Initialize FPU state
     init_fpu_state(&thread->fpu_state);
@@ -390,6 +415,7 @@ found:
 
         cpu->active_thread = next_thread;
         next_thread->state = THREAD_RUNNING;
+        next_thread->ticks_remaining = TIME_SLICE_TICKS;
         if (prev->state == THREAD_RUNNING)
             prev->state = THREAD_READY;
 

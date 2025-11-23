@@ -61,16 +61,17 @@ typedef struct Thread
     process_t *process;
     struct context *context; // Kernel stack pointer (saved context)
     thread_state_t state;
-    uint64_t kstack_top;     // Kernel stack top
-    uint64_t user_entry;     // For spawn
-    uint64_t user_stack;     // For spawn
-    uint64_t saved_user_rsp; // Saved user RSP during syscalls
-    fpu_state_t fpu_state;   // FPU/SSE state
-    uint64_t sleep_until;    // Wake tick for sleep syscall
-    void *chan;              // Sleep channel
-    bool is_idle;            // Is this the idle thread?
-    uint64_t _align;         // Padding to ensure list is 16-byte aligned relative to start
-    list_head_t list;        // Thread list node
+    uint64_t kstack_top;      // Kernel stack top
+    uint64_t user_entry;      // For spawn
+    uint64_t user_stack;      // For spawn
+    uint64_t saved_user_rsp;  // Saved user RSP during syscalls
+    fpu_state_t fpu_state;    // FPU/SSE state
+    uint64_t sleep_until;     // Wake tick for sleep syscall
+    void *chan;               // Sleep channel
+    bool is_idle;             // Is this the idle thread?
+    uint64_t ticks_remaining; // Time slice remaining
+    uint64_t _align;          // Padding to ensure list is 16-byte aligned relative to start
+    list_head_t list;         // Thread list node
 } thread_t;
 
 extern list_head_t process_list;
@@ -90,8 +91,7 @@ process_t *get_current_process(void);
 #define current_thread (get_current_thread())
 #define current_process (get_current_process())
 
-void scheduler_tick(void);
-void scheduler_tick(void);
+bool scheduler_tick(void);
 
 void schedule(void);
 void yield(void);

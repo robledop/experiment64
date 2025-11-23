@@ -4,6 +4,7 @@
 #include "terminal.h"
 #include "cpu.h"
 #include "limine.h"
+#include "pit.h"
 #include <stddef.h>
 
 extern volatile struct limine_hhdm_request hhdm_request;
@@ -16,6 +17,7 @@ extern volatile struct limine_hhdm_request hhdm_request;
 #define LAPIC_ICR1 0x0310
 #define LAPIC_LVT_TIMER 0x0320
 #define LAPIC_TICR 0x0380
+#define LAPIC_TCCR 0x0390
 #define LAPIC_TDCR 0x03E0
 
 // IOAPIC Registers
@@ -26,6 +28,7 @@ extern volatile struct limine_hhdm_request hhdm_request;
 
 static uint64_t lapic_base = 0;
 static uint64_t ioapic_base = 0;
+static uint32_t lapic_timer_ticks = 100000; // Default fallback
 
 #define MAX_ISOS 16
 static struct madt_iso isos[MAX_ISOS];
@@ -80,6 +83,38 @@ void ioapic_set_entry(uint8_t index, uint64_t data)
     ioapic_write(IOAPIC_REDTBL + 2 * index + 1, (uint32_t)(data >> 32));
 }
 
+void apic_timer_calibrate(void)
+{
+    boot_message(INFO, "APIC: Calibrating LAPIC timer...");
+
+    // Initialize LAPIC Timer for calibration
+    // Divide by 16
+    lapic_write(LAPIC_TDCR, 0x3);
+
+    // Set to One-Shot mode (0x00000) or Periodic, doesn't matter if we just read count
+    // Vector 32, One-Shot (masked to avoid interrupt during calibration?)
+    // Actually, we can just mask it or use a vector that does nothing.
+    // But we need it to count.
+    lapic_write(LAPIC_LVT_TIMER, 32 | 0x10000); // Masked
+
+    // Set Initial Count to Max
+    lapic_write(LAPIC_TICR, 0xFFFFFFFF);
+
+    // Sleep for 10ms
+    pit_sleep(10);
+
+    // Read Current Count
+    uint32_t curr = apic_lapic_read(LAPIC_TCCR);
+
+    uint32_t ticks_in_10ms = 0xFFFFFFFF - curr;
+
+    // We want 50Hz -> 20ms.
+    // ticks_in_20ms = ticks_in_10ms * 2
+    lapic_timer_ticks = ticks_in_10ms * 2;
+
+    boot_message(INFO, "APIC: LAPIC timer calibrated. Ticks per 20ms (50Hz): %d", lapic_timer_ticks);
+}
+
 void apic_local_init(void)
 {
     // Enable LAPIC
@@ -96,9 +131,8 @@ void apic_local_init(void)
     lapic_write(LAPIC_TDCR, 0x3);
     // Set LVT Timer: Vector 32, Periodic Mode
     lapic_write(LAPIC_LVT_TIMER, 32 | 0x20000);
-    // Set Initial Count (approx 10ms on QEMU, need calibration on real hw)
-    // Reduced to 100000 to ensure faster context switches during tests
-    lapic_write(LAPIC_TICR, 100000);
+    // Set Initial Count
+    lapic_write(LAPIC_TICR, lapic_timer_ticks);
 }
 
 void apic_init(void)
@@ -148,6 +182,9 @@ void apic_init(void)
         entry += header->length;
     }
 
+    // Enable LAPIC temporarily for calibration
+    lapic_write(LAPIC_SVR, 0x1FF);
+    apic_timer_calibrate();
     apic_local_init();
 
     // Get current LAPIC ID

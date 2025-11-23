@@ -71,9 +71,10 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
 
 static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
-    scheduler_tick();
+    bool need_resched = scheduler_tick();
     apic_send_eoi();
-    schedule();
+    if (need_resched)
+        schedule();
 }
 
 static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)

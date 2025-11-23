@@ -34,11 +34,17 @@ typedef struct cpu
 
 cpu_t *get_cpu(void);
 
+void hcf(void);
+void wrmsr(uint32_t msr, uint64_t value);
+uint64_t rdmsr(uint32_t msr);
 void enable_sse(void);
 void init_fpu_state(fpu_state_t *state);
 void save_fpu_state(fpu_state_t *state);
 void restore_fpu_state(fpu_state_t *state);
-void hcf(void);
 
-void wrmsr(uint32_t msr, uint64_t value);
-uint64_t rdmsr(uint32_t msr);
+static inline uint64_t rdtsc(void)
+{
+    uint32_t low, high;
+    __asm__ volatile("rdtsc" : "=a"(low), "=d"(high));
+    return ((uint64_t)high << 32) | low;
+}
