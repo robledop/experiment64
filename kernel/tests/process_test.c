@@ -60,9 +60,11 @@ static void scheduler_thread_entry(void)
 {
     printf("Scheduler thread running!\n");
     thread_ran = 1;
+    // Yield back to main thread
     yield();
-    while (1)
-        yield();
+
+    // Exit thread
+    printf("Scheduler thread exiting.\n");
 }
 
 TEST(test_scheduler)

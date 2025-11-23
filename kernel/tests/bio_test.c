@@ -3,7 +3,7 @@
 #include "string.h"
 #include "test.h"
 
-bool bio_test(void)
+TEST(bio_test)
 {
     printf("BIO Test: Starting...\n");
 

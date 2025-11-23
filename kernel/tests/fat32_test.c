@@ -7,7 +7,7 @@
 fat32_fs_t fs;
 bool fs_initialized = false;
 
-TEST(test_fat32_init)
+TEST_PRIO(test_fat32_init, 0)
 {
     // Assuming Drive 0, Partition starts at 1MB (LBA 2048)
     // This matches the Makefile: parted ... mkpart ESP fat32 1MiB ...
