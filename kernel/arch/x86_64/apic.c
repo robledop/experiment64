@@ -97,7 +97,8 @@ void apic_local_init(void)
     // Set LVT Timer: Vector 32, Periodic Mode
     lapic_write(LAPIC_LVT_TIMER, 32 | 0x20000);
     // Set Initial Count (approx 10ms on QEMU, need calibration on real hw)
-    lapic_write(LAPIC_TICR, 10000000);
+    // Reduced to 100000 to ensure faster context switches during tests
+    lapic_write(LAPIC_TICR, 100000);
 }
 
 void apic_init(void)
@@ -179,7 +180,17 @@ void apic_init(void)
 
 void apic_enable_irq(uint8_t irq, uint8_t vector)
 {
+    uint16_t flags = 0;
+    uint32_t gsi = apic_get_gsi(irq, &flags);
+
     uint64_t entry_val = vector;
+
+    // Handle flags (Polarity and Trigger Mode)
+    if ((flags & 0x3) == 0x3) // Active Low
+        entry_val |= (1 << 13);
+    if ((flags & 0xC) == 0xC) // Level Trigger
+        entry_val |= (1 << 15);
+
     entry_val |= ((uint64_t)0 << 56); // Destination APIC ID 0
-    ioapic_set_entry(irq, entry_val);
+    ioapic_set_entry(gsi, entry_val);
 }
