@@ -17,6 +17,7 @@
 #define SYS_READDIR 12
 #define SYS_CHDIR 13
 #define SYS_SLEEP 14
+#define SYS_MKNOD 15
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
