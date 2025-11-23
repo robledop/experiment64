@@ -2,9 +2,22 @@
 #include "terminal.h"
 #include "io.h"
 #include "string.h"
+#include "sort.h"
 
 extern struct test_case __start_test_array[];
 extern struct test_case __stop_test_array[];
+
+static int compare_tests(const void *a, const void *b)
+{
+    const struct test_case *ta = *(const struct test_case **)a;
+    const struct test_case *tb = *(const struct test_case **)b;
+
+    if (ta->priority < tb->priority)
+        return -1;
+    if (ta->priority > tb->priority)
+        return 1;
+    return 0;
+}
 
 void run_tests(void)
 {
@@ -34,19 +47,8 @@ void run_tests(void)
         tests[idx++] = t;
     }
 
-    // Sort by priority (Bubble sort)
-    for (size_t i = 0; i < count - 1; i++)
-    {
-        for (size_t j = 0; j < count - i - 1; j++)
-        {
-            if (tests[j]->priority > tests[j + 1]->priority)
-            {
-                struct test_case *temp = tests[j];
-                tests[j] = tests[j + 1];
-                tests[j + 1] = temp;
-            }
-        }
-    }
+    // Sort by priority
+    qsort(tests, count, sizeof(struct test_case *), compare_tests);
 
     for (size_t i = 0; i < count; i++)
     {
