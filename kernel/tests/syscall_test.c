@@ -1,4 +1,4 @@
-#define TEST_MODE
+// #define TEST_MODE
 #ifdef TEST_MODE
 #include "test.h"
 #include <stdbool.h>

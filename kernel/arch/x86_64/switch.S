@@ -54,3 +54,4 @@ thread_trampoline:
     mov rdi, 0
     call sys_exit
     hlt
+.section .note.GNU-stack,"",@progbits

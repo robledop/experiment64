@@ -12,3 +12,4 @@ _start:
     syscall
 
 msg: .ascii "Hello Exec!\n"
+.section .note.GNU-stack,"",@progbits

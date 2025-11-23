@@ -10,3 +10,4 @@ _start:
     call exit
     # Should not return
     hlt
+.section .note.GNU-stack,"",@progbits

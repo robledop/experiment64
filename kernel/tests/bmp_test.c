@@ -94,6 +94,7 @@ TEST(test_bmp_load_valid)
     ASSERT(out_pixels[2] == 0xFFFF0000);
 
     kfree(out_pixels);
+    return true;
 }
 
 TEST(test_bmp_invalid_file)
@@ -101,6 +102,7 @@ TEST(test_bmp_invalid_file)
     uint32_t *p;
     uint32_t w, h;
     ASSERT(bitmap_load_argb("nonexistent_bmp_file.bmp", &p, &w, &h) != 0);
+    return true;
 }
 
 TEST(test_bmp_bad_header)
@@ -120,4 +122,5 @@ TEST(test_bmp_bad_header)
     uint32_t *p;
     uint32_t w, h;
     ASSERT(bitmap_load_argb(filename, &p, &w, &h) != 0);
+    return true;
 }

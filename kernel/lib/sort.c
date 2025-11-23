@@ -31,17 +31,7 @@ static void quicksort(void *base, size_t size, int (*compar)(const void *, const
     if (left >= right)
         return;
 
-    int i = left;
-    int j = right;
-    char *pivot = (char *)base + ((left + right) / 2) * size;
-
-    // We need to copy pivot because swap might move it
-    // But wait, if we swap the element at pivot index, 'pivot' pointer points to new value.
-    // Standard way is to pick pivot value.
-    // Since we don't want to malloc, let's use the median-of-three or just middle element.
-    // To be safe against moving pivot, let's copy it to stack if small, or be careful.
-
-    // Let's use a simpler partition scheme (Lomuto or Hoare).
+    // Let's use a simple partition scheme (Lomuto or Hoare).
     // Hoare partition:
 
     // We need a temporary buffer for pivot if we want to be safe, or just use index.

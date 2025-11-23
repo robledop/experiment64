@@ -24,7 +24,7 @@ struct test_case
 #define TEST_PRIO(name, prio)                                                \
     bool name(void);                                                         \
     static struct test_case __test_case_##name                               \
-        __attribute__((section(".test_array"), used)) = {#name, name, prio}; \
+        __attribute__((section(".test_array"), used)) = {#name, name, prio, 0, 0}; \
     bool name(void)
 
 #define TEST(name) TEST_PRIO(name, 100)

@@ -175,6 +175,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
     brelse(bp2);
     printf("PANIC: ");
     printf("ext2_balloc: out of blocks\n");
+    return 0;
 }
 
 // Free a disk block.
@@ -295,6 +296,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
     }
     printf("PANIC: ");
     printf("ext2_ialloc: no inodes");
+    return NULL;
 }
 
 void ext2fs_iupdate(struct ext2_inode *ip)
@@ -674,6 +676,7 @@ static uint32_t ext2fs_bmap(struct ext2_inode *ip, uint32_t bn)
     }
     printf("PANIC: ");
     printf("ext2_bmap: block number out of range\n");
+    return 0;
 }
 
 // Truncate inode (discard contents).
@@ -842,7 +845,7 @@ int ext2fs_writei(struct ext2_inode *ip, char *src, uint32_t off, uint32_t n)
     {
         return -1;
     }
-    if (off + n > EXT2_MAXFILE * EXT2_BSIZE)
+    if ((uint64_t)off + n > (uint64_t)EXT2_MAXFILE * EXT2_BSIZE)
     {
         return -1;
     }
@@ -919,10 +922,12 @@ struct ext2_inode *ext2fs_dirlookup(struct ext2_inode *dp, char *name, uint32_t 
             off += de.rec_len;
             continue;
         }
+        /*
         if (de.name_len > EXT2_NAME_LEN)
         {
             panic("ext2fs_dirlookup: name too long");
         }
+        */
         memcpy(file_name, de.name, de.name_len);
         file_name[de.name_len] = '\0';
         if (ext2fs_namecmp(name, file_name) == 0)
@@ -1001,6 +1006,7 @@ static uint64_t ext2_vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size
 
 static void ext2_vfs_open(vfs_inode_t *node)
 {
+    (void)node;
     // Nothing to do
 }
 
