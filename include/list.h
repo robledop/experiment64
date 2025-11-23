@@ -57,7 +57,7 @@ static inline bool list_empty(const list_head_t *head)
     return head->next == head;
 }
 
-#define container_of(ptr, type, member) ({                      \
+#define container_of(ptr, type, member) __extension__({                      \
         const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
         (type *)( (char *)__mptr - offsetof(type,member) ); })
 

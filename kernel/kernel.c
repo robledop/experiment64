@@ -21,6 +21,7 @@
 #include "boot.h"
 #include "smp.h"
 #include "io.h"
+#include "debug.h"
 
 void shutdown()
 {
@@ -100,20 +101,18 @@ void kernel_splash(void)
 
 void _start(void)
 {
+    enable_sse();
     uart_init();
     boot_init();
-    enable_sse();
-
     smp_init_cpu0();
     gdt_init();
     idt_init();
+    debug_init();
     apic_init();
     keyboard_init();
     smp_boot_aps();
     syscall_init();
-
     uint64_t hhdm_offset = boot_get_hhdm_offset();
-
     pmm_init(hhdm_offset);
     vmm_init(hhdm_offset);
     heap_init(hhdm_offset);
@@ -121,9 +120,7 @@ void _start(void)
     ide_init();
     bio_init();
     vfs_init();
-
     boot_init_terminal();
-
     vfs_mount_root();
 
 #ifdef TEST_MODE

@@ -1,5 +1,3 @@
-// #define TEST_MODE
-#ifdef TEST_MODE
 #include "test.h"
 #include <stdbool.h>
 #include "syscall.h"
@@ -615,6 +613,9 @@ TEST(test_syscall_sbrk)
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
+    // Initialize heap_end for sbrk test
+    current_process->heap_end = 0x500000;
+
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, sbrk_stub_bytes, sizeof(sbrk_stub_bytes));
 
@@ -850,5 +851,3 @@ TEST(test_syscall_mknod)
         return passed;
     }
 }
-
-#endif // TEST_MODE

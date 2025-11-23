@@ -7,23 +7,15 @@
 #include "bio.h"
 #include "terminal.h"
 #include "heap.h"
+#include "debug.h"
 
 #ifndef ASSERT
-#define ASSERT(c, msg)              \
-    if (!(c))                       \
-    {                               \
-        printf("PANIC: %s\n", msg); \
-        while (1)                   \
-            ;                       \
+#define ASSERT(c, msg) \
+    if (!(c))          \
+    {                  \
+        panic(msg);    \
     }
 #endif
-
-void panic(const char *msg)
-{
-    printf("PANIC: %s\n", msg);
-    while (1)
-        ;
-}
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -820,6 +812,10 @@ int ext2fs_readi(struct ext2_inode *ip, char *dst, uint32_t off, uint32_t n)
         uint32_t sector = sector_start + sector_offset;
 
         buffer_head_t *bp = bread(ip->dev, sector);
+        if (!bp)
+        {
+            return -1;
+        }
 
         uint32_t offset_in_sector = offset_in_block % 512;
         uint32_t bytes_to_copy = min(n - tot, 512 - offset_in_sector);
@@ -860,6 +856,10 @@ int ext2fs_writei(struct ext2_inode *ip, char *src, uint32_t off, uint32_t n)
         uint32_t sector = sector_start + sector_offset;
 
         buffer_head_t *bp = bread(ip->dev, sector);
+        if (!bp)
+        {
+            return -1;
+        }
 
         uint32_t offset_in_sector = offset_in_block % 512;
         uint32_t bytes_to_copy = min(n - tot, 512 - offset_in_sector);

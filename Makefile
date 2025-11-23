@@ -1,3 +1,6 @@
+PATH := $(HOME)/opt/cross/bin:$(PATH)
+export PATH
+
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
@@ -15,9 +18,9 @@ define DEFAULT_VAR =
 endef
 
 # Toolchain configuration.
-$(eval $(call DEFAULT_VAR,CC,gcc))
-$(eval $(call DEFAULT_VAR,LD,ld))
-$(eval $(call DEFAULT_VAR,CFLAGS,-O2 -g -Wall -Wextra -pipe))
+$(eval $(call DEFAULT_VAR,CC,x86_64-elf-gcc))
+$(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
+$(eval $(call DEFAULT_VAR,CFLAGS,-O2 -g -Wall -Wextra -pipe -pedantic))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
 ROOTFS=rootfs
@@ -29,8 +32,7 @@ override CFLAGS += \
     -std=c23 \
     -ffreestanding \
     -nostdlib \
-    -fno-stack-protector \
-    -fno-stack-check \
+    -fstack-protector-strong \
     -fno-lto \
     -fPIE \
     -ggdb \
@@ -39,7 +41,8 @@ override CFLAGS += \
     -mno-80387 \
     -mno-red-zone \
     -MMD \
-    -MP
+    -MP \
+    -Wa,--noexecstack
 
 # Internal linker flags that should not be changed by the user.
 override LDFLAGS += \

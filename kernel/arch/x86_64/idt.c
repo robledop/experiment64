@@ -8,6 +8,7 @@
 #include "ide.h"
 #include "process.h"
 #include "kernel.h"
+#include "debug.h"
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -101,18 +102,6 @@ void interrupt_handler(struct interrupt_frame *frame)
     }
     else if (frame->int_no < 32)
     {
-        struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-
-        // Clear screen to red
-        for (size_t y = 0; y < fb->height; y++)
-        {
-            uint32_t *fb_ptr = (uint32_t *)((uint8_t *)fb->address + y * fb->pitch);
-            for (size_t x = 0; x < fb->width; x++)
-            {
-                fb_ptr[x] = 0xFF880000; // Red
-            }
-        }
-
         printf("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
         printf("Error Code: 0x%lx\n", frame->err_code);
         printf("RIP: 0x%lx\n", frame->rip);
@@ -127,6 +116,8 @@ void interrupt_handler(struct interrupt_frame *frame)
             __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
             printf("CR2 (Page Fault Address): 0x%lx\n", cr2);
         }
+
+        stack_trace();
 
 #ifdef TEST_MODE
         shutdown();
@@ -165,10 +156,10 @@ void idt_init(void)
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_SECONDARY, ide_secondary_isr);
 
     idt_reload();
+    __asm__ volatile("sti");
 }
 
 void idt_reload(void)
 {
     __asm__ volatile("lidt %0" : : "m"(idtr));
-    __asm__ volatile("sti");
 }

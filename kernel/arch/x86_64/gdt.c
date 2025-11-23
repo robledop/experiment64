@@ -84,23 +84,29 @@ void gdt_init(void)
 
     __asm__ volatile("lgdt %0" : : "m"(gdtp));
 
-    // Reload segments
-    // We push the new CS (0x08) and the return address, then do a far return (retfq)
-    // to reload CS. DS, ES, FS, GS, SS are loaded with 0x10.
-    // NOTE: We do NOT reload GS because it would clear the GS base address (MSR_GS_BASE)
-    // which holds our cpu_t pointer.
+    // Reload CS
     __asm__ volatile(
         "pushq $0x08\n"
         "leaq 1f(%%rip), %%rax\n"
         "pushq %%rax\n"
         "lretq\n"
         "1:\n"
+        : : : "rax", "memory");
+
+    // Reload Data Segments
+    __asm__ volatile(
         "movw $0x10, %%ax\n"
         "movw %%ax, %%ds\n"
         "movw %%ax, %%es\n"
-        "movw %%ax, %%fs\n"
         "movw %%ax, %%ss\n"
+        "xor %%ax, %%ax\n"
+        "movw %%ax, %%fs\n"
+        "movw %%ax, %%gs\n"
         : : : "rax", "memory");
+
+    // Restore GS Base (since loading GS selector might have cleared it)
+    wrmsr(MSR_GS_BASE, (uint64_t)cpu);
+    wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
 
     // Load TSS
     __asm__ volatile("ltr %%ax" : : "a"(0x28));

@@ -7,7 +7,7 @@
 #include "syscall.h"
 #include "spinlock.h"
 
-LIST_HEAD(process_list);
+list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t *kernel_process = NULL;
 thread_t *idle_thread = NULL;
 static int next_pid = 1;
@@ -17,13 +17,6 @@ volatile uint64_t scheduler_ticks = 0;
 spinlock_t scheduler_lock;
 
 extern void fork_return(void);
-
-void fork_child_trampoline(void)
-{
-    spinlock_release(&scheduler_lock);
-    __asm__ volatile("sti" ::: "memory");
-    fork_return();
-}
 
 static void idle_task(void)
 {

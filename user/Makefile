@@ -1,14 +1,14 @@
 # Userland Makefile
 
 # Toolchain configuration.
-CC = cc
-LD = ld
+CC = x86_64-elf-gcc
+LD = x86_64-elf-ld
 
 # Build directory
 BUILD_DIR = build
 
 # Flags
-CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -Ilibc/include -g
+CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -Ilibc/include -g -Wa,--noexecstack
 LDFLAGS = -Wl,-Ttext=0x400000 -Wl,--build-id=none
 
 # Libc sources

@@ -72,6 +72,23 @@ syscall_return:
     
     sysretq
 
+.extern spinlock_release
+.extern scheduler_lock
+
+.global fork_child_trampoline
+fork_child_trampoline:
+    # RSP points to syscall_regs
+    # Align stack to 16 bytes (syscall_regs is 120 bytes, so RSP is 8 mod 16)
+    push rax 
+    
+    lea rdi, [scheduler_lock]
+    call spinlock_release
+    
+    pop rax
+    
+    sti
+    jmp fork_return
+
 .global fork_return
 fork_return:
     # Child process starts here

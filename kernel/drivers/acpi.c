@@ -33,11 +33,13 @@ void *acpi_find_table(const char *signature)
     if (xsdt != NULL)
     {
         int entries = (xsdt->length - sizeof(struct sdt_header)) / 8;
-        uint64_t *tables = (uint64_t *)((uint8_t *)xsdt + sizeof(struct sdt_header));
+        uint8_t *tables_ptr = (uint8_t *)xsdt + sizeof(struct sdt_header);
 
         for (int i = 0; i < entries; i++)
         {
-            struct sdt_header *table = (struct sdt_header *)(tables[i] + hhdm_offset);
+            uint64_t table_addr;
+            memcpy(&table_addr, tables_ptr + i * 8, 8);
+            struct sdt_header *table = (struct sdt_header *)(table_addr + hhdm_offset);
             if (strncmp(table->signature, signature, 4) == 0)
             {
                 return table;
@@ -47,11 +49,13 @@ void *acpi_find_table(const char *signature)
     else if (rsdt != NULL)
     {
         int entries = (rsdt->length - sizeof(struct sdt_header)) / 4;
-        uint32_t *tables = (uint32_t *)((uint8_t *)rsdt + sizeof(struct sdt_header));
+        uint8_t *tables_ptr = (uint8_t *)rsdt + sizeof(struct sdt_header);
 
         for (int i = 0; i < entries; i++)
         {
-            struct sdt_header *table = (struct sdt_header *)((uint64_t)tables[i] + hhdm_offset);
+            uint32_t table_addr;
+            memcpy(&table_addr, tables_ptr + i * 4, 4);
+            struct sdt_header *table = (struct sdt_header *)((uint64_t)table_addr + hhdm_offset);
             if (strncmp(table->signature, signature, 4) == 0)
             {
                 return table;

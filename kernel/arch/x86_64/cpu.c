@@ -55,6 +55,7 @@ cpu_t *get_cpu(void)
 
 void hcf(void)
 {
+    __asm__ volatile("cli");
     for (;;)
     {
         __asm__("hlt");

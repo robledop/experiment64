@@ -69,6 +69,7 @@ typedef struct Thread
     uint64_t sleep_until;    // Wake tick for sleep syscall
     void *chan;              // Sleep channel
     bool is_idle;            // Is this the idle thread?
+    uint64_t _align;         // Padding to ensure list is 16-byte aligned relative to start
     list_head_t list;        // Thread list node
 } thread_t;
 
