@@ -8,6 +8,8 @@
 #include "spinlock.h"
 
 process_t *process_list = NULL;
+process_t *kernel_process = NULL;
+thread_t *idle_thread = NULL;
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
@@ -24,6 +26,7 @@ void fork_child_trampoline(void)
 }
 
 #ifdef TEST_MODE
+// #define SCHED_LOG(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 #define SCHED_LOG(fmt, ...) ((void)0)
 #else
 #define SCHED_LOG(fmt, ...) ((void)0)
@@ -57,7 +60,7 @@ void process_init(void)
     spinlock_init(&scheduler_lock);
 
     // Initialize the first kernel process (idle task / initial kernel task)
-    process_t *kernel_process = kmalloc(sizeof(process_t));
+    kernel_process = kmalloc(sizeof(process_t));
     if (!kernel_process)
     {
         boot_message(ERROR, "Process: Failed to allocate kernel process");
@@ -89,6 +92,9 @@ void process_init(void)
     // For the initial kernel thread, we assume we are running on a valid stack.
     cpu_t *cpu = get_cpu();
     kernel_thread->kstack_top = cpu->kernel_rsp;
+
+    kernel_thread->is_idle = true;
+    idle_thread = kernel_thread;
 
     kernel_process->threads = kernel_thread;
     process_list = kernel_process;
@@ -269,7 +275,7 @@ static void sched(void)
     {
         while (t)
         {
-            if (t->state == THREAD_READY)
+            if (t->state == THREAD_READY && !t->is_idle)
             {
                 next_thread = t;
                 goto found;
@@ -290,7 +296,7 @@ static void sched(void)
         {
             if (t == curr)
                 goto check_done; // Reached current, stop
-            if (t->state == THREAD_READY)
+            if (t->state == THREAD_READY && !t->is_idle)
             {
                 next_thread = t;
                 goto found;
@@ -301,6 +307,11 @@ static void sched(void)
     }
 
 check_done:
+    if (!next_thread)
+    {
+        next_thread = idle_thread;
+    }
+
 found:
     if (next_thread && next_thread != curr)
     {

@@ -67,10 +67,12 @@ typedef struct Thread
     fpu_state_t fpu_state;   // FPU/SSE state
     uint64_t sleep_until;    // Wake tick for sleep syscall
     void *chan;              // Sleep channel
+    bool is_idle;            // Is this the idle thread?
     struct Thread *next;
 } thread_t;
 
 extern process_t *process_list;
+extern process_t *kernel_process;
 extern spinlock_t scheduler_lock;
 // extern process_t *current_process; // Removed
 // extern thread_t *current_thread;   // Removed
