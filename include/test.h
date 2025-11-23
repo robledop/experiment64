@@ -21,9 +21,9 @@ struct test_case
     long reserved; // Ensure size is 32 bytes to match section alignment (16)
 };
 
-#define TEST_PRIO(name, prio)                                                \
-    bool name(void);                                                         \
-    static struct test_case __test_case_##name                               \
+#define TEST_PRIO(name, prio)                                                      \
+    bool name(void);                                                               \
+    static struct test_case __test_case_##name                                     \
         __attribute__((section(".test_array"), used)) = {#name, name, prio, 0, 0}; \
     bool name(void)
 
