@@ -244,7 +244,7 @@ static uint8_t exec_stub_bytes[] = {
     0xB8, 0x04, 0x00, 0x00, 0x00,             // mov eax, 4 (FORK)
     0x0F, 0x05,                               // syscall
     0x83, 0xF8, 0x00,                         // cmp eax, 0
-    0x74, 0x27,                               // je child (+39)
+    0x74, 0x31,                               // je child (+49)
     0xB8, 0x05, 0x00, 0x00, 0x00,             // mov eax, 5 (WAIT)
     0x48, 0xC7, 0xC7, 0x00, 0x02, 0x40, 0x00, // mov rdi, 0x400200
     0x0F, 0x05,                               // syscall
@@ -263,7 +263,18 @@ static uint8_t exec_stub_bytes[] = {
     0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100
     0x0F, 0x05,                               // syscall
     0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
-    0xBF, 0x02, 0x00, 0x00, 0x00,             // mov edi, 2
+    0xBF, 0x7B, 0x00, 0x00, 0x00,             // mov edi, 123
+    0x0F, 0x05                                // syscall
+};
+
+static uint8_t mknod_stub_bytes[] = {
+    0xB8, 0x0F, 0x00, 0x00, 0x00,             // mov eax, 15 (SYS_MKNOD)
+    0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100 (path)
+    0xBE, 0x03, 0x00, 0x00, 0x00,             // mov esi, 3 (VFS_CHARDEVICE)
+    0xBA, 0x01, 0x01, 0x00, 0x00,             // mov edx, 0x0101 (dev 1,1)
+    0x0F, 0x05,                               // syscall
+    0x89, 0xC7,                               // mov edi, eax
+    0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3 (SYS_EXIT)
     0x0F, 0x05                                // syscall
 };
 
@@ -784,6 +795,57 @@ TEST(test_syscall_exec)
             printf("Syscall Test: EXEC successful\n");
         else
             printf("Syscall Test: EXEC failed, exit code %d\n", test_exit_code);
+        syscall_set_exit_hook(NULL);
+        return passed;
+    }
+}
+
+TEST(test_syscall_mknod)
+{
+    test_runner_pid = current_process->pid;
+    void *phys_page = pmm_alloc_page();
+    if (!phys_page)
+        return false;
+
+    uint64_t user_base = 0x400000;
+    uint64_t cr3;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    uint64_t hhdm_offset = 0xffff800000000000;
+    vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+    void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
+    memcpy(virt_page, mknod_stub_bytes, sizeof(mknod_stub_bytes));
+
+    const char *path = "/dev_test";
+    memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
+
+    syscall_set_exit_hook(syscall_test_exit_handler);
+
+    if (__builtin_setjmp(test_env) == 0)
+    {
+        uint64_t user_stack = user_base + 4096 - 16;
+        enter_user_mode(user_base, user_stack);
+        return false;
+    }
+    else
+    {
+        syscall_test_resume_after_longjmp();
+        bool passed = (test_exit_code == 0);
+        if (passed)
+        {
+            vfs_inode_t *node = vfs_resolve_path("/dev_test");
+            if (node && (node->flags & VFS_CHARDEVICE))
+            {
+                printf("Syscall Test: MKNOD successful (node found)\n");
+            }
+            else
+            {
+                printf("Syscall Test: MKNOD failed (node not found or wrong type)\n");
+                passed = false;
+            }
+        }
+        else
+            printf("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
