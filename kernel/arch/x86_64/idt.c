@@ -7,6 +7,7 @@
 #include "apic.h"
 #include "ide.h"
 #include "process.h"
+#include "kernel.h"
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -112,9 +113,6 @@ void interrupt_handler(struct interrupt_frame *frame)
             }
         }
 
-        terminal_init(fb);
-        terminal_set_cursor(10, 10);
-        terminal_set_color(0xFFFFFFFF);
         printf("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
         printf("Error Code: 0x%lx\n", frame->err_code);
         printf("RIP: 0x%lx\n", frame->rip);
@@ -129,6 +127,10 @@ void interrupt_handler(struct interrupt_frame *frame)
             __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
             printf("CR2 (Page Fault Address): 0x%lx\n", cr2);
         }
+
+#ifdef TEST_MODE
+        shutdown();
+#endif
 
         for (;;)
         {
