@@ -66,7 +66,7 @@ void ext2fs_readsb(int dev, struct ext2_super_block *sb)
     memcpy((uint8_t *)sb + 512, bp->data, 512);
     brelse(bp);
 
-    printf("EXT2: Magic: %x, Inode Size: %d, Block Size: %d\n", sb->s_magic, sb->s_inode_size, 1024 << sb->s_log_block_size);
+    boot_message(INFO, "EXT2: Magic: %x, Inode Size: %d, Block Size: %d", sb->s_magic, sb->s_inode_size, 1024 << sb->s_log_block_size);
 }
 
 struct icache icache;
@@ -102,7 +102,11 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
     ip->inum = inum;
     ip->ref = 1;
     ip->valid = 0;
+    ip->type = 0;
+    ip->size = 0;
+    ip->nlink = 0;
     ip->addrs = &ext2fs_addrs[ip - icache.inode];
+    memset(ip->addrs, 0, sizeof(struct ext2fs_addrs));
     spinlock_release(&icache.lock);
 
     return ip;
@@ -112,7 +116,7 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
 static void ext2fs_bzero(int dev, int bno)
 {
     buffer_head_t *bp = bread(dev, bno);
-    memset(bp->data, 0, EXT2_BSIZE);
+    memset(bp->data, 0, 512);
     bwrite(bp);
     brelse(bp);
 }
@@ -148,7 +152,10 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
     buffer_head_t *bp1 = bread(dev, desc_blockno);
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp1);
-    buffer_head_t *bp2 = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + first_partition_block);
+
+    uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + first_partition_block;
+
+    buffer_head_t *bp2 = bread(dev, bitmap_block);
 
     uint32_t fbit = ext2fs_get_free_bit((char *)bp2->data, ext2_sb.s_blocks_per_group);
     if (fbit != (uint32_t)-1)
@@ -158,7 +165,11 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 
         uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
         uint32_t rel_block = group_first_block + fbit;
-        ext2fs_bzero(dev, BLOCK_TO_SECTOR(rel_block) + first_partition_block);
+        uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + first_partition_block;
+        for (int i = 0; i < EXT2_BSIZE / 512; i++)
+        {
+            ext2fs_bzero(dev, start_sector + i);
+        }
         return rel_block;
     }
     brelse(bp2);
@@ -278,7 +289,9 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(ibitmap_buff);
 
         int inum = i * ext2_sb.s_inodes_per_group + fbit + 1;
-        return iget(dev, inum);
+        struct ext2_inode *ip = iget(dev, inum);
+        ip->type = type;
+        return ip;
     }
     printf("PANIC: ");
     printf("ext2_ialloc: no inodes");
@@ -308,37 +321,31 @@ void ext2fs_iupdate(struct ext2_inode *ip)
         printf("ext2fs_iupdate: inode too large");
     }
 
-    u8 raw[EXT2_MAX_INODE_SIZE];
-    memcpy(raw, bp1->data + sector_byte_offset, ext2_sb.s_inode_size);
-    struct ext2_disk_inode *din = (struct ext2_disk_inode *)raw;
+    struct ext2_disk_inode *din = (struct ext2_disk_inode *)(bp1->data + sector_byte_offset);
 
     if (ip->type == T_DIR)
-    {
         din->i_mode = S_IFDIR;
-    }
-    if (ip->type == T_FILE)
-    {
+    else if (ip->type == T_FILE)
         din->i_mode = S_IFREG;
-    }
-    if (ip->type == T_DEV)
-    {
+    else if (ip->type == T_DEV)
         din->i_mode = S_IFCHR;
-    }
+
+    din->i_atime = ip->i_atime;
+    din->i_ctime = ip->i_ctime;
+    din->i_mtime = ip->i_mtime;
+    din->i_dtime = din->i_uid = din->i_gid = din->i_flags = din->i_generation = 0;
     din->i_links_count = ip->nlink;
     din->i_size = ip->size;
-    din->i_dtime = 0;
-    din->i_faddr = 0;
-    din->i_file_acl = 0;
-    din->i_flags = 0;
-    din->i_generation = 0;
-    din->i_gid = 0;
-    din->i_mtime = 0;
-    din->i_uid = 0;
-    din->i_atime = 0;
 
     struct ext2fs_addrs *ad = (struct ext2fs_addrs *)ip->addrs;
     memcpy(din->i_block, ad->addrs, sizeof(ad->addrs));
-    memcpy(bp1->data + sector_byte_offset, raw, ext2_sb.s_inode_size);
+
+    if (ip->type == T_DEV)
+    {
+        din->i_block[0] = (ip->major << 8) | ip->minor;
+    }
+
+    // memcpy(bp1->data + sector_byte_offset, raw, ext2_sb.s_inode_size);
     bwrite(bp1);
     brelse(bp1);
 }
@@ -362,6 +369,10 @@ void ext2fs_ilock(struct ext2_inode *ip)
         const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
         const int ioff = GET_INODE_INDEX(ip->inum, ext2_sb);
         buffer_head_t *bp = bread(ip->dev, desc_block);
+        if (!bp)
+        {
+            panic("ext2fs_ilock: failed to read group descriptor");
+        }
         memcpy(&bgdesc, bp->data + gno * sizeof(bgdesc), sizeof(bgdesc));
         brelse(bp);
         const int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / (EXT2_BSIZE / ext2_sb.s_inode_size)) + first_partition_block;
@@ -372,6 +383,10 @@ void ext2fs_ilock(struct ext2_inode *ip)
         uint32_t sector_byte_offset = block_offset % 512;
 
         buffer_head_t *bp1 = bread(ip->dev, bno + sector_offset);
+        if (!bp1)
+        {
+            panic("ext2fs_ilock: failed to read inode block");
+        }
         if (ext2_sb.s_inode_size > EXT2_MAX_INODE_SIZE)
         {
             panic("ext2fs_ilock: inode too large");
@@ -393,6 +408,8 @@ void ext2fs_ilock(struct ext2_inode *ip)
         else if (S_ISCHR(din->i_mode))
         {
             ip->type = T_DEV;
+            ip->major = (din->i_block[0] >> 8) & 0xFF;
+            ip->minor = din->i_block[0] & 0xFF;
         }
         ip->i_atime = din->i_atime;
         ip->i_ctime = din->i_ctime;
@@ -779,9 +796,11 @@ int ext2fs_readi(struct ext2_inode *ip, char *dst, uint32_t off, uint32_t n)
         return -1;
     }
 
+    // printf("readi: inum %d, size %d, off %d, n %d\n", ip->inum, ip->size, off, n);
+
     if (off > ip->size || off + n < off)
     {
-        return -1;
+        return 0;
     }
     if (off + n > ip->size)
     {
@@ -877,12 +896,8 @@ struct ext2_inode *ext2fs_dirlookup(struct ext2_inode *dp, char *name, uint32_t 
     char file_name[EXT2_NAME_LEN + 1];
     for (uint32_t off = 0; off < dp->size;)
     {
-        memset(&de, 0, sizeof(de));
         if (ext2fs_readi(dp, (char *)&de, off, 8) != 8)
-        {
-            printf("PANIC: ");
-            printf("ext2fs_dirlookup: header read");
-        }
+            break;
         if (de.rec_len < 8 || de.rec_len > EXT2_BSIZE)
         {
             panic("ext2fs_dirlookup: bad rec_len");
@@ -955,7 +970,11 @@ int ext2fs_dirlink(struct ext2_inode *dp, char *name, uint32_t inum)
     de.file_type = EXT2_FT_UNKNOWN;
     memcpy(de.name, name, name_len);
 
-    ext2fs_writei(dp, (char *)&de, off, rec_len);
+    if (ext2fs_writei(dp, (char *)&de, off, rec_len) != rec_len)
+    {
+        printf("ext2fs_dirlink: writei failed\n");
+        return -1;
+    }
 
     return 0;
 }
@@ -1022,9 +1041,13 @@ static vfs_inode_t *ext2_vfs_finddir(vfs_inode_t *node, char *name)
     new_node->inode = ip->inum;
     new_node->size = ip->size;
     if (ip->type == T_DIR)
+    {
         new_node->flags = VFS_DIRECTORY;
+    }
     else
+    {
         new_node->flags = VFS_FILE;
+    }
 
     new_node->device = ip;
     new_node->iops = &ext2_vfs_ops;
@@ -1074,6 +1097,64 @@ static vfs_dirent_t *ext2_vfs_readdir(vfs_inode_t *node, uint32_t index)
     return NULL;
 }
 
+static int ext2_vfs_mknod(struct vfs_inode *node, char *name, int mode, int dev)
+{
+    struct ext2_inode *parent_inode = (struct ext2_inode *)node->device;
+    ext2fs_ilock(parent_inode);
+
+    struct ext2_inode *ip = ext2fs_dirlookup(parent_inode, name, NULL);
+    if (ip)
+    {
+        ext2fs_iput(ip);
+        ext2fs_iunlock(parent_inode);
+        return -1; // Exists
+    }
+
+    short ext2_type = EXT2_FT_REG_FILE;
+    if (mode == VFS_CHARDEVICE)
+        ext2_type = EXT2_FT_CHRDEV;
+    else if (mode == VFS_BLOCKDEVICE)
+        ext2_type = EXT2_FT_BLKDEV;
+    else if (mode == VFS_DIRECTORY)
+        ext2_type = EXT2_FT_DIR;
+
+    ip = ext2fs_ialloc(parent_inode->dev, ext2_type);
+    if (!ip)
+    {
+        printf("ext2_vfs_mknod: ialloc failed\n");
+        ext2fs_iunlock(parent_inode);
+        return -1;
+    }
+
+    ip->major = (dev >> 8) & 0xFF;
+    ip->minor = dev & 0xFF;
+    ip->nlink = 1;
+    ext2fs_iupdate(ip);
+
+    if (ext2fs_dirlink(parent_inode, name, ip->inum) < 0)
+    {
+        printf("ext2_vfs_mknod: dirlink failed\n");
+        ext2fs_iput(ip);
+        ext2fs_iunlock(parent_inode);
+        return -1;
+    }
+
+    ext2fs_iput(ip);
+    ext2fs_iunlock(parent_inode);
+    return 0;
+}
+
+static vfs_inode_t *ext2_vfs_clone(vfs_inode_t *node)
+{
+    struct ext2_inode *ip = (struct ext2_inode *)node->device;
+    struct ext2_inode *new_ip = iget(ip->dev, ip->inum);
+
+    vfs_inode_t *new_node = kmalloc(sizeof(vfs_inode_t));
+    memcpy(new_node, node, sizeof(vfs_inode_t));
+    new_node->device = new_ip;
+    return new_node;
+}
+
 static struct inode_operations ext2_vfs_ops = {
     .read = ext2_vfs_read,
     .write = ext2_vfs_write,
@@ -1081,6 +1162,8 @@ static struct inode_operations ext2_vfs_ops = {
     .close = ext2_vfs_close,
     .readdir = ext2_vfs_readdir,
     .finddir = ext2_vfs_finddir,
+    .mknod = ext2_vfs_mknod,
+    .clone = ext2_vfs_clone,
 };
 
 vfs_inode_t *ext2_mount(uint8_t drive_index, uint32_t partition_lba)
