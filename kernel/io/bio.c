@@ -87,7 +87,12 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
             if (bh->flags & BIO_FLAG_DIRTY)
             {
                 // Write back if dirty
-                ide_write_sectors(bh->device, bh->block, 1, bh->data);
+                if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
+                {
+                    printf("BIO: Failed to write back block %d\n", bh->block);
+                    // If write fails, we shouldn't reuse this buffer if we care about data integrity.
+                    // But for now, we proceed to avoid deadlock, but data is lost.
+                }
                 bh->flags &= ~BIO_FLAG_DIRTY;
             }
 
@@ -125,14 +130,18 @@ buffer_head_t *bread(uint8_t device, uint32_t block)
 
 void bwrite(buffer_head_t *bh)
 {
+    if (!bh)
+        return;
     bh->flags |= BIO_FLAG_DIRTY;
-    // Immediate write-through for now to be safe, or write-back later
-    // Let's do write-through for simplicity in this step, or rely on LRU eviction to write back.
-    // But if we crash, data is lost.
-    // Let's just mark dirty.
-    // Actually, for stability, let's sync immediately.
-    ide_write_sectors(bh->device, bh->block, 1, bh->data);
-    bh->flags &= ~BIO_FLAG_DIRTY;
+    // For now, write-through
+    if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
+    {
+        // printf("BIO: bwrite failed for block %d\n", bh->block);
+    }
+    else
+    {
+        bh->flags &= ~BIO_FLAG_DIRTY;
+    }
 }
 
 void brelse(buffer_head_t *bh)
