@@ -22,6 +22,27 @@
 #include "smp.h"
 #include "io.h"
 
+void kernel_main_task(void);
+
+void shutdown()
+{
+    // Exit QEMU
+    // Try 0x501 which is common default
+    outb(0x501, 0x10);
+    outw(0x501, 0x10);
+    outd(0x501, 0x10);
+
+    // Try 0xf4 as well
+    outb(0xf4, 0x10);
+    outw(0xf4, 0x10);
+    outd(0xf4, 0x10);
+
+    outw(0x604, 0x2000);  // qemu
+    outw(0x4004, 0x3400); // VirtualBox
+    outw(0xB004, 0x2000); // Bochs
+    outw(0x600, 0x34);    // Cloud hypervisors
+}
+
 static void kernel_splash_ascii(void)
 {
     terminal_clear(0x00000000);
@@ -53,8 +74,6 @@ void kernel_splash(void)
         return;
     }
 
-    // terminal_clear(0x00000000);
-
     int cursor_x, cursor_y_start;
     terminal_get_cursor(&cursor_x, &cursor_y_start);
 
@@ -83,10 +102,10 @@ void kernel_splash(void)
 
 void _start(void)
 {
+    uart_init();
     boot_init();
     enable_sse();
 
-    uart_init();
     smp_init_cpu0();
     gdt_init();
     idt_init();
@@ -112,13 +131,25 @@ void _start(void)
 #ifdef TEST_MODE
     run_tests();
 #else
+    kernel_splash();
+    process_spawn_init();
+#endif
+
+    while (1)
+    {
+        __asm__ volatile("hlt");
+    }
+}
+
+void kernel_main_task(void)
+{
+#ifdef TEST_MODE
+    run_tests();
+#else
     process_spawn_init();
 #endif
     vmm_finalize();
     kernel_splash();
 
-    while (1)
-    {
-        yield();
-    }
+    // If we return, the thread will exit
 }
