@@ -92,6 +92,28 @@ char *strncpy(char *dest, const char *src, size_t n)
     return dest;
 }
 
+char *strcat(char *dest, const char *src)
+{
+    char *ptr = dest + strlen(dest);
+    while (*src != '\0')
+    {
+        *ptr++ = *src++;
+    }
+    *ptr = '\0';
+    return dest;
+}
+
+char *strrchr(const char *s, int c)
+{
+    const char *last = NULL;
+    do
+    {
+        if (*s == (char)c)
+            last = s;
+    } while (*s++);
+    return (char *)last;
+}
+
 static void buffer_emit_char(char c, char *buffer, size_t capacity, size_t *stored, int *total)
 {
     if (buffer && *stored < capacity)

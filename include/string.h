@@ -11,5 +11,7 @@ int memcmp(const void *s1, const void *s2, size_t n);
 size_t strlen(const char *s);
 char *strcpy(char *dest, const char *src);
 char *strncpy(char *dest, const char *src, size_t n);
+char *strcat(char *dest, const char *src);
+char *strrchr(const char *s, int c);
 int vsnprintf(char *buffer, size_t size, const char *format, va_list args);
 int snprintf(char *buffer, size_t size, const char *format, ...);
