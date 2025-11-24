@@ -32,8 +32,7 @@ TEST(test_fat32_read_file)
     if (!fs_initialized)
         return false;
 
-    uint8_t buffer[512];
-    memset(buffer, 0, 512);
+    uint8_t buffer[512] = {0};
 
     // We added test.txt with "Hello FAT32" in the Makefile
     int res = fat32_read_file(&test_fs, "TEST.TXT", buffer, 512);
