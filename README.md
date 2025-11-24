@@ -2,7 +2,7 @@
 
 An x86_64 hobby kernel with a tiny userland, a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
-![](docs/img/Screenshot2.png "Startup screen")
+![Startup screen](docs/img/Screenshot2.png)
 
 ## Layout (high level)
 
