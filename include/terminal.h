@@ -25,3 +25,9 @@ void terminal_get_cursor(int *x, int *y);
 void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
 void boot_message(t level, const char *fmt, ...);
+
+#ifdef TEST_MODE
+void test_capture_begin(void);
+void test_capture_discard(void);
+void test_capture_flush(void);
+#endif

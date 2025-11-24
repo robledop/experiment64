@@ -494,8 +494,54 @@ static void terminal_putc_callback(char c, void *arg)
     terminal_putc(c);
 }
 
+#ifdef TEST_MODE
+#define TEST_CAPTURE_SIZE 8192
+static char test_capture_buf[TEST_CAPTURE_SIZE];
+static size_t test_capture_pos = 0;
+static bool test_capture_active = false;
+
+void test_capture_begin(void)
+{
+    test_capture_active = true;
+    test_capture_pos = 0;
+}
+
+void test_capture_discard(void)
+{
+    test_capture_active = false;
+    test_capture_pos = 0;
+}
+
+void test_capture_flush(void)
+{
+    test_capture_active = false;
+    if (test_capture_pos == 0)
+        return;
+    // Null-terminate and print the buffered output.
+    if (test_capture_pos >= TEST_CAPTURE_SIZE)
+        test_capture_pos = TEST_CAPTURE_SIZE - 1;
+    test_capture_buf[test_capture_pos] = '\0';
+    printk("%s", test_capture_buf);
+    test_capture_pos = 0;
+}
+#endif
+
 void vprintk(const char *format, va_list args)
 {
+#ifdef TEST_MODE
+    if (test_capture_active)
+    {
+        // Render into the capture buffer without touching the terminal.
+        if (test_capture_pos < TEST_CAPTURE_SIZE - 1)
+        {
+            // Limit to remaining space to avoid overflow.
+            size_t remaining = TEST_CAPTURE_SIZE - 1 - test_capture_pos;
+            size_t written = vsnprintk(test_capture_buf + test_capture_pos, remaining, format, args);
+            test_capture_pos += (written < remaining) ? written : remaining;
+        }
+        return;
+    }
+#endif
     vcbprintf(NULL, terminal_putc_callback, format, args);
 }
 
