@@ -172,7 +172,7 @@ process_t *process_create(const char *name)
     INIT_LIST_HEAD(&proc->threads);
     list_add_tail(&proc->list, &process_list);
     spinlock_release(&scheduler_lock);
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 
     return proc;
@@ -267,7 +267,7 @@ void process_destroy(process_t *proc)
     spinlock_acquire(&scheduler_lock);
     list_del(&proc->list);
     spinlock_release(&scheduler_lock);
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 
     kfree(proc);
@@ -317,7 +317,7 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
     spinlock_acquire(&scheduler_lock);
     list_add_tail(&thread->list, &process->threads);
     spinlock_release(&scheduler_lock);
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 
     return thread;
@@ -489,7 +489,7 @@ void schedule(void)
     thread_t *curr = get_current_thread();
     if (!curr)
     {
-        if (rflags & 0x200)
+        if (rflags & RFLAGS_IF)
             __asm__ volatile("sti");
         return;
     }
@@ -499,7 +499,7 @@ void schedule(void)
     spinlock_release(&scheduler_lock);
 
     // Restore interrupt state
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 }
 
@@ -536,7 +536,7 @@ void thread_sleep(void *chan, spinlock_t *lk)
     }
 
     // Restore interrupt state
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 }
 
@@ -563,7 +563,7 @@ void thread_wakeup(void *chan)
     spinlock_release(&scheduler_lock);
 
     // Restore interrupt state
-    if (rflags & 0x200)
+    if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 }
 

@@ -30,7 +30,6 @@ vfs_inode_t *console_device = NULL;
 
 void console_init()
 {
-    // Create console device node
     console_device = kmalloc(sizeof(vfs_inode_t));
     memset(console_device, 0, sizeof(vfs_inode_t));
     console_device->flags = VFS_CHARDEVICE;

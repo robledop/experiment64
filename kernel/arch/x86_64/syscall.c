@@ -193,7 +193,7 @@ void syscall_init(void)
 
     // Set SFMASK MSR - RFLAGS mask
     // Mask Interrupts (IF - bit 9)
-    wrmsr(MSR_SFMASK, 0x200);
+    wrmsr(MSR_SFMASK, RFLAGS_IF);
 
     // Set TSS RSP0 to the kernel stack
     // For BSP, we use bootstrap stack initially

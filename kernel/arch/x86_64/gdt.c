@@ -32,7 +32,6 @@ void gdt_init(void)
     gdtp.limit = sizeof(struct gdt_desc) * 7 - 1;
     gdtp.base = (uint64_t)gdt;
 
-    // 0: Null Descriptor
     gdt[0] = (struct gdt_desc){0, 0, 0, 0, 0, 0};
 
     // 1: Kernel Code (0x08)
@@ -84,7 +83,6 @@ void gdt_init(void)
 
     __asm__ volatile("lgdt %0" : : "m"(gdtp));
 
-    // Reload CS
     __asm__ volatile(
         "push 0x08\n"
         "lea rax, [rip + 1f]\n"
@@ -93,7 +91,6 @@ void gdt_init(void)
         "1:\n"
         : : : "rax", "memory");
 
-    // Reload Data Segments
     __asm__ volatile(
         "mov ax, 0x10\n"
         "mov ds, ax\n"

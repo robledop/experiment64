@@ -24,11 +24,13 @@
 #define UART_MCR_OUT2 0x08
 #define UART_LSR_THRE 0x20
 
+#define UART_DIVISOR_38400 0x03
+
 void uart_init(void)
 {
     outb(UART_IER_REG, 0x00);                                                                          // Disable all interrupts
     outb(UART_LCR_REG, UART_LCR_DLAB);                                                                 // Enable DLAB (set baud rate divisor)
-    outb(UART_DATA_REG, 0x03);                                                                         // Set divisor to 3 (lo byte) 38400 baud
+    outb(UART_DATA_REG, UART_DIVISOR_38400);                                                           // Set divisor to 3 (lo byte) 38400 baud
     outb(UART_IER_REG, 0x00);                                                                          //                  (hi byte)
     outb(UART_LCR_REG, UART_LCR_8BIT);                                                                 // 8 bits, no parity, one stop bit
     outb(UART_FCR_REG, UART_FCR_ENABLE | UART_FCR_CLEAR_RX | UART_FCR_CLEAR_TX | UART_FCR_TRIGGER_14); // Enable FIFO, clear them, with 14-byte threshold

@@ -25,24 +25,25 @@
 #include "tsc.h"
 #include "console.h"
 #include "devfs.h"
+#include "kernel.h"
 
 void shutdown()
 {
     // Exit QEMU
     // Try 0x501 which is common default
-    outb(0x501, 0x10);
-    outw(0x501, 0x10);
-    outd(0x501, 0x10);
+    outb(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
+    outw(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
+    outd(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
 
     // Try 0xf4 as well
-    outb(0xf4, 0x10);
-    outw(0xf4, 0x10);
-    outd(0xf4, 0x10);
+    outb(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
+    outw(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
+    outd(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
 
-    outw(0x604, 0x2000);  // qemu
-    outw(0x4004, 0x3400); // VirtualBox
-    outw(0xB004, 0x2000); // Bochs
-    outw(0x600, 0x34);    // Cloud hypervisors
+    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD);   // qemu
+    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD);   // VirtualBox
+    outw(BOCHS_SHUTDOWN_PORT, BOCHS_SHUTDOWN_CMD); // Bochs
+    outw(CLOUD_SHUTDOWN_PORT, CLOUD_SHUTDOWN_CMD); // Cloud hypervisors
 }
 
 static void kernel_splash_ascii(void)

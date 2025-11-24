@@ -5,6 +5,9 @@
 #define PIT_CMD 0x43
 #define PIT_FREQ 1193182
 
+#define PIT_MODE0_ACCESS_LOHI 0x30
+#define PIT_CMD_LATCH 0x00
+
 void pit_init(void)
 {
     // We don't really need to do much init if we only use it for sleep
@@ -15,7 +18,7 @@ void pit_sleep(uint32_t ms)
     uint16_t count = (uint16_t)((PIT_FREQ * ms) / 1000);
 
     // Mode 0 (Interrupt on Terminal Count), Channel 0, Access Lo/Hi
-    outb(PIT_CMD, 0x30);
+    outb(PIT_CMD, PIT_MODE0_ACCESS_LOHI);
     outb(PIT_CHANNEL0, count & 0xFF);
     outb(PIT_CHANNEL0, (count >> 8) & 0xFF);
 
@@ -28,7 +31,7 @@ void pit_sleep(uint32_t ms)
     do
     {
         // Send Latch command
-        outb(PIT_CMD, 0x00);
+        outb(PIT_CMD, PIT_CMD_LATCH);
         uint8_t low = inb(PIT_CHANNEL0);
         uint8_t high = inb(PIT_CHANNEL0);
         current_count = ((uint16_t)high << 8) | low;

@@ -4,9 +4,21 @@
 #include "terminal.h"
 #include "uart.h"
 #include "process.h"
+#include "cpu.h"
 #include <stdbool.h>
 
 #define KEYBOARD_DATA_PORT 0x60
+
+#define SCANCODE_LSHIFT_PRESS 0x2A
+#define SCANCODE_RSHIFT_PRESS 0x36
+#define SCANCODE_LSHIFT_RELEASE 0xAA
+#define SCANCODE_RSHIFT_RELEASE 0xB6
+#define SCANCODE_LCTRL_PRESS 0x1D
+#define SCANCODE_LCTRL_RELEASE 0x9D
+#define SCANCODE_LALT_PRESS 0x38
+#define SCANCODE_LALT_RELEASE 0xB8
+#define SCANCODE_CAPSLOCK_PRESS 0x3A
+#define SCANCODE_RELEASE_MASK 0x80
 
 #define BUFFER_SIZE 128
 // Volatile is necessary here because these variables are modified by the interrupt handler
@@ -32,57 +44,52 @@ void keyboard_handler_main(void)
 {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
 
-    // Handle modifiers
-    if (scancode == 0x2A || scancode == 0x36) // Left/Right Shift Press
+    if (scancode == SCANCODE_LSHIFT_PRESS || scancode == SCANCODE_RSHIFT_PRESS)
     {
         shift_pressed = true;
         return;
     }
-    if (scancode == 0xAA || scancode == 0xB6) // Left/Right Shift Release
+    if (scancode == SCANCODE_LSHIFT_RELEASE || scancode == SCANCODE_RSHIFT_RELEASE)
     {
         shift_pressed = false;
         return;
     }
-    if (scancode == 0x1D) // Left Ctrl Press
+    if (scancode == SCANCODE_LCTRL_PRESS)
     {
         ctrl_pressed = true;
         return;
     }
-    if (scancode == 0x9D) // Left Ctrl Release
+    if (scancode == SCANCODE_LCTRL_RELEASE)
     {
         ctrl_pressed = false;
         return;
     }
-    if (scancode == 0x38) // Left Alt Press
+    if (scancode == SCANCODE_LALT_PRESS)
     {
         alt_pressed = true;
         return;
     }
-    if (scancode == 0xB8) // Left Alt Release
+    if (scancode == SCANCODE_LALT_RELEASE)
     {
         alt_pressed = false;
         return;
     }
-    if (scancode == 0x3A) // Caps Lock Press
+    if (scancode == SCANCODE_CAPSLOCK_PRESS)
     {
         caps_lock = !caps_lock;
         return;
     }
 
-    // If the top bit is set, it's a key release
-    if (scancode & 0x80)
+    if (scancode & SCANCODE_RELEASE_MASK)
     {
-        // Key release, ignore for now
     }
     else
     {
-        // Key press
         if (scancode < sizeof(scancode_to_char))
         {
             char c = scancode_to_char[scancode];
             bool use_shift = shift_pressed;
 
-            // Handle Caps Lock for letters
             char base = scancode_to_char[scancode];
             if (caps_lock && base >= 'a' && base <= 'z')
             {
@@ -144,7 +151,7 @@ char keyboard_get_char(void)
             char c = buffer[read_ptr];
             read_ptr = (read_ptr + 1) % BUFFER_SIZE;
             // Restore interrupts
-            if (rflags & 0x200)
+            if (rflags & RFLAGS_IF)
                 __asm__ volatile("sti");
             return c;
         }

@@ -16,7 +16,6 @@ void enable_sse(void)
     cr4 |= (1 << 10); // Set OSXMMEXCPT (OS Support for Unmasked SIMD Floating-Point Exceptions)
     __asm__ volatile("mov cr4, %0" ::"r"(cr4));
 
-    // Initialize FPU/SSE state
     __asm__ volatile("fninit");
     uint32_t mxcsr = 0x1F80; // Mask all exceptions
     __asm__ volatile("ldmxcsr %0" ::"m"(mxcsr));
@@ -64,7 +63,6 @@ void hcf(void)
 
 void init_fpu_state(fpu_state_t *state)
 {
-    // Zero out the state
     for (int i = 0; i < 512; i++)
     {
         state->data[i] = 0;

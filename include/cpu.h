@@ -19,6 +19,8 @@ typedef struct
 #define MSR_GS_BASE 0xC0000101
 #define MSR_KERNEL_GS_BASE 0xC0000102
 
+#define RFLAGS_IF 0x200
+
 struct Thread;
 
 typedef struct cpu

@@ -20,11 +20,19 @@ extern volatile struct limine_hhdm_request hhdm_request;
 #define LAPIC_TCCR 0x0390
 #define LAPIC_TDCR 0x03E0
 
+#define LAPIC_TDCR_DIV_16 0x3
+#define LAPIC_LVT_MASK 0x10000
+#define APIC_TIMER_VECTOR 32
+#define LAPIC_TIMER_INIT_COUNT 0xFFFFFFFF
+
 // IOAPIC Registers
 #define IOAPIC_ID 0x00
 #define IOAPIC_VER 0x01
 #define IOAPIC_ARB 0x02
 #define IOAPIC_REDTBL 0x10
+
+#define IOAPIC_IOREGSEL 0x00
+#define IOAPIC_IOWIN 0x10
 
 static uint64_t lapic_base = 0;
 static uint64_t ioapic_base = 0;
@@ -62,14 +70,14 @@ static void lapic_write(uint32_t reg, uint32_t value)
 
 uint32_t ioapic_read(uint32_t reg)
 {
-    *((volatile uint32_t *)(ioapic_base)) = reg;
-    return *((volatile uint32_t *)(ioapic_base + 0x10));
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    return *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN));
 }
 
 static void ioapic_write(uint32_t reg, uint32_t value)
 {
-    *((volatile uint32_t *)(ioapic_base)) = reg;
-    *((volatile uint32_t *)(ioapic_base + 0x10)) = value;
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN)) = value;
 }
 
 void apic_send_eoi(void)
@@ -87,18 +95,15 @@ void apic_timer_calibrate(void)
 {
     boot_message(INFO, "APIC: Calibrating LAPIC timer...");
 
-    // Initialize LAPIC Timer for calibration
-    // Divide by 16
-    lapic_write(LAPIC_TDCR, 0x3);
+    lapic_write(LAPIC_TDCR, LAPIC_TDCR_DIV_16);
 
     // Set to One-Shot mode (0x00000) or Periodic, doesn't matter if we just read count
     // Vector 32, One-Shot (masked to avoid interrupt during calibration?)
     // Actually, we can just mask it or use a vector that does nothing.
     // But we need it to count.
-    lapic_write(LAPIC_LVT_TIMER, 32 | 0x10000); // Masked
+    lapic_write(LAPIC_LVT_TIMER, APIC_TIMER_VECTOR | LAPIC_LVT_MASK);
 
-    // Set Initial Count to Max
-    lapic_write(LAPIC_TICR, 0xFFFFFFFF);
+    lapic_write(LAPIC_TICR, LAPIC_TIMER_INIT_COUNT);
 
     // Sleep for 10ms
     pit_sleep(10);

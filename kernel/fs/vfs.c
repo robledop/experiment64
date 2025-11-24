@@ -40,7 +40,6 @@ vfs_inode_t *vfs_check_mount(const char *name)
                 return root->iops->clone(root);
             }
 
-            // Return a copy
             vfs_inode_t *copy = kmalloc(sizeof(vfs_inode_t));
             if (copy)
                 memcpy(copy, mount_table[i].root, sizeof(vfs_inode_t));
@@ -52,7 +51,6 @@ vfs_inode_t *vfs_check_mount(const char *name)
 
 void vfs_init()
 {
-    // Initialize root as null or a temporary placeholder if needed
     vfs_root = 0;
 }
 
