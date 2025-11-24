@@ -4,6 +4,7 @@
 #include "string.h"
 #include "heap.h"
 #include "console.h"
+#include "devfs.h"
 
 uint64_t console_read([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size, uint8_t *buffer)
 {
@@ -27,37 +28,6 @@ struct inode_operations console_ops = {
 
 vfs_inode_t *console_device = NULL;
 
-vfs_inode_t *devfs_finddir([[maybe_unused]] vfs_inode_t *node, char *name)
-{
-    if (strcmp(name, "console") == 0)
-    {
-        vfs_inode_t *copy = kmalloc(sizeof(vfs_inode_t));
-        if (copy)
-        {
-            memcpy(copy, console_device, sizeof(vfs_inode_t));
-        }
-        return copy;
-    }
-    return NULL;
-}
-
-vfs_dirent_t *devfs_readdir([[maybe_unused]] vfs_inode_t *node, uint32_t index)
-{
-    if (index == 0)
-    {
-        vfs_dirent_t *dirent = kmalloc(sizeof(vfs_dirent_t));
-        strcpy(dirent->name, "console");
-        dirent->inode = 0; // Dummy
-        return dirent;
-    }
-    return NULL;
-}
-
-struct inode_operations devfs_ops = {
-    .finddir = devfs_finddir,
-    .readdir = devfs_readdir,
-};
-
 void console_init()
 {
     // Create console device node
@@ -66,11 +36,5 @@ void console_init()
     console_device->flags = VFS_CHARDEVICE;
     console_device->iops = &console_ops;
 
-    // Create /dev directory node (the mount root)
-    vfs_inode_t *dev_root = kmalloc(sizeof(vfs_inode_t));
-    memset(dev_root, 0, sizeof(vfs_inode_t));
-    dev_root->flags = VFS_DIRECTORY;
-    dev_root->iops = &devfs_ops;
-
-    vfs_register_mount("dev", dev_root);
+    devfs_register_device("console", console_device);
 }

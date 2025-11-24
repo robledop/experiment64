@@ -24,6 +24,7 @@
 #include "debug.h"
 #include "tsc.h"
 #include "console.h"
+#include "devfs.h"
 
 void shutdown()
 {
@@ -124,6 +125,7 @@ void _start(void)
     ide_init();
     bio_init();
     vfs_init();
+    devfs_init();
     console_init();
 
     vfs_mount_root();
