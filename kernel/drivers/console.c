@@ -15,7 +15,7 @@ uint64_t console_read([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint6
     return size;
 }
 
-uint64_t console_write([[maybe_unused]] vfs_inode_t *node,[[maybe_unused]]  uint64_t offset, uint64_t size, uint8_t *buffer)
+uint64_t console_write([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size, uint8_t *buffer)
 {
     terminal_write((char *)buffer, size);
     return size;
