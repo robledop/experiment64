@@ -107,7 +107,6 @@ pml4_t vmm_new_pml4(void)
     // Limine provides the kernel mapping in the boot PML4.
     // We should copy the higher half mappings from the current PML4 (bootloader's).
 
-    // Get current CR3
     uint64_t current_cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(current_cr3));
     uint64_t current_pml4_phys = current_cr3 & 0x000FFFFFFFFFF000;
@@ -136,14 +135,12 @@ static void copy_page_table_level(uint64_t *dest_table, uint64_t *src_table, int
 
             if (level == 1) // PT level
             {
-                // Allocate new page
                 void *new_phys = pmm_alloc_page();
                 if (!new_phys)
                     continue;
 
                 void *src_phys = (void *)(src_table[i] & 0x000FFFFFFFFFF000);
 
-                // Copy data
                 memcpy((void *)((uint64_t)new_phys + g_hhdm_offset),
                        (void *)((uint64_t)src_phys + g_hhdm_offset),
                        PAGE_SIZE);
@@ -186,7 +183,6 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
     {
         if (src_virt[i] & PTE_PRESENT)
         {
-            // Allocate PDPT
             void *new_pdpt_phys = pmm_alloc_page();
             if (!new_pdpt_phys)
                 continue;
@@ -220,10 +216,8 @@ static void free_page_table_level(uint64_t *table, int level)
             uint64_t phys = table[i] & 0x000FFFFFFFFFF000;
             if (level > 1)
             {
-                // Recurse
                 uint64_t *next_table = (uint64_t *)(phys + g_hhdm_offset);
                 free_page_table_level(next_table, level - 1);
-                // Free the table page
                 pmm_free_page((void *)phys);
             }
             else
@@ -251,7 +245,6 @@ void vmm_destroy_pml4(pml4_t pml4)
         }
     }
 
-    // Free the PML4 itself
     pmm_free_page((void *)pml4);
 }
 
@@ -293,8 +286,6 @@ void vmm_finalize(void)
     else
     {
         boot_message(ERROR, "VMM Initialization Failed.");
-        // We can't easily HCF here without including cpu.h, but let's just print for now.
-        // The caller should handle critical failure if needed, or we add hcf() here.
         while (1)
             __asm__("hlt");
     }

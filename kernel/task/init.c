@@ -3,8 +3,6 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "terminal.h"
-#include "io.h"
-#include "string.h"
 #include "heap.h"
 
 void init_process_entry(void)

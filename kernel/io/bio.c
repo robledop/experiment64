@@ -38,7 +38,7 @@ static void move_to_head(buffer_head_t *bh)
 
 static buffer_head_t *get_blk(uint8_t device, uint32_t block)
 {
-    // 1. Search cache
+    // Search cache
     for (int i = 0; i < BIO_CACHE_SIZE; i++)
     {
         if (cache[i].device == device && cache[i].block == block && (cache[i].flags & BIO_FLAG_VALID))
@@ -49,7 +49,7 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
         }
     }
 
-    // 2. Not found, find free or LRU
+    // Not found, find free or LRU
     // We pick from tail (LRU)
     buffer_head_t *bh;
     list_for_each_entry_reverse(bh, &lru_list, list)

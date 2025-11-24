@@ -7,7 +7,7 @@
 static void make_path(char *buffer, const char *base, const char *sub, int index)
 {
     char num[16];
-    snprintf(num, 16, "%d", index);
+    snprintk(num, 16, "%d", index);
     strcpy(buffer, base);
     if (buffer[strlen(buffer) - 1] != '/')
         strcat(buffer, "/");
@@ -84,7 +84,7 @@ TEST(test_ext2_stress)
             }
 
             // Write content
-            snprintf(content, sizeof(content), "Data %d-%d", i, j);
+            snprintk(content, sizeof(content), "Data %d-%d", i, j);
 
             vfs_inode_t *file = vfs_resolve_path(filepath);
             if (!file)
@@ -135,7 +135,7 @@ TEST(test_ext2_stress)
             vfs_close(file);
             kfree(file);
 
-            snprintf(content, sizeof(content), "Data %d-%d", i, j);
+            snprintk(content, sizeof(content), "Data %d-%d", i, j);
             if (strncmp(buffer, content, strlen(content)) != 0)
             {
                 printk("Content mismatch in %s: expected '%s', got '%s'\n", filepath, content, buffer);

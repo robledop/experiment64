@@ -55,7 +55,7 @@ TEST(test_fat32_stress)
     for (int i = 0; i < STRESS_FILE_COUNT; i++)
     {
         char filename[64];
-        snprintf(filename, sizeof(filename), "%s/FILE%d.TXT", dirname, i);
+        snprintk(filename, sizeof(filename), "%s/FILE%d.TXT", dirname, i);
 
         // Create file
         if (vfs_mknod(filename, VFS_FILE, 0) != 0)
@@ -96,7 +96,7 @@ TEST(test_fat32_stress)
     for (int i = 0; i < STRESS_FILE_COUNT; i++)
     {
         char filename[64];
-        snprintf(filename, sizeof(filename), "%s/FILE%d.TXT", dirname, i);
+        snprintk(filename, sizeof(filename), "%s/FILE%d.TXT", dirname, i);
 
         vfs_inode_t *node = vfs_resolve_path(filename);
         if (!node)

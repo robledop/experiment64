@@ -38,7 +38,7 @@ void pmm_init(uint64_t hhdm_offset)
     struct limine_memmap_response *memmap = memmap_request.response;
     uint64_t highest_addr = 0;
 
-    // 1. Find the highest usable physical address
+    // Find the highest usable physical address
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *entry = memmap->entries[i];
@@ -55,7 +55,7 @@ void pmm_init(uint64_t hhdm_offset)
     highest_page = highest_addr / PAGE_SIZE;
     bitmap_size = highest_page / 8 + 1;
 
-    // 2. Find a place to put the bitmap
+    // Find a place to put the bitmap
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *entry = memmap->entries[i];
@@ -78,7 +78,7 @@ void pmm_init(uint64_t hhdm_offset)
             __asm__("hlt");
     }
 
-    // 3. Mark usable regions as free (0) in the bitmap
+    // Mark usable regions as free (0) in the bitmap
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
         struct limine_memmap_entry *entry = memmap->entries[i];
@@ -91,7 +91,7 @@ void pmm_init(uint64_t hhdm_offset)
         }
     }
 
-    // 4. Mark the bitmap itself as used
+    // Mark the bitmap itself as used
     // Note: bitmap pointer is virtual (HHDM), we need physical address for page calculation
     uint64_t bitmap_phys = (uint64_t)bitmap - hhdm_offset;
     uint64_t bitmap_start_page = bitmap_phys / PAGE_SIZE;
@@ -101,7 +101,7 @@ void pmm_init(uint64_t hhdm_offset)
         bitmap_set(bitmap_start_page + i);
     }
 
-    // 5. Mark the first page (0x0) as used to avoid null pointer confusion
+    // Mark the first page (0x0) as used to avoid null pointer confusion
     bitmap_set(0);
 
     boot_message(INFO, "PMM Initialized. Highest Address: 0x%lx, Bitmap Size: %lu bytes", highest_addr, bitmap_size);

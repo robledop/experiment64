@@ -123,11 +123,14 @@ void panic(const char *fmt, ...)
 {
     __asm__ volatile("cli");
 
-    boot_message(INFO,"\n" KRED "PANIC: "); // Note: We are not handling varargs properly here because we lack vprintf.
-    // In a real implementation, we should add vprintf to terminal.c
-    boot_message(INFO,fmt);
+    printk("\n" KRED "PANIC: ");
 
-    boot_message(INFO,KRESET "\n");
+    va_list args;
+    va_start(args, fmt);
+    vprintk(fmt, args);
+    va_end(args);
+
+    printk(KRESET "\n");
 
     stack_trace();
 

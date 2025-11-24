@@ -159,7 +159,7 @@ static void buffer_emit_unsigned(uint64_t value, unsigned base, bool uppercase, 
     }
 }
 
-int vsnprintf(char *buffer, size_t size, const char *format, va_list args)
+int vsnprintk(char *buffer, size_t size, const char *format, va_list args)
 {
     size_t capacity = (size > 0) ? size - 1 : 0;
     size_t stored = 0;
@@ -291,11 +291,11 @@ int vsnprintf(char *buffer, size_t size, const char *format, va_list args)
     return total;
 }
 
-int snprintf(char *buffer, size_t size, const char *format, ...)
+int snprintk(char *buffer, size_t size, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    int ret = vsnprintf(buffer, size, format, args);
+    int ret = vsnprintk(buffer, size, format, args);
     va_end(args);
     return ret;
 }

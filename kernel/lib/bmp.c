@@ -1,5 +1,4 @@
 #include <stdint.h>
-
 #include "bmp.h"
 #include "heap.h"
 #include "terminal.h"

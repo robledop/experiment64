@@ -485,11 +485,8 @@ void terminal_write_string(const char *data)
         terminal_putc(*data++);
 }
 
-void printk(const char *format, ...)
+void vprintk(const char *format, va_list args)
 {
-    va_list args;
-    va_start(args, format);
-
     while (*format)
     {
         if (*format == '%')
@@ -596,7 +593,13 @@ void printk(const char *format, ...)
         }
         format++;
     }
+}
 
+void printk(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vprintk(format, args);
     va_end(args);
 }
 
@@ -618,7 +621,7 @@ void boot_message(t level, const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     char buf[512];
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    vsnprintk(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     printk("%s\n", buf);
 }

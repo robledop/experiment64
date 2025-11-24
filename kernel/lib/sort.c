@@ -31,17 +31,6 @@ static void quicksort(void *base, size_t size, int (*compar)(const void *, const
     if (left >= right)
         return;
 
-    // Let's use a simple partition scheme (Lomuto or Hoare).
-    // Hoare partition:
-
-    // We need a temporary buffer for pivot if we want to be safe, or just use index.
-    // But comparing requires passing pointers.
-
-    // Let's use a simple implementation that is easy to get right.
-    // Insertion sort for small arrays is also good.
-
-    // Let's implement a simple partition.
-
     char *ptr = (char *)base;
 
     // Pivot selection: middle element

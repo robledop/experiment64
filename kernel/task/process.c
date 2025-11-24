@@ -288,10 +288,8 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
     thread->state = THREAD_READY;
     thread->ticks_remaining = TIME_SLICE_TICKS;
 
-    // Initialize FPU state
     init_fpu_state(&thread->fpu_state);
 
-    // Allocate kernel stack
     void *stack = kmalloc(16384); // 16KB stack
     if (!stack)
     {
@@ -363,7 +361,7 @@ static void sched(void)
 
     process_t *p = curr->process;
 
-    // 1. Search remaining threads in current process
+    // Search remaining threads in current process
     list_head_t *t_node = curr->list.next;
     while (t_node != &p->threads)
     {
@@ -376,7 +374,7 @@ static void sched(void)
         t_node = t_node->next;
     }
 
-    // 2. Search subsequent processes
+    // Search subsequent processes
     list_head_t *p_node = p->list.next;
     while (p_node != &process_list)
     {
@@ -393,7 +391,7 @@ static void sched(void)
         p_node = p_node->next;
     }
 
-    // 3. Search from beginning of process list to current process
+    // Search from beginning of process list to current process
     p_node = process_list.next;
     while (p_node != &p->list)
     {
@@ -410,7 +408,7 @@ static void sched(void)
         p_node = p_node->next;
     }
 
-    // 4. Search current process from start to current thread
+    // Search current process from start to current thread
     t_node = p->threads.next;
     while (t_node != &curr->list)
     {
@@ -449,9 +447,7 @@ found:
         prev->saved_user_rsp = cpu->user_rsp;
         cpu->user_rsp = next_thread->saved_user_rsp;
 
-        // Save FPU state of previous thread
         save_fpu_state(&prev->fpu_state);
-        // Restore FPU state of next thread
         restore_fpu_state(&next_thread->fpu_state);
 
         cpu->active_thread = next_thread;
