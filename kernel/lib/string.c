@@ -21,7 +21,6 @@ static unsigned long long read_unsigned_arg(va_list args, int length_mod)
         return va_arg(args, unsigned long);
     return va_arg(args, unsigned int);
 }
-#include <limits.h>
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
