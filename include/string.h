@@ -13,5 +13,9 @@ char *strcpy(char *dest, const char *src);
 char *strncpy(char *dest, const char *src, size_t n);
 char *strcat(char *dest, const char *src);
 char *strrchr(const char *s, int c);
+
+typedef void (*printf_callback_t)(char c, void *arg);
+int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list args);
+
 int vsnprintk(char *buffer, size_t size, const char *format, va_list args);
 int snprintk(char *buffer, size_t size, const char *format, ...);

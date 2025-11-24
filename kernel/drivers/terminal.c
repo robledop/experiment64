@@ -485,114 +485,15 @@ void terminal_write_string(const char *data)
         terminal_putc(*data++);
 }
 
+static void terminal_putc_callback(char c, void *arg)
+{
+    (void)arg;
+    terminal_putc(c);
+}
+
 void vprintk(const char *format, va_list args)
 {
-    while (*format)
-    {
-        if (*format == '%')
-        {
-            format++;
-
-            // Handle length modifiers
-            int is_long = 0;
-            if (*format == 'l')
-            {
-                is_long = 1;
-                format++;
-                if (*format == 'l')
-                {
-                    is_long = 2; // Treat long long same as long for now (64-bit)
-                    format++;
-                }
-            }
-
-            if (*format == 's')
-            {
-                const char *s = va_arg(args, const char *);
-                terminal_write_string(s ? s : "(null)");
-            }
-            else if (*format == 'd' || *format == 'i')
-            {
-                long d;
-                if (is_long)
-                    d = va_arg(args, long);
-                else
-                    d = va_arg(args, int);
-
-                char buf[32];
-                int i = 0;
-                bool neg = d < 0;
-                unsigned long u = neg ? -d : d;
-
-                if (u == 0)
-                    buf[i++] = '0';
-                while (u)
-                {
-                    buf[i++] = (u % 10) + '0';
-                    u /= 10;
-                }
-                if (neg)
-                    buf[i++] = '-';
-                while (i > 0)
-                    terminal_putc(buf[--i]);
-            }
-            else if (*format == 'u')
-            {
-                unsigned long u;
-                if (is_long)
-                    u = va_arg(args, unsigned long);
-                else
-                    u = va_arg(args, unsigned int);
-
-                char buf[32];
-                int i = 0;
-                if (u == 0)
-                    buf[i++] = '0';
-                while (u)
-                {
-                    buf[i++] = (u % 10) + '0';
-                    u /= 10;
-                }
-                while (i > 0)
-                    terminal_putc(buf[--i]);
-            }
-            else if (*format == 'x' || *format == 'X' || *format == 'p')
-            {
-                unsigned long x;
-                if (is_long || *format == 'p')
-                    x = va_arg(args, unsigned long);
-                else
-                    x = va_arg(args, unsigned int);
-
-                char buf[32];
-                int i = 0;
-                if (x == 0)
-                    buf[i++] = '0';
-                while (x)
-                {
-                    int digit = x % 16;
-                    buf[i++] = digit < 10 ? digit + '0' : digit - 10 + 'a';
-                    x /= 16;
-                }
-                while (i > 0)
-                    terminal_putc(buf[--i]);
-            }
-            else if (*format == 'c')
-            {
-                char c = (char)va_arg(args, int);
-                terminal_putc(c);
-            }
-            else if (*format == '%')
-            {
-                terminal_putc('%');
-            }
-        }
-        else
-        {
-            terminal_putc(*format);
-        }
-        format++;
-    }
+    vcbprintf(NULL, terminal_putc_callback, format, args);
 }
 
 void printk(const char *format, ...)

@@ -20,37 +20,37 @@ static uint64_t symtab_size = 0;
 
 void debug_init(void)
 {
-    boot_message(INFO,"DEBUG: Initializing debug symbols...");
+    boot_message(INFO, "DEBUG: Initializing debug symbols...");
     if (kernel_file_request.response == NULL || kernel_file_request.response->kernel_file == NULL)
     {
-        boot_message(ERROR,"DEBUG: No kernel file found.");
+        boot_message(ERROR, "DEBUG: No kernel file found.");
         return;
     }
 
     struct limine_file *kernel_file = kernel_file_request.response->kernel_file;
     if (kernel_file->address == NULL)
     {
-        boot_message(ERROR,"DEBUG: Kernel file address is NULL.");
+        boot_message(ERROR, "DEBUG: Kernel file address is NULL.");
         return;
     }
-    boot_message(INFO,"DEBUG: Kernel file at %p, size %lx", kernel_file->address, kernel_file->size);
+    boot_message(INFO, "DEBUG: Kernel file at %p, size %lx", kernel_file->address, kernel_file->size);
 
     Elf64_Ehdr *ehdr = (Elf64_Ehdr *)kernel_file->address;
 
     if (ehdr->e_ident[0] != 0x7F || ehdr->e_ident[1] != 'E' || ehdr->e_ident[2] != 'L' || ehdr->e_ident[3] != 'F')
     {
-        boot_message(ERROR,"DEBUG: Kernel file is not a valid ELF.");
+        boot_message(ERROR, "DEBUG: Kernel file is not a valid ELF.");
         return;
     }
 
     if (ehdr->e_shoff + ehdr->e_shnum * sizeof(Elf64_Shdr) > kernel_file->size)
     {
-        boot_message(ERROR,"DEBUG: Section headers out of bounds.");
+        boot_message(ERROR, "DEBUG: Section headers out of bounds.");
         return;
     }
 
     elf_section_headers = (Elf64_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
-    boot_message(INFO,"DEBUG: Section headers at %p", elf_section_headers);
+    boot_message(INFO, "DEBUG: Section headers at %p", elf_section_headers);
 
     Elf64_Shdr *symtab_shdr = NULL;
 
@@ -66,16 +66,16 @@ void debug_init(void)
 
     if (symtab_shdr)
     {
-        boot_message(INFO,"DEBUG: Symtab section found at index %ld", symtab_shdr - elf_section_headers);
+        boot_message(INFO, "DEBUG: Symtab section found at index %ld", symtab_shdr - elf_section_headers);
         if (symtab_shdr->sh_offset + symtab_shdr->sh_size > kernel_file->size)
         {
-            boot_message(ERROR,"DEBUG: Symbol table out of bounds.");
+            boot_message(ERROR, "DEBUG: Symbol table out of bounds.");
             return;
         }
 
         symtab = (Elf64_Sym *)((uint8_t *)ehdr + symtab_shdr->sh_offset);
         symtab_size = symtab_shdr->sh_size / sizeof(Elf64_Sym);
-        boot_message(INFO,"DEBUG: Symtab at %p, size %ld", symtab, symtab_size);
+        boot_message(INFO, "DEBUG: Symtab at %p, size %ld", symtab, symtab_size);
 
         if (symtab_shdr->sh_link < ehdr->e_shnum)
         {
@@ -84,20 +84,20 @@ void debug_init(void)
             {
                 if (strtab_shdr->sh_offset + strtab_shdr->sh_size > kernel_file->size)
                 {
-                    boot_message(ERROR,"DEBUG: String table out of bounds.");
+                    boot_message(ERROR, "DEBUG: String table out of bounds.");
                     symtab = NULL;
                     return;
                 }
                 strtab = (char *)((uint8_t *)ehdr + strtab_shdr->sh_offset);
                 strtab_size = strtab_shdr->sh_size;
-                boot_message(INFO,"DEBUG: Strtab at %p, size %ld", strtab, strtab_size);
+                boot_message(INFO, "DEBUG: Strtab at %p, size %ld", strtab, strtab_size);
             }
         }
     }
 
     if (symtab && strtab)
     {
-        boot_message(INFO,"DEBUG: Symbols loaded.");
+        boot_message(INFO, "DEBUG: Symbols loaded.");
     }
 }
 
