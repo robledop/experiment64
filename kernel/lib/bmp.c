@@ -3,6 +3,7 @@
 #include "heap.h"
 #include "terminal.h"
 #include "vfs.h"
+#include "kasan.h"
 
 enum
 {
@@ -49,6 +50,10 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
         printk("BMP: Out of memory\n");
         return -1;
     }
+#ifdef KASAN
+    if (kasan_is_ready() && kasan_shadow_value(buffer) != KASAN_POISON_ACCESSIBLE)
+        kasan_unpoison_range(buffer, file_size);
+#endif
 
     if (vfs_read(node, 0, file_size, buffer) != file_size)
     {

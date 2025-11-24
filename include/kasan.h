@@ -9,6 +9,7 @@
 // Place shadow in a canonical high-half region well away from HHDM/kernel.
 #define KASAN_SHADOW_OFFSET 0xffff900000000000ULL
 #define KASAN_REDZONE_SIZE 16
+#define KASAN_POISON_ACCESSIBLE 0x00
 #define KASAN_POISON_REDZONE 0xFE
 #define KASAN_POISON_FREE 0xFF
 

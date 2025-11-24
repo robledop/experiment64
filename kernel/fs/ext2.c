@@ -8,6 +8,7 @@
 #include "terminal.h"
 #include "heap.h"
 #include "debug.h"
+#include "kasan.h"
 #include <limits.h>
 
 #ifndef ASSERT
@@ -831,6 +832,10 @@ int ext2fs_readi(struct ext2_inode *ip, char *dst, uint32_t off, uint32_t n)
         uint32_t offset_in_sector = offset_in_block % 512;
         uint32_t bytes_to_copy = min(n - tot, 512 - offset_in_sector);
 
+#ifdef KASAN
+        if (kasan_is_ready())
+            kasan_unpoison_range(dst, bytes_to_copy);
+#endif
         memcpy(dst, bp->data + offset_in_sector, bytes_to_copy);
         brelse(bp);
 

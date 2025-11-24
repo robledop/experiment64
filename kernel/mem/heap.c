@@ -69,14 +69,53 @@ static size_t get_cache_size(int index)
 #ifdef KASAN
 static inline void kasan_unpoison_obj(void *ptr, size_t size)
 {
-    if (kasan_is_ready())
-        kasan_unpoison_range(ptr, size);
+    kasan_unpoison_range(ptr, size);
 }
 
 static inline void kasan_poison_obj(void *ptr, size_t size)
 {
-    if (kasan_is_ready())
-        kasan_poison_range(ptr, size, KASAN_POISON_FREE);
+    kasan_poison_range(ptr, size, KASAN_POISON_FREE);
+}
+
+static size_t kasan_accessible_length(const void *ptr, size_t max)
+{
+    size_t len = 0;
+    const uint8_t *p = ptr;
+    while (len < max && kasan_shadow_value(p + len) == KASAN_POISON_ACCESSIBLE)
+    {
+        len++;
+    }
+    return len;
+}
+
+static inline void kasan_adjust_allocation(void *user, size_t requested)
+{
+    if (!user)
+        return;
+
+    uint64_t addr = (uint64_t)user;
+    uint64_t page_start = addr & ~(PAGE_SIZE - 1);
+    slab_header_t *header = (slab_header_t *)page_start;
+
+    if (header->magic != HEAP_MAGIC)
+        return;
+
+    size_t user_size = header->obj_size;
+    if (header->is_slab)
+    {
+        if (user_size < 2 * KASAN_REDZONE_SIZE)
+            return;
+        user_size = SLOT_USER_SIZE(user_size);
+    }
+
+    if (requested > user_size)
+        requested = user_size;
+
+    kasan_unpoison_range(user, requested);
+    if (kasan_shadow_value(user) != KASAN_POISON_ACCESSIBLE)
+        kasan_unpoison_range(user, requested);
+    if (user_size > requested)
+        kasan_poison_range((uint8_t *)user + requested, user_size - requested, KASAN_POISON_REDZONE);
 }
 #else
 #define kasan_unpoison_obj(ptr, size) \
@@ -90,6 +129,13 @@ static inline void kasan_poison_obj(void *ptr, size_t size)
     {                               \
         (void)(ptr);                \
         (void)(size);               \
+    } while (0)
+#define kasan_accessible_length(ptr, max) (max)
+#define kasan_adjust_allocation(user, requested) \
+    do                                           \
+    {                                            \
+        (void)(user);                            \
+        (void)(requested);                       \
     } while (0)
 #endif
 
@@ -215,11 +261,15 @@ void *kmalloc(size_t size)
     int index = get_cache_index(padded);
     if (index >= 0)
     {
-        return alloc_slab(index);
+        void *ptr = alloc_slab(index);
+        kasan_adjust_allocation(ptr, size);
+        return ptr;
     }
     else
     {
-        return alloc_big(size);
+        void *ptr = alloc_big(size);
+        kasan_adjust_allocation(ptr, size);
+        return ptr;
     }
 }
 
@@ -317,11 +367,19 @@ void *krealloc(void *ptr, size_t new_size)
     size_t old_size = header->obj_size;
 #ifdef KASAN
     if (header->is_slab)
+    {
         old_size = SLOT_USER_SIZE(header->obj_size);
+#ifdef KASAN
+        old_size = kasan_accessible_length(ptr, old_size);
+#endif
+    }
 #endif
 
     if (new_size <= old_size)
     {
+#ifdef KASAN
+        kasan_adjust_allocation(ptr, new_size);
+#endif
         return ptr; // Can reuse
     }
 

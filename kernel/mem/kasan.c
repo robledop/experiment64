@@ -111,8 +111,15 @@ bool kasan_check_range(const void *addr, size_t size, bool is_write, const void 
 
 void kasan_report(const void *addr, size_t size, bool is_write, const void *ip)
 {
-    panic("KASAN: invalid %s of size %zu at %p (ip=%p)",
-          is_write ? "write" : "read", size, addr, ip);
+#ifdef TEST_MODE
+    if (panic_trap_active())
+    {
+        panic_trap_mark_hit();
+        return;
+    }
+#endif
+    panic("KASAN: invalid %s of size %lu at %p (ip=%p)",
+          is_write ? "write" : "read", (unsigned long)size, addr, ip);
 }
 
 bool kasan_is_ready(void)

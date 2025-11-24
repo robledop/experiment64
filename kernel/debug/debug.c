@@ -19,6 +19,69 @@ static uint64_t strtab_size = 0;
 static Elf64_Sym *symtab = NULL;
 static uint64_t symtab_size = 0;
 
+static bool panic_trap_enabled = false;
+static bool panic_trap_armed = false;
+static bool panic_trap_hit = false;
+
+int panic_trap_setjmp(void)
+{
+#ifdef TEST_MODE
+    panic_trap_enabled = true;
+    panic_trap_armed = true;
+    panic_trap_hit = false;
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+void panic_trap_expect(void)
+{
+#ifdef TEST_MODE
+    panic_trap_enabled = true;
+    panic_trap_armed = true;
+    panic_trap_hit = false;
+#endif
+}
+
+void panic_trap_disable(void)
+{
+#ifdef TEST_MODE
+    panic_trap_enabled = false;
+    panic_trap_armed = false;
+    panic_trap_hit = false;
+#endif
+}
+
+bool panic_trap_triggered(void)
+{
+#ifdef TEST_MODE
+    return panic_trap_hit;
+#else
+    return false;
+#endif
+}
+
+bool panic_trap_active(void)
+{
+#ifdef TEST_MODE
+    return panic_trap_enabled && panic_trap_armed;
+#else
+    return false;
+#endif
+}
+
+void panic_trap_mark_hit(void)
+{
+#ifdef TEST_MODE
+    if (panic_trap_enabled && panic_trap_armed)
+    {
+        panic_trap_armed = false;
+        panic_trap_hit = true;
+    }
+#endif
+}
+
 void debug_init(void)
 {
     boot_message(INFO, "DEBUG: Initializing debug symbols...");
@@ -139,6 +202,13 @@ void panic(const char *fmt, ...)
         printk("During test: %s\n", g_current_test_name);
         test_capture_flush();
     }
+#endif
+
+#ifdef TEST_MODE
+    if (panic_trap_active())
+        panic_trap_mark_hit();
+    if (panic_trap_triggered())
+        return;
 #endif
 
     stack_trace();
