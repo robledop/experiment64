@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #define SHELL_PATH_MAX 256
 #define SHELL_MAX_SEGMENTS 64
@@ -219,6 +220,7 @@ int main(void)
 
     while (1)
     {
+        memset(buf, 0, sizeof(buf));
         shell_print_prompt();
 
         // Simple gets implementation since the one in stdio might be too basic
@@ -245,7 +247,7 @@ int main(void)
             }
             else if (i < 127)
             {
-                buf[i++] = c;
+                buf[i++] = (char)c;
                 putchar(c); // Echo
             }
         }
@@ -279,7 +281,11 @@ int main(void)
             while (*arg == ' ')
                 arg++;
 
-            int duration = (*arg) ? atoi(arg) : 0;
+            char *endptr = NULL;
+            long parsed = (*arg) ? strtol(arg, &endptr, 10) : 0;
+            if (endptr == arg || parsed < 0)
+                parsed = 0;
+            int duration = (parsed > INT_MAX) ? INT_MAX : (int)parsed;
             if (duration < 0)
                 duration = 0;
             sleep(duration);

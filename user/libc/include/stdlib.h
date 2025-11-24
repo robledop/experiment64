@@ -1,10 +1,15 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
+#ifdef __clang__
+#pragma clang system_header
+#endif
+
 #include <stddef.h>
 
 void exit(int status);
 int atoi(const char *nptr);
+long strtol(const char *nptr, char **endptr, int base);
 
 void *malloc(size_t size);
 void free(void *ptr);

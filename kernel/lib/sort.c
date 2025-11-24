@@ -1,5 +1,6 @@
 #include "sort.h"
 #include "string.h"
+#include <limits.h>
 
 static void swap(void *a, void *b, size_t size)
 {
@@ -60,5 +61,6 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, co
     if (nmemb < 2 || size == 0)
         return;
 
-    quicksort(base, size, compar, 0, nmemb - 1);
+    int right = nmemb > (size_t)INT_MAX ? INT_MAX : (int)(nmemb - 1);
+    quicksort(base, size, compar, 0, right);
 }

@@ -1,5 +1,4 @@
 #include "fat32.h"
-#include "ide.h"
 #include "heap.h"
 #include "string.h"
 #include "terminal.h"
@@ -664,7 +663,7 @@ end:
     return dirent;
 }
 
-static vfs_inode_t *fat32_vfs_finddir(vfs_inode_t *node, char *name)
+static vfs_inode_t *fat32_vfs_finddir(const vfs_inode_t *node, const char *name)
 {
     fat32_inode_data_t *data = (fat32_inode_data_t *)node->device;
     fat32_fs_t *fs = data->fs;
@@ -674,7 +673,7 @@ static vfs_inode_t *fat32_vfs_finddir(vfs_inode_t *node, char *name)
     uint32_t found_cluster;
     uint32_t found_offset;
     if (fat32_find_entry(fs, dir_cluster, name, &entry, &found_cluster, &found_offset) != 0)
-        return NULL;
+        return nullptr;
 
     vfs_inode_t *new_node = kmalloc(sizeof(vfs_inode_t));
     memset(new_node, 0, sizeof(vfs_inode_t));
@@ -726,7 +725,7 @@ vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba)
     if (fat32_init(fs, drive_index, partition_lba) != 0)
     {
         kfree(fs);
-        return NULL;
+        return nullptr;
     }
 
     vfs_inode_t *root = kmalloc(sizeof(vfs_inode_t));
@@ -890,7 +889,7 @@ int fat32_create_file(fat32_fs_t *fs, const char *path)
         return 1;
 
     fat32_directory_entry_t existing;
-    if (fat32_find_entry(fs, parent_cluster, filename, &existing, NULL, NULL) == 0)
+    if (fat32_find_entry(fs, parent_cluster, filename, &existing, nullptr, NULL) == 0)
         return 1; // Exists
 
     // Allocate first cluster for file
@@ -920,7 +919,7 @@ int fat32_create_dir(fat32_fs_t *fs, const char *path)
         return 1;
 
     fat32_directory_entry_t existing;
-    if (fat32_find_entry(fs, parent_cluster, dirname, &existing, NULL, NULL) == 0)
+    if (fat32_find_entry(fs, parent_cluster, dirname, &existing, nullptr, NULL) == 0)
         return 1; // Exists
 
     // Allocate cluster for new dir

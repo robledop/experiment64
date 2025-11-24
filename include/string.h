@@ -3,6 +3,10 @@
 #include <stddef.h>
 #include <stdarg.h>
 
+#if !defined(__cplusplus) && (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
+#define nullptr ((void *)0)
+#endif
+
 int strncmp(const char *s1, const char *s2, size_t n);
 int strcmp(const char *s1, const char *s2);
 void *memcpy(void *dest, const void *src, size_t n);

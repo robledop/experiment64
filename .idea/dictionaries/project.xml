@@ -1,8 +1,17 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>chardevice</w>
+      <w>devfs</w>
       <w>distclean</w>
+      <w>finddir</w>
+      <w>fsize</w>
+      <w>lalt</w>
+      <w>lctrl</w>
       <w>limine</w>
+      <w>masix</w>
+      <w>mountpoint</w>
+      <w>msyntax</w>
     </words>
   </dictionary>
 </component>

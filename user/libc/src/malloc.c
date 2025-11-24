@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <limits.h>
+#include <stdint.h>
 
 typedef struct block_meta
 {
@@ -11,7 +13,7 @@ typedef struct block_meta
 
 #define META_SIZE sizeof(block_meta)
 
-static block_meta *global_base = NULL;
+static block_meta *global_base = nullptr;
 
 static block_meta *find_free_block(block_meta **last, size_t size)
 {
@@ -26,12 +28,14 @@ static block_meta *find_free_block(block_meta **last, size_t size)
 
 static block_meta *request_space(block_meta *last, size_t size)
 {
-    block_meta *block;
-    block = sbrk(0);
-    void *request = sbrk(size + META_SIZE);
+    block_meta* block = sbrk(0);
+    if (size > (size_t)INTPTR_MAX - META_SIZE)
+        return nullptr;
+    intptr_t increment = (intptr_t)(size + META_SIZE);
+    const void *request = sbrk(increment);
     if (request == (void *)-1)
     {
-        return NULL; // sbrk failed
+        return nullptr; // sbrk failed
     }
 
     if (request != block)
@@ -40,7 +44,7 @@ static block_meta *request_space(block_meta *last, size_t size)
     }
 
     block->size = size;
-    block->next = NULL;
+    block->next = nullptr;
     block->free = 0;
 
     if (last)
@@ -61,7 +65,7 @@ void *malloc(size_t size)
 
     if (!global_base)
     {
-        block = request_space(NULL, size);
+        block = request_space(nullptr, size);
         if (!block)
         {
             return NULL;

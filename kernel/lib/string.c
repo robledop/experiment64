@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
@@ -192,7 +193,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                 s = "(null)";
             size_t len = strlen(s);
             cb_emit_string(s, arg, callback);
-            total += len;
+            if (len > (size_t)INT_MAX)
+                len = INT_MAX;
+            total += (int)len;
             break;
         }
         case 'c':

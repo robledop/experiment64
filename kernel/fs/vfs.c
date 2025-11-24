@@ -3,11 +3,12 @@
 #include "terminal.h"
 #include "fat32.h"
 #include "ext2.h"
+#include <stddef.h>
 #include "gpt.h"
 #include <stdbool.h>
 #include "heap.h"
 
-vfs_inode_t *vfs_root = 0;
+vfs_inode_t *vfs_root = nullptr;
 
 struct mount_point
 {
@@ -51,7 +52,7 @@ vfs_inode_t *vfs_check_mount(const char *name)
 
 void vfs_init()
 {
-    vfs_root = 0;
+    vfs_root = nullptr;
 }
 
 static partition_info_t root_part;
@@ -227,7 +228,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
 
         return NULL;
     }
-    return 0;
+    return nullptr;
 }
 
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
@@ -247,13 +248,13 @@ vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
         vfs_inode_t *child = node->iops->finddir(node, name);
         return child;
     }
-    return 0;
+    return nullptr;
 }
 
 vfs_inode_t *vfs_resolve_path(const char *path)
 {
     if (!path || !vfs_root)
-        return 0;
+        return nullptr;
 
     vfs_inode_t *current = vfs_root;
 
@@ -276,7 +277,7 @@ vfs_inode_t *vfs_resolve_path(const char *path)
             {
                 vfs_inode_t *next = vfs_finddir(current, name);
                 if (!next)
-                    return 0;
+                    return nullptr;
                 current = next;
             }
             name_idx = 0;
@@ -295,7 +296,7 @@ vfs_inode_t *vfs_resolve_path(const char *path)
         name[name_idx] = 0;
         vfs_inode_t *next = vfs_finddir(current, name);
         if (!next)
-            return 0;
+            return nullptr;
         current = next;
     }
 
@@ -313,16 +314,16 @@ int vfs_mknod(char *path, int mode, int dev)
 
     if (last_slash)
     {
-        int len = last_slash - path;
-        if (len == 0)
+        ptrdiff_t len = last_slash - path;
+        if (len <= 0)
         {
             strcpy(parent_path, "/");
         }
         else
         {
-            if (len >= VFS_MAX_PATH)
+            if ((size_t)len >= VFS_MAX_PATH)
                 return -1;
-            strncpy(parent_path, path, len);
+            strncpy(parent_path, path, (size_t)len);
             parent_path[len] = 0;
         }
         if (strlen(last_slash + 1) >= 128)

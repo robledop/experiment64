@@ -85,7 +85,10 @@ void process_spawn_init(void)
 {
     process_t *init_proc = process_create("init");
     if (!init_proc)
+    {
         boot_message(ERROR, "Failed to create init process");
+        return;
+    }
 
     // Set init process PML4 to current kernel PML4
     uint64_t cr3;
@@ -94,5 +97,8 @@ void process_spawn_init(void)
 
     thread_t *t = thread_create(init_proc, init_process_entry, false);
     if (!t)
+    {
         boot_message(ERROR, "Failed to create init thread");
+        return;
+    }
 }

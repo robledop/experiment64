@@ -8,6 +8,21 @@
 #include "process.h"
 #include "keyboard.h"
 #include "uart.h"
+#include <limits.h>
+
+static int clamp_size_to_int(size_t value)
+{
+    if (value > (size_t)INT_MAX)
+        return INT_MAX;
+    return (int)value;
+}
+
+static int clamp_u64_to_int(uint64_t value)
+{
+    if (value > (uint64_t)INT_MAX)
+        return INT_MAX;
+    return (int)value;
+}
 #include "string.h"
 #include "heap.h"
 #include <stdint.h>
@@ -222,7 +237,7 @@ int sys_write(int fd, const char *buf, size_t count)
     if (fd == 1 || fd == 2) // stdout or stderr
     {
         terminal_write(buf, count);
-        return count;
+        return clamp_size_to_int(count);
     }
 
     if (fd < 0 || fd >= MAX_FDS || !current_process->fd_table[fd])
@@ -231,7 +246,7 @@ int sys_write(int fd, const char *buf, size_t count)
     file_descriptor_t *desc = current_process->fd_table[fd];
     uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
     desc->offset += written;
-    return written;
+    return clamp_u64_to_int(written);
 }
 
 void sys_exit(int code)
@@ -629,7 +644,7 @@ int sys_read(int fd, char *buf, size_t count)
                 buf[read++] = c;
             }
         }
-        return read;
+        return clamp_size_to_int(read);
     }
 
     if (fd >= 3 && fd < MAX_FDS)
@@ -639,7 +654,7 @@ int sys_read(int fd, char *buf, size_t count)
         {
             uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
             desc->offset += read;
-            return read;
+            return clamp_u64_to_int(read);
         }
     }
     return 0;

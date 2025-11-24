@@ -1,0 +1,21 @@
+CompileFlags:
+  Add:
+    - -I..
+    - -I../include
+    - -std=c23
+    - -ffreestanding
+    - -nostdlib
+    - -fstack-protector-strong
+    - -fno-lto
+    - -fPIE
+    - -ggdb
+    - -m64
+    - -march=x86-64
+    - -masm=intel
+    - -mno-80387
+    - -mno-red-zone
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+    - -Wa,--noexecstack
+    - --target=x86_64-pc-none-elf

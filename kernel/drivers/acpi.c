@@ -2,6 +2,7 @@
 #include "limine.h"
 #include <stddef.h>
 #include "string.h"
+#include <limits.h>
 
 extern volatile struct limine_hhdm_request hhdm_request;
 
@@ -32,10 +33,12 @@ void *acpi_find_table(const char *signature)
 
     if (xsdt != NULL)
     {
-        int entries = (xsdt->length - sizeof(struct sdt_header)) / 8;
+        size_t entries = (xsdt->length - sizeof(struct sdt_header)) / 8;
+        if (entries > (size_t)INT_MAX)
+            entries = INT_MAX;
         uint8_t *tables_ptr = (uint8_t *)xsdt + sizeof(struct sdt_header);
 
-        for (int i = 0; i < entries; i++)
+        for (int i = 0; i < (int)entries; i++)
         {
             uint64_t table_addr;
             memcpy(&table_addr, tables_ptr + i * 8, 8);
@@ -48,10 +51,12 @@ void *acpi_find_table(const char *signature)
     }
     else if (rsdt != NULL)
     {
-        int entries = (rsdt->length - sizeof(struct sdt_header)) / 4;
+        size_t entries = (rsdt->length - sizeof(struct sdt_header)) / 4;
+        if (entries > (size_t)INT_MAX)
+            entries = INT_MAX;
         uint8_t *tables_ptr = (uint8_t *)rsdt + sizeof(struct sdt_header);
 
-        for (int i = 0; i < entries; i++)
+        for (int i = 0; i < (int)entries; i++)
         {
             uint32_t table_addr;
             memcpy(&table_addr, tables_ptr + i * 4, 4);

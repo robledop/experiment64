@@ -13,7 +13,7 @@ struct device_entry
 static struct device_entry device_registry[MAX_DEVICES];
 static int device_count = 0;
 
-vfs_inode_t *devfs_finddir([[maybe_unused]] vfs_inode_t *node, char *name)
+vfs_inode_t *devfs_finddir([[maybe_unused]] const vfs_inode_t *node, const char *name)
 {
     for (int i = 0; i < device_count; i++)
     {
@@ -27,7 +27,7 @@ vfs_inode_t *devfs_finddir([[maybe_unused]] vfs_inode_t *node, char *name)
             return copy;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 vfs_dirent_t *devfs_readdir([[maybe_unused]] vfs_inode_t *node, uint32_t index)
@@ -39,7 +39,7 @@ vfs_dirent_t *devfs_readdir([[maybe_unused]] vfs_inode_t *node, uint32_t index)
         dirent->inode = 0; // Dummy
         return dirent;
     }
-    return NULL;
+    return nullptr;
 }
 
 struct inode_operations devfs_ops = {

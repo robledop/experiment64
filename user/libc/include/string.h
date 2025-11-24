@@ -1,6 +1,10 @@
 #ifndef _STRING_H
 #define _STRING_H
 
+#ifdef __clang__
+#pragma clang system_header
+#endif
+
 #include <stddef.h>
 
 size_t strlen(const char *s);

@@ -145,8 +145,8 @@ void ide_init(void)
             // Model string needs byte swapping
             for (int k = 0; k < 40; k += 2)
             {
-                ide_devices[count].model[k] = ide_buf[27 * 2 + k + 1];
-                ide_devices[count].model[k + 1] = ide_buf[27 * 2 + k];
+                ide_devices[count].model[k] = (char)ide_buf[27 * 2 + k + 1];
+                ide_devices[count].model[k + 1] = (char)ide_buf[27 * 2 + k];
             }
             ide_devices[count].model[40] = 0; // Null terminate
 

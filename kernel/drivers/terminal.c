@@ -4,6 +4,7 @@
 #include "string.h"
 #include "framebuffer.h"
 #include <stdarg.h>
+#include <limits.h>
 
 #define KRESET "\033[0m"
 #define KRED "\033[31m"
@@ -158,10 +159,12 @@ static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
     }
     if (x >= (int)terminal_fb->width || y >= (int)terminal_fb->height)
         return;
-    if (x + w > (int)terminal_fb->width)
-        w = terminal_fb->width - x;
-    if (y + h > (int)terminal_fb->height)
-        h = terminal_fb->height - y;
+    const int max_w = (terminal_fb->width > (uint64_t)INT_MAX) ? INT_MAX : (int)terminal_fb->width;
+    const int max_h = (terminal_fb->height > (uint64_t)INT_MAX) ? INT_MAX : (int)terminal_fb->height;
+    if (x + w > max_w)
+        w = max_w - x;
+    if (y + h > max_h)
+        h = max_h - y;
 
     for (int row = 0; row < h; row++)
     {

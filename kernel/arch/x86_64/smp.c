@@ -59,7 +59,7 @@ void smp_init_cpu0(void)
 
         if (cpu_info->lapic_id == smp_response->bsp_lapic_id)
         {
-            cpus[i].lapic_id = cpu_info->lapic_id;
+            cpus[i].lapic_id = (int)cpu_info->lapic_id;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = NULL;
 
@@ -105,7 +105,7 @@ void smp_boot_aps(void)
 
         if (cpu_info->lapic_id != smp_response->bsp_lapic_id)
         {
-            cpus[i].lapic_id = cpu_info->lapic_id;
+            cpus[i].lapic_id = (int)cpu_info->lapic_id;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = NULL;
 

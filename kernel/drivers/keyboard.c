@@ -1,11 +1,7 @@
 #include "keyboard.h"
 #include "io.h"
-#include "pic.h"
-#include "terminal.h"
-#include "uart.h"
 #include "process.h"
 #include "cpu.h"
-#include <stdbool.h>
 
 #define KEYBOARD_DATA_PORT 0x60
 
@@ -29,7 +25,7 @@ static volatile char buffer[BUFFER_SIZE];
 static volatile int write_ptr = 0;
 static volatile int read_ptr = 0;
 
-static thread_t *keyboard_waiter = NULL;
+static thread_t *keyboard_waiter = nullptr;
 
 static bool shift_pressed = false;
 static bool ctrl_pressed = false;
@@ -83,40 +79,39 @@ void keyboard_handler_main(void)
     if (scancode & SCANCODE_RELEASE_MASK)
     {
     }
-    else
-    {
-        if (scancode < sizeof(scancode_to_char))
+        else
         {
-            char c = scancode_to_char[scancode];
-            bool use_shift = shift_pressed;
+            if (scancode < sizeof(scancode_to_char))
+            {
+                bool use_shift = shift_pressed;
 
-            char base = scancode_to_char[scancode];
-            if (caps_lock && base >= 'a' && base <= 'z')
-            {
-                use_shift = !use_shift;
-            }
+                char c = (char)scancode_to_char[scancode];
+                if (caps_lock && c >= 'a' && c <= 'z')
+                {
+                    use_shift = !use_shift;
+                }
 
-            if (use_shift)
-            {
-                c = scancode_to_char_shifted[scancode];
-            }
-            else
-            {
-                c = scancode_to_char[scancode];
-            }
+                if (use_shift)
+                {
+                    c = (char)scancode_to_char_shifted[scancode];
+                }
+                else
+                {
+                    c = (char)scancode_to_char[scancode];
+                }
 
             // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)
             if (ctrl_pressed)
             {
                 if (c >= 'a' && c <= 'z')
-                    c = c - 'a' + 1;
+                    c = (char)(c - 'a' + 1);
                 else if (c >= 'A' && c <= 'Z')
-                    c = c - 'A' + 1;
+                    c = (char)(c - 'A' + 1);
             }
 
             if (c)
             {
-                int next = (write_ptr + 1) % BUFFER_SIZE;
+                const int next = (write_ptr + 1) % BUFFER_SIZE;
                 if (next != read_ptr)
                 {
                     buffer[write_ptr] = c;
@@ -125,7 +120,7 @@ void keyboard_handler_main(void)
                     if (keyboard_waiter)
                     {
                         keyboard_waiter->state = THREAD_READY;
-                        keyboard_waiter = NULL;
+                        keyboard_waiter = nullptr;
                     }
                 }
             }

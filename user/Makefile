@@ -2,6 +2,7 @@
 
 CC = x86_64-elf-gcc
 LD = x86_64-elf-ld
+AR = x86_64-elf-ar
 
 BUILD_DIR = build
 
@@ -12,8 +13,11 @@ LIBC_SRC = $(wildcard libc/src/*.c)
 LIBC_ASM = $(wildcard libc/src/*.S)
 LIBC_OBJ = $(LIBC_SRC:libc/src/%.c=$(BUILD_DIR)/libc/src/%.o) \
            $(LIBC_ASM:libc/src/%.S=$(BUILD_DIR)/libc/src/%.o)
+LIBC_A = $(BUILD_DIR)/libc/libc.a
 
 TARGETS = $(BUILD_DIR)/user_prog $(BUILD_DIR)/init $(BUILD_DIR)/shell $(BUILD_DIR)/ls
+PROGRAMS = init shell ls
+PROGRAM_OBJS = $(PROGRAMS:%=$(BUILD_DIR)/%.o)
 
 .PHONY: all
 all: $(TARGETS)
@@ -26,21 +30,20 @@ $(BUILD_DIR)/libc/src/%.o: libc/src/%.S
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(LIBC_A): $(LIBC_OBJ)
+	mkdir -p $(dir $@)
+	$(AR) rcs $@ $(LIBC_OBJ)
+
+$(BUILD_DIR)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/user_prog: user_prog.S
 	mkdir -p $(dir $@)
 	$(CC) -nostdlib -static -fPIE -m64 -march=x86-64 -Wa,-msyntax=intel -Wl,-Ttext=0x400000 -o $@ $<
 
-$(BUILD_DIR)/init: init.c $(LIBC_OBJ)
-	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ init.c $(LIBC_OBJ)
-
-$(BUILD_DIR)/shell: shell.c $(LIBC_OBJ)
-	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ shell.c $(LIBC_OBJ)
-
-$(BUILD_DIR)/ls: ls.c $(LIBC_OBJ)
-	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ ls.c $(LIBC_OBJ)
+$(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
 
 .PHONY: clean
 clean:

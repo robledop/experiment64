@@ -35,7 +35,7 @@ typedef uint64_t u64;
 
 #define BLOCK_TO_SECTOR(b) ((b) * (EXT2_BSIZE / 512))
 
-static void ext2fs_bzero(int dev, int bno);
+static void ext2fs_bzero(int dev, uint32_t bno);
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum);
 static void ext2fs_bfree(int dev, uint32_t b);
 static uint32_t ext2fs_bmap(struct ext2_inode *ip, uint32_t bn);
@@ -70,7 +70,7 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
     spinlock_acquire(&icache.lock);
 
     // Is the inode already cached?
-    empty = 0;
+    empty = nullptr;
     for (ip = &icache.inode[0]; ip < &icache.inode[NINODE]; ip++)
     {
         if (ip->ref > 0 && ip->dev == dev && ip->inum == inum)
@@ -79,12 +79,12 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
             spinlock_release(&icache.lock);
             return ip;
         }
-        if (empty == 0 && ip->ref == 0) // Remember empty slot.
+        if (empty == nullptr && ip->ref == 0) // Remember empty slot.
             empty = ip;
     }
 
     // Recycle an inode cache entry.
-    if (empty == 0)
+    if (empty == nullptr)
     {
         panic("iget: no inodes");
     }
@@ -105,7 +105,7 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
 }
 
 // Zero a block.
-static void ext2fs_bzero(int dev, int bno)
+static void ext2fs_bzero(int dev, uint32_t bno)
 {
     buffer_head_t *bp = bread(dev, bno);
     memset(bp->data, 0, 512);
@@ -114,7 +114,7 @@ static void ext2fs_bzero(int dev, int bno)
 }
 
 // check if a block is free and return its bit number
-static uint32_t ext2fs_get_free_bit(char *bitmap, uint32_t nbits)
+static uint32_t ext2fs_get_free_bit(uint8_t *bitmap, uint32_t nbits)
 {
     const uint32_t bytes = (nbits + 7) / 8;
     for (uint32_t i = 0; i < bytes && i < EXT2_BSIZE; i++)
@@ -149,7 +149,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 
     buffer_head_t *bp2 = bread(dev, bitmap_block);
 
-    uint32_t fbit = ext2fs_get_free_bit((char *)bp2->data, ext2_sb.s_blocks_per_group);
+    uint32_t fbit = ext2fs_get_free_bit((uint8_t *)bp2->data, ext2_sb.s_blocks_per_group);
     if (fbit != (uint32_t)-1)
     {
         bwrite(bp2);
@@ -238,19 +238,22 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(group_desc_buf);
 
         buffer_head_t *ibitmap_buff = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + first_partition_block);
-        uint32_t fbit = ext2fs_get_free_bit((char *)ibitmap_buff->data, ext2_sb.s_inodes_per_group);
+        uint32_t fbit = ext2fs_get_free_bit((uint8_t *)ibitmap_buff->data, ext2_sb.s_inodes_per_group);
         if (fbit == (uint32_t)-1)
         {
             brelse(ibitmap_buff);
             continue;
         }
 
-        int inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
-        if (inodes_per_block == 0)
+        if (ext2_sb.s_inode_size == 0)
         {
             printk("PANIC: ");
             printk("ext2fs_ialloc: invalid inode size");
+            brelse(ibitmap_buff);
+            return nullptr;
         }
+
+        int inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
 
         int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + first_partition_block;
         int iindex = fbit % inodes_per_block;
@@ -288,7 +291,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
     }
     printk("PANIC: ");
     printk("ext2_ialloc: no inodes");
-    return NULL;
+    return nullptr;
 }
 
 void ext2fs_iupdate(struct ext2_inode *ip)
@@ -893,7 +896,7 @@ static inline uint16_t ext2_dirent_size(u8 name_len)
     return (size + 3) & ~3;
 }
 
-struct ext2_inode *ext2fs_dirlookup(struct ext2_inode *dp, char *name, uint32_t *poff)
+struct ext2_inode *ext2fs_dirlookup(struct ext2_inode *dp, const char *name, uint32_t *poff)
 {
     struct ext2_dir_entry_2 de;
     char file_name[EXT2_NAME_LEN + 1];
@@ -1022,7 +1025,7 @@ static void ext2_vfs_close(vfs_inode_t *node)
 
 static struct inode_operations ext2_vfs_ops;
 
-static vfs_inode_t *ext2_vfs_finddir(vfs_inode_t *node, char *name)
+static vfs_inode_t *ext2_vfs_finddir(const vfs_inode_t *node, const char *name)
 {
     struct ext2_inode *dp = (struct ext2_inode *)node->device;
     ext2fs_ilock(dp);
@@ -1034,11 +1037,11 @@ static vfs_inode_t *ext2_vfs_finddir(vfs_inode_t *node, char *name)
     // I will fix ext2fs_dirlookup and ext2fs_dirlink later.
     // For now assuming they call ext2fs_readi directly.
 
-    struct ext2_inode *ip = ext2fs_dirlookup(dp, name, NULL);
+    struct ext2_inode *ip = ext2fs_dirlookup(dp, name, nullptr);
     ext2fs_iunlock(dp);
 
     if (!ip)
-        return NULL;
+        return nullptr;
 
     ext2fs_ilock(ip);
 
@@ -1100,7 +1103,7 @@ static vfs_dirent_t *ext2_vfs_readdir(vfs_inode_t *node, uint32_t index)
     }
 
     ext2fs_iunlock(dp);
-    return NULL;
+    return nullptr;
 }
 
 static int ext2_vfs_mknod(struct vfs_inode *node, char *name, int mode, int dev)
@@ -1108,7 +1111,7 @@ static int ext2_vfs_mknod(struct vfs_inode *node, char *name, int mode, int dev)
     struct ext2_inode *parent_inode = (struct ext2_inode *)node->device;
     ext2fs_ilock(parent_inode);
 
-    struct ext2_inode *ip = ext2fs_dirlookup(parent_inode, name, NULL);
+    struct ext2_inode *ip = ext2fs_dirlookup(parent_inode, name, nullptr);
     if (ip)
     {
         ext2fs_iput(ip);

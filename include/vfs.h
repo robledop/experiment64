@@ -44,7 +44,7 @@ struct inode_operations
     void (*open)(struct vfs_inode *node);
     void (*close)(struct vfs_inode *node);
     vfs_dirent_t *(*readdir)(struct vfs_inode *node, uint32_t index);
-    struct vfs_inode *(*finddir)(struct vfs_inode *node, char *name);
+    struct vfs_inode *(*finddir)(const struct vfs_inode *node, const char *name);
     struct vfs_inode *(*clone)(struct vfs_inode *node);
     int (*mknod)(struct vfs_inode *node, char *name, int mode, int dev);
 };
@@ -55,7 +55,7 @@ typedef struct vfs_inode
     uint32_t inode;
     uint64_t size;
     struct inode_operations *iops;
-    struct vfs_inode *ptr; // Used for mountpoints and symlinks
+    struct vfs_inode *ptr; // Used for mount points and symlinks
     void *device;          // Private data for the driver
 } vfs_inode_t;
 

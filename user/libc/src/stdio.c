@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <string.h>
 #include <stdarg.h>
 
 int putchar(int c)
@@ -26,11 +25,11 @@ char *gets(char *s)
     int c;
     while ((c = getchar()) != EOF && c != '\n')
     {
-        *p++ = c;
+        *p++ = (char)c;
     }
     *p = '\0';
     if (c == EOF && p == s)
-        return NULL;
+        return nullptr;
     return s;
 }
 
@@ -50,7 +49,7 @@ static void print_hex(unsigned long n)
 {
     if (n / 16)
         print_hex(n / 16);
-    int rem = n % 16;
+    int rem = (int)(n % 16);
     if (rem < 10)
         putchar(rem + '0');
     else
