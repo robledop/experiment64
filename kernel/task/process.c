@@ -178,6 +178,46 @@ process_t *process_create(const char *name)
     return proc;
 }
 
+void process_copy_fds(process_t *dest, process_t *src)
+{
+    for (int i = 0; i < MAX_FDS; i++)
+    {
+        if (src->fd_table[i])
+        {
+            file_descriptor_t *old_desc = src->fd_table[i];
+            file_descriptor_t *new_desc = kmalloc(sizeof(file_descriptor_t));
+            if (new_desc)
+            {
+                new_desc->offset = old_desc->offset;
+                if (old_desc->inode)
+                {
+                    if (old_desc->inode->iops && old_desc->inode->iops->clone)
+                    {
+                        new_desc->inode = old_desc->inode->iops->clone(old_desc->inode);
+                    }
+                    else
+                    {
+                        new_desc->inode = kmalloc(sizeof(vfs_inode_t));
+                        if (new_desc->inode)
+                        {
+                            memcpy(new_desc->inode, old_desc->inode, sizeof(vfs_inode_t));
+                        }
+                    }
+                }
+                else
+                {
+                    new_desc->inode = NULL;
+                }
+                dest->fd_table[i] = new_desc;
+            }
+        }
+        else
+        {
+            dest->fd_table[i] = NULL;
+        }
+    }
+}
+
 void process_destroy(process_t *proc)
 {
     if (!proc)

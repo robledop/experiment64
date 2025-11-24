@@ -72,3 +72,4 @@ vfs_inode_t *vfs_resolve_path(const char *path);
 int vfs_mknod(char *path, int mode, int dev);
 
 void vfs_mount_root(void);
+void vfs_register_mount(const char *name, vfs_inode_t *root);

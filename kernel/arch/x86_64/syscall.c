@@ -206,7 +206,6 @@ void syscall_init(void)
         {
             cpu->kernel_rsp = (uint64_t)bootstrap_stack + sizeof(bootstrap_stack);
             tss_set_stack(cpu->kernel_rsp);
-            printf("syscall_init: BSP kernel_rsp set to %#lx\n", cpu->kernel_rsp);
         }
     }
 }
@@ -319,6 +318,8 @@ int sys_spawn(const char *path)
     proc->parent = current_process;
     proc->heap_end = max_vaddr;
 
+    process_copy_fds(proc, current_process);
+
     thread_t *thread = thread_create(proc, spawn_trampoline, false);
     thread->user_entry = entry_point;
     thread->user_stack = stack_top;
@@ -340,6 +341,8 @@ int sys_fork(struct syscall_regs *regs)
 
     child_proc->pml4 = child_pml4;
     child_proc->parent = current_process;
+
+    process_copy_fds(child_proc, current_process);
 
     // 3. Create Thread
     thread_t *child_thread = thread_create(child_proc, NULL, true);

@@ -21,6 +21,31 @@ void init_process_entry(void)
     }
     current_process->heap_end = max_vaddr;
 
+    // Open /dev/console for stdin, stdout, stderr
+    vfs_inode_t *console = vfs_resolve_path("/dev/console");
+    if (console)
+    {
+        // fd 0: stdin
+        current_process->fd_table[0] = kmalloc(sizeof(file_descriptor_t));
+        current_process->fd_table[0]->inode = console;
+        current_process->fd_table[0]->offset = 0;
+        vfs_open(console);
+
+        // fd 1: stdout
+        current_process->fd_table[1] = kmalloc(sizeof(file_descriptor_t));
+        current_process->fd_table[1]->inode = console;
+        current_process->fd_table[1]->offset = 0;
+
+        // fd 2: stderr
+        current_process->fd_table[2] = kmalloc(sizeof(file_descriptor_t));
+        current_process->fd_table[2]->inode = console;
+        current_process->fd_table[2]->offset = 0;
+    }
+    else
+    {
+        boot_message(WARNING, "Failed to open /dev/console for init process");
+    }
+
     // Allocate user stack
     uint64_t stack_top = 0x7FFFFFFFF000;
     uint64_t stack_size = 4 * 4096;

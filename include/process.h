@@ -85,6 +85,7 @@ extern volatile uint64_t scheduler_ticks;
 void process_init(void);
 process_t *process_create(const char *name);
 void process_destroy(process_t *process);
+void process_copy_fds(process_t *dest, process_t *src);
 thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user);
 thread_t *get_current_thread(void);
 process_t *get_current_process(void);

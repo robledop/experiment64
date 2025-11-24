@@ -165,7 +165,70 @@ void vfs_close(vfs_inode_t *node)
 vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
 {
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->readdir)
-        return node->iops->readdir(node, index);
+    {
+        // 1. Try to get entry from underlying filesystem
+        vfs_dirent_t *dirent = node->iops->readdir(node, index);
+
+        if (dirent || node != vfs_root)
+        {
+            return dirent;
+        }
+
+        // 2. If underlying FS is done (dirent == NULL) AND we are at root,
+        // check for virtual mount points that are NOT on disk.
+
+        // Count real entries to determine offset
+        uint32_t real_count = 0;
+        if (index > 0)
+        {
+            while (1)
+            {
+                vfs_dirent_t *d = node->iops->readdir(node, real_count);
+                if (!d)
+                    break;
+                kfree(d);
+                real_count++;
+            }
+        }
+
+        if (index < real_count)
+            return NULL; // Should have been caught by step 1
+
+        uint32_t virt_index = index - real_count;
+        uint32_t current_virt = 0;
+
+        for (int i = 0; i < mount_count; i++)
+        {
+            // Check if this mount point exists on disk
+            bool on_disk = false;
+            if (node->iops->finddir)
+            {
+                vfs_inode_t *found = node->iops->finddir(node, mount_table[i].name);
+                if (found)
+                {
+                    on_disk = true;
+                    kfree(found);
+                }
+            }
+
+            if (!on_disk)
+            {
+                if (current_virt == virt_index)
+                {
+                    vfs_dirent_t *virt_ent = kmalloc(sizeof(vfs_dirent_t));
+                    if (!virt_ent)
+                        return NULL;
+                    strncpy(virt_ent->name, mount_table[i].name, 127);
+                    virt_ent->name[127] = '\0';
+                    virt_ent->inode = 0;
+                    return virt_ent;
+                }
+                current_virt++;
+            }
+        }
+
+        return NULL;
+    }
     return 0;
 }
 

@@ -127,3 +127,29 @@ TEST(test_vfs_generic_basic)
     kfree(file);
     return true;
 }
+
+TEST(test_vfs_root_readdir)
+{
+    if (!vfs_root)
+        return false;
+
+    bool found_dev = false;
+    vfs_dirent_t *dirent;
+    int i = 0;
+    printf("VFS: Listing root directory:\n");
+    while ((dirent = vfs_readdir(vfs_root, i++)))
+    {
+        printf("  %s\n", dirent->name);
+        if (strcmp(dirent->name, "dev") == 0)
+        {
+            found_dev = true;
+        }
+        kfree(dirent);
+    }
+
+    if (!found_dev)
+    {
+        printf("VFS: 'dev' not found in root directory listing\n");
+    }
+    return found_dev;
+}
