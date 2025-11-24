@@ -32,3 +32,4 @@ struct test_case
 void run_tests(void);
 void heap_test(void);
 bool bio_test(void);
+extern volatile const char *g_current_test_name;

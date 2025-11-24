@@ -7,6 +7,7 @@
 #include <kernel.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include "test.h"
 
 __attribute__((used, section(".requests"))) static volatile struct limine_kernel_file_request kernel_file_request = {
     .id = LIMINE_KERNEL_FILE_REQUEST,
@@ -131,6 +132,14 @@ void panic(const char *fmt, ...)
     va_end(args);
 
     printk(KRESET "\n");
+
+#ifdef TEST_MODE
+    if (g_current_test_name)
+    {
+        printk("During test: %s\n", g_current_test_name);
+        test_capture_flush();
+    }
+#endif
 
     stack_trace();
 

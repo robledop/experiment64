@@ -10,6 +10,8 @@
 extern struct test_case __start_test_array[];
 extern struct test_case __stop_test_array[];
 
+volatile const char *g_current_test_name = NULL;
+
 static int compare_tests(const void *a, const void *b)
 {
     const struct test_case *ta = *(const struct test_case **)a;
@@ -58,6 +60,7 @@ void run_tests(void)
     for (size_t i = 0; i < count; i++)
     {
         struct test_case *t = tests[i];
+        g_current_test_name = t->name;
         total++;
         uint64_t test_start_ns = tsc_nanos();
         test_capture_begin();
@@ -81,6 +84,7 @@ void run_tests(void)
             printk("[\033[31mFAIL\033[0m]\033[35m %s \033[0m(%lums %luus)\n", t->name, elapsed_ms, elapsed_us);
             stack_trace();
         }
+        g_current_test_name = NULL;
     }
 
     uint64_t suite_end_ns = tsc_nanos();
@@ -97,21 +101,7 @@ void run_tests(void)
         printk("\033[31mSOME TESTS FAILED\033[0m\n");
     }
 
-    // Exit QEMU
-    // Try 0x501 which is common default
-    outb(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
-    outw(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
-    outd(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
-
-    // Try 0xf4 as well
-    outb(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
-    outw(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
-    outd(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
-
-    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD);   // qemu
-    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD);   // VirtualBox
-    outw(BOCHS_SHUTDOWN_PORT, BOCHS_SHUTDOWN_CMD); // Bochs
-    outw(CLOUD_SHUTDOWN_PORT, CLOUD_SHUTDOWN_CMD); // Cloud hypervisors
+    shutdown();
 
     // If that fails (not in QEMU or device not present), hang.
     printk("Failed to exit QEMU via isa-debug-exit.\n");
