@@ -47,3 +47,50 @@ TEST(test_krealloc)
     kfree(ptr);
     return true;
 }
+
+TEST(test_krealloc_shrink_in_place)
+{
+    char *ptr = kmalloc(64);
+    ASSERT(ptr != NULL);
+    memset(ptr, 0xCD, 64);
+
+    char *same = krealloc(ptr, 32);
+    ASSERT(same == ptr); // should reuse existing slab slot
+    for (int i = 0; i < 32; i++)
+    {
+        ASSERT(same[i] == (char)0xCD);
+    }
+
+    kfree(same);
+    return true;
+}
+
+TEST(test_krealloc_grow_crossing_slab_limit)
+{
+    char *ptr = kmalloc(128);
+    ASSERT(ptr != NULL);
+    strcpy(ptr, "grow-me");
+
+    char *bigger = krealloc(ptr, 4096); // forces big allocation path
+    ASSERT(bigger != NULL);
+    ASSERT(strcmp(bigger, "grow-me") == 0);
+
+    kfree(bigger);
+    return true;
+}
+
+TEST(test_kmalloc_reuses_freed_slot)
+{
+    // Use smallest slab size to exercise free list reuse ordering.
+    void *first = kmalloc(16);
+    void *second = kmalloc(16);
+    ASSERT(first != NULL && second != NULL && first != second);
+
+    kfree(first);
+    void *third = kmalloc(16);
+    ASSERT(third == first); // recently freed slot should be first out
+
+    kfree(second);
+    kfree(third);
+    return true;
+}
