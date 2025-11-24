@@ -124,3 +124,16 @@ tests-gdb: clean
 .PHONY: bear
 bear: clean
 	bear -- $(MAKE) $(KERNEL) userland -j22
+
+.PHONY: clangd-check
+clangd-check:
+	python3 scripts/clangd_check.py
+
+.PHONY: clang-tidy
+clang-tidy:
+	@if command -v run-clang-tidy >/dev/null 2>&1; then \
+		echo "Running run-clang-tidy -p ."; \
+		run-clang-tidy -p .; \
+	else \
+		python3 scripts/clang_tidy_all.py \
+	; fi
