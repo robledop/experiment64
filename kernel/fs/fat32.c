@@ -1060,12 +1060,10 @@ int fat32_write_file(fat32_fs_t *fs, const char *path, uint8_t *buffer, uint32_t
 
 int fat32_delete_file(fat32_fs_t *fs, const char *path)
 {
-    printk("Deleting file: %s\n", path);
     uint32_t parent_cluster;
     char filename[13];
     if (fat32_resolve_parent(fs, path, &parent_cluster, filename) != 0)
     {
-        printk("fat32_delete_file: Failed to resolve parent for %s\n", path);
         return 1;
     }
 
@@ -1077,7 +1075,7 @@ int fat32_delete_file(fat32_fs_t *fs, const char *path)
     {
         // Found it
         uint32_t cluster = (entry.fst_clus_hi << 16) | entry.fst_clus_lo;
-        printk("Found entry %s at cluster %d, offset %d. File cluster: %d\n", filename, dir_cluster_num, dir_offset, cluster);
+        uint32_t freed = 0;
 
         // Mark deleted in directory
         uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
@@ -1097,7 +1095,6 @@ int fat32_delete_file(fat32_fs_t *fs, const char *path)
         kfree(cluster_buf);
 
         // Free chain
-        printk("Freeing chain starting at %d\n", cluster);
         while (cluster < 0x0FFFFFF8 && cluster != 0)
         {
             if (cluster < 2 || cluster >= fs->total_clusters + 2)
@@ -1107,24 +1104,22 @@ int fat32_delete_file(fat32_fs_t *fs, const char *path)
             }
 
             uint32_t next;
-            printk("Reading FAT entry for %d...\n", cluster);
             if (fat32_read_fat_entry(fs, cluster, &next) != 0)
             {
                 printk("fat32_delete_file: Failed to read FAT entry for cluster %d\n", cluster);
                 break;
             }
-            printk("Next cluster is %d. Writing 0 to FAT entry for %d...\n", next, cluster);
             if (fat32_write_fat_entry(fs, cluster, 0) != 0)
             {
                 printk("fat32_delete_file: Failed to write FAT entry for cluster %d\n", cluster);
                 break;
             }
-            printk("Written. Moving to next.\n");
             cluster = next;
+            freed++;
         }
-        printk("fat32_delete_file: Chain freed. Returning 0.\n");
+        if (freed == 0 && cluster == 0)
+            printk("fat32_delete_file: freed 0 clusters for %s\n", filename);
         return 0;
     }
-    printk("fat32_delete_file: Entry not found: %s\n", filename);
     return 1; // Not found
 }

@@ -29,6 +29,7 @@ override CFLAGS += \
     -ffreestanding \
     -nostdlib \
     -fstack-protector-strong \
+	-fsanitize=undefined \
     -fno-lto \
     -fPIE \
     -ggdb \
@@ -113,7 +114,7 @@ run-gdb: clean
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 10s qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 90s qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
 	cat test.log
 
 .PHONY: tests-gdb

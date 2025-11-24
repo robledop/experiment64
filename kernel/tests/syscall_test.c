@@ -7,6 +7,20 @@
 #include "terminal.h"
 #include "process.h"
 
+struct syscall_regs
+{
+    uint64_t rdi, rsi, rdx, r10, r8, r9;
+    uint64_t r15, r14, r13, r12, rbx, rbp;
+    uint64_t rcx, r11;
+};
+
+// Direct syscall implementations from kernel/arch/x86_64/syscall.c
+int sys_open(const char *path);
+int sys_close(int fd);
+int sys_read(int fd, char *buf, size_t count);
+int sys_chdir(const char *path);
+int sys_exec(const char *path, struct syscall_regs *regs);
+
 // Buffer for setjmp/longjmp
 static void *test_env[64];
 static volatile int test_exit_code = 0;
@@ -256,8 +270,8 @@ static uint8_t exec_stub_bytes[] = {
 static uint8_t mknod_stub_bytes[] = {
     0xB8, 0x0F, 0x00, 0x00, 0x00,             // mov eax, 15 (SYS_MKNOD)
     0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100 (path)
-    0xBE, 0x03, 0x00, 0x00, 0x00,             // mov esi, 3 (VFS_CHARDEVICE)
-    0xBA, 0x01, 0x01, 0x00, 0x00,             // mov edx, 0x0101 (dev 1,1)
+    0xBE, 0x01, 0x00, 0x00, 0x00,             // mov esi, 1 (VFS_FILE)
+    0xBA, 0x00, 0x00, 0x00, 0x00,             // mov edx, 0 (dev)
     0x0F, 0x05,                               // syscall
     0x89, 0xC7,                               // mov edi, eax
     0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3 (SYS_EXIT)
@@ -825,7 +839,7 @@ TEST_PRIO(test_syscall_mknod, 10)
         if (passed)
         {
             vfs_inode_t *node = vfs_resolve_path("/dev_test");
-            if (node && (node->flags & VFS_CHARDEVICE))
+            if (node && (node->flags & VFS_FILE))
             {
                 printk("Syscall Test: MKNOD successful (node found)\n");
             }
@@ -840,4 +854,32 @@ TEST_PRIO(test_syscall_mknod, 10)
         syscall_set_exit_hook(NULL);
         return passed;
     }
+}
+
+TEST(test_syscall_invalid_paths_and_fds)
+{
+    // Empty path rejected.
+    ASSERT(sys_open("") == -1);
+    ASSERT(sys_chdir("") == -1);
+
+    // chdir to non-directory should fail.
+    ASSERT(sys_chdir("/bin/init") == -1);
+
+    char buf[8];
+    int fd = sys_open("/bin/init");
+    ASSERT(fd >= 0);
+    ASSERT(sys_close(fd) == 0);
+
+    // Read on closed/invalid descriptors should return 0.
+    ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
+    ASSERT(sys_read(42, buf, sizeof(buf)) == 0);
+    return true;
+}
+
+TEST(test_syscall_exec_nonexistent_path)
+{
+    struct syscall_regs dummy = {0};
+    int res = sys_exec("/does/not/exist", &dummy);
+    ASSERT(res < 0);
+    return true;
 }

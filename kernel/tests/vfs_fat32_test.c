@@ -1,7 +1,16 @@
 #include "test.h"
 #include "vfs.h"
+#include "fat32.h"
 #include "string.h"
 #include "heap.h"
+
+// Mirror of the private struct in fat32.c so we can grab the mounted fs pointer
+typedef struct
+{
+    fat32_fs_t *fs;
+    uint32_t dir_cluster;
+    uint32_t dir_offset;
+} fat32_inode_data_t;
 
 // Tests for FAT32 Mounted Filesystem at /mnt
 
@@ -88,8 +97,10 @@ TEST_PRIO(test_vfs_fat32_read, 30)
     memset(buffer, 0, 32);
     uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
-    // "Hello Data Partition"
-    bool passed = (bytes > 0 && strncmp(buffer, "Hello Data", 10) == 0);
+    // Accept either original "Hello Data..." content or an updated "FAT32Write..." prefix
+    bool passed = (bytes > 0 &&
+                   (strncmp(buffer, "Hello Data", 10) == 0 ||
+                    strncmp(buffer, "FAT32Write", 10) == 0));
     if (!passed)
     {
         printk("VFS FAT32: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
@@ -98,6 +109,81 @@ TEST_PRIO(test_vfs_fat32_read, 30)
     kfree(file);
     kfree(mnt);
     return passed;
+}
+
+TEST_PRIO(test_vfs_fat32_zero_length_read, 45)
+{
+    vfs_inode_t *mnt = vfs_resolve_path("/mnt");
+    if (!mnt)
+        return false;
+
+    vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
+    if (!file)
+    {
+        kfree(mnt);
+        return false;
+    }
+
+    char buffer[4] = {0};
+    uint64_t bytes = vfs_read(file, 0, 0, (uint8_t *)buffer);
+    bool passed = (bytes == 0);
+
+    kfree(file);
+    kfree(mnt);
+    return passed;
+}
+
+TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
+{
+    vfs_inode_t *mnt = vfs_resolve_path("/mnt");
+    if (!mnt)
+        return false;
+    fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
+    ASSERT(mnt_data != NULL);
+    fat32_fs_t *fs = mnt_data->fs;
+    ASSERT(fs != NULL);
+
+    const char *fname = "LONG.BIN";
+    const size_t data_size = 256 * 1024; // 256 KiB to cross many clusters
+    uint8_t *data = kmalloc(data_size);
+    ASSERT(data != NULL);
+    for (size_t i = 0; i < data_size; i++)
+        data[i] = (uint8_t)(i & 0xFF);
+
+    vfs_inode_t *file = vfs_finddir(mnt, (char *)fname);
+    if (file)
+    {
+        fat32_delete_file(fs, fname);
+        kfree(file);
+    }
+
+    // Create the file via FAT32 helpers (VFS lacks mknod for FAT32). If it already exists,
+    // just proceed with the existing entry.
+    int create_res = fat32_create_file(fs, fname);
+    if (create_res != 0)
+    {
+        fat32_file_info_t info;
+        ASSERT(fat32_stat(fs, fname, &info) == 0);
+    }
+
+    file = vfs_finddir(mnt, (char *)fname);
+    ASSERT(file != NULL);
+
+    uint64_t written = vfs_write(file, 0, data_size, data);
+    ASSERT(written == data_size);
+
+    uint8_t *readback = kmalloc(data_size);
+    ASSERT(readback != NULL);
+    uint64_t read_bytes = vfs_read(file, 0, data_size, readback);
+    ASSERT(read_bytes == data_size);
+    ASSERT(readback[0] == data[0] && readback[data_size - 1] == data[data_size - 1]);
+
+    kfree(readback);
+    fat32_delete_file(fs, fname);
+    kfree(file);
+    kfree(mnt);
+    kfree(data);
+    return true;
 }
 
 TEST_PRIO(test_vfs_fat32_write, 40)

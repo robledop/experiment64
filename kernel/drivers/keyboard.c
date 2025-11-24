@@ -36,10 +36,8 @@ void keyboard_init(void)
 {
 }
 
-void keyboard_handler_main(void)
+static void keyboard_process_scancode(uint8_t scancode)
 {
-    uint8_t scancode = inb(KEYBOARD_DATA_PORT);
-
     if (scancode == SCANCODE_LSHIFT_PRESS || scancode == SCANCODE_RSHIFT_PRESS)
     {
         shift_pressed = true;
@@ -127,6 +125,28 @@ void keyboard_handler_main(void)
             }
         }
     }
+}
+
+void keyboard_handler_main(void)
+{
+    uint8_t scancode = inb(KEYBOARD_DATA_PORT);
+    keyboard_process_scancode(scancode);
+}
+
+void keyboard_inject_scancode(uint8_t scancode)
+{
+    keyboard_process_scancode(scancode);
+}
+
+void keyboard_reset_state_for_test(void)
+{
+    write_ptr = 0;
+    read_ptr = 0;
+    shift_pressed = false;
+    ctrl_pressed = false;
+    alt_pressed = false;
+    caps_lock = false;
+    keyboard_waiter = nullptr;
 }
 
 bool keyboard_has_char(void)

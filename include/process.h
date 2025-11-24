@@ -71,7 +71,7 @@ typedef struct Thread
     void *chan;               // Sleep channel
     bool is_idle;             // Is this the idle thread?
     uint64_t ticks_remaining; // Time slice remaining
-    uint64_t _align;          // Padding to ensure list is 16-byte aligned relative to start
+    uint64_t _align[2];       // Padding to ensure list is 16-byte aligned relative to start
     list_head_t list;         // Thread list node
 } thread_t;
 

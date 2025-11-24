@@ -1,11 +1,13 @@
 #include "test.h"
 #include "heap.h"
 #include "string.h"
+#include "pmm.h"
 
 TEST(test_kmalloc_small)
 {
     void *ptr = kmalloc(16);
     ASSERT(ptr != NULL);
+    ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least pointer aligned
     memset(ptr, 0xAA, 16);
     kfree(ptr);
     return true;
@@ -16,8 +18,21 @@ TEST(test_kmalloc_large)
     // Larger than slab max (2048)
     void *ptr = kmalloc(4096);
     ASSERT(ptr != NULL);
+    ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least word aligned
     memset(ptr, 0xBB, 4096);
     kfree(ptr);
+    return true;
+}
+
+TEST(test_kmalloc_zero_returns_null)
+{
+    ASSERT(kmalloc(0) == NULL);
+    return true;
+}
+
+TEST(test_kfree_null_noop)
+{
+    kfree(NULL);
     return true;
 }
 
@@ -34,6 +49,26 @@ TEST(test_kzalloc)
     return true;
 }
 
+TEST(test_kzalloc_fragmentation_resilience)
+{
+    // Interleave small and large allocations and ensure zero-fill holds.
+    void *small1 = kzalloc(32);
+    void *large = kzalloc(4096);
+    void *small2 = kzalloc(48);
+    ASSERT(small1 && large && small2);
+
+    for (int i = 0; i < 32; i++)
+        ASSERT(((char *)small1)[i] == 0);
+    for (int i = 0; i < 48; i++)
+        ASSERT(((char *)small2)[i] == 0);
+
+    memset(large, 0x5A, 4096);
+    kfree(small1);
+    kfree(large);
+    kfree(small2);
+    return true;
+}
+
 TEST(test_krealloc)
 {
     char *ptr = kmalloc(10);
@@ -44,6 +79,26 @@ TEST(test_krealloc)
     ASSERT(ptr != NULL);
     ASSERT(strcmp(ptr, "hello") == 0);
 
+    kfree(ptr);
+    return true;
+}
+
+TEST(test_krealloc_to_zero_frees)
+{
+    void *ptr = kmalloc(64);
+    ASSERT(ptr != NULL);
+    memset(ptr, 0xAB, 64);
+
+    void *res = krealloc(ptr, 0);
+    ASSERT(res == NULL); // should free and return NULL
+    return true;
+}
+
+TEST(test_krealloc_null_allocates)
+{
+    char *ptr = krealloc(NULL, 32);
+    ASSERT(ptr != NULL);
+    memset(ptr, 0xEF, 32);
     kfree(ptr);
     return true;
 }

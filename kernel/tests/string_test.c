@@ -54,6 +54,39 @@ TEST(test_memcmp)
     return true;
 }
 
+TEST(test_memcmp_zero_length)
+{
+    ASSERT(memcmp("abc", "xyz", 0) == 0);
+    return true;
+}
+
+TEST(test_strncmp_zero_length)
+{
+    ASSERT(strncmp("abc", "xyz", 0) == 0);
+    return true;
+}
+
+TEST(test_strcat_and_strrchr)
+{
+    char buf[16] = "hi";
+    strcat(buf, " there");
+    ASSERT(strcmp(buf, "hi there") == 0);
+
+    const char *p = strrchr(buf, 'h');
+    ASSERT(p != NULL);
+    ASSERT(strcmp(p, "here") == 0); // last 'h' in "there"
+    return true;
+}
+
+TEST(test_strncpy_pads_with_nulls)
+{
+    char buf[5];
+    strncpy(buf, "abc", sizeof(buf));
+    ASSERT(buf[0] == 'a' && buf[1] == 'b' && buf[2] == 'c');
+    ASSERT(buf[3] == '\0' && buf[4] == '\0');
+    return true;
+}
+
 // Formatting tests for snprintk/vsnprintk
 TEST(test_snprintk_basic_formats)
 {

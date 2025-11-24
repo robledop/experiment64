@@ -137,3 +137,31 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     kfree(file);
     return true;
 }
+
+TEST(test_ext2_long_name_and_duplicate_rejection)
+{
+    if (!vfs_root)
+        return false;
+
+    char long_component[80];
+    memset(long_component, 'l', sizeof(long_component) - 1);
+    long_component[sizeof(long_component) - 1] = '\0';
+
+    char path[256];
+    snprintk(path, sizeof(path), "/ext2_%s", long_component);
+
+    int res = vfs_mknod(path, VFS_FILE, 0);
+    if (res != 0)
+    {
+        printk("VFS: failed to create long name path %s\n", path);
+        return false;
+    }
+
+    // Duplicate creation should fail.
+    ASSERT(vfs_mknod(path, VFS_FILE, 0) != 0);
+
+    vfs_inode_t *node = vfs_resolve_path(path);
+    ASSERT(node != NULL);
+    kfree(node);
+    return true;
+}

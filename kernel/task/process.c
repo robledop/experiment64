@@ -45,6 +45,11 @@ bool scheduler_tick(void)
     process_t *p;
     list_for_each_entry(p, &process_list, list)
     {
+        if (list_empty(&p->threads))
+        {
+            continue;
+        }
+
         thread_t *t;
         list_for_each_entry(t, &p->threads, list)
         {

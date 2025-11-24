@@ -153,3 +153,28 @@ TEST(test_vfs_root_readdir)
     }
     return found_dev;
 }
+
+TEST(test_vfs_path_canonicalization)
+{
+    // test.txt is seeded into rootfs; resolve via dotted path segments.
+    vfs_inode_t *node = vfs_resolve_path("/./test.txt");
+    ASSERT(node != NULL);
+    kfree(node);
+
+    node = vfs_resolve_path("/bin/../test.txt");
+    ASSERT(node != NULL);
+    kfree(node);
+    return true;
+}
+
+TEST(test_vfs_path_overlength_rejected)
+{
+    // Build an overlength path (> VFS_MAX_PATH) and ensure resolution fails.
+    char longpath[VFS_MAX_PATH + 16];
+    memset(longpath, 'a', sizeof(longpath));
+    longpath[0] = '/';
+    longpath[sizeof(longpath) - 1] = '\0';
+    vfs_inode_t *node = vfs_resolve_path(longpath);
+    ASSERT(node == NULL);
+    return true;
+}

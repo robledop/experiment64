@@ -1,6 +1,7 @@
 #pragma once
 
 // US QWERTY Scancode Set 1
+#include <stdint.h>
 static const char scancode_to_char[] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
     '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
@@ -18,6 +19,8 @@ static const char scancode_to_char_shifted[] = {
     0, 0, 0, '+', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 void keyboard_init(void);
+void keyboard_inject_scancode(uint8_t scancode);
+void keyboard_reset_state_for_test(void);
 void keyboard_handler_main(void);
 char keyboard_get_char(void);
 bool keyboard_has_char(void);
