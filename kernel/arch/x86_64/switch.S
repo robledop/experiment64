@@ -1,3 +1,4 @@
+.intel_syntax noprefix
 .global switch_to
 .type switch_to, @function
 

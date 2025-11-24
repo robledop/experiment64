@@ -86,22 +86,22 @@ void gdt_init(void)
 
     // Reload CS
     __asm__ volatile(
-        "pushq $0x08\n"
-        "leaq 1f(%%rip), %%rax\n"
-        "pushq %%rax\n"
-        "lretq\n"
+        "push 0x08\n"
+        "lea rax, [rip + 1f]\n"
+        "push rax\n"
+        "retfq\n"
         "1:\n"
         : : : "rax", "memory");
 
     // Reload Data Segments
     __asm__ volatile(
-        "movw $0x10, %%ax\n"
-        "movw %%ax, %%ds\n"
-        "movw %%ax, %%es\n"
-        "movw %%ax, %%ss\n"
-        "xor %%ax, %%ax\n"
-        "movw %%ax, %%fs\n"
-        "movw %%ax, %%gs\n"
+        "mov ax, 0x10\n"
+        "mov ds, ax\n"
+        "mov es, ax\n"
+        "mov ss, ax\n"
+        "xor ax, ax\n"
+        "mov fs, ax\n"
+        "mov gs, ax\n"
         : : : "rax", "memory");
 
     // Restore GS Base (since loading GS selector might have cleared it)
@@ -109,5 +109,5 @@ void gdt_init(void)
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
 
     // Load TSS
-    __asm__ volatile("ltr %%ax" : : "a"(0x28));
+    __asm__ volatile("ltr ax" : : "a"(0x28));
 }

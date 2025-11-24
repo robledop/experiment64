@@ -6,6 +6,7 @@
 
 #define PROCESS_NAME_MAX 64
 #define MAX_FDS 16
+#define TIME_SLICE_MS 50
 
 typedef enum
 {

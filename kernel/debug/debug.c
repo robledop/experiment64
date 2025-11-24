@@ -140,7 +140,7 @@ void panic(const char *fmt, ...)
 
 void stack_trace(void)
 {
-    boot_message(INFO,KBWHT "Stack trace:\n" KRESET);
+    printf(KBWHT "Stack trace:\n" KRESET);
 
     struct stack_frame
     {
@@ -157,11 +157,11 @@ void stack_trace(void)
 
         if (symbol)
         {
-            boot_message(INFO,"  [%p] <%s+%p>\n", (void *)stack->rip, symbol, (void *)offset);
+            printf("  [%p] <%s+%p>\n", (void *)stack->rip, symbol, (void *)offset);
         }
         else
         {
-            boot_message(INFO,"  [%p]\n", (void *)stack->rip);
+            printf("  [%p]\n", (void *)stack->rip);
         }
 
         stack = stack->rbp;

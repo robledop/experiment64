@@ -2,7 +2,7 @@
 #include "fat32.h"
 #include "terminal.h"
 
-extern fat32_fs_t fs;
+extern fat32_fs_t test_fs;
 extern bool fs_initialized;
 
 TEST(test_fat32_stat)
@@ -11,7 +11,7 @@ TEST(test_fat32_stat)
         return false;
 
     fat32_file_info_t info;
-    if (fat32_stat(&fs, "TEST.TXT", &info) != 0)
+    if (fat32_stat(&test_fs, "TEST.TXT", &info) != 0)
     {
         printf("Failed to stat TEST.TXT\n");
         return false;
@@ -24,7 +24,7 @@ TEST(test_fat32_stat)
 
     // Check if inode is stable (call again)
     fat32_file_info_t info2;
-    fat32_stat(&fs, "TEST.TXT", &info2);
+    fat32_stat(&test_fs, "TEST.TXT", &info2);
     ASSERT(info.inode == info2.inode);
 
     return true;

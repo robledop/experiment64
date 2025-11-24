@@ -6,8 +6,9 @@
 #include "vmm.h"
 #include "syscall.h"
 #include "spinlock.h"
+#include "apic.h"
 
-#define TIME_SLICE_TICKS 3 // 50Hz * 3 = 60ms. (Requested 50ms)
+#define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t *kernel_process = NULL;
@@ -96,7 +97,7 @@ void process_init(void)
 
     // Use current CR3
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     kernel_process->pml4 = (pml4_t)cr3;
 
     thread_t *kernel_thread = kmalloc(sizeof(thread_t));

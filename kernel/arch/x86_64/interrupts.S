@@ -1,3 +1,4 @@
+.intel_syntax noprefix
 .altmacro
 
 .macro ISR_NOERRCODE num

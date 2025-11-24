@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#define TIMER_FREQUENCY_HZ 50
+
 void apic_init(void);
 void apic_local_init(void);
 void apic_send_eoi(void);

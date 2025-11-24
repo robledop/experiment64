@@ -64,7 +64,7 @@ void smp_init_cpu0(void)
             cpus[i].active_thread = NULL;
 
             // Load null selector into GS/FS to ensure MSR_GS_BASE is used
-            __asm__ volatile("xor %%eax, %%eax; mov %%eax, %%gs; mov %%eax, %%fs" ::: "eax");
+            __asm__ volatile("xor eax, eax; mov gs, eax; mov fs, eax" ::: "eax");
 
             wrmsr(MSR_GS_BASE, (uint64_t)&cpus[i]);
             wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)&cpus[i]);

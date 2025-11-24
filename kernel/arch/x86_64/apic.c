@@ -108,13 +108,15 @@ void apic_timer_calibrate(void)
 
     uint32_t ticks_in_10ms = 0xFFFFFFFF - curr;
 
-    // We want 50Hz -> 20ms.
-    // ticks_in_20ms = ticks_in_10ms * 2
-    lapic_timer_ticks = ticks_in_10ms * 2;
+    // Calculate ticks per period based on TIMER_FREQUENCY_HZ
+    // ticks_per_sec = ticks_in_10ms * 100
+    // ticks_per_period = ticks_per_sec / TIMER_FREQUENCY_HZ
+    //                  = (ticks_in_10ms * 100) / TIMER_FREQUENCY_HZ
 
-    boot_message(INFO, "APIC: LAPIC timer calibrated. Ticks per 20ms (50Hz): %d", lapic_timer_ticks);
+    lapic_timer_ticks = (ticks_in_10ms * 100) / TIMER_FREQUENCY_HZ;
+
+    boot_message(INFO, "APIC: LAPIC timer calibrated. Ticks per %dHz: %d", TIMER_FREQUENCY_HZ, lapic_timer_ticks);
 }
-
 void apic_local_init(void)
 {
     // Enable LAPIC

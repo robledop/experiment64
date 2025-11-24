@@ -9,12 +9,10 @@
 
 void init_process_entry(void)
 {
-    outb(0x3F8, 'X');
-    outb(0x3F8, '\n');
     uint64_t entry_point;
     uint64_t max_vaddr = 0;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     if (!elf_load("/bin/init", &entry_point, &max_vaddr, (pml4_t)cr3))
     {
         boot_message(ERROR, "Failed to load /bin/init");
@@ -45,15 +43,15 @@ void init_process_entry(void)
     __asm__ volatile(
         "cli\n"
         "swapgs\n"
-        "mov %0, %%ds\n"
-        "mov %0, %%es\n"
-        "mov %0, %%fs\n"
-        "mov %0, %%gs\n"
-        "pushq %1\n" // SS
-        "pushq %2\n" // RSP
-        "pushq %3\n" // RFLAGS
-        "pushq %4\n" // CS
-        "pushq %5\n" // RIP
+        "mov ds, %0\n"
+        "mov es, %0\n"
+        "mov fs, %0\n"
+        "mov gs, %0\n"
+        "push %1\n" // SS
+        "push %2\n" // RSP
+        "push %3\n" // RFLAGS
+        "push %4\n" // CS
+        "push %5\n" // RIP
         "iretq\n"
         :
         : "r"(user_ss), "r"(user_ss), "r"(stack_top), "r"(rflags), "r"(user_cs), "r"(entry_point)
@@ -68,12 +66,10 @@ void process_spawn_init(void)
 
     // Set init process PML4 to current kernel PML4
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     init_proc->pml4 = (pml4_t)cr3;
 
     thread_t *t = thread_create(init_proc, init_process_entry, false);
     if (!t)
         boot_message(ERROR, "Failed to create init thread");
-    else
-        boot_message(INFO, "Created init thread %d", t->tid);
 }

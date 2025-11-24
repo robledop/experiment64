@@ -64,7 +64,7 @@ void vmm_map_page(pml4_t pml4, uint64_t virt, uint64_t phys, uint64_t flags)
     // Invalidate TLB if we are modifying the current address space?
     // For now, we assume we are building a new one or mapping new pages.
     // If mapping into current, we should invlpg.
-    __asm__ volatile("invlpg (%0)" : : "r"(virt) : "memory");
+    __asm__ volatile("invlpg [%0]" : : "r"(virt) : "memory");
 }
 
 void vmm_unmap_page(pml4_t pml4, uint64_t virt)
@@ -91,7 +91,7 @@ void vmm_unmap_page(pml4_t pml4, uint64_t virt)
         return;
 
     pt_virt[pt_idx] = 0;
-    __asm__ volatile("invlpg (%0)" : : "r"(virt) : "memory");
+    __asm__ volatile("invlpg [%0]" : : "r"(virt) : "memory");
 }
 
 pml4_t vmm_new_pml4(void)
@@ -109,7 +109,7 @@ pml4_t vmm_new_pml4(void)
 
     // Get current CR3
     uint64_t current_cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(current_cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(current_cr3));
     uint64_t current_pml4_phys = current_cr3 & 0x000FFFFFFFFFF000;
     uint64_t *current_pml4_virt = (uint64_t *)(current_pml4_phys + g_hhdm_offset);
 
@@ -208,7 +208,7 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
 
 void vmm_switch_pml4(pml4_t pml4)
 {
-    __asm__ volatile("mov %0, %%cr3" : : "r"(pml4) : "memory");
+    __asm__ volatile("mov cr3, %0" : : "r"(pml4) : "memory");
 }
 
 static void free_page_table_level(uint64_t *table, int level)

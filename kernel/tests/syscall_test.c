@@ -20,7 +20,7 @@ static bool syscall_test_rflags_valid = false;
 static inline void syscall_test_disable_interrupts(void)
 {
     uint64_t flags;
-    __asm__ volatile("pushfq; pop %0" : "=r"(flags)::"memory");
+    __asm__ volatile("pushf; pop %0" : "=r"(flags)::"memory");
     __asm__ volatile("cli" ::: "memory");
     syscall_test_rflags = flags;
     syscall_test_rflags_valid = true;
@@ -35,41 +35,33 @@ static inline void syscall_test_restore_interrupts(void)
     syscall_test_rflags_valid = false;
 }
 
-static void log_swapgs_event(const char *msg, uint64_t a, uint64_t b)
-{
-    printf("[syscall_test] %s: arg0=%#lx arg1=%#lx\n", msg, a, b);
-}
-
 static void enter_user_mode(uint64_t rip, uint64_t rsp)
 {
     const uint64_t user_cs = 0x20 | 3;
     const uint64_t user_ss = 0x18 | 3;
     const uint64_t rflags = 0x202;
 
-    log_swapgs_event("enter_user_mode before swapgs", rip, rsp);
-
     __asm__ volatile(
         "cli\n"
         "swapgs\n"
-        "mov %0, %%ds\n"
-        "mov %0, %%es\n"
-        "mov %0, %%fs\n"
-        "mov %0, %%gs\n"
-        "pushq %0\n"
-        "pushq %1\n"
-        "pushq %2\n"
-        "pushq %3\n"
-        "pushq %4\n"
+        "mov ds, %0\n"
+        "mov es, %0\n"
+        "mov fs, %0\n"
+        "mov gs, %0\n"
+        "push %0\n"
+        "push %1\n"
+        "push %2\n"
+        "push %3\n"
+        "push %4\n"
         "iretq\n"
         :
         : "r"(user_ss), "r"(rsp), "r"(rflags), "r"(user_cs), "r"(rip)
-        : "memory");
+        : "memory", "rax", "rdx");
     __builtin_unreachable();
 }
 
 static void syscall_test_prepare_longjmp(void)
 {
-    log_swapgs_event("exit_hook swapgs before longjmp", current_process ? current_process->pid : 0, 0);
     syscall_test_disable_interrupts();
     __asm__ volatile("swapgs" ::: "memory");
 }
@@ -77,7 +69,6 @@ static void syscall_test_prepare_longjmp(void)
 static void syscall_test_resume_after_longjmp(void)
 {
     __asm__ volatile("swapgs" ::: "memory");
-    log_swapgs_event("resumed after longjmp", current_process ? current_process->pid : 0, test_exit_code);
     syscall_test_restore_interrupts();
 }
 
@@ -303,7 +294,7 @@ TEST(test_syscall_write_exit)
     // 2. Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
 
     uint64_t hhdm_offset = 0xffff800000000000;
 
@@ -370,7 +361,7 @@ TEST(test_syscall_getpid)
     // 2. Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
 
     uint64_t hhdm_offset = 0xffff800000000000;
 
@@ -430,7 +421,7 @@ TEST(test_syscall_yield)
     // 2. Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
 
     uint64_t hhdm_offset = 0xffff800000000000;
 
@@ -490,7 +481,7 @@ TEST(test_syscall_spawn)
     // 2. Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
 
     uint64_t hhdm_offset = 0xffff800000000000;
 
@@ -554,7 +545,7 @@ TEST(test_syscall_fork)
     // 2. Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
 
     uint64_t hhdm_offset = 0xffff800000000000;
 
@@ -609,7 +600,7 @@ TEST(test_syscall_sbrk)
 
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
@@ -649,7 +640,7 @@ TEST(test_syscall_file_io)
 
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
@@ -691,7 +682,7 @@ TEST(test_syscall_chdir)
 
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
@@ -731,7 +722,7 @@ TEST(test_syscall_sleep)
 
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
@@ -768,7 +759,7 @@ TEST(test_syscall_exec)
 
     uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
@@ -801,20 +792,23 @@ TEST(test_syscall_exec)
     }
 }
 
-TEST(test_syscall_mknod)
+extern uint64_t g_hhdm_offset;
+
+TEST_PRIO(test_syscall_mknod, 10)
 {
+    uint64_t user_base = 0x400000;
     test_runner_pid = current_process->pid;
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
         return false;
 
-    uint64_t user_base = 0x400000;
     uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
-    uint64_t hhdm_offset = 0xffff800000000000;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    cr3 &= ~0xFFF; // Mask flags
+
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
+    void *virt_page = (void *)((uint64_t)phys_page + g_hhdm_offset);
     memcpy(virt_page, mknod_stub_bytes, sizeof(mknod_stub_bytes));
 
     const char *path = "/dev_test";

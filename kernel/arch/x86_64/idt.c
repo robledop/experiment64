@@ -114,7 +114,7 @@ void interrupt_handler(struct interrupt_frame *frame)
         if (frame->int_no == 14)
         {
             uint64_t cr2;
-            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+            __asm__ volatile("mov %0, cr2" : "=r"(cr2));
             printf("CR2 (Page Fault Address): 0x%lx\n", cr2);
         }
 

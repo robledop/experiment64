@@ -5,6 +5,7 @@
 
 syscall_entry:
     swapgs
+
     mov [gs:8], rsp      # Save User RSP to cpu->user_rsp
     mov rsp, [gs:16]     # Load Kernel RSP from cpu->kernel_rsp
 

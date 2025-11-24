@@ -38,6 +38,7 @@ override CFLAGS += \
     -ggdb \
     -m64 \
     -march=x86-64 \
+    -masm=intel \
     -mno-80387 \
     -mno-red-zone \
     -MMD \
@@ -114,7 +115,7 @@ run-gdb: clean
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 20s qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 10s qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
 	cat test.log
 
 .PHONY: tests-gdb

@@ -8,7 +8,7 @@ LD = x86_64-elf-ld
 BUILD_DIR = build
 
 # Flags
-CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -Ilibc/include -g -Wa,--noexecstack
+CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -masm=intel -Ilibc/include -g -Wa,--noexecstack
 LDFLAGS = -Wl,-Ttext=0x400000 -Wl,--build-id=none
 
 # Libc sources

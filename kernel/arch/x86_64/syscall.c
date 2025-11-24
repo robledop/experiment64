@@ -201,42 +201,13 @@ void syscall_init(void)
     cpu_t *cpu = get_cpu();
     if (cpu->kernel_rsp == 0)
     {
-        // Only set if not already set (e.g. by scheduler)
-        // For BSP this is fine. For APs, they should have a stack.
-        // But APs don't have a bootstrap stack variable per CPU.
-        // However, APs are started with a stack by Limine?
-        // Limine gives APs a stack in `goto_address`.
-        // But we need a kernel stack for syscalls.
-        // If we don't have one, we can't handle syscalls yet.
-        // But syscall_init is called early.
-        // For BSP, use bootstrap_stack.
+        // For BSP, use bootstrap_stack if no stack is set.
         if (cpu->lapic_id == 0)
-        { // Assuming BSP is 0, which might not be true but usually is.
-          // Better: check if it's BSP.
-          // But we don't know if we are BSP easily here without looking up.
-          // Let's just use bootstrap_stack for everyone? NO, race condition.
-          // For now, let's assume scheduler sets it up before running user code.
-          // But we need it for `syscall_set_stack` to work?
-          // `syscall_set_stack` is called by scheduler.
-          // So we just need to init the MSRs here.
-          // But we also call `tss_set_stack` here.
-          // For BSP, we can init it.
-          // For APs, maybe skip stack init here and let scheduler do it?
-          // But `tss_set_stack` is needed for interrupts too.
-          // APs need a valid TSS RSP0 for interrupts.
-          // Where do APs get their stack?
-          // In `ap_main`, they run on a stack provided by Limine (or us).
-          // We should set TSS RSP0 to current stack?
-          // Or allocate one.
+        {
+            cpu->kernel_rsp = (uint64_t)bootstrap_stack + sizeof(bootstrap_stack);
+            tss_set_stack(cpu->kernel_rsp);
+            printf("syscall_init: BSP kernel_rsp set to %#lx\n", cpu->kernel_rsp);
         }
-    }
-
-    // For BSP, init with bootstrap stack
-    static bool bsp_initialized = false;
-    if (!bsp_initialized)
-    {
-        syscall_set_stack((uint64_t)bootstrap_stack + 4096);
-        bsp_initialized = true;
     }
 }
 
@@ -297,17 +268,17 @@ void spawn_trampoline(void)
     __asm__ volatile(
         "cli\n"
         "swapgs\n"
-        "mov %0, %%ds\n"
-        "mov %0, %%es\n"
-        "mov %0, %%fs\n"
-        "mov %0, %%gs\n"
-        "pushq %0\n"         // SS
-        "pushq %1\n"         // RSP
-        "pushq %2\n"         // RFLAGS
-        "pushq %3\n"         // CS
-        "pushq %4\n"         // RIP
-        "xor %%rdi, %%rdi\n" // argc = 0
-        "xor %%rsi, %%rsi\n" // argv = NULL
+        "mov ds, %0\n"
+        "mov es, %0\n"
+        "mov fs, %0\n"
+        "mov gs, %0\n"
+        "push %0\n"      // SS
+        "push %1\n"      // RSP
+        "push %2\n"      // RFLAGS
+        "push %3\n"      // CS
+        "push %4\n"      // RIP
+        "xor rdi, rdi\n" // argc = 0
+        "xor rsi, rsi\n" // argv = NULL
         "iretq\n"
         :
         : "r"(user_ss), "r"(stack), "r"(rflags), "r"(user_cs), "r"(entry)
@@ -587,8 +558,6 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
 {
     // Enable interrupts to allow I/O
     __asm__ volatile("sti");
-
-    // printf("Syscall %lu\n", syscall_number);
 
 #ifdef TEST_MODE
     test_syscall_count++;
