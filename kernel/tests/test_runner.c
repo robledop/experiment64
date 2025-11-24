@@ -1,3 +1,4 @@
+#ifdef TEST_MODE
 #include "test.h"
 #include "terminal.h"
 #include "io.h"
@@ -108,3 +109,9 @@ void run_tests(void)
     while (1)
         __asm__("hlt");
 }
+#else
+// In non-TEST_MODE builds the runner is unused.
+void run_tests(void)
+{
+}
+#endif

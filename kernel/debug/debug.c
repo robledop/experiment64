@@ -19,9 +19,11 @@ static uint64_t strtab_size = 0;
 static Elf64_Sym *symtab = NULL;
 static uint64_t symtab_size = 0;
 
+#ifdef TEST_MODE
 static bool panic_trap_enabled = false;
 static bool panic_trap_armed = false;
 static bool panic_trap_hit = false;
+#endif
 
 int panic_trap_setjmp(void)
 {

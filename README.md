@@ -2,6 +2,8 @@
 
 An x86_64 hobby kernel with a tiny userland, a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
+![](docs/img/Screenshot2.png "Startup screen")
+
 ## Layout (high level)
 
 - `kernel/` core kernel code, arch bring-up, drivers, mm, fs, scheduler, syscalls, tests
@@ -42,12 +44,14 @@ To know the tests completed, you need to see either "ALL TESTS PASSED" or "SOME 
 
 Always add new tests for every new feature/bug fix, if possible.
 
-### Test framework
+### Custom test framework
 
 - Tests live under `kernel/tests/` and are discovered via a linker section (`.test_array`)
 - The runner prints `[PASS]/[FAIL]` with per-test timing and a compact summary
 - Output is captured and only flushed on failure to keep logs short
 - In KASAN mode, redzones and poisoned frees are enforced; trap helpers let specific tests assert a panic
+
+![](docs/img/Screenshot1.png "Testing framework")
 
 ## Checks
 
