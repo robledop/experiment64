@@ -3,6 +3,7 @@
 *.log
 *.img
 *.elf
+*.vdi
 build/
 limine/
 rootfs/

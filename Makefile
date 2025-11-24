@@ -106,6 +106,10 @@ run: clean
 	$(MAKE) image.hdd
 	qemu-system-x86_64 -M pc -m 2G -smp 4 -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
 
+.PHONY: vbox
+vbox: clean
+	$(MAKE) image.hdd
+	./scripts/start_vbox.sh
 
 .PHONY: run-gdb
 run-gdb: clean
