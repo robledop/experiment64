@@ -5,28 +5,28 @@
 
 TEST(bio_test)
 {
-    printf("BIO Test: Starting...\n");
+    printk("BIO Test: Starting...\n");
 
     // Test 1: Read a block
     buffer_head_t *bh = bread(0, 0);
     if (!bh)
     {
-        printf("BIO Test: Failed to read block 0\n");
+        printk("BIO Test: Failed to read block 0\n");
         return false;
     }
-    printf("BIO Test: Read block 0 successfully\n");
+    printk("BIO Test: Read block 0 successfully\n");
 
     // Test 2: Modify the block and write it back (in memory)
     bh->data[0] = 0xAA;
     bh->data[1] = 0x55;
     bwrite(bh);
-    printf("BIO Test: Wrote to block 0\n");
+    printk("BIO Test: Wrote to block 0\n");
 
     // Test 3: Read the block again and verify the data is cached
     buffer_head_t *bh2 = bread(0, 0);
     if (!bh2)
     {
-        printf("BIO Test: Failed to read block 0 again\n");
+        printk("BIO Test: Failed to read block 0 again\n");
         brelse(bh);
         return false;
     }
@@ -34,12 +34,12 @@ TEST(bio_test)
     bool success = false;
     if (bh2->data[0] == 0xAA && bh2->data[1] == 0x55)
     {
-        printf("BIO Test: Data verification successful (cached)\n");
+        printk("BIO Test: Data verification successful (cached)\n");
         success = true;
     }
     else
     {
-        printf("BIO Test: Data verification failed\n");
+        printk("BIO Test: Data verification failed\n");
     }
 
     brelse(bh);
@@ -48,7 +48,7 @@ TEST(bio_test)
     if (!success)
         return false;
 
-    printf("BIO Test: Starting Stress Test (Cache Exhaustion)...\n");
+    printk("BIO Test: Starting Stress Test (Cache Exhaustion)...\n");
 
     // Stress Test: Read/Write more blocks than cache size (128)
     // We use 200 blocks starting at sector 2000 to avoid FS structures
@@ -61,7 +61,7 @@ TEST(bio_test)
         buffer_head_t *sbh = bread(0, start_sector + i);
         if (!sbh)
         {
-            printf("BIO Stress: Failed to read block %d\n", start_sector + i);
+            printk("BIO Stress: Failed to read block %d\n", start_sector + i);
             return false;
         }
 
@@ -73,24 +73,24 @@ TEST(bio_test)
         brelse(sbh);
 
         if ((i + 1) % 50 == 0)
-            printf("BIO Stress: Wrote %d blocks\n", i + 1);
+            printk("BIO Stress: Wrote %d blocks\n", i + 1);
     }
 
     // 2. Verify patterns
-    printf("BIO Stress: Verifying...\n");
+    printk("BIO Stress: Verifying...\n");
     for (int i = 0; i < stress_count; i++)
     {
         buffer_head_t *sbh = bread(0, start_sector + i);
         if (!sbh)
         {
-            printf("BIO Stress: Failed to read block %d for verification\n", start_sector + i);
+            printk("BIO Stress: Failed to read block %d for verification\n", start_sector + i);
             return false;
         }
 
         uint32_t *data = (uint32_t *)sbh->data;
         if (*data != 0xDEADBEEF + i)
         {
-            printf("BIO Stress: Verification failed at block %d. Expected %x, Got %x\n",
+            printk("BIO Stress: Verification failed at block %d. Expected %x, Got %x\n",
                    start_sector + i, 0xDEADBEEF + i, *data);
             brelse(sbh);
             return false;
@@ -98,6 +98,6 @@ TEST(bio_test)
         brelse(sbh);
     }
 
-    printf("BIO Stress: Completed successfully.\n");
+    printk("BIO Stress: Completed successfully.\n");
     return true;
 }

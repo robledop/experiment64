@@ -103,19 +103,19 @@ void interrupt_handler(struct interrupt_frame *frame)
     }
     else if (frame->int_no < 32)
     {
-        printf("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
-        printf("Error Code: 0x%lx\n", frame->err_code);
-        printf("RIP: 0x%lx\n", frame->rip);
-        printf("CS: 0x%lx\n", frame->cs);
-        printf("RFLAGS: 0x%lx\n", frame->rflags);
-        printf("RSP: 0x%lx\n", frame->rsp);
-        printf("SS: 0x%lx\n", frame->ss);
+        printk("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
+        printk("Error Code: 0x%lx\n", frame->err_code);
+        printk("RIP: 0x%lx\n", frame->rip);
+        printk("CS: 0x%lx\n", frame->cs);
+        printk("RFLAGS: 0x%lx\n", frame->rflags);
+        printk("RSP: 0x%lx\n", frame->rsp);
+        printk("SS: 0x%lx\n", frame->ss);
 
         if (frame->int_no == 14)
         {
             uint64_t cr2;
             __asm__ volatile("mov %0, cr2" : "=r"(cr2));
-            printf("CR2 (Page Fault Address): 0x%lx\n", cr2);
+            printk("CR2 (Page Fault Address): 0x%lx\n", cr2);
         }
 
         stack_trace();

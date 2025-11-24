@@ -40,11 +40,11 @@ TEST(test_fat32_read_file)
 
     if (res != 0)
     {
-        printf("Failed to read TEST.TXT, error: %d\n", res);
+        printk("Failed to read TEST.TXT, error: %d\n", res);
         return false;
     }
 
-    printf("File content: %s\n", buffer);
+    printk("File content: %s\n", buffer);
 
     if (strncmp((char *)buffer, "Hello FAT32", 11) == 0)
     {
@@ -68,7 +68,7 @@ TEST(test_fat32_write_delete)
     // 1. Create and Write
     if (fat32_write_file(&test_fs, filename, (uint8_t *)content, len) != 0)
     {
-        printf("Failed to write NEW.TXT\n");
+        printk("Failed to write NEW.TXT\n");
         return false;
     }
 
@@ -77,20 +77,20 @@ TEST(test_fat32_write_delete)
     memset(buffer, 0, 512);
     if (fat32_read_file(&test_fs, filename, buffer, 512) != 0)
     {
-        printf("Failed to read back NEW.TXT\n");
+        printk("Failed to read back NEW.TXT\n");
         return false;
     }
 
     if (strncmp((char *)buffer, content, len) != 0)
     {
-        printf("Content mismatch: expected '%s', got '%s'\n", content, buffer);
+        printk("Content mismatch: expected '%s', got '%s'\n", content, buffer);
         return false;
     }
 
     // 3. Delete
     if (fat32_delete_file(&test_fs, filename) != 0)
     {
-        printf("Failed to delete NEW.TXT\n");
+        printk("Failed to delete NEW.TXT\n");
         return false;
     }
 
@@ -98,7 +98,7 @@ TEST(test_fat32_write_delete)
     fat32_file_info_t info;
     if (fat32_stat(&test_fs, filename, &info) == 0)
     {
-        printf("NEW.TXT still exists after deletion\n");
+        printk("NEW.TXT still exists after deletion\n");
         return false;
     }
 

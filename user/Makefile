@@ -1,23 +1,18 @@
 # Userland Makefile
 
-# Toolchain configuration.
 CC = x86_64-elf-gcc
 LD = x86_64-elf-ld
 
-# Build directory
 BUILD_DIR = build
 
-# Flags
 CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -masm=intel -Ilibc/include -g -Wa,--noexecstack
 LDFLAGS = -Wl,-Ttext=0x400000 -Wl,--build-id=none
 
-# Libc sources
 LIBC_SRC = $(wildcard libc/src/*.c)
 LIBC_ASM = $(wildcard libc/src/*.S)
 LIBC_OBJ = $(LIBC_SRC:libc/src/%.c=$(BUILD_DIR)/libc/src/%.o) \
            $(LIBC_ASM:libc/src/%.S=$(BUILD_DIR)/libc/src/%.o)
 
-# Targets
 TARGETS = $(BUILD_DIR)/user_prog $(BUILD_DIR)/init $(BUILD_DIR)/shell $(BUILD_DIR)/ls
 
 .PHONY: all

@@ -1,7 +1,7 @@
 #include "test.h"
 #include "ide.h"
 #include "string.h"
-#include "terminal.h" // For printf if needed
+#include "terminal.h" // For printk if needed
 
 static bool ide_initialized = false;
 
@@ -26,7 +26,7 @@ TEST(test_ide_read_write)
 
     if (drive == -1)
     {
-        printf("No IDE drive found! Skipping test.\n");
+        printk("No IDE drive found! Skipping test.\n");
         return true; 
     }
 
@@ -47,7 +47,7 @@ TEST(test_ide_read_write)
     int res = ide_write_sectors(drive, lba, 1, write_buf);
     if (res != 0)
     {
-        printf("IDE Write Failed\n");
+        printk("IDE Write Failed\n");
         return false;
     }
 
@@ -58,14 +58,14 @@ TEST(test_ide_read_write)
     res = ide_read_sectors(drive, lba, 1, read_buf);
     if (res != 0)
     {
-        printf("IDE Read Failed\n");
+        printk("IDE Read Failed\n");
         return false;
     }
 
     // Verify
     if (memcmp(write_buf, read_buf, 512) != 0)
     {
-        printf("IDE Read/Write Mismatch\n");
+        printk("IDE Read/Write Mismatch\n");
         return false;
     }
 

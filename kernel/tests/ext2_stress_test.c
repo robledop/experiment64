@@ -19,12 +19,12 @@ TEST(test_ext2_stress)
 {
     if (!vfs_root)
     {
-        printf("VFS: Root not initialized\n");
+        printk("VFS: Root not initialized\n");
         return false;
     }
 
     const char *dirname = "/stress_ext2";
-    printf("Creating EXT2 stress directory %s...\n", dirname);
+    printk("Creating EXT2 stress directory %s...\n", dirname);
 
     // Create directory
     if (vfs_mknod((char *)dirname, VFS_DIRECTORY, 0) != 0)
@@ -35,11 +35,11 @@ TEST(test_ext2_stress)
         vfs_inode_t *node = vfs_resolve_path(dirname);
         if (!node)
         {
-            printf("Failed to create directory %s\n", dirname);
+            printk("Failed to create directory %s\n", dirname);
             return false;
         }
         kfree(node);
-        printf("Directory %s already exists, continuing...\n", dirname);
+        printk("Directory %s already exists, continuing...\n", dirname);
     }
 
     int num_subdirs = 2;
@@ -58,7 +58,7 @@ TEST(test_ext2_stress)
             vfs_inode_t *node = vfs_resolve_path(path);
             if (!node)
             {
-                printf("Failed to create directory %s\n", path);
+                printk("Failed to create directory %s\n", path);
                 return false;
             }
             kfree(node);
@@ -77,7 +77,7 @@ TEST(test_ext2_stress)
                 vfs_inode_t *node = vfs_resolve_path(filepath);
                 if (!node)
                 {
-                    printf("Failed to create file %s\n", filepath);
+                    printk("Failed to create file %s\n", filepath);
                     return false;
                 }
                 kfree(node);
@@ -89,7 +89,7 @@ TEST(test_ext2_stress)
             vfs_inode_t *file = vfs_resolve_path(filepath);
             if (!file)
             {
-                printf("Failed to resolve file %s for writing\n", filepath);
+                printk("Failed to resolve file %s for writing\n", filepath);
                 return false;
             }
 
@@ -97,7 +97,7 @@ TEST(test_ext2_stress)
             vfs_open(file);
             if (vfs_write(file, 0, strlen(content), (uint8_t *)content) != strlen(content))
             {
-                printf("Failed to write to %s\n", filepath);
+                printk("Failed to write to %s\n", filepath);
                 vfs_close(file);
                 kfree(file);
                 return false;
@@ -107,7 +107,7 @@ TEST(test_ext2_stress)
         }
     }
 
-    printf("EXT2 Stress: Created %d directories and %d files.\n", num_subdirs, num_subdirs * files_per_subdir);
+    printk("EXT2 Stress: Created %d directories and %d files.\n", num_subdirs, num_subdirs * files_per_subdir);
 
     // 2. Verify Content
     for (int i = 0; i < num_subdirs; i++)
@@ -123,7 +123,7 @@ TEST(test_ext2_stress)
             vfs_inode_t *file = vfs_resolve_path(filepath);
             if (!file)
             {
-                printf("Failed to resolve file %s for reading\n", filepath);
+                printk("Failed to resolve file %s for reading\n", filepath);
                 return false;
             }
 
@@ -138,12 +138,12 @@ TEST(test_ext2_stress)
             snprintf(content, sizeof(content), "Data %d-%d", i, j);
             if (strncmp(buffer, content, strlen(content)) != 0)
             {
-                printf("Content mismatch in %s: expected '%s', got '%s'\n", filepath, content, buffer);
+                printk("Content mismatch in %s: expected '%s', got '%s'\n", filepath, content, buffer);
                 return false;
             }
         }
     }
 
-    printf("EXT2 Stress: Verification passed.\n");
+    printk("EXT2 Stress: Verification passed.\n");
     return true;
 }

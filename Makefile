@@ -4,10 +4,8 @@ export PATH
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
-# Define the kernel name.
 override KERNEL := build/kernel.elf
 
-# Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
     ifeq ($(origin $1),default)
         override $(1) := $(2)
@@ -17,7 +15,6 @@ define DEFAULT_VAR =
     endif
 endef
 
-# Toolchain configuration.
 $(eval $(call DEFAULT_VAR,CC,x86_64-elf-gcc))
 $(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
 $(eval $(call DEFAULT_VAR,CFLAGS,-O2 -g -Wall -Wextra -pipe -pedantic))
@@ -25,7 +22,6 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
 ROOTFS=rootfs
 
-# Internal C flags that should not be changed by the user.
 override CFLAGS += \
     -I. \
     -Iinclude \
@@ -45,7 +41,6 @@ override CFLAGS += \
     -MP \
     -Wa,--noexecstack
 
-# Internal linker flags that should not be changed by the user.
 override LDFLAGS += \
     -m elf_x86_64 \
     -nostdlib \
@@ -53,7 +48,6 @@ override LDFLAGS += \
     -z max-page-size=0x1000 \
     -T linker.ld
 
-# Source files.
 override CFILES := $(shell find kernel -type f -name '*.c')
 override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
@@ -126,7 +120,6 @@ tests: clean
 tests-gdb: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
 	qemu-system-x86_64 -M pc -m 2G -drive file=image.hdd,format=raw -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} | tee test.log
-
 
 .PHONY: bear
 bear: clean

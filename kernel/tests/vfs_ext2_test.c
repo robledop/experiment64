@@ -9,14 +9,14 @@ TEST(test_vfs_ext2_open)
 {
     if (!vfs_root)
     {
-        printf("VFS: Root not initialized\n");
+        printk("VFS: Root not initialized\n");
         return false;
     }
 
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
-        printf("VFS: Failed to find test.txt\n");
+        printk("VFS: Failed to find test.txt\n");
         return false;
     }
 
@@ -41,7 +41,7 @@ TEST_PRIO(test_vfs_ext2_write, 20)
     bool passed = (written == strlen(new_data));
     if (!passed)
     {
-        printf("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
+        printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
     kfree(file);
@@ -65,7 +65,7 @@ TEST_PRIO(test_vfs_ext2_read, 30)
     bool passed = (bytes >= 9 && strncmp(buffer, "WriteTest", 9) == 0);
     if (!passed)
     {
-        printf("VFS: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
+        printk("VFS: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
     }
 
     kfree(file);
@@ -92,7 +92,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
 {
     if (!vfs_root)
     {
-        printf("VFS: Root not initialized\n");
+        printk("VFS: Root not initialized\n");
         return false;
     }
 
@@ -100,7 +100,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
-        printf("VFS: Failed to find 'test.txt'\n");
+        printk("VFS: Failed to find 'test.txt'\n");
         return false;
     }
 
@@ -114,7 +114,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
 
     if (bytes == 0)
     {
-        printf("VFS: Read returned 0 bytes\n");
+        printk("VFS: Read returned 0 bytes\n");
         kfree(file);
         return false;
     }
@@ -125,7 +125,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
 
     if (strncmp(buffer, "Hello Ext2", 10) != 0 && strncmp(buffer, "WriteTest", 9) != 0)
     {
-        printf("VFS: Read wrong data: '%s'\n", buffer);
+        printk("VFS: Read wrong data: '%s'\n", buffer);
         kfree(file);
         return false;
     }
@@ -133,7 +133,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     // Test close
     vfs_close(file);
 
-    printf("VFS: Basic test passed. Read: %s", buffer); // buffer has newline
+    printk("VFS: Basic test passed. Read: %s", buffer); // buffer has newline
     kfree(file);
     return true;
 }

@@ -13,11 +13,11 @@ TEST(test_fat32_stat)
     fat32_file_info_t info;
     if (fat32_stat(&test_fs, "TEST.TXT", &info) != 0)
     {
-        printf("Failed to stat TEST.TXT\n");
+        printk("Failed to stat TEST.TXT\n");
         return false;
     }
 
-    printf("Stat TEST.TXT: Size=%d, Inode=%lu\n", info.size, info.inode);
+    printk("Stat TEST.TXT: Size=%d, Inode=%lu\n", info.size, info.inode);
 
     ASSERT(info.size > 0);
     ASSERT(info.inode > 0);

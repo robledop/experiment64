@@ -12,7 +12,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     vfs_inode_t *node = vfs_resolve_path(path);
     if (!node)
     {
-        printf("ELF: Failed to resolve path %s\n", path);
+        printk("ELF: Failed to resolve path %s\n", path);
         return false;
     }
 
@@ -22,7 +22,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     Elf64_Ehdr header;
     if (vfs_read(node, 0, sizeof(header), (uint8_t *)&header) != sizeof(header))
     {
-        printf("ELF: Failed to read header\n");
+        printk("ELF: Failed to read header\n");
         if (node != vfs_root)
         {
             vfs_close(node);
@@ -33,7 +33,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
     if (*(uint32_t *)header.e_ident != ELF_MAGIC)
     {
-        printf("ELF: Invalid magic\n");
+        printk("ELF: Invalid magic\n");
         if (node != vfs_root)
         {
             vfs_close(node);
@@ -47,7 +47,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     Elf64_Phdr *phdrs = kmalloc(ph_size);
     if (vfs_read(node, header.e_phoff, ph_size, (uint8_t *)phdrs) != ph_size)
     {
-        printf("ELF: Failed to read program headers\n");
+        printk("ELF: Failed to read program headers\n");
         kfree(phdrs);
         if (node != vfs_root)
         {
@@ -85,7 +85,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
                 temp_buf = kmalloc(ph->p_filesz);
                 if (!temp_buf)
                 {
-                    printf("ELF: Failed to allocate temp buffer\n");
+                    printk("ELF: Failed to allocate temp buffer\n");
                     kfree(phdrs);
                     if (node != vfs_root)
                     {
@@ -97,7 +97,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
                 if (vfs_read(node, ph->p_offset, ph->p_filesz, temp_buf) != ph->p_filesz)
                 {
-                    printf("ELF: Failed to read segment data\n");
+                    printk("ELF: Failed to read segment data\n");
                     kfree(temp_buf);
                     kfree(phdrs);
                     if (node != vfs_root)

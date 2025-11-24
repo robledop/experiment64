@@ -342,7 +342,7 @@ int vfs_mknod(char *path, int mode, int dev)
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent)
     {
-        printf("vfs_mknod: failed to resolve parent path '%s'\n", parent_path);
+        printk("vfs_mknod: failed to resolve parent path '%s'\n", parent_path);
         return -1;
     }
 

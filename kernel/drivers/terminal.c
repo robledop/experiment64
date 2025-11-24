@@ -107,7 +107,6 @@ void terminal_clear(uint32_t color)
     terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
 }
 
-// ANSI Escape Sequence Handling
 enum AnsiState
 {
     ANSI_NORMAL,
@@ -242,12 +241,6 @@ static void terminal_process_ansi(char cmd)
                     terminal_bg_color = ansi_colors_normal[p - 40]; // Background usually doesn't get bold
                 }
             }
-            // Re-apply color if bold changed but color code wasn't sent in this specific param
-            // But usually bold comes with color or before it.
-            // If we just get '1', we should update the current color to bright version if it was a standard color?
-            // For simplicity, we only apply bold to the color when the color is set, OR we need to track the current color index.
-            // Let's keep it simple: Bold affects subsequent color commands, or if we want it to affect current, we'd need to store the current color index.
-            // For now, let's assume the user sends "1;31m" or "31;1m".
         }
     }
     else if (cmd == 'J')
@@ -347,12 +340,9 @@ static void terminal_process_ansi(char cmd)
 
 static void terminal_draw_char(char c)
 {
-    // terminal_draw_cursor(terminal_x, terminal_y, terminal_bg_color); // Not needed if we fill background
-
     if (c == '\n')
     {
         // Clear the cursor at the old position (by drawing background)
-        // Since we are moving, we should probably just erase the cursor block.
         terminal_draw_cursor(terminal_x, terminal_y, terminal_bg_color);
 
         terminal_x = terminal_left();
@@ -495,7 +485,7 @@ void terminal_write_string(const char *data)
         terminal_putc(*data++);
 }
 
-void printf(const char *format, ...)
+void printk(const char *format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -615,13 +605,13 @@ void boot_message(t level, const char *fmt, ...)
     switch (level)
     {
     case INFO:
-        printf(KWHT "[ " KBGRN "INFO" KRESET " ] ");
+        printk(KWHT "[ " KBGRN "INFO" KRESET " ] ");
         break;
     case WARNING:
-        printf(KWHT "[ " KYEL "WARNING" KRESET " ] ");
+        printk(KWHT "[ " KYEL "WARNING" KRESET " ] ");
         break;
     case ERROR:
-        printf(KWHT "[ " KRED "ERROR" KRESET " ] ");
+        printk(KWHT "[ " KRED "ERROR" KRESET " ] ");
         break;
     }
 
@@ -630,5 +620,5 @@ void boot_message(t level, const char *fmt, ...)
     char buf[512];
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    printf("%s\n", buf);
+    printk("%s\n", buf);
 }

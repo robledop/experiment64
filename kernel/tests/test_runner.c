@@ -21,7 +21,7 @@ static int compare_tests(const void *a, const void *b)
 
 void run_tests(void)
 {
-    printf("STARTING TESTS...\n");
+    printk("STARTING TESTS...\n");
     int passed = 0;
     int total = 0;
 
@@ -30,11 +30,11 @@ void run_tests(void)
     size_t total_size = stop_addr - start_addr;
     size_t count = total_size / sizeof(struct test_case);
 
-    printf("Found %lu tests.\n", count);
+    printk("Found %lu tests.\n", count);
 
     if (count > 256)
     {
-        printf("Warning: Too many tests (%lu), capping at 256.\n", count);
+        printk("Warning: Too many tests (%lu), capping at 256.\n", count);
         count = 256;
     }
 
@@ -54,27 +54,27 @@ void run_tests(void)
     {
         struct test_case *t = tests[i];
         total++;
-        printf("TEST %s: ", t->name);
+        printk("TEST %s: ", t->name);
         if (t->func())
         {
-            printf("\033[32mPASSED\033[0m\n");
+            printk("\033[32mPASSED\033[0m\n");
             passed++;
         }
         else
         {
-            printf("\033[31mFAILED\033[0m\n");
+            printk("\033[31mFAILED\033[0m\n");
         }
     }
 
-    printf("\nTest Summary: %d/%d passed.\n", passed, total);
+    printk("\nTest Summary: %d/%d passed.\n", passed, total);
 
     if (passed == total)
     {
-        printf("\033[32mALL TESTS PASSED\033[0m\n");
+        printk("\033[32mALL TESTS PASSED\033[0m\n");
     }
     else
     {
-        printf("\033[31mSOME TESTS FAILED\033[0m\n");
+        printk("\033[31mSOME TESTS FAILED\033[0m\n");
     }
 
     // Exit QEMU
@@ -94,7 +94,7 @@ void run_tests(void)
     outw(0x600, 0x34);    // Cloud hypervisors
 
     // If that fails (not in QEMU or device not present), hang.
-    printf("Failed to exit QEMU via isa-debug-exit.\n");
+    printk("Failed to exit QEMU via isa-debug-exit.\n");
     while (1)
         __asm__("hlt");
 }

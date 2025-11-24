@@ -9,14 +9,14 @@ TEST(test_vfs_generic_open)
 {
     if (!vfs_root)
     {
-        printf("VFS: Root not initialized\n");
+        printk("VFS: Root not initialized\n");
         return false;
     }
 
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
-        printf("VFS: Failed to find test.txt\n");
+        printk("VFS: Failed to find test.txt\n");
         return false;
     }
 
@@ -41,7 +41,7 @@ TEST(test_vfs_generic_write)
     bool passed = (written == strlen(new_data));
     if (!passed)
     {
-        printf("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
+        printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
     kfree(file);
@@ -65,7 +65,7 @@ TEST(test_vfs_generic_read)
     // Or "WriteTest" from ext2 test
     // Or "Hello Ext2"
 
-    printf("VFS Generic Read: Got '%s'\n", buffer);
+    printk("VFS Generic Read: Got '%s'\n", buffer);
 
     bool passed = (bytes > 0);
 
@@ -93,7 +93,7 @@ TEST(test_vfs_generic_basic)
 {
     if (!vfs_root)
     {
-        printf("VFS: Root not initialized\n");
+        printk("VFS: Root not initialized\n");
         return false;
     }
 
@@ -101,7 +101,7 @@ TEST(test_vfs_generic_basic)
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
-        printf("VFS: Failed to find 'test.txt'\n");
+        printk("VFS: Failed to find 'test.txt'\n");
         return false;
     }
 
@@ -115,7 +115,7 @@ TEST(test_vfs_generic_basic)
 
     if (bytes == 0)
     {
-        printf("VFS: Read returned 0 bytes\n");
+        printk("VFS: Read returned 0 bytes\n");
         kfree(file);
         return false;
     }
@@ -123,7 +123,7 @@ TEST(test_vfs_generic_basic)
     // Test close
     vfs_close(file);
 
-    printf("VFS: Basic test passed. Read: %s", buffer);
+    printk("VFS: Basic test passed. Read: %s", buffer);
     kfree(file);
     return true;
 }
@@ -136,10 +136,10 @@ TEST(test_vfs_root_readdir)
     bool found_dev = false;
     vfs_dirent_t *dirent;
     int i = 0;
-    printf("VFS: Listing root directory:\n");
+    printk("VFS: Listing root directory:\n");
     while ((dirent = vfs_readdir(vfs_root, i++)))
     {
-        printf("  %s\n", dirent->name);
+        printk("  %s\n", dirent->name);
         if (strcmp(dirent->name, "dev") == 0)
         {
             found_dev = true;
@@ -149,7 +149,7 @@ TEST(test_vfs_root_readdir)
 
     if (!found_dev)
     {
-        printf("VFS: 'dev' not found in root directory listing\n");
+        printk("VFS: 'dev' not found in root directory listing\n");
     }
     return found_dev;
 }

@@ -5,7 +5,7 @@
 
 static void test_thread_entry(void)
 {
-    printf("Test thread running!\n");
+    printk("Test thread running!\n");
     while (1)
         yield();
 }
@@ -15,42 +15,42 @@ TEST(test_process_creation)
     process_t *proc = process_create("test_proc");
     if (!proc)
     {
-        printf("Failed to create process\n");
+        printk("Failed to create process\n");
         return false;
     }
 
     if (strcmp(proc->name, "test_proc") != 0)
     {
-        printf("Process name mismatch: %s\n", proc->name);
+        printk("Process name mismatch: %s\n", proc->name);
         return false;
     }
 
     if (proc->pid <= 1) // PID 1 is kernel
     {
-        printf("Invalid PID: %d\n", proc->pid);
+        printk("Invalid PID: %d\n", proc->pid);
         return false;
     }
 
     thread_t *thread = thread_create(proc, test_thread_entry, false);
     if (!thread)
     {
-        printf("Failed to create thread\n");
+        printk("Failed to create thread\n");
         return false;
     }
 
     if (thread->process != proc)
     {
-        printf("Thread process mismatch\n");
+        printk("Thread process mismatch\n");
         return false;
     }
 
     if (thread->state != THREAD_READY)
     {
-        printf("Thread state mismatch\n");
+        printk("Thread state mismatch\n");
         return false;
     }
 
-    printf("Process and thread created successfully. PID: %d, TID: %d\n", proc->pid, thread->tid);
+    printk("Process and thread created successfully. PID: %d, TID: %d\n", proc->pid, thread->tid);
     return true;
 }
 
@@ -59,12 +59,12 @@ static volatile int thread_ran = 0;
 static void scheduler_thread_entry(void)
 {
     thread_ran = 1;
-    printf("Scheduler thread running!\n");
+    printk("Scheduler thread running!\n");
     // Yield back to main thread
     yield();
 
     // Exit thread
-    printf("Scheduler thread exiting.\n");
+    printk("Scheduler thread exiting.\n");
 }
 
 TEST(test_scheduler)
@@ -78,7 +78,7 @@ TEST(test_scheduler)
     if (!t)
         return false;
 
-    printf("Yielding to scheduler thread...\n");
+    printk("Yielding to scheduler thread...\n");
 
     // Yield a few times to give the thread a chance to run
     for (int i = 0; i < 5; i++)
@@ -90,12 +90,12 @@ TEST(test_scheduler)
 
     if (thread_ran)
     {
-        printf("Scheduler test passed: Thread ran.\n");
+        printk("Scheduler test passed: Thread ran.\n");
         return true;
     }
     else
     {
-        printf("Scheduler test failed: Thread did not run.\n");
+        printk("Scheduler test failed: Thread did not run.\n");
         return false;
     }
 }

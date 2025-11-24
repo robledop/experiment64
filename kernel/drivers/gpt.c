@@ -35,7 +35,7 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
     buffer_head_t *bh = bread(drive, 1);
     if (!bh)
     {
-        printf("GPT: Failed to read LBA 1 on drive %d\n", drive);
+        printk("GPT: Failed to read LBA 1 on drive %d\n", drive);
         return;
     }
 
@@ -43,7 +43,7 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
 
     if (header->signature != GPT_SIGNATURE)
     {
-        printf("GPT: Invalid signature on drive %d\n", drive);
+        printk("GPT: Invalid signature on drive %d\n", drive);
         brelse(bh);
         return;
     }
@@ -52,8 +52,8 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
     uint32_t entry_size = header->size_partition_entry;
     uint64_t entries_lba = header->partition_entries_lba;
 
-    // printf("GPT: Detected valid GPT on drive %d\n", drive);
-    // printf("GPT: %d entries starting at LBA %lu\n", num_entries, entries_lba);
+    // printk("GPT: Detected valid GPT on drive %d\n", drive);
+    // printk("GPT: %d entries starting at LBA %lu\n", num_entries, entries_lba);
 
     brelse(bh);
 
@@ -65,7 +65,7 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
     uint8_t *entries_buf = kmalloc(sectors * 512);
     if (!entries_buf)
     {
-        printf("GPT: Failed to allocate memory for entries\n");
+        printk("GPT: Failed to allocate memory for entries\n");
         return;
     }
 
@@ -74,7 +74,7 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
         bh = bread(drive, entries_lba + i);
         if (!bh)
         {
-            printf("GPT: Failed to read partition entries sector %lu\n", entries_lba + i);
+            printk("GPT: Failed to read partition entries sector %lu\n", entries_lba + i);
             kfree(entries_buf);
             return;
         }

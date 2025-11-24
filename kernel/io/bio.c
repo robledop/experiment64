@@ -62,7 +62,7 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
                 // Write back if dirty
                 if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
                 {
-                    printf("BIO: Failed to write back block %d\n", bh->block);
+                    printk("BIO: Failed to write back block %d\n", bh->block);
                     // If write fails, we shouldn't reuse this buffer if we care about data integrity.
                     // But for now, we proceed to avoid deadlock, but data is lost.
                 }
@@ -78,7 +78,7 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
         }
     }
 
-    printf("BIO: No free buffers!\n");
+    printk("BIO: No free buffers!\n");
     return NULL;
 }
 
@@ -108,7 +108,7 @@ void bwrite(buffer_head_t *bh)
     // For now, write-through
     if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
     {
-        // printf("BIO: bwrite failed for block %d\n", bh->block);
+        // printk("BIO: bwrite failed for block %d\n", bh->block);
     }
     else
     {

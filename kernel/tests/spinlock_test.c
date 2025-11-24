@@ -23,15 +23,15 @@ static volatile bool g_thread_done = false;
 
 static void contention_thread(void)
 {
-    printf("Thread: Starting...\n");
+    printk("Thread: Starting...\n");
     // Try to acquire lock
     spinlock_acquire(&g_lock);
-    printf("Thread: Acquired lock!\n");
+    printk("Thread: Acquired lock!\n");
     g_counter++;
     spinlock_release(&g_lock);
 
     g_thread_done = true;
-    printf("Thread: Done.\n");
+    printk("Thread: Done.\n");
 
     // Just spin/yield until killed
     while (1)
@@ -44,24 +44,24 @@ TEST(test_spinlock_contention)
     g_counter = 0;
     g_thread_done = false;
 
-    printf("Main: Creating process...\n");
+    printk("Main: Creating process...\n");
     // Create a kernel process/thread for testing
     process_t *proc = process_create("spinlock_test_proc");
     ASSERT(proc != NULL);
 
-    printf("Main: Creating thread...\n");
+    printk("Main: Creating thread...\n");
     thread_t *t = thread_create(proc, contention_thread, false);
     ASSERT(t != NULL);
 
     // Acquire lock in main thread
     spinlock_acquire(&g_lock);
-    printf("Main: Acquired lock.\n");
+    printk("Main: Acquired lock.\n");
 
     // Yield multiple times to ensure the other thread gets scheduled
     // and tries to acquire the lock (it should spin)
     for (int i = 0; i < 5; i++)
     {
-        printf("Main: Yielding %d...\n", i);
+        printk("Main: Yielding %d...\n", i);
         yield();
     }
 
@@ -70,14 +70,14 @@ TEST(test_spinlock_contention)
 
     // Release lock
     spinlock_release(&g_lock);
-    printf("Main: Released lock.\n");
+    printk("Main: Released lock.\n");
 
     // Yield to let other thread acquire and finish
     int timeout = 100000;
     while (!g_thread_done && timeout > 0)
     {
         if (timeout % 10000 == 0)
-            printf("Main: Waiting... %d\n", timeout);
+            printk("Main: Waiting... %d\n", timeout);
         yield();
         timeout--;
     }

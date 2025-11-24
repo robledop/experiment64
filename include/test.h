@@ -6,7 +6,7 @@
 #define ASSERT(condition)                                                                    \
     if (!(condition))                                                                        \
     {                                                                                        \
-        printf("\033[31mTEST FAILED: %s at %s:%d\033[0m\n", #condition, __FILE__, __LINE__); \
+        printk("\033[31mTEST FAILED: %s at %s:%d\033[0m\n", #condition, __FILE__, __LINE__); \
         return false;                                                                        \
     }
 

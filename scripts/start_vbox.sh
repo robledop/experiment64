@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-MEMORY=${1:-2048} # Default to 2048 MB to match QEMU
+MEMORY=${1:-2048} 
 VM_NAME="Experiment64"
 
 if VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then

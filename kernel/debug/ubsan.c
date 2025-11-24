@@ -33,11 +33,11 @@ struct undefined_behavior
 
 [[noreturn]] void report_undefined_behavior(const int event, const struct undefined_behavior *info)
 {
-    printf(KBWHT "Event:" KWHT " %d\n", event);
-    printf(KBWHT "File:" KWHT " %s\n", info->filename);
-    printf(KBWHT "Line:" KWHT " %lu\n", info->line);
-    printf(KBWHT "Column:" KWHT " %lu\n", info->column);
-    printf(KBWHT "Violation:" KYEL " %s\n" KWHT, info->violation);
+    printk(KBWHT "Event:" KWHT " %d\n", event);
+    printk(KBWHT "File:" KWHT " %s\n", info->filename);
+    printk(KBWHT "Line:" KWHT " %lu\n", info->line);
+    printk(KBWHT "Column:" KWHT " %lu\n", info->column);
+    printk(KBWHT "Violation:" KYEL " %s\n" KWHT, info->violation);
     panic("Undefined behavior detected");
 
     __builtin_unreachable();

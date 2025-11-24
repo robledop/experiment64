@@ -165,8 +165,8 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
         return rel_block;
     }
     brelse(bp2);
-    printf("PANIC: ");
-    printf("ext2_balloc: out of blocks\n");
+    printk("PANIC: ");
+    printk("ext2_balloc: out of blocks\n");
     return 0;
 }
 
@@ -178,8 +178,8 @@ static void ext2fs_bfree(int dev, uint32_t b)
 
     if (b < ext2_sb.s_first_data_block)
     {
-        printf("PANIC: ");
-        printf("ext2fs_bfree: invalid block\n");
+        printk("PANIC: ");
+        printk("ext2fs_bfree: invalid block\n");
     }
 
     uint32_t block_index = b - ext2_sb.s_first_data_block;
@@ -192,15 +192,15 @@ static void ext2fs_bfree(int dev, uint32_t b)
     uint32_t byte_index = offset / 8;
     if (byte_index >= EXT2_BSIZE)
     {
-        printf("PANIC: ");
-        printf("ext2fs_bfree: bitmap overflow\n");
+        printk("PANIC: ");
+        printk("ext2fs_bfree: bitmap overflow\n");
     }
     u8 mask = (u8)(1U << (offset % 8));
 
     if ((bp2->data[byte_index] & mask) == 0)
     {
-        printf("PANIC: ");
-        printf("ext2fs_bfree: block already free\n");
+        printk("PANIC: ");
+        printk("ext2fs_bfree: block already free\n");
     }
     bp2->data[byte_index] &= ~mask;
     bwrite(bp2);
@@ -216,7 +216,7 @@ void ext2fs_iinit(int dev)
     const u64 partition_mb = ((u64)ext2_sb.s_blocks_count * block_bytes) / (1024ull * 1024ull);
     const u64 size_value = (partition_mb >= 1024ull) ? partition_mb / 1024ull : partition_mb;
     const char *size_suffix = (partition_mb >= 1024ull) ? "GB" : "MB";
-    printf(
+    printk(
         "ext2: size: %llu %s, block_size: %u, block_count: %u, inodes: %u",
         (unsigned long long)size_value,
         size_suffix,
@@ -248,8 +248,8 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         int inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
         if (inodes_per_block == 0)
         {
-            printf("PANIC: ");
-            printf("ext2fs_ialloc: invalid inode size");
+            printk("PANIC: ");
+            printk("ext2fs_ialloc: invalid inode size");
         }
 
         int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + first_partition_block;
@@ -286,8 +286,8 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         ip->type = type;
         return ip;
     }
-    printf("PANIC: ");
-    printf("ext2_ialloc: no inodes");
+    printk("PANIC: ");
+    printk("ext2_ialloc: no inodes");
     return NULL;
 }
 
@@ -311,8 +311,8 @@ void ext2fs_iupdate(struct ext2_inode *ip)
     buffer_head_t *bp1 = bread(ip->dev, bno + sector_offset);
     if (ext2_sb.s_inode_size > EXT2_MAX_INODE_SIZE)
     {
-        printf("PANIC: ");
-        printf("ext2fs_iupdate: inode too large");
+        printk("PANIC: ");
+        printk("ext2fs_iupdate: inode too large");
     }
 
     struct ext2_disk_inode *din = (struct ext2_disk_inode *)(bp1->data + sector_byte_offset);
@@ -448,15 +448,15 @@ static void ext2fs_ifree(struct ext2_inode *ip)
     uint32_t byte_index = index / 8;
     if (byte_index >= EXT2_BSIZE)
     {
-        printf("PANIC: ");
-        printf("ext2fs_ifree: bitmap overflow\n");
+        printk("PANIC: ");
+        printk("ext2fs_ifree: bitmap overflow\n");
     }
     u8 mask = (u8)(1U << (index % 8));
 
     if ((bp2->data[byte_index] & mask) == 0)
     {
-        printf("PANIC: ");
-        printf("ext2fs_ifree: inode already free (inum=%u type=%d nlink=%d ref=%d)\n",
+        printk("PANIC: ");
+        printk("ext2fs_ifree: inode already free (inum=%u type=%d nlink=%d ref=%d)\n",
                ip->inum,
                ip->type,
                ip->nlink,
@@ -666,8 +666,8 @@ static uint32_t ext2fs_bmap(struct ext2_inode *ip, uint32_t bn)
         brelse(bp2);
         return BLOCK_TO_SECTOR(leaf) + first_partition_block;
     }
-    printf("PANIC: ");
-    printf("ext2_bmap: block number out of range\n");
+    printk("PANIC: ");
+    printk("ext2_bmap: block number out of range\n");
     return 0;
 }
 
@@ -791,7 +791,7 @@ int ext2fs_readi(struct ext2_inode *ip, char *dst, uint32_t off, uint32_t n)
         return -1;
     }
 
-    // printf("readi: inum %d, size %d, off %d, n %d\n", ip->inum, ip->size, off, n);
+    // printk("readi: inum %d, size %d, off %d, n %d\n", ip->inum, ip->size, off, n);
 
     if (off > ip->size || off + n < off)
     {
@@ -977,7 +977,7 @@ int ext2fs_dirlink(struct ext2_inode *dp, char *name, uint32_t inum)
 
     if (ext2fs_writei(dp, (char *)&de, off, rec_len) != rec_len)
     {
-        printf("ext2fs_dirlink: writei failed\n");
+        printk("ext2fs_dirlink: writei failed\n");
         return -1;
     }
 
@@ -1127,7 +1127,7 @@ static int ext2_vfs_mknod(struct vfs_inode *node, char *name, int mode, int dev)
     ip = ext2fs_ialloc(parent_inode->dev, ext2_type);
     if (!ip)
     {
-        printf("ext2_vfs_mknod: ialloc failed\n");
+        printk("ext2_vfs_mknod: ialloc failed\n");
         ext2fs_iunlock(parent_inode);
         return -1;
     }
@@ -1139,7 +1139,7 @@ static int ext2_vfs_mknod(struct vfs_inode *node, char *name, int mode, int dev)
 
     if (ext2fs_dirlink(parent_inode, name, ip->inum) < 0)
     {
-        printf("ext2_vfs_mknod: dirlink failed\n");
+        printk("ext2_vfs_mknod: dirlink failed\n");
         ext2fs_iput(ip);
         ext2fs_iunlock(parent_inode);
         return -1;

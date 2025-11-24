@@ -240,7 +240,7 @@ void sys_exit(int code)
     {
         exit_hook(code);
     }
-    printf("Process %d exited with code %d\n", current_process->pid, code);
+    printk("Process %d exited with code %d\n", current_process->pid, code);
     current_process->exit_code = code;
     current_process->terminated = true;
     current_thread->state = THREAD_TERMINATED;
@@ -606,7 +606,7 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_MKNOD:
         return sys_mknod((const char *)arg1, (int)arg2, (int)arg3);
     default:
-        printf("Unknown syscall: %lu\n", syscall_number);
+        printk("Unknown syscall: %lu\n", syscall_number);
         return -1;
     }
 }

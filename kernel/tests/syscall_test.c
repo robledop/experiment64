@@ -1,10 +1,7 @@
 #include "test.h"
 #include <stdbool.h>
 #include "syscall.h"
-#include "idt.h"
-#include "gdt.h"
 #include "string.h"
-#include "heap.h"
 #include "vmm.h"
 #include "pmm.h"
 #include "terminal.h"
@@ -287,7 +284,7 @@ TEST(test_syscall_write_exit)
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
-        printf("Syscall Test: Failed to alloc page\n");
+        printk("Syscall Test: Failed to alloc page\n");
         return false;
     }
 
@@ -319,7 +316,7 @@ TEST(test_syscall_write_exit)
         enter_user_mode(user_base, user_stack);
 
         // Should not reach here
-        printf("Syscall Test: IRETQ failed to jump\n");
+        printk("Syscall Test: IRETQ failed to jump\n");
         return false;
     }
     else
@@ -332,12 +329,12 @@ TEST(test_syscall_write_exit)
         // We expect exit code 42
         if (test_exit_code != 42)
         {
-            printf("Syscall Test: Exit code mismatch. Expected 42, got %d\n", test_exit_code);
+            printk("Syscall Test: Exit code mismatch. Expected 42, got %d\n", test_exit_code);
             passed = false;
         }
         else
         {
-            printf("Syscall Test: Write/Exit successful, exit code 42\n");
+            printk("Syscall Test: Write/Exit successful, exit code 42\n");
         }
 
         // Cleanup
@@ -354,7 +351,7 @@ TEST(test_syscall_getpid)
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
-        printf("Syscall Test: Failed to alloc page\n");
+        printk("Syscall Test: Failed to alloc page\n");
         return false;
     }
 
@@ -392,12 +389,12 @@ TEST(test_syscall_getpid)
         // We expect PID 1 (kernel task)
         if (test_exit_code != current_process->pid)
         {
-            printf("Syscall Test: PID mismatch. Expected %d, got %d\n", current_process->pid, test_exit_code);
+            printk("Syscall Test: PID mismatch. Expected %d, got %d\n", current_process->pid, test_exit_code);
             passed = false;
         }
         else
         {
-            printf("Syscall Test: GETPID successful, got %d\n", test_exit_code);
+            printk("Syscall Test: GETPID successful, got %d\n", test_exit_code);
         }
 
         // Cleanup
@@ -414,7 +411,7 @@ TEST(test_syscall_yield)
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
-        printf("Syscall Test: Failed to alloc page\n");
+        printk("Syscall Test: Failed to alloc page\n");
         return false;
     }
 
@@ -452,12 +449,12 @@ TEST(test_syscall_yield)
         // We expect exit code 0
         if (test_exit_code != 0)
         {
-            printf("Syscall Test: Yield failed or invalid exit code. Got %d\n", test_exit_code);
+            printk("Syscall Test: Yield failed or invalid exit code. Got %d\n", test_exit_code);
             passed = false;
         }
         else
         {
-            printf("Syscall Test: YIELD successful\n");
+            printk("Syscall Test: YIELD successful\n");
         }
 
         // Cleanup
@@ -474,7 +471,7 @@ TEST(test_syscall_spawn)
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
-        printf("Syscall Test: Failed to alloc page\n");
+        printk("Syscall Test: Failed to alloc page\n");
         return false;
     }
 
@@ -516,12 +513,12 @@ TEST(test_syscall_spawn)
         // We expect a valid PID (> 1, since 1 is kernel)
         if (test_exit_code <= 1)
         {
-            printf("Syscall Test: Spawn failed or invalid PID. Got %d\n", test_exit_code);
+            printk("Syscall Test: Spawn failed or invalid PID. Got %d\n", test_exit_code);
             passed = false;
         }
         else
         {
-            printf("Syscall Test: SPAWN successful, new PID %d\n", test_exit_code);
+            printk("Syscall Test: SPAWN successful, new PID %d\n", test_exit_code);
         }
 
         // Cleanup
@@ -538,7 +535,7 @@ TEST(test_syscall_fork)
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
-        printf("Syscall Test: Failed to alloc page\n");
+        printk("Syscall Test: Failed to alloc page\n");
         return false;
     }
 
@@ -576,12 +573,12 @@ TEST(test_syscall_fork)
         // We expect exit code 200 (Parent success)
         if (test_exit_code != 200)
         {
-            printf("Syscall Test: Fork failed. Exit code %d\n", test_exit_code);
+            printk("Syscall Test: Fork failed. Exit code %d\n", test_exit_code);
             passed = false;
         }
         else
         {
-            printf("Syscall Test: FORK successful\n");
+            printk("Syscall Test: FORK successful\n");
         }
 
         // Cleanup
@@ -623,9 +620,9 @@ TEST(test_syscall_sbrk)
         syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
-            printf("Syscall Test: SBRK successful\n");
+            printk("Syscall Test: SBRK successful\n");
         else
-            printf("Syscall Test: SBRK failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: SBRK failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
@@ -665,9 +662,9 @@ TEST(test_syscall_file_io)
         syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
-            printf("Syscall Test: FileIO successful\n");
+            printk("Syscall Test: FileIO successful\n");
         else
-            printf("Syscall Test: FileIO failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: FileIO failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
@@ -705,9 +702,9 @@ TEST(test_syscall_chdir)
         syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
-            printf("Syscall Test: CHDIR successful\n");
+            printk("Syscall Test: CHDIR successful\n");
         else
-            printf("Syscall Test: CHDIR failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: CHDIR failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
@@ -742,9 +739,9 @@ TEST(test_syscall_sleep)
         syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
-            printf("Syscall Test: SLEEP successful\n");
+            printk("Syscall Test: SLEEP successful\n");
         else
-            printf("Syscall Test: SLEEP failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: SLEEP failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
@@ -784,9 +781,9 @@ TEST(test_syscall_exec)
         syscall_test_resume_after_longjmp();
         bool passed = (test_exit_code == 0);
         if (passed)
-            printf("Syscall Test: EXEC successful\n");
+            printk("Syscall Test: EXEC successful\n");
         else
-            printf("Syscall Test: EXEC failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: EXEC failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }
@@ -831,16 +828,16 @@ TEST_PRIO(test_syscall_mknod, 10)
             vfs_inode_t *node = vfs_resolve_path("/dev_test");
             if (node && (node->flags & VFS_CHARDEVICE))
             {
-                printf("Syscall Test: MKNOD successful (node found)\n");
+                printk("Syscall Test: MKNOD successful (node found)\n");
             }
             else
             {
-                printf("Syscall Test: MKNOD failed (node not found or wrong type)\n");
+                printk("Syscall Test: MKNOD failed (node not found or wrong type)\n");
                 passed = false;
             }
         }
         else
-            printf("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);
+            printk("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);
         syscall_set_exit_hook(NULL);
         return passed;
     }

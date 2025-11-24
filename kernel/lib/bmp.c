@@ -33,27 +33,27 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     vfs_inode_t *node = vfs_resolve_path(path);
     if (!node)
     {
-        printf("BMP: Failed to resolve %s\n", path);
+        printk("BMP: Failed to resolve %s\n", path);
         return -1;
     }
 
     uint64_t file_size = node->size;
     if (file_size < sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER))
     {
-        printf("BMP: File too small %s\n", path);
+        printk("BMP: File too small %s\n", path);
         return -1;
     }
 
     uint8_t *buffer = kmalloc(file_size);
     if (!buffer)
     {
-        printf("BMP: Out of memory\n");
+        printk("BMP: Out of memory\n");
         return -1;
     }
 
     if (vfs_read(node, 0, file_size, buffer) != file_size)
     {
-        printf("BMP: Failed to read %s\n", path);
+        printk("BMP: Failed to read %s\n", path);
         kfree(buffer);
         return -1;
     }
@@ -63,14 +63,14 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
 
     if (fh->bfType != 0x4D42 || ih->biPlanes != 1)
     {
-        printf("BMP: Invalid header for %s\n", path);
+        printk("BMP: Invalid header for %s\n", path);
         kfree(buffer);
         return -1;
     }
 
     if (!(ih->biBitCount == 24 && (ih->biCompression == BI_RGB || ih->biCompression == BI_BITFIELDS)))
     {
-        printf("BMP: Unsupported format (%d bpp)\n", ih->biBitCount);
+        printk("BMP: Unsupported format (%d bpp)\n", ih->biBitCount);
         kfree(buffer);
         return -1;
     }
@@ -81,7 +81,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
 
     if (width <= 0 || height <= 0)
     {
-        printf("BMP: Invalid dimensions (%d x %d)\n", width, height);
+        printk("BMP: Invalid dimensions (%d x %d)\n", width, height);
         kfree(buffer);
         return -1;
     }
@@ -89,7 +89,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     uint32_t *pixels = kmalloc(sizeof(uint32_t) * (uint64_t)width * (uint64_t)height);
     if (!pixels)
     {
-        printf("BMP: Out of memory for pixels\n");
+        printk("BMP: Out of memory for pixels\n");
         kfree(buffer);
         return -1;
     }

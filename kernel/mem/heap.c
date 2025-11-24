@@ -179,7 +179,7 @@ void kfree(void *ptr)
 
     if (header->magic != HEAP_MAGIC)
     {
-        printf("kfree: Invalid pointer (magic mismatch) %p\n", ptr);
+        printk("kfree: Invalid pointer (magic mismatch) %p\n", ptr);
         return;
     }
 

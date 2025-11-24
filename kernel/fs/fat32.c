@@ -146,14 +146,14 @@ static uint32_t fat32_find_free_cluster(fat32_fs_t *fs)
     // Limit to total clusters + 2 (since clusters start at 2)
     uint32_t max_cluster = fs->total_clusters + 2;
 
-    // printf("Scanning for free cluster up to %d\n", max_cluster);
+    // printk("Scanning for free cluster up to %d\n", max_cluster);
 
     for (uint32_t i = 2; i < max_cluster; i++)
     {
         uint32_t entry;
         if (fat32_read_fat_entry(fs, i, &entry) != 0)
         {
-            printf("fat32_find_free_cluster: Read error at cluster %d\n", i);
+            printk("fat32_find_free_cluster: Read error at cluster %d\n", i);
             break;
         }
         if (entry == 0)
@@ -318,13 +318,13 @@ void fat32_list_dir(fat32_fs_t *fs, const char *path)
         fat32_file_info_t info;
         if (fat32_stat(fs, path, &info) != 0)
         {
-            printf("Directory not found: %s\n", path);
+            printk("Directory not found: %s\n", path);
             return;
         }
 
         if (!(info.attributes & ATTR_DIRECTORY))
         {
-            printf("Not a directory: %s\n", path);
+            printk("Not a directory: %s\n", path);
             return;
         }
 
@@ -337,7 +337,7 @@ void fat32_list_dir(fat32_fs_t *fs, const char *path)
 
     uint32_t current_cluster = dir_cluster;
 
-    printf("Directory Listing of %s:\n", path ? path : "/");
+    printk("Directory Listing of %s:\n", path ? path : "/");
 
     while (1)
     {
@@ -359,10 +359,10 @@ void fat32_list_dir(fat32_fs_t *fs, const char *path)
             char name[13];
             fat_name_to_str((char *)entry[i].name, name);
 
-            printf("  %s", name);
+            printk("  %s", name);
             if (entry[i].attr & ATTR_DIRECTORY)
-                printf("/");
-            printf(" (%d bytes)\n", entry[i].file_size);
+                printk("/");
+            printk(" (%d bytes)\n", entry[i].file_size);
         }
 
         // Next cluster
@@ -1053,12 +1053,12 @@ int fat32_write_file(fat32_fs_t *fs, const char *path, uint8_t *buffer, uint32_t
 
 int fat32_delete_file(fat32_fs_t *fs, const char *path)
 {
-    printf("Deleting file: %s\n", path);
+    printk("Deleting file: %s\n", path);
     uint32_t parent_cluster;
     char filename[13];
     if (fat32_resolve_parent(fs, path, &parent_cluster, filename) != 0)
     {
-        printf("fat32_delete_file: Failed to resolve parent for %s\n", path);
+        printk("fat32_delete_file: Failed to resolve parent for %s\n", path);
         return 1;
     }
 
@@ -1070,7 +1070,7 @@ int fat32_delete_file(fat32_fs_t *fs, const char *path)
     {
         // Found it
         uint32_t cluster = (entry.fst_clus_hi << 16) | entry.fst_clus_lo;
-        printf("Found entry %s at cluster %d, offset %d. File cluster: %d\n", filename, dir_cluster_num, dir_offset, cluster);
+        printk("Found entry %s at cluster %d, offset %d. File cluster: %d\n", filename, dir_cluster_num, dir_offset, cluster);
 
         // Mark deleted in directory
         uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
@@ -1087,34 +1087,34 @@ int fat32_delete_file(fat32_fs_t *fs, const char *path)
         kfree(cluster_buf);
 
         // Free chain
-        printf("Freeing chain starting at %d\n", cluster);
+        printk("Freeing chain starting at %d\n", cluster);
         while (cluster < 0x0FFFFFF8 && cluster != 0)
         {
             if (cluster < 2 || cluster >= fs->total_clusters + 2)
             {
-                printf("fat32_delete_file: Invalid cluster %d (Total: %d)\n", cluster, fs->total_clusters);
+                printk("fat32_delete_file: Invalid cluster %d (Total: %d)\n", cluster, fs->total_clusters);
                 break;
             }
 
             uint32_t next;
-            printf("Reading FAT entry for %d...\n", cluster);
+            printk("Reading FAT entry for %d...\n", cluster);
             if (fat32_read_fat_entry(fs, cluster, &next) != 0)
             {
-                printf("fat32_delete_file: Failed to read FAT entry for cluster %d\n", cluster);
+                printk("fat32_delete_file: Failed to read FAT entry for cluster %d\n", cluster);
                 break;
             }
-            printf("Next cluster is %d. Writing 0 to FAT entry for %d...\n", next, cluster);
+            printk("Next cluster is %d. Writing 0 to FAT entry for %d...\n", next, cluster);
             if (fat32_write_fat_entry(fs, cluster, 0) != 0)
             {
-                printf("fat32_delete_file: Failed to write FAT entry for cluster %d\n", cluster);
+                printk("fat32_delete_file: Failed to write FAT entry for cluster %d\n", cluster);
                 break;
             }
-            printf("Written. Moving to next.\n");
+            printk("Written. Moving to next.\n");
             cluster = next;
         }
-        printf("fat32_delete_file: Chain freed. Returning 0.\n");
+        printk("fat32_delete_file: Chain freed. Returning 0.\n");
         return 0;
     }
-    printf("fat32_delete_file: Entry not found: %s\n", filename);
+    printk("fat32_delete_file: Entry not found: %s\n", filename);
     return 1; // Not found
 }
