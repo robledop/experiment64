@@ -2,7 +2,7 @@
 
 An x86_64 hobby kernel with a tiny userland, a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
-![Screenshot](docs/img/Screenshot2.png)
+![Screenshot](./docs/img/Screenshot2.png)
 
 ## Layout (high level)
 
@@ -51,7 +51,7 @@ Always add new tests for every new feature/bug fix, if possible.
 - Output is captured and only flushed on failure to keep logs short
 - In KASAN mode, redzones and poisoned frees are enforced; trap helpers let specific tests assert a panic
 
-![](docs/img/Screenshot1.png "Testing framework")
+![](./docs/img/Screenshot1.png "Testing framework")
 
 ## Checks
 
