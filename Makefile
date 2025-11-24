@@ -127,11 +127,13 @@ bear: clean
 
 .PHONY: clangd-check
 clangd-check:
-	python3 scripts/clangd_check.py
+	@echo "Running clangd checks..."
+	@python3 scripts/clangd_check.py
 
 .PHONY: clang-tidy
 clang-tidy:
-	python3 scripts/clang_tidy_all.py
+	@echo "Running clang-tidy checks..."
+	@python3 scripts/clang_tidy_all.py
 
 .PHONY: check
 check: clangd-check clang-tidy
