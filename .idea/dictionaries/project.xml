@@ -6,12 +6,17 @@
       <w>distclean</w>
       <w>finddir</w>
       <w>fsize</w>
+      <w>hhdm</w>
+      <w>kasan</w>
       <w>lalt</w>
       <w>lctrl</w>
       <w>limine</w>
       <w>masix</w>
       <w>mountpoint</w>
       <w>msyntax</w>
+      <w>redzone</w>
+      <w>redzones</w>
+      <w>usercopy</w>
     </words>
   </dictionary>
 </component>

@@ -35,3 +35,13 @@ To actually run the OS inside QEMU, use the following command:
 ```bash
 make run
 ```
+
+### KASAN (shadow memory) mode
+
+A lightweight KASAN-style shadow is available for debugging memory bugs. To run tests with KASAN enabled:
+
+```bash
+make tests-kasan
+```
+
+See `docs/kasan.md` for how it works, coverage, and limitations.

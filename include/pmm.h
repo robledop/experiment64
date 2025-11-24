@@ -10,3 +10,4 @@ void *pmm_alloc_page(void);
 void pmm_free_page(void *ptr);
 void *pmm_alloc_pages(size_t count);
 void pmm_free_pages(void *ptr, size_t count);
+uint64_t pmm_get_highest_addr(void);

@@ -3,6 +3,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <limits.h>
+#include "kasan.h"
+
+#ifdef KASAN
+#define KASAN_ASSERT_RANGE(addr, size, is_write)                          \
+    do                                                                    \
+    {                                                                     \
+        if (kasan_is_ready())                                             \
+            kasan_check_range((addr), (size), (is_write), __builtin_return_address(0)); \
+    } while (0)
+#else
+#define KASAN_ASSERT_RANGE(addr, size, is_write) \
+    do                                           \
+    {                                            \
+        (void)(addr);                            \
+        (void)(size);                            \
+        (void)(is_write);                        \
+    } while (0)
+#endif
 
 static long long read_signed_arg(va_list args, int length_mod)
 {
@@ -49,6 +67,8 @@ int strcmp(const char *s1, const char *s2)
 
 void *memcpy(void *dest, const void *src, size_t n)
 {
+    KASAN_ASSERT_RANGE(dest, n, true);
+    KASAN_ASSERT_RANGE(src, n, false);
     char *d = dest;
     const char *s = src;
     while (n--)
@@ -60,6 +80,7 @@ void *memcpy(void *dest, const void *src, size_t n)
 
 void *memset(void *s, int c, size_t n)
 {
+    KASAN_ASSERT_RANGE(s, n, true);
     unsigned char *p = s;
     while (n--)
     {
@@ -70,6 +91,8 @@ void *memset(void *s, int c, size_t n)
 
 int memcmp(const void *s1, const void *s2, size_t n)
 {
+    KASAN_ASSERT_RANGE(s1, n, false);
+    KASAN_ASSERT_RANGE(s2, n, false);
     const unsigned char *p1 = s1, *p2 = s2;
     while (n--)
     {

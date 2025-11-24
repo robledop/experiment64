@@ -2,6 +2,8 @@
 #include "limine.h"
 #include "string.h"
 #include "terminal.h"
+#include "kasan.h"
+#include <stdint.h>
 
 __attribute__((used, section(".requests"))) static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
@@ -10,6 +12,8 @@ __attribute__((used, section(".requests"))) static volatile struct limine_memmap
 static uint8_t *bitmap = NULL;
 static size_t bitmap_size = 0;
 static size_t highest_page = 0;
+static uint64_t highest_addr = 0;
+static uint64_t pmm_hhdm_offset = 0;
 
 static void bitmap_set(size_t bit)
 {
@@ -36,8 +40,6 @@ void pmm_init(uint64_t hhdm_offset)
     }
 
     struct limine_memmap_response *memmap = memmap_request.response;
-    uint64_t highest_addr = 0;
-
     // Find the highest usable physical address
     for (uint64_t i = 0; i < memmap->entry_count; i++)
     {
@@ -54,6 +56,7 @@ void pmm_init(uint64_t hhdm_offset)
 
     highest_page = highest_addr / PAGE_SIZE;
     bitmap_size = highest_page / 8 + 1;
+    pmm_hhdm_offset = hhdm_offset;
 
     // Find a place to put the bitmap
     for (uint64_t i = 0; i < memmap->entry_count; i++)
@@ -107,17 +110,27 @@ void pmm_init(uint64_t hhdm_offset)
     boot_message(INFO, "PMM Initialized. Highest Address: 0x%lx, Bitmap Size: %lu bytes", highest_addr, bitmap_size);
 }
 
+uint64_t pmm_get_highest_addr(void)
+{
+    return highest_addr;
+}
+
 void *pmm_alloc_page(void)
 {
     for (size_t i = 0; i < highest_page; i++)
     {
-        if (!bitmap_test(i))
-        {
-            bitmap_set(i);
-            void *addr = (void *)(i * PAGE_SIZE);
-            return addr;
+            if (!bitmap_test(i))
+            {
+                bitmap_set(i);
+                uintptr_t phys = i * PAGE_SIZE;
+                void *addr = (void *)phys;
+#ifdef KASAN
+                if (kasan_is_ready())
+                    kasan_unpoison_range((void *)(phys + pmm_hhdm_offset), PAGE_SIZE);
+#endif
+                return addr;
+            }
         }
-    }
     return NULL; // Out of memory
 }
 
@@ -126,6 +139,10 @@ void pmm_free_page(void *ptr)
     uint64_t addr = (uint64_t)ptr;
     size_t page = addr / PAGE_SIZE;
     bitmap_unset(page);
+#ifdef KASAN
+    if (kasan_is_ready())
+        kasan_poison_range((void *)(addr + pmm_hhdm_offset), PAGE_SIZE, KASAN_POISON_FREE);
+#endif
 }
 
 void *pmm_alloc_pages(size_t count)
@@ -154,6 +171,10 @@ void *pmm_alloc_pages(size_t count)
                 {
                     bitmap_set(i + j);
                 }
+#ifdef KASAN
+                if (kasan_is_ready())
+                    kasan_unpoison_range((void *)((i * PAGE_SIZE) + pmm_hhdm_offset), count * PAGE_SIZE);
+#endif
                 return (void *)(i * PAGE_SIZE);
             }
             else
@@ -173,4 +194,8 @@ void pmm_free_pages(void *ptr, size_t count)
     {
         bitmap_unset(page + i);
     }
+#ifdef KASAN
+    if (kasan_is_ready())
+        kasan_poison_range((void *)(addr + pmm_hhdm_offset), count * PAGE_SIZE, KASAN_POISON_FREE);
+#endif
 }

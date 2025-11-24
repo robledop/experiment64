@@ -9,6 +9,7 @@
 #include "keyboard.h"
 #include "uart.h"
 #include <limits.h>
+#include "kasan.h"
 
 static int clamp_size_to_int(size_t value)
 {
@@ -62,6 +63,8 @@ static void safe_copy(char *dst, size_t dst_size, const char *src)
 {
     if (!dst || dst_size == 0)
         return;
+    if (kasan_is_ready())
+        kasan_check_range(dst, dst_size, true, __builtin_return_address(0));
     if (!src)
     {
         dst[0] = '\0';

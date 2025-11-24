@@ -3,6 +3,7 @@
 #include "string.h"
 #include "terminal.h"
 #include "list.h"
+#include "kasan.h"
 
 #define HEAP_MAGIC 0xC0FFEE1234567890
 #define SLAB_MIN_SIZE 32
@@ -31,6 +32,16 @@ typedef struct slab_header
 
 static list_head_t slab_caches[CACHE_COUNT];
 
+#ifdef KASAN
+#define SLOT_USER_PTR(slot) ((uint8_t *)(slot) + KASAN_REDZONE_SIZE)
+#define SLOT_BASE_FROM_USER(ptr) ((uint8_t *)(ptr) - KASAN_REDZONE_SIZE)
+#define SLOT_USER_SIZE(slot_size) ((slot_size) - 2 * KASAN_REDZONE_SIZE)
+#else
+#define SLOT_USER_PTR(slot) (slot)
+#define SLOT_BASE_FROM_USER(ptr) ((uint8_t *)(ptr))
+#define SLOT_USER_SIZE(slot_size) (slot_size)
+#endif
+
 static int get_cache_index(size_t size)
 {
     if (size <= 32)
@@ -55,6 +66,33 @@ static size_t get_cache_size(int index)
     return 32 << index;
 }
 
+#ifdef KASAN
+static inline void kasan_unpoison_obj(void *ptr, size_t size)
+{
+    if (kasan_is_ready())
+        kasan_unpoison_range(ptr, size);
+}
+
+static inline void kasan_poison_obj(void *ptr, size_t size)
+{
+    if (kasan_is_ready())
+        kasan_poison_range(ptr, size, KASAN_POISON_FREE);
+}
+#else
+#define kasan_unpoison_obj(ptr, size) \
+    do                                \
+    {                                 \
+        (void)(ptr);                  \
+        (void)(size);                 \
+    } while (0)
+#define kasan_poison_obj(ptr, size) \
+    do                              \
+    {                               \
+        (void)(ptr);                \
+        (void)(size);               \
+    } while (0)
+#endif
+
 void heap_init(uint64_t hhdm_offset)
 {
     g_hhdm_offset = hhdm_offset;
@@ -68,6 +106,9 @@ void heap_init(uint64_t hhdm_offset)
 static void *alloc_big(size_t size)
 {
     size_t total_size = size + sizeof(slab_header_t);
+#ifdef KASAN
+    total_size += 2 * KASAN_REDZONE_SIZE;
+#endif
     size_t pages = (total_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
     void *phys = pmm_alloc_pages(pages);
@@ -82,7 +123,16 @@ static void *alloc_big(size_t size)
     header->page_count = pages;
     header->obj_size = size;
 
-    return (void *)((uint64_t)virt + sizeof(slab_header_t));
+    uint8_t *base = (uint8_t *)virt + sizeof(slab_header_t);
+#ifdef KASAN
+    kasan_poison_range(base, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+    kasan_poison_range(base + KASAN_REDZONE_SIZE + size, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+    kasan_unpoison_obj(base + KASAN_REDZONE_SIZE, size);
+    void *user = base + KASAN_REDZONE_SIZE;
+#else
+    void *user = base;
+#endif
+    return user;
 }
 
 static void *alloc_slab(int index)
@@ -131,14 +181,24 @@ static void *alloc_slab(int index)
         void **last_obj = (void **)(base + (max_objects - 1) * slab->obj_size);
         *last_obj = NULL;
 
+        kasan_poison_obj(base, max_objects * slab->obj_size);
         list_add(&slab->list, &slab_caches[index]);
     }
 
-    void *ptr = slab->free_list;
-    slab->free_list = *(void **)ptr;
+    uint8_t *slot = slab->free_list;
+    slab->free_list = *(void **)slot;
     slab->free_count--;
+#ifdef KASAN
+    size_t user_size = SLOT_USER_SIZE(slab->obj_size);
+    if (kasan_is_ready())
+    {
+        kasan_poison_range(slot, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+        kasan_poison_range(slot + slab->obj_size - KASAN_REDZONE_SIZE, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+        kasan_unpoison_obj(slot + KASAN_REDZONE_SIZE, user_size);
+    }
+#endif
 
-    return ptr;
+    return SLOT_USER_PTR(slot);
 }
 
 void *kmalloc(size_t size)
@@ -146,7 +206,13 @@ void *kmalloc(size_t size)
     if (size == 0)
         return NULL;
 
-    int index = get_cache_index(size);
+#ifdef KASAN
+    size_t padded = size + 2 * KASAN_REDZONE_SIZE;
+#else
+    size_t padded = size;
+#endif
+
+    int index = get_cache_index(padded);
     if (index >= 0)
     {
         return alloc_slab(index);
@@ -185,9 +251,14 @@ void kfree(void *ptr)
 
     if (header->is_slab)
     {
-        *(void **)ptr = header->free_list;
-        header->free_list = ptr;
+        uint8_t *slot_base = SLOT_BASE_FROM_USER(ptr);
+        *(void **)slot_base = header->free_list;
+        header->free_list = slot_base;
         header->free_count++;
+#ifdef KASAN
+        if (kasan_is_ready())
+            kasan_poison_obj(slot_base, header->obj_size);
+#endif
 
         // If slab is completely free, release the page.
         size_t capacity = (PAGE_SIZE - sizeof(slab_header_t)) / header->obj_size;
@@ -207,6 +278,17 @@ void kfree(void *ptr)
     else
     {
         // Big allocation
+        uint8_t *base = (uint8_t *)page_start + sizeof(slab_header_t);
+#ifdef KASAN
+        if (kasan_is_ready())
+        {
+            kasan_poison_range(base, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+            kasan_poison_range(base + KASAN_REDZONE_SIZE + header->obj_size, KASAN_REDZONE_SIZE, KASAN_POISON_REDZONE);
+            kasan_poison_obj(base + KASAN_REDZONE_SIZE, header->obj_size);
+        }
+#else
+        (void)base;
+#endif
         void *phys = (void *)(page_start - g_hhdm_offset);
         pmm_free_pages(phys, header->page_count);
     }
@@ -233,6 +315,10 @@ void *krealloc(void *ptr, size_t new_size)
     }
 
     size_t old_size = header->obj_size;
+#ifdef KASAN
+    if (header->is_slab)
+        old_size = SLOT_USER_SIZE(header->obj_size);
+#endif
 
     if (new_size <= old_size)
     {

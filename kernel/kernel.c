@@ -26,6 +26,7 @@
 #include "console.h"
 #include "devfs.h"
 #include "kernel.h"
+#include "kasan.h"
 
 void shutdown()
 {
@@ -121,6 +122,9 @@ void _start(void)
     uint64_t hhdm_offset = boot_get_hhdm_offset();
     pmm_init(hhdm_offset);
     vmm_init(hhdm_offset);
+#ifdef KASAN
+    kasan_early_init(hhdm_offset, pmm_get_highest_addr());
+#endif
     heap_init(hhdm_offset);
     process_init();
     ide_init();
