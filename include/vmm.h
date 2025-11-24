@@ -21,6 +21,6 @@ void vmm_unmap_page(pml4_t pml4, uint64_t virt);
 pml4_t vmm_new_pml4(void);
 pml4_t vmm_copy_pml4(pml4_t src);
 void vmm_destroy_pml4(pml4_t pml4);
-void vmm_switch_pml4(pml4_t pml4);
+void vmm_switch_pml4(const uint64_t *pml4);
 void vmm_finalize(void);
 uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt);

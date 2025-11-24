@@ -8,6 +8,7 @@
 #include "terminal.h"
 #include "heap.h"
 #include "debug.h"
+#include <limits.h>
 
 #ifndef ASSERT
 #define ASSERT(c, msg) \
@@ -24,6 +25,13 @@ typedef uint64_t u64;
 
 #define MAX_FILE_PATH 256
 
+static int clamp_u32_to_int(uint32_t value)
+{
+    if (value > (uint32_t)INT_MAX)
+        return INT_MAX;
+    return (int)value;
+}
+
 // Map internal types to VFS types or just use constants
 #define T_DIR EXT2_FT_DIR
 #define T_FILE EXT2_FT_REG_FILE
@@ -35,9 +43,9 @@ typedef uint64_t u64;
 
 #define BLOCK_TO_SECTOR(b) ((b) * (EXT2_BSIZE / 512))
 
-static void ext2fs_bzero(int dev, uint32_t bno);
+static void ext2fs_bzero(uint32_t dev, uint32_t bno);
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum);
-static void ext2fs_bfree(int dev, uint32_t b);
+static void ext2fs_bfree(uint32_t dev, uint32_t b);
 static uint32_t ext2fs_bmap(struct ext2_inode *ip, uint32_t bn);
 static void ext2fs_itrunc(struct ext2_inode *ip);
 struct ext2fs_addrs ext2fs_addrs[NINODE];
@@ -105,7 +113,7 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
 }
 
 // Zero a block.
-static void ext2fs_bzero(int dev, uint32_t bno)
+static void ext2fs_bzero(uint32_t dev, uint32_t bno)
 {
     buffer_head_t *bp = bread(dev, bno);
     memset(bp->data, 0, 512);
@@ -158,7 +166,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
         uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
         uint32_t rel_block = group_first_block + fbit;
         uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + first_partition_block;
-        for (int i = 0; i < EXT2_BSIZE / 512; i++)
+        for (uint32_t i = 0; i < EXT2_BSIZE / 512; i++)
         {
             ext2fs_bzero(dev, start_sector + i);
         }
@@ -171,7 +179,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 }
 
 // Free a disk block.
-static void ext2fs_bfree(int dev, uint32_t b)
+static void ext2fs_bfree(uint32_t dev, uint32_t b)
 {
     struct ext2_group_desc bgdesc;
     uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2); // block group descriptor table starts at block 2
@@ -230,8 +238,8 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
     struct ext2_group_desc bgdesc;
     uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2); // block group descriptor table starts at block 2
 
-    int bgcount = ext2_sb.s_blocks_count / ext2_sb.s_blocks_per_group;
-    for (int i = 0; i <= bgcount; i++)
+    uint32_t bgcount = ext2_sb.s_blocks_count / ext2_sb.s_blocks_per_group;
+    for (uint32_t i = 0; i <= bgcount; i++)
     {
         buffer_head_t *group_desc_buf = bread(dev, desc_blockno);
         memcpy(&bgdesc, group_desc_buf->data + i * sizeof(bgdesc), sizeof(bgdesc));
@@ -253,10 +261,10 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
             return nullptr;
         }
 
-        int inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
+        uint32_t inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
 
-        int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + first_partition_block;
-        int iindex = fbit % inodes_per_block;
+        uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + first_partition_block;
+        uint32_t iindex = fbit % inodes_per_block;
 
         uint32_t block_offset = iindex * ext2_sb.s_inode_size;
         uint32_t sector_offset = block_offset / 512;
@@ -284,7 +292,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(dinode_buff);
         brelse(ibitmap_buff);
 
-        int inum = i * ext2_sb.s_inodes_per_group + fbit + 1;
+        uint32_t inum = i * ext2_sb.s_inodes_per_group + fbit + 1;
         struct ext2_inode *ip = iget(dev, inum);
         ip->type = type;
         return ip;
@@ -510,8 +518,8 @@ void ext2fs_iunlockput(struct ext2_inode *ip)
 
 void ext2fs_stati(struct ext2_inode *ip, struct stat *st)
 {
-    st->dev = (int)ip->dev;
-    st->ino = ip->inum;
+    st->dev = clamp_u32_to_int(ip->dev);
+    st->ino = clamp_u32_to_int(ip->inum);
     st->type = ip->type;
     st->nlink = ip->nlink;
     st->size = ip->size;
@@ -522,7 +530,7 @@ void ext2fs_stati(struct ext2_inode *ip, struct stat *st)
     st->i_dtime = ip->i_dtime;
     st->i_uid = ip->i_uid;
     st->i_gid = ip->i_gid;
-    st->i_flags = ip->i_flags;
+    st->i_flags = clamp_u32_to_int(ip->i_flags);
 }
 
 // Inode content
@@ -830,7 +838,7 @@ int ext2fs_readi(struct ext2_inode *ip, char *dst, uint32_t off, uint32_t n)
         off += bytes_to_copy;
         dst += bytes_to_copy;
     }
-    return n;
+    return clamp_u32_to_int(n);
 }
 
 int ext2fs_writei(struct ext2_inode *ip, char *src, uint32_t off, uint32_t n)
@@ -882,7 +890,7 @@ int ext2fs_writei(struct ext2_inode *ip, char *src, uint32_t off, uint32_t n)
             ip->size = off;
         ext2fs_iupdate(ip);
     }
-    return n;
+    return clamp_u32_to_int(n);
 }
 
 int ext2fs_namecmp(const char *s, const char *t)
@@ -953,8 +961,8 @@ int ext2fs_dirlink(struct ext2_inode *dp, char *name, uint32_t inum)
         return -1;
     }
 
-    int name_len = strlen(name);
-    if (name_len <= 0 || name_len > EXT2_NAME_LEN)
+    size_t name_len = strlen(name);
+    if (name_len == 0 || name_len > EXT2_NAME_LEN)
     {
         return -1;
     }
@@ -974,7 +982,7 @@ int ext2fs_dirlink(struct ext2_inode *dp, char *name, uint32_t inum)
     memset(&de, 0, sizeof(de));
     de.inode = inum;
     de.rec_len = rec_len;
-    de.name_len = name_len;
+    de.name_len = (uint8_t)name_len;
     de.file_type = EXT2_FT_UNKNOWN;
     memcpy(de.name, name, name_len);
 

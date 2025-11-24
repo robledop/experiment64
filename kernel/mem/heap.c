@@ -232,15 +232,7 @@ void *krealloc(void *ptr, size_t new_size)
         return NULL;
     }
 
-    size_t old_size;
-    if (header->is_slab)
-    {
-        old_size = header->obj_size;
-    }
-    else
-    {
-        old_size = header->obj_size; // We stored it there in alloc_big
-    }
+    size_t old_size = header->obj_size;
 
     if (new_size <= old_size)
     {

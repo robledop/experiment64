@@ -7,15 +7,6 @@
 extern fat32_fs_t test_fs;
 extern bool fs_initialized;
 
-#include "test.h"
-#include "fat32.h"
-#include "string.h"
-#include "terminal.h"
-#include "heap.h"
-
-extern fat32_fs_t test_fs;
-extern bool fs_initialized;
-
 #define STRESS_FILE_COUNT 50
 #define STRESS_FILE_SIZE 1024
 

@@ -11,8 +11,8 @@ extern struct icache icache;
 
 #define EXT2_MAX_INODE_SIZE EXT2_BSIZE
 
-#define GET_GROUP_NO(inum, ext2_sb) ((inum - 1) / ext2_sb.s_inodes_per_group)
-#define GET_INODE_INDEX(inum, ext2_sb) ((inum - 1) % ext2_sb.s_inodes_per_group)
+#define GET_GROUP_NO(inum, ext2_sb) (((inum) - 1) / ((ext2_sb).s_inodes_per_group))
+#define GET_INODE_INDEX(inum, ext2_sb) (((inum) - 1) % ((ext2_sb).s_inodes_per_group))
 
 /*
  * Constants relative to the data blocks

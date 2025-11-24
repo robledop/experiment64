@@ -78,27 +78,28 @@ void keyboard_handler_main(void)
 
     if (scancode & SCANCODE_RELEASE_MASK)
     {
+        return;
     }
-        else
+    else
+    {
+        if (scancode < sizeof(scancode_to_char))
         {
-            if (scancode < sizeof(scancode_to_char))
+            bool use_shift = shift_pressed;
+
+            char c = (char)scancode_to_char[scancode];
+            if (caps_lock && c >= 'a' && c <= 'z')
             {
-                bool use_shift = shift_pressed;
+                use_shift = !use_shift;
+            }
 
-                char c = (char)scancode_to_char[scancode];
-                if (caps_lock && c >= 'a' && c <= 'z')
-                {
-                    use_shift = !use_shift;
-                }
-
-                if (use_shift)
-                {
-                    c = (char)scancode_to_char_shifted[scancode];
-                }
-                else
-                {
-                    c = (char)scancode_to_char[scancode];
-                }
+            if (use_shift)
+            {
+                c = (char)scancode_to_char_shifted[scancode];
+            }
+            else
+            {
+                c = (char)scancode_to_char[scancode];
+            }
 
             // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)
             if (ctrl_pressed)

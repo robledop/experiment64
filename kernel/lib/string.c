@@ -4,6 +4,25 @@
 #include <stdint.h>
 #include <limits.h>
 
+static long long read_signed_arg(va_list args, int length_mod)
+{
+    if (length_mod >= 2)
+        return va_arg(args, long long);
+    if (length_mod == 1)
+        return va_arg(args, long);
+    return va_arg(args, int);
+}
+
+static unsigned long long read_unsigned_arg(va_list args, int length_mod)
+{
+    if (length_mod >= 2)
+        return va_arg(args, unsigned long long);
+    if (length_mod == 1)
+        return va_arg(args, unsigned long);
+    return va_arg(args, unsigned int);
+}
+#include <limits.h>
+
 int strncmp(const char *s1, const char *s2, size_t n)
 {
     while (n > 0 && *s1 && (*s1 == *s2))
@@ -208,13 +227,7 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         case 'd':
         case 'i':
         {
-            long long value;
-            if (length_mod >= 2)
-                value = va_arg(args, long long);
-            else if (length_mod == 1)
-                value = va_arg(args, long);
-            else
-                value = va_arg(args, int);
+            long long value = read_signed_arg(args, length_mod);
 
             unsigned long long magnitude;
             if (value < 0)
@@ -253,13 +266,7 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         }
         case 'u':
         {
-            unsigned long long value;
-            if (length_mod >= 2)
-                value = va_arg(args, unsigned long long);
-            else if (length_mod == 1)
-                value = va_arg(args, unsigned long);
-            else
-                value = va_arg(args, unsigned int);
+            unsigned long long value = read_unsigned_arg(args, length_mod);
 
             cb_emit_unsigned(value, 10, false, arg, callback);
             break;
@@ -277,25 +284,17 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                 callback('x', arg);
                 total += 2;
             }
-            else if (length_mod >= 2)
-                value = va_arg(args, unsigned long long);
-            else if (length_mod == 1)
-                value = va_arg(args, unsigned long);
             else
-                value = va_arg(args, unsigned int);
+            {
+                value = read_unsigned_arg(args, length_mod);
+            }
 
             cb_emit_unsigned(value, 16, uppercase, arg, callback);
             break;
         }
         case 'o':
         {
-            unsigned long long value;
-            if (length_mod >= 2)
-                value = va_arg(args, unsigned long long);
-            else if (length_mod == 1)
-                value = va_arg(args, unsigned long);
-            else
-                value = va_arg(args, unsigned int);
+            unsigned long long value = read_unsigned_arg(args, length_mod);
             cb_emit_unsigned(value, 8, false, arg, callback);
             break;
         }

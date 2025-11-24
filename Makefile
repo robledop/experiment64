@@ -131,9 +131,7 @@ clangd-check:
 
 .PHONY: clang-tidy
 clang-tidy:
-	@if command -v run-clang-tidy >/dev/null 2>&1; then \
-		echo "Running run-clang-tidy -p ."; \
-		run-clang-tidy -p .; \
-	else \
-		python3 scripts/clang_tidy_all.py \
-	; fi
+	python3 scripts/clang_tidy_all.py
+
+.PHONY: check
+check: clangd-check clang-tidy

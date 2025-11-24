@@ -503,7 +503,7 @@ void schedule(void)
         __asm__ volatile("sti");
 }
 
-void thread_sleep(void *chan, spinlock_t *lk)
+void thread_sleep(void *chan, spinlock_t *lock)
 {
     thread_t *curr = get_current_thread();
     if (!curr)
@@ -514,11 +514,11 @@ void thread_sleep(void *chan, spinlock_t *lk)
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
     // Must acquire scheduler_lock to change state and sleep atomically
-    if (lk != &scheduler_lock)
+    if (lock != &scheduler_lock)
     {
         spinlock_acquire(&scheduler_lock);
-        if (lk)
-            spinlock_release(lk);
+        if (lock)
+            spinlock_release(lock);
     }
 
     curr->chan = chan;
@@ -528,11 +528,11 @@ void thread_sleep(void *chan, spinlock_t *lk)
 
     curr->chan = NULL;
 
-    if (lk != &scheduler_lock)
+    if (lock != &scheduler_lock)
     {
         spinlock_release(&scheduler_lock);
-        if (lk)
-            spinlock_acquire(lk);
+        if (lock)
+            spinlock_acquire(lock);
     }
 
     // Restore interrupt state

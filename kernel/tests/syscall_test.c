@@ -790,8 +790,6 @@ TEST(test_syscall_exec)
     }
 }
 
-extern uint64_t g_hhdm_offset;
-
 TEST_PRIO(test_syscall_mknod, 10)
 {
     uint64_t user_base = 0x400000;

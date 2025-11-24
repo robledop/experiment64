@@ -121,7 +121,7 @@ pml4_t vmm_new_pml4(void)
     return (pml4_t)phys;
 }
 
-static void copy_page_table_level(uint64_t *dest_table, uint64_t *src_table, int level)
+static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_table, int level)
 {
     for (int i = 0; i < 512; i++)
     {
@@ -202,12 +202,12 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
     return new_pml4;
 }
 
-void vmm_switch_pml4(pml4_t pml4)
+void vmm_switch_pml4(const uint64_t *pml4)
 {
     __asm__ volatile("mov cr3, %0" : : "r"(pml4) : "memory");
 }
 
-static void free_page_table_level(uint64_t *table, int level)
+static void free_page_table_level(const uint64_t *table, int level)
 {
     for (int i = 0; i < 512; i++)
     {
@@ -216,7 +216,7 @@ static void free_page_table_level(uint64_t *table, int level)
             uint64_t phys = table[i] & 0x000FFFFFFFFFF000;
             if (level > 1)
             {
-                uint64_t *next_table = (uint64_t *)(phys + g_hhdm_offset);
+                const uint64_t *next_table = (const uint64_t *)(phys + g_hhdm_offset);
                 free_page_table_level(next_table, level - 1);
                 pmm_free_page((void *)phys);
             }
