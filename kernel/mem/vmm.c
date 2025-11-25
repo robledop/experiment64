@@ -21,13 +21,13 @@ static uint64_t *get_next_level(uint64_t *current_level, size_t index, bool allo
 
     if (!allocate)
     {
-        return NULL;
+        return nullptr;
     }
 
     void *phys = pmm_alloc_page();
     if (!phys)
     {
-        return NULL;
+        return nullptr;
     }
 
     uint64_t *virt = (uint64_t *)((uint64_t)phys + g_hhdm_offset);
@@ -98,7 +98,7 @@ pml4_t vmm_new_pml4(void)
 {
     void *phys = pmm_alloc_page();
     if (!phys)
-        return NULL;
+        return nullptr;
 
     uint64_t *virt = (uint64_t *)((uint64_t)phys + g_hhdm_offset);
     memset(virt, 0, PAGE_SIZE);
@@ -173,7 +173,7 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
 {
     pml4_t new_pml4 = vmm_new_pml4();
     if (!new_pml4)
-        return NULL;
+        return nullptr;
 
     uint64_t *dest_virt = (uint64_t *)((uint64_t)new_pml4 + g_hhdm_offset);
     uint64_t *src_virt = (uint64_t *)((uint64_t)src_pml4 + g_hhdm_offset);
@@ -278,7 +278,7 @@ uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt)
 void vmm_finalize(void)
 {
     pml4_t kernel_pml4 = vmm_new_pml4();
-    if (kernel_pml4 != NULL)
+    if (kernel_pml4 != nullptr)
     {
         vmm_switch_pml4(kernel_pml4);
         boot_message(INFO, "VMM Initialized.");

@@ -41,7 +41,7 @@ static void ap_main(struct limine_smp_info *info)
 void smp_init_cpu0(void)
 {
     struct limine_smp_response *smp_response = boot_get_smp_response();
-    if (smp_response == NULL)
+    if (smp_response == nullptr)
     {
         // If SMP response is missing, we can't set up GS_BASE, so gdt_init will crash.
         // Hang here to indicate failure.
@@ -61,7 +61,7 @@ void smp_init_cpu0(void)
         {
             cpus[i].lapic_id = (int)cpu_info->lapic_id;
             cpus[i].self = &cpus[i];
-            cpus[i].active_thread = NULL;
+            cpus[i].active_thread = nullptr;
 
             // Load null selector into GS/FS to ensure MSR_GS_BASE is used
             __asm__ volatile("xor eax, eax; mov gs, eax; mov fs, eax" ::: "eax");
@@ -83,7 +83,7 @@ void smp_init_cpu0(void)
 void smp_boot_aps(void)
 {
     struct limine_smp_response *smp_response = boot_get_smp_response();
-    if (smp_response == NULL)
+    if (smp_response == nullptr)
     {
         boot_message(WARNING, "SMP: No response found");
         return;
@@ -107,7 +107,7 @@ void smp_boot_aps(void)
         {
             cpus[i].lapic_id = (int)cpu_info->lapic_id;
             cpus[i].self = &cpus[i];
-            cpus[i].active_thread = NULL;
+            cpus[i].active_thread = nullptr;
 
             cpu_info->extra_argument = (uint64_t)&cpus[i];
             cpu_info->goto_address = ap_main;

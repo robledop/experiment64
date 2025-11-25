@@ -47,7 +47,7 @@ vfs_inode_t *vfs_check_mount(const char *name)
             return copy;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void vfs_init()
@@ -173,7 +173,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
             return dirent;
         }
 
-        // 2. If underlying FS is done (dirent == NULL) AND we are at root,
+        // 2. If underlying FS is done (dirent == nullptr) AND we are at root,
         // check for virtual mount points that are NOT on disk.
 
         // Count real entries to determine offset
@@ -191,7 +191,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
         }
 
         if (index < real_count)
-            return NULL; // Should have been caught by step 1
+            return nullptr; // Should have been caught by step 1
 
         uint32_t virt_index = index - real_count;
         uint32_t current_virt = 0;
@@ -216,7 +216,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
                 {
                     vfs_dirent_t *virt_ent = kmalloc(sizeof(vfs_dirent_t));
                     if (!virt_ent)
-                        return NULL;
+                        return nullptr;
                     strncpy(virt_ent->name, mount_table[i].name, 127);
                     virt_ent->name[127] = '\0';
                     virt_ent->inode = 0;
@@ -226,7 +226,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
             }
         }
 
-        return NULL;
+        return nullptr;
     }
     return nullptr;
 }

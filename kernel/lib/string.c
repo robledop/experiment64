@@ -22,22 +22,22 @@
     } while (0)
 #endif
 
-static long long read_signed_arg(va_list args, int length_mod)
+static long long read_signed_arg(va_list *args, int length_mod)
 {
     if (length_mod >= 2)
-        return va_arg(args, long long);
+        return va_arg(*args, long long);
     if (length_mod == 1)
-        return va_arg(args, long);
-    return va_arg(args, int);
+        return va_arg(*args, long);
+    return va_arg(*args, int);
 }
 
-static unsigned long long read_unsigned_arg(va_list args, int length_mod)
+static unsigned long long read_unsigned_arg(va_list *args, int length_mod)
 {
     if (length_mod >= 2)
-        return va_arg(args, unsigned long long);
+        return va_arg(*args, unsigned long long);
     if (length_mod == 1)
-        return va_arg(args, unsigned long);
-    return va_arg(args, unsigned int);
+        return va_arg(*args, unsigned long);
+    return va_arg(*args, unsigned int);
 }
 
 int strncmp(const char *s1, const char *s2, size_t n)
@@ -147,7 +147,7 @@ char *strcat(char *dest, const char *src)
 
 char *strrchr(const char *s, int c)
 {
-    const char *last = NULL;
+    const char *last = nullptr;
     do
     {
         if (*s == (char)c)
@@ -191,7 +191,7 @@ static void cb_emit_unsigned(uint64_t value, unsigned base, bool uppercase, void
     }
 }
 
-int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list args)
+int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list *args)
 {
     int total = 0;
 
@@ -229,7 +229,7 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         {
         case 's':
         {
-            const char *s = va_arg(args, const char *);
+            const char *s = va_arg(*args, const char *);
             if (!s)
                 s = "(null)";
             size_t len = strlen(s);
@@ -241,7 +241,7 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         }
         case 'c':
         {
-            char c = (char)va_arg(args, int);
+            char c = (char)va_arg(*args, int);
             callback(c, arg);
             total++;
             break;
@@ -301,7 +301,7 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             unsigned long long value;
             if (spec == 'p')
             {
-                value = (uintptr_t)va_arg(args, void *);
+                value = (uintptr_t)va_arg(*args, void *);
                 callback('0', arg);
                 callback('x', arg);
                 total += 2;
@@ -386,7 +386,10 @@ int vsnprintk(char *buffer, size_t size, const char *format, va_list args)
         .callback = vsnprintk_callback,
         .count = 0};
 
-    vcbprintf(&cctx, count_callback, format, args);
+    va_list args_copy;
+    va_copy(args_copy, args); // NOLINT(clang-analyzer-security.VAList)
+    vcbprintf(&cctx, count_callback, format, &args_copy);
+    va_end(args_copy);
 
     if (size > 0 && buffer)
     {

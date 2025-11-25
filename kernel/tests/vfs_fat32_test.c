@@ -139,14 +139,14 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
     if (!mnt)
         return false;
     fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
-    ASSERT(mnt_data != NULL);
+    TEST_ASSERT(mnt_data != nullptr);
     fat32_fs_t *fs = mnt_data->fs;
-    ASSERT(fs != NULL);
+    TEST_ASSERT(fs != nullptr);
 
     const char *fname = "LONG.BIN";
     const size_t data_size = 256 * 1024; // 256 KiB to cross many clusters
     uint8_t *data = kmalloc(data_size);
-    ASSERT(data != NULL);
+    TEST_ASSERT(data != nullptr);
     for (size_t i = 0; i < data_size; i++)
         data[i] = (uint8_t)(i & 0xFF);
 
@@ -163,20 +163,20 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
     if (create_res != 0)
     {
         fat32_file_info_t info;
-        ASSERT(fat32_stat(fs, fname, &info) == 0);
+        TEST_ASSERT(fat32_stat(fs, fname, &info) == 0);
     }
 
     file = vfs_finddir(mnt, (char *)fname);
-    ASSERT(file != NULL);
+    TEST_ASSERT(file != nullptr);
 
     uint64_t written = vfs_write(file, 0, data_size, data);
-    ASSERT(written == data_size);
+    TEST_ASSERT(written == data_size);
 
     uint8_t *readback = kmalloc(data_size);
-    ASSERT(readback != NULL);
+    TEST_ASSERT(readback != nullptr);
     uint64_t read_bytes = vfs_read(file, 0, data_size, readback);
-    ASSERT(read_bytes == data_size);
-    ASSERT(readback[0] == data[0] && readback[data_size - 1] == data[data_size - 1]);
+    TEST_ASSERT(read_bytes == data_size);
+    TEST_ASSERT(readback[0] == data[0] && readback[data_size - 1] == data[data_size - 1]);
 
     kfree(readback);
     fat32_delete_file(fs, fname);

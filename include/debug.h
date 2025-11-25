@@ -16,7 +16,10 @@
 #define KRESET "\x1B[0m"
 #define KBWHT "\x1B[1;37m"
 
-void panic(const char *fmt, ...);
+#if !defined(TEST_MODE)
+[[noreturn]]
+#endif
+void panic(const char* fmt, ...);
 void stack_trace(void);
 void debug_init(void);
 int panic_trap_setjmp(void);

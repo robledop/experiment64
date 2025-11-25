@@ -1,5 +1,7 @@
 #include "kasan.h"
 
+// Kernel Address Sanitizer (KASAN) implementation
+
 #ifdef KASAN
 
 #include "terminal.h"

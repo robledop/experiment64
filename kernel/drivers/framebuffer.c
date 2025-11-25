@@ -1,37 +1,44 @@
 #include "framebuffer.h"
 #include <stddef.h>
 
-static struct limine_framebuffer *active_fb = NULL;
+#include "assert.h"
+#include "test.h"
+
+static struct limine_framebuffer* active_fb = nullptr;
 
 static inline uint32_t framebuffer_width(void)
 {
-    return active_fb ? (uint32_t)active_fb->width : 0;
+    assert(active_fb != nullptr);
+    return (uint32_t)active_fb->width;
 }
 
 static inline uint32_t framebuffer_height(void)
 {
-    return active_fb ? (uint32_t)active_fb->height : 0;
+    assert(active_fb != nullptr);
+    return (uint32_t)active_fb->height;
 }
 
-static inline uint32_t *framebuffer_row(uint32_t y)
+static inline uint32_t* framebuffer_row(uint32_t y)
 {
-    if (!active_fb)
-        return NULL;
-    return (uint32_t *)((uint8_t *)active_fb->address + (uint64_t)y * active_fb->pitch);
+    assert(active_fb != nullptr);
+    return (uint32_t*)((uint8_t*)active_fb->address + (uint64_t)y * active_fb->pitch);
 }
 
-void framebuffer_init(struct limine_framebuffer *fb)
+void framebuffer_init(struct limine_framebuffer* fb)
 {
+    assert(fb != nullptr);
     active_fb = fb;
 }
 
-struct limine_framebuffer *framebuffer_current(void)
+struct limine_framebuffer* framebuffer_current(void)
 {
     return active_fb;
 }
 
 void framebuffer_fill_span32(uint32_t y, uint32_t x, uint32_t length, uint32_t color)
 {
+    assert(active_fb != nullptr);
+
     if (!active_fb || length == 0 || y >= framebuffer_height() || x >= framebuffer_width())
         return;
 
@@ -39,7 +46,7 @@ void framebuffer_fill_span32(uint32_t y, uint32_t x, uint32_t length, uint32_t c
     if (x + length > width)
         length = width - x;
 
-    uint32_t *row = framebuffer_row(y);
+    uint32_t* row = framebuffer_row(y);
     if (!row)
         return;
 
@@ -49,6 +56,8 @@ void framebuffer_fill_span32(uint32_t y, uint32_t x, uint32_t length, uint32_t c
 
 void framebuffer_copy_span32(uint32_t dst_y, uint32_t dst_x, uint32_t src_y, uint32_t src_x, uint32_t length)
 {
+    assert(active_fb != nullptr);
+
     if (!active_fb || length == 0)
         return;
 
@@ -64,8 +73,8 @@ void framebuffer_copy_span32(uint32_t dst_y, uint32_t dst_x, uint32_t src_y, uin
     if (length > max_len)
         length = max_len;
 
-    uint32_t *dst = framebuffer_row(dst_y);
-    uint32_t *src = framebuffer_row(src_y);
+    uint32_t* dst = framebuffer_row(dst_y);
+    uint32_t* src = framebuffer_row(src_y);
     if (!dst || !src)
         return;
 
@@ -90,11 +99,13 @@ void framebuffer_copy_span32(uint32_t dst_y, uint32_t dst_x, uint32_t src_y, uin
 
 void framebuffer_fill_rect32(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color)
 {
+    assert(active_fb != nullptr);
+
     if (!active_fb || width == 0 || height == 0)
         return;
 
-    uint32_t fb_width = framebuffer_width();
-    uint32_t fb_height = framebuffer_height();
+    const uint32_t fb_width = framebuffer_width();
+    const uint32_t fb_height = framebuffer_height();
 
     if (x >= fb_width || y >= fb_height)
         return;
@@ -108,8 +119,10 @@ void framebuffer_fill_rect32(uint32_t x, uint32_t y, uint32_t width, uint32_t he
         framebuffer_fill_span32(y + row, x, width, color);
 }
 
-void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t *src, uint32_t length)
+void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t* src, uint32_t length)
 {
+    assert(active_fb != nullptr);
+
     if (!active_fb || !src || length == 0 || y >= framebuffer_height() || x >= framebuffer_width())
         return;
 
@@ -117,7 +130,7 @@ void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t *src, uint32
     if (x + length > width)
         length = width - x;
 
-    uint32_t *row = framebuffer_row(y);
+    uint32_t* row = framebuffer_row(y);
     if (!row)
         return;
 
@@ -130,8 +143,10 @@ void framebuffer_putpixel(uint32_t x, uint32_t y, uint32_t color)
     framebuffer_fill_span32(y, x, 1, color);
 }
 
-void framebuffer_put_bitmap_32(uint32_t x, uint32_t y, const uint32_t *pixels, uint32_t width, uint32_t height)
+void framebuffer_put_bitmap_32(uint32_t x, uint32_t y, const uint32_t* pixels, uint32_t width, uint32_t height)
 {
+    assert(active_fb != nullptr);
+
     if (!active_fb || !pixels || width == 0 || height == 0)
         return;
 

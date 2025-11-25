@@ -61,6 +61,8 @@ override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
 override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
+run-gdb tests tests-kasan: CFLAGS += -DDEBUG
+
 QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log
 
 .PHONY: all

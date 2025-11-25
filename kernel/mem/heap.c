@@ -159,7 +159,7 @@ static void *alloc_big(size_t size)
 
     void *phys = pmm_alloc_pages(pages);
     if (!phys)
-        return NULL;
+        return nullptr;
 
     void *virt = (void *)((uint64_t)phys + g_hhdm_offset);
     slab_header_t *header = (slab_header_t *)virt;
@@ -183,7 +183,7 @@ static void *alloc_big(size_t size)
 
 static void *alloc_slab(int index)
 {
-    slab_header_t *slab = NULL;
+    slab_header_t *slab = nullptr;
     slab_header_t *iter;
 
     // Find a slab with free objects
@@ -200,7 +200,7 @@ static void *alloc_slab(int index)
     {
         void *phys = pmm_alloc_page();
         if (!phys)
-            return NULL;
+            return nullptr;
 
         void *virt = (void *)((uint64_t)phys + g_hhdm_offset);
         slab = (slab_header_t *)virt;
@@ -225,7 +225,7 @@ static void *alloc_slab(int index)
         }
 
         void **last_obj = (void **)(base + (max_objects - 1) * slab->obj_size);
-        *last_obj = NULL;
+        *last_obj = nullptr;
 
         kasan_poison_obj(base, max_objects * slab->obj_size);
         list_add(&slab->list, &slab_caches[index]);
@@ -250,7 +250,7 @@ static void *alloc_slab(int index)
 void *kmalloc(size_t size)
 {
     if (size == 0)
-        return NULL;
+        return nullptr;
 
 #ifdef KASAN
     size_t padded = size + 2 * KASAN_REDZONE_SIZE;
@@ -351,7 +351,7 @@ void *krealloc(void *ptr, size_t new_size)
     if (new_size == 0)
     {
         kfree(ptr);
-        return NULL;
+        return nullptr;
     }
 
     uint64_t addr = (uint64_t)ptr;
@@ -361,7 +361,7 @@ void *krealloc(void *ptr, size_t new_size)
     if (header->magic != HEAP_MAGIC)
     {
         boot_message(ERROR, "krealloc: Invalid pointer");
-        return NULL;
+        return nullptr;
     }
 
     size_t old_size = header->obj_size;

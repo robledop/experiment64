@@ -58,7 +58,7 @@ void *malloc(size_t size)
 {
     if (size <= 0)
     {
-        return NULL;
+        return nullptr;
     }
 
     block_meta *block;
@@ -68,7 +68,7 @@ void *malloc(size_t size)
         block = request_space(nullptr, size);
         if (!block)
         {
-            return NULL;
+            return nullptr;
         }
         global_base = block;
     }
@@ -81,7 +81,7 @@ void *malloc(size_t size)
             block = request_space(last, size);
             if (!block)
             {
-                return NULL;
+                return nullptr;
             }
         }
         else
@@ -138,7 +138,7 @@ void *realloc(void *ptr, size_t size)
     void *new_ptr = malloc(size);
     if (!new_ptr)
     {
-        return NULL;
+        return nullptr;
     }
 
     memcpy(new_ptr, ptr, block_ptr->size);

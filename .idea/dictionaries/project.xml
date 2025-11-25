@@ -1,12 +1,23 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>asfiles</w>
+      <w>bfree</w>
+      <w>blockdevice</w>
+      <w>bsize</w>
+      <w>bzero</w>
+      <w>cfiles</w>
       <w>chardevice</w>
       <w>devfs</w>
       <w>distclean</w>
+      <w>dtime</w>
       <w>finddir</w>
       <w>fsize</w>
       <w>hhdm</w>
+      <w>ifree</w>
+      <w>iget</w>
+      <w>ilock</w>
+      <w>iupdate</w>
       <w>kasan</w>
       <w>lalt</w>
       <w>lctrl</w>
@@ -14,8 +25,17 @@
       <w>masix</w>
       <w>mountpoint</w>
       <w>msyntax</w>
+      <w>nbits</w>
+      <w>ndev</w>
+      <w>pathlib</w>
+      <w>poff</w>
+      <w>prio</w>
+      <w>readi</w>
       <w>redzone</w>
       <w>redzones</w>
+      <w>returncode</w>
+      <w>rflags</w>
+      <w>setjmp</w>
       <w>usercopy</w>
     </words>
   </dictionary>

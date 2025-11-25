@@ -39,14 +39,14 @@ typedef struct
 
 struct inode_operations
 {
-    uint64_t (*read)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-    uint64_t (*write)(struct vfs_inode *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-    void (*open)(struct vfs_inode *node);
-    void (*close)(struct vfs_inode *node);
-    vfs_dirent_t *(*readdir)(struct vfs_inode *node, uint32_t index);
-    struct vfs_inode *(*finddir)(const struct vfs_inode *node, const char *name);
-    struct vfs_inode *(*clone)(struct vfs_inode *node);
-    int (*mknod)(struct vfs_inode *node, char *name, int mode, int dev);
+    uint64_t (*read)(const struct vfs_inode* node, uint64_t offset, uint64_t size, uint8_t* buffer);
+    uint64_t (*write)(struct vfs_inode* node, uint64_t offset, uint64_t size, uint8_t* buffer);
+    void (*open)(const struct vfs_inode* node);
+    void (*close)(struct vfs_inode* node);
+    vfs_dirent_t*(*readdir)(const struct vfs_inode* node, uint32_t index);
+    struct vfs_inode*(*finddir)(const struct vfs_inode* node, const char* name);
+    struct vfs_inode*(*clone)(const struct vfs_inode* node);
+    int (*mknod)(const struct vfs_inode* node, const char* name, int mode, int dev);
 };
 
 typedef struct vfs_inode
@@ -54,22 +54,22 @@ typedef struct vfs_inode
     uint32_t flags;
     uint32_t inode;
     uint64_t size;
-    struct inode_operations *iops;
-    struct vfs_inode *ptr; // Used for mount points and symlinks
-    void *device;          // Private data for the driver
+    struct inode_operations* iops;
+    struct vfs_inode* ptr; // Used for mount points and symlinks
+    void* device; // Private data for the driver
 } vfs_inode_t;
 
-extern vfs_inode_t *vfs_root;
+extern vfs_inode_t* vfs_root;
 
 void vfs_init();
-uint64_t vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-uint64_t vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
-void vfs_open(vfs_inode_t *node);
-void vfs_close(vfs_inode_t *node);
-vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index);
-vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
-vfs_inode_t *vfs_resolve_path(const char *path);
-int vfs_mknod(char *path, int mode, int dev);
+uint64_t vfs_read(vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer);
+uint64_t vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer);
+void vfs_open(vfs_inode_t* node);
+void vfs_close(vfs_inode_t* node);
+vfs_dirent_t* vfs_readdir(vfs_inode_t* node, uint32_t index);
+vfs_inode_t* vfs_finddir(vfs_inode_t* node, char* name);
+vfs_inode_t* vfs_resolve_path(const char* path);
+int vfs_mknod(char* path, int mode, int dev);
 
 void vfs_mount_root(void);
-void vfs_register_mount(const char *name, vfs_inode_t *root);
+void vfs_register_mount(const char* name, vfs_inode_t* root);

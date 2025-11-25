@@ -43,4 +43,4 @@ typedef struct
 typedef void (*partition_callback_t)(partition_info_t *part);
 
 void gpt_read_partitions(uint8_t drive, partition_callback_t callback);
-const char *gpt_get_guid_name(uint8_t *type_guid);
+const char *gpt_get_guid_name(const uint8_t *type_guid);

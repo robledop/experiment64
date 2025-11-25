@@ -30,7 +30,7 @@ typedef struct
     Elf64_Half e_shstrndx;     /* Section name string table index */
 } Elf64_Ehdr;
 
-#define PT_NULL 0
+#define PT_nullptr 0
 #define PT_LOAD 1
 #define PT_DYNAMIC 2
 #define PT_INTERP 3

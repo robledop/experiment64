@@ -277,17 +277,17 @@ struct icache
 };
 
 void ext2fs_readsb(int dev, struct ext2_super_block* sb);
-int ext2fs_dirlink(struct ext2_inode*, char*, uint32_t);
-struct ext2_inode* ext2fs_dirlookup(struct ext2_inode*, const char*, uint32_t*);
+int ext2fs_dirlink(struct ext2_inode*, const char*, uint32_t);
+struct ext2_inode* ext2fs_dirlookup(const struct ext2_inode*, const char*, uint32_t*);
 struct ext2_inode* ext2fs_ialloc(uint32_t, short);
-void ext2fs_iinit(int dev);
+void ext2_init_inode(int dev);
 void ext2fs_ilock(struct ext2_inode*);
 void ext2fs_iput(struct ext2_inode*);
 void ext2fs_iunlock(struct ext2_inode*);
 void ext2fs_iunlockput(struct ext2_inode*);
-void ext2fs_iupdate(struct ext2_inode*);
-int ext2fs_readi(struct ext2_inode*, char*, uint32_t, uint32_t);
-void ext2fs_stati(struct ext2_inode*, struct stat*);
-int ext2fs_writei(struct ext2_inode*, char*, uint32_t, uint32_t);
+void ext2fs_iupdate(const struct ext2_inode*);
+int ext2_read_inode(const struct ext2_inode*, char*, uint32_t, uint32_t);
+void ext2_stat_inode(const struct ext2_inode*, struct stat*);
+int ext2_write_inode(struct ext2_inode*, const char*, uint32_t, uint32_t);
 
 vfs_inode_t* ext2_mount(uint8_t drive_index, uint32_t partition_lba);

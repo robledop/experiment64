@@ -59,21 +59,21 @@ TEST(test_bmp_load_valid)
     vfs_mknod((char *)filename, VFS_FILE, 0);
     vfs_inode_t *node = vfs_resolve_path(filename);
 
-    ASSERT(node != NULL);
+    TEST_ASSERT(node != nullptr);
 
     // Truncate/Overwrite
-    ASSERT(vfs_write(node, 0, sizeof(bmp_data), bmp_data) == sizeof(bmp_data));
+    TEST_ASSERT(vfs_write(node, 0, sizeof(bmp_data), bmp_data) == sizeof(bmp_data));
     vfs_close(node);
 
     // Load it back
-    uint32_t *out_pixels = NULL;
+    uint32_t *out_pixels = nullptr;
     uint32_t w = 0, h = 0;
     int result = bitmap_load_argb(filename, &out_pixels, &w, &h);
 
-    ASSERT(result == 0);
-    ASSERT(out_pixels != NULL);
-    ASSERT(w == 2);
-    ASSERT(h == 2);
+    TEST_ASSERT(result == 0);
+    TEST_ASSERT(out_pixels != nullptr);
+    TEST_ASSERT(w == 2);
+    TEST_ASSERT(h == 2);
 
     // Verify pixels
     // The loader converts bottom-up BMP to top-down buffer.
@@ -89,9 +89,9 @@ TEST(test_bmp_load_valid)
     // ARGB: FF FF 00 00. -> 0xFFFF0000.
 
     // Pixel at (0,0) (Top-Left) -> Index 0. Should be Blue.
-    ASSERT(out_pixels[0] == 0xFF0000FF);
+    TEST_ASSERT(out_pixels[0] == 0xFF0000FF);
     // Pixel at (0,1) (Bottom-Left) -> Index 2. Should be Red.
-    ASSERT(out_pixels[2] == 0xFFFF0000);
+    TEST_ASSERT(out_pixels[2] == 0xFFFF0000);
 
     kfree(out_pixels);
     return true;
@@ -101,7 +101,7 @@ TEST(test_bmp_invalid_file)
 {
     uint32_t *p;
     uint32_t w, h;
-    ASSERT(bitmap_load_argb("nonexistent_bmp_file.bmp", &p, &w, &h) != 0);
+    TEST_ASSERT(bitmap_load_argb("nonexistent_bmp_file.bmp", &p, &w, &h) != 0);
     return true;
 }
 
@@ -115,12 +115,12 @@ TEST(test_bmp_bad_header)
     const char *filename = "bad.bmp";
     vfs_mknod((char *)filename, VFS_FILE, 0);
     vfs_inode_t *node = vfs_resolve_path(filename);
-    ASSERT(node != NULL);
+    TEST_ASSERT(node != nullptr);
     vfs_write(node, 0, sizeof(bad_data), bad_data);
     vfs_close(node);
 
     uint32_t *p;
     uint32_t w, h;
-    ASSERT(bitmap_load_argb(filename, &p, &w, &h) != 0);
+    TEST_ASSERT(bitmap_load_argb(filename, &p, &w, &h) != 0);
     return true;
 }

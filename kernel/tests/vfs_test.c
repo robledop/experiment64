@@ -158,11 +158,11 @@ TEST(test_vfs_path_canonicalization)
 {
     // test.txt is seeded into rootfs; resolve via dotted path segments.
     vfs_inode_t *node = vfs_resolve_path("/./test.txt");
-    ASSERT(node != NULL);
+    TEST_ASSERT(node != nullptr);
     kfree(node);
 
     node = vfs_resolve_path("/bin/../test.txt");
-    ASSERT(node != NULL);
+    TEST_ASSERT(node != nullptr);
     kfree(node);
     return true;
 }
@@ -175,6 +175,6 @@ TEST(test_vfs_path_overlength_rejected)
     longpath[0] = '/';
     longpath[sizeof(longpath) - 1] = '\0';
     vfs_inode_t *node = vfs_resolve_path(longpath);
-    ASSERT(node == NULL);
+    TEST_ASSERT(node == nullptr);
     return true;
 }

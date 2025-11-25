@@ -7,7 +7,6 @@
 #include "pmm.h"
 #include "process.h"
 #include "keyboard.h"
-#include "uart.h"
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,7 +28,8 @@ static int clamp_u64_to_int(uint64_t value)
     return (int)value;
 }
 
-static bool prepare_user_buffer(void *addr, size_t size, bool is_write)
+// ReSharper disable once CppDFAConstantFunctionResult
+static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
 {
     (void)is_write;
     if (!addr || size == 0)
@@ -54,6 +54,7 @@ static bool copy_to_user(void *dst, const void *src, size_t size)
 {
     if (!dst || !src)
         return false;
+    // ReSharper disable once CppDFAConstantConditions
     if (!prepare_user_buffer(dst, size, true))
         return false;
     memcpy(dst, src, size);
@@ -64,6 +65,7 @@ static bool __attribute__((unused)) copy_from_user(void *dst, const void *src, s
 {
     if (!dst || !src)
         return false;
+    // ReSharper disable once CppDFAConstantConditions
     if (!prepare_user_buffer((void *)src, size, false))
         return false;
     memcpy(dst, src, size);
@@ -270,7 +272,7 @@ void syscall_init(void)
     }
 }
 
-static void (*exit_hook)(int) = NULL;
+static void (*exit_hook)(int) = nullptr;
 
 void syscall_set_exit_hook(void (*hook)(int))
 {
@@ -340,7 +342,7 @@ void spawn_trampoline(void)
         "push %3\n"      // CS
         "push %4\n"      // RIP
         "xor rdi, rdi\n" // argc = 0
-        "xor rsi, rsi\n" // argv = NULL
+        "xor rsi, rsi\n" // argv = nullptr
         "iretq\n"
         :
         : "r"(user_ss), "r"(stack), "r"(rflags), "r"(user_cs), "r"(entry)
@@ -408,7 +410,7 @@ int sys_fork(struct syscall_regs *regs)
     process_copy_fds(child_proc, current_process);
 
     // Create Thread
-    thread_t *child_thread = thread_create(child_proc, NULL, true);
+    thread_t *child_thread = thread_create(child_proc, nullptr, true);
     if (!child_thread)
         return -1;
 
@@ -719,7 +721,7 @@ int sys_open(const char *path)
     int fd = -1;
     for (int i = 3; i < MAX_FDS; i++)
     {
-        if (current_process->fd_table[i] == NULL)
+        if (current_process->fd_table[i] == nullptr)
         {
             fd = i;
             break;
@@ -758,7 +760,7 @@ int sys_close(int fd)
         kfree(desc->inode);
     }
     kfree(desc);
-    current_process->fd_table[fd] = NULL;
+    current_process->fd_table[fd] = nullptr;
     return 0;
 }
 

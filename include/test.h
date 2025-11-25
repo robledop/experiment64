@@ -3,12 +3,14 @@
 #include <stdbool.h>
 #include "terminal.h"
 
-#define ASSERT(condition)                                                                    \
-    if (!(condition))                                                                        \
-    {                                                                                        \
-        printk("\033[31mTEST FAILED: %s at %s:%d\033[0m\n", #condition, __FILE__, __LINE__); \
-        return false;                                                                        \
-    }
+#define TEST_ASSERT(condition)                                                                            \
+    do                                                                                                    \
+    {                                                                                                     \
+        if (!(condition))                                                                                 \
+        {                                                                                                 \
+            test_mark_failure(__FILE__, __LINE__, #condition);                                            \
+        }                                                                                                 \
+    } while (0)
 
 typedef bool (*test_func_t)(void);
 
@@ -33,3 +35,5 @@ void run_tests(void);
 void heap_test(void);
 bool bio_test(void);
 extern volatile const char *g_current_test_name;
+extern volatile bool g_test_failed;
+void test_mark_failure(const char *file, int line, const char *expr);

@@ -18,7 +18,7 @@ static const uint8_t LINUX_FILESYSTEM_GUID[16] = {
     0xAF, 0x3D, 0xC6, 0x0F, 0x83, 0x84, 0x72, 0x47,
     0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4};
 
-const char *gpt_get_guid_name(uint8_t *type_guid)
+const char *gpt_get_guid_name(const uint8_t *type_guid)
 {
     if (memcmp(type_guid, EFI_SYSTEM_PARTITION_GUID, 16) == 0)
         return "EFI System Partition";

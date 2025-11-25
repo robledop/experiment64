@@ -6,7 +6,7 @@
 #include "console.h"
 #include "devfs.h"
 
-uint64_t console_read([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size, uint8_t *buffer)
+uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size, uint8_t *buffer)
 {
     for (uint64_t i = 0; i < size; i++)
     {
@@ -26,7 +26,7 @@ struct inode_operations console_ops = {
     .write = console_write,
 };
 
-vfs_inode_t *console_device = NULL;
+vfs_inode_t *console_device = nullptr;
 
 void console_init()
 {

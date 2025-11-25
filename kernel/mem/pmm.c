@@ -9,7 +9,7 @@ __attribute__((used, section(".requests"))) static volatile struct limine_memmap
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0};
 
-static uint8_t *bitmap = NULL;
+static uint8_t *bitmap = nullptr;
 static size_t bitmap_size = 0;
 static size_t highest_page = 0;
 static uint64_t highest_addr = 0;
@@ -32,7 +32,7 @@ static int bitmap_test(size_t bit)
 
 void pmm_init(uint64_t hhdm_offset)
 {
-    if (memmap_request.response == NULL)
+    if (memmap_request.response == nullptr)
     {
         boot_message(ERROR, "Error: Limine memmap request failed");
         for (;;)
@@ -74,7 +74,7 @@ void pmm_init(uint64_t hhdm_offset)
         }
     }
 
-    if (bitmap == NULL)
+    if (bitmap == nullptr)
     {
         boot_message(ERROR, "Error: Could not find memory for PMM bitmap");
         for (;;)
@@ -131,7 +131,7 @@ void *pmm_alloc_page(void)
                 return addr;
             }
         }
-    return NULL; // Out of memory
+    return nullptr; // Out of memory
 }
 
 void pmm_free_page(void *ptr)
@@ -183,7 +183,7 @@ void *pmm_alloc_pages(size_t count)
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void pmm_free_pages(void *ptr, size_t count)

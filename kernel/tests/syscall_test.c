@@ -352,7 +352,7 @@ TEST(test_syscall_write_exit)
         }
 
         // Cleanup
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
 
         return passed;
     }
@@ -412,7 +412,7 @@ TEST(test_syscall_getpid)
         }
 
         // Cleanup
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
 
         return passed;
     }
@@ -472,7 +472,7 @@ TEST(test_syscall_yield)
         }
 
         // Cleanup
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
 
         return passed;
     }
@@ -536,7 +536,7 @@ TEST(test_syscall_spawn)
         }
 
         // Cleanup
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
 
         return passed;
     }
@@ -596,7 +596,7 @@ TEST(test_syscall_fork)
         }
 
         // Cleanup
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
 
         return passed;
     }
@@ -637,7 +637,7 @@ TEST(test_syscall_sbrk)
             printk("Syscall Test: SBRK successful\n");
         else
             printk("Syscall Test: SBRK failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -680,7 +680,7 @@ TEST(test_syscall_file_io)
             printk("Syscall Test: FileIO successful\n");
         else
             printk("Syscall Test: FileIO failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -720,7 +720,7 @@ TEST(test_syscall_chdir)
             printk("Syscall Test: CHDIR successful\n");
         else
             printk("Syscall Test: CHDIR failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -757,7 +757,7 @@ TEST(test_syscall_sleep)
             printk("Syscall Test: SLEEP successful\n");
         else
             printk("Syscall Test: SLEEP failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -799,7 +799,7 @@ TEST(test_syscall_exec)
             printk("Syscall Test: EXEC successful\n");
         else
             printk("Syscall Test: EXEC failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -851,7 +851,7 @@ TEST_PRIO(test_syscall_mknod, 10)
         }
         else
             printk("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(NULL);
+        syscall_set_exit_hook(nullptr);
         return passed;
     }
 }
@@ -859,20 +859,20 @@ TEST_PRIO(test_syscall_mknod, 10)
 TEST(test_syscall_invalid_paths_and_fds)
 {
     // Empty path rejected.
-    ASSERT(sys_open("") == -1);
-    ASSERT(sys_chdir("") == -1);
+    TEST_ASSERT(sys_open("") == -1);
+    TEST_ASSERT(sys_chdir("") == -1);
 
     // chdir to non-directory should fail.
-    ASSERT(sys_chdir("/bin/init") == -1);
+    TEST_ASSERT(sys_chdir("/bin/init") == -1);
 
     char buf[8];
     int fd = sys_open("/bin/init");
-    ASSERT(fd >= 0);
-    ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_close(fd) == 0);
 
     // Read on closed/invalid descriptors should return 0.
-    ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
-    ASSERT(sys_read(42, buf, sizeof(buf)) == 0);
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
+    TEST_ASSERT(sys_read(42, buf, sizeof(buf)) == 0);
     return true;
 }
 
@@ -880,6 +880,6 @@ TEST(test_syscall_exec_nonexistent_path)
 {
     struct syscall_regs dummy = {0};
     int res = sys_exec("/does/not/exist", &dummy);
-    ASSERT(res < 0);
+    TEST_ASSERT(res < 0);
     return true;
 }

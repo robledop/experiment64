@@ -69,7 +69,7 @@ void kernel_splash(void)
         return;
     }
 
-    uint32_t *pixels = NULL;
+    uint32_t *pixels = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
     if (bitmap_load_argb("/boot/logo.bmp", &pixels, &width, &height) != 0 || !pixels)

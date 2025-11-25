@@ -48,8 +48,8 @@ static inline void __list_del(list_head_t *prev, list_head_t *next)
 static inline void list_del(list_head_t *entry)
 {
     __list_del(entry->prev, entry->next);
-    entry->next = NULL;
-    entry->prev = NULL;
+    entry->next = nullptr;
+    entry->prev = nullptr;
 }
 
 static inline bool list_empty(const list_head_t *head)

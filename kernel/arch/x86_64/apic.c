@@ -148,13 +148,13 @@ void apic_init(void)
     pic_disable();
 
     struct madt *madt = acpi_find_table("APIC");
-    if (madt == NULL)
+    if (madt == nullptr)
     {
         boot_message(ERROR, "APIC: MADT not found!");
         return;
     }
 
-    if (hhdm_request.response == NULL)
+    if (hhdm_request.response == nullptr)
     {
         boot_message(ERROR, "APIC: HHDM response not found!");
         return;

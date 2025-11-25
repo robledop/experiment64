@@ -281,7 +281,7 @@ int main(void)
             while (*arg == ' ')
                 arg++;
 
-            char *endptr = NULL;
+            char *endptr = nullptr;
             long parsed = (*arg) ? strtol(arg, &endptr, 10) : 0;
             if (endptr == arg || parsed < 0)
                 parsed = 0;

@@ -7,13 +7,13 @@ TEST(test_spinlock_basic)
     spinlock_t lock;
     spinlock_init(&lock);
 
-    ASSERT(!lock.locked);
+    TEST_ASSERT(!lock.locked);
 
     spinlock_acquire(&lock);
-    ASSERT(lock.locked);
+    TEST_ASSERT(lock.locked);
 
     spinlock_release(&lock);
-    ASSERT(!lock.locked);
+    TEST_ASSERT(!lock.locked);
     return true;
 }
 
@@ -47,11 +47,11 @@ TEST(test_spinlock_contention)
     printk("Main: Creating process...\n");
     // Create a kernel process/thread for testing
     process_t *proc = process_create("spinlock_test_proc");
-    ASSERT(proc != NULL);
+    TEST_ASSERT(proc != nullptr);
 
     printk("Main: Creating thread...\n");
     thread_t *t = thread_create(proc, contention_thread, false);
-    ASSERT(t != NULL);
+    TEST_ASSERT(t != nullptr);
 
     // Acquire lock in main thread
     spinlock_acquire(&g_lock);
@@ -66,7 +66,7 @@ TEST(test_spinlock_contention)
     }
 
     // We still hold the lock, so the other thread should not have incremented counter
-    ASSERT(g_counter == 0);
+    TEST_ASSERT(g_counter == 0);
 
     // Release lock
     spinlock_release(&g_lock);
@@ -82,7 +82,7 @@ TEST(test_spinlock_contention)
         timeout--;
     }
 
-    ASSERT(g_thread_done);
-    ASSERT(g_counter == 1);
+    TEST_ASSERT(g_thread_done);
+    TEST_ASSERT(g_counter == 1);
     return true;
 }

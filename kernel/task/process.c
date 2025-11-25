@@ -11,8 +11,8 @@
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
-process_t *kernel_process = NULL;
-thread_t *idle_thread = NULL;
+process_t *kernel_process = nullptr;
+thread_t *idle_thread = nullptr;
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
@@ -150,7 +150,7 @@ process_t *process_create(const char *name)
 {
     process_t *proc = kmalloc(sizeof(process_t));
     if (!proc)
-        return NULL;
+        return nullptr;
     memset(proc, 0, sizeof(process_t));
 
     spinlock_acquire(&scheduler_lock);
@@ -211,14 +211,14 @@ void process_copy_fds(process_t *dest, process_t *src)
                 }
                 else
                 {
-                    new_desc->inode = NULL;
+                    new_desc->inode = nullptr;
                 }
                 dest->fd_table[i] = new_desc;
             }
         }
         else
         {
-            dest->fd_table[i] = NULL;
+            dest->fd_table[i] = nullptr;
         }
     }
 }
@@ -257,7 +257,7 @@ void process_destroy(process_t *proc)
                 }
             }
             kfree(desc);
-            proc->fd_table[i] = NULL;
+            proc->fd_table[i] = nullptr;
         }
     }
 
@@ -282,7 +282,7 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
 {
     thread_t *thread = kmalloc(sizeof(thread_t));
     if (!thread)
-        return NULL;
+        return nullptr;
     memset(thread, 0, sizeof(thread_t));
 
     spinlock_acquire(&scheduler_lock);
@@ -299,7 +299,7 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
     if (!stack)
     {
         kfree(thread);
-        return NULL;
+        return nullptr;
     }
     thread->kstack_top = (uint64_t)stack + 16384;
 
@@ -332,7 +332,7 @@ thread_t *get_current_thread(void)
 {
     cpu_t *cpu = get_cpu();
     if (!cpu)
-        return NULL;
+        return nullptr;
     return cpu->active_thread;
 }
 
@@ -341,7 +341,7 @@ process_t *get_current_process(void)
     thread_t *t = get_current_thread();
     if (t)
         return t->process;
-    return NULL;
+    return nullptr;
 }
 
 // Internal scheduler function. Assumes scheduler_lock is held.
@@ -360,7 +360,7 @@ static void sched(void)
     }
 #endif
 
-    thread_t *next_thread = NULL;
+    thread_t *next_thread = nullptr;
     if (!curr)
         return;
 
@@ -531,7 +531,7 @@ void thread_sleep(void *chan, spinlock_t *lock)
 
     sched();
 
-    curr->chan = NULL;
+    curr->chan = nullptr;
 
     if (lock != &scheduler_lock)
     {
@@ -561,7 +561,7 @@ void thread_wakeup(void *chan)
             if (t->state == THREAD_BLOCKED && t->chan == chan)
             {
                 t->state = THREAD_READY;
-                t->chan = NULL;
+                t->chan = nullptr;
             }
         }
     }

@@ -148,7 +148,7 @@ void idt_init(void)
         // If we wanted to allow nested interrupts (e.g. for system calls or non-critical exceptions),
         // we would use Trap Gates (0x0F) here.
         idt_set_gate(i, (uint64_t)isr_stub_table[i], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING0 | IDT_FLAG_INTGATE);
-        isr_handlers[i] = NULL;
+        isr_handlers[i] = nullptr;
     }
 
     register_interrupt_handler(IRQ_BASE + 0, timer_isr);

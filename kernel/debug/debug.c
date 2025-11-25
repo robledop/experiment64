@@ -3,20 +3,23 @@
 #include "limine.h"
 #include "terminal.h"
 #include "cpu.h"
-#include "string.h"
 #include <kernel.h>
 #include <stdarg.h>
 #include <stdbool.h>
+
+#ifdef TEST_MODE
 #include "test.h"
+#endif
 
 __attribute__((used, section(".requests"))) static volatile struct limine_kernel_file_request kernel_file_request = {
     .id = LIMINE_KERNEL_FILE_REQUEST,
-    .revision = 0};
+    .revision = 0
+};
 
-static Elf64_Shdr *elf_section_headers = NULL;
-static char *strtab = NULL;
+static Elf64_Shdr* elf_section_headers = nullptr;
+static char* strtab = nullptr;
 static uint64_t strtab_size = 0;
-static Elf64_Sym *symtab = NULL;
+static Elf64_Sym* symtab = nullptr;
 static uint64_t symtab_size = 0;
 
 #ifdef TEST_MODE
@@ -87,21 +90,21 @@ void panic_trap_mark_hit(void)
 void debug_init(void)
 {
     boot_message(INFO, "DEBUG: Initializing debug symbols...");
-    if (kernel_file_request.response == NULL || kernel_file_request.response->kernel_file == NULL)
+    if (kernel_file_request.response == nullptr || kernel_file_request.response->kernel_file == nullptr)
     {
         boot_message(ERROR, "DEBUG: No kernel file found.");
         return;
     }
 
-    struct limine_file *kernel_file = kernel_file_request.response->kernel_file;
-    if (kernel_file->address == NULL)
+    struct limine_file* kernel_file = kernel_file_request.response->kernel_file;
+    if (kernel_file->address == nullptr)
     {
-        boot_message(ERROR, "DEBUG: Kernel file address is NULL.");
+        boot_message(ERROR, "DEBUG: Kernel file address is nullptr.");
         return;
     }
     boot_message(INFO, "DEBUG: Kernel file at %p, size %lx", kernel_file->address, kernel_file->size);
 
-    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)kernel_file->address;
+    Elf64_Ehdr* ehdr = (Elf64_Ehdr*)kernel_file->address;
 
     if (ehdr->e_ident[0] != 0x7F || ehdr->e_ident[1] != 'E' || ehdr->e_ident[2] != 'L' || ehdr->e_ident[3] != 'F')
     {
@@ -115,14 +118,14 @@ void debug_init(void)
         return;
     }
 
-    elf_section_headers = (Elf64_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
+    elf_section_headers = (Elf64_Shdr*)((uint8_t*)ehdr + ehdr->e_shoff);
     boot_message(INFO, "DEBUG: Section headers at %p", elf_section_headers);
 
-    Elf64_Shdr *symtab_shdr = NULL;
+    Elf64_Shdr* symtab_shdr = nullptr;
 
     for (int i = 0; i < ehdr->e_shnum; i++)
     {
-        Elf64_Shdr *shdr = &elf_section_headers[i];
+        Elf64_Shdr* shdr = &elf_section_headers[i];
         if (shdr->sh_type == SHT_SYMTAB)
         {
             symtab_shdr = shdr;
@@ -139,22 +142,22 @@ void debug_init(void)
             return;
         }
 
-        symtab = (Elf64_Sym *)((uint8_t *)ehdr + symtab_shdr->sh_offset);
+        symtab = (Elf64_Sym*)((uint8_t*)ehdr + symtab_shdr->sh_offset);
         symtab_size = symtab_shdr->sh_size / sizeof(Elf64_Sym);
         boot_message(INFO, "DEBUG: Symtab at %p, size %ld", symtab, symtab_size);
 
         if (symtab_shdr->sh_link < ehdr->e_shnum)
         {
-            Elf64_Shdr *strtab_shdr = &elf_section_headers[symtab_shdr->sh_link];
+            Elf64_Shdr* strtab_shdr = &elf_section_headers[symtab_shdr->sh_link];
             if (strtab_shdr->sh_type == SHT_STRTAB)
             {
                 if (strtab_shdr->sh_offset + strtab_shdr->sh_size > kernel_file->size)
                 {
                     boot_message(ERROR, "DEBUG: String table out of bounds.");
-                    symtab = NULL;
+                    symtab = nullptr;
                     return;
                 }
-                strtab = (char *)((uint8_t *)ehdr + strtab_shdr->sh_offset);
+                strtab = (char*)((uint8_t*)ehdr + strtab_shdr->sh_offset);
                 strtab_size = strtab_shdr->sh_size;
                 boot_message(INFO, "DEBUG: Strtab at %p, size %ld", strtab, strtab_size);
             }
@@ -167,14 +170,14 @@ void debug_init(void)
     }
 }
 
-static const char *get_symbol_name(uint64_t address, uint64_t *offset)
+static const char* get_symbol_name(uint64_t address, uint64_t* offset)
 {
     if (!symtab || !strtab)
-        return NULL;
+        return nullptr;
 
     for (uint64_t i = 0; i < symtab_size; i++)
     {
-        Elf64_Sym *sym = &symtab[i];
+        Elf64_Sym* sym = &symtab[i];
         if (address >= sym->st_value && address < sym->st_value + sym->st_size)
         {
             *offset = address - sym->st_value;
@@ -182,10 +185,13 @@ static const char *get_symbol_name(uint64_t address, uint64_t *offset)
                 return strtab + sym->st_name;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
-void panic(const char *fmt, ...)
+#if !defined(TEST_MODE)
+[[noreturn]]
+#endif
+void panic(const char* fmt, ...)
 {
     __asm__ volatile("cli");
 
@@ -220,6 +226,7 @@ void panic(const char *fmt, ...)
 #endif
 
     hcf();
+    __builtin_unreachable();
 }
 
 void stack_trace(void)
@@ -228,24 +235,24 @@ void stack_trace(void)
 
     struct stack_frame
     {
-        struct stack_frame *rbp;
+        struct stack_frame* rbp;
         uint64_t rip;
     };
 
-    struct stack_frame *stack = (struct stack_frame *)__builtin_frame_address(0);
+    struct stack_frame* stack = (struct stack_frame*)__builtin_frame_address(0);
 
     while (stack)
     {
         uint64_t offset = 0;
-        const char *symbol = get_symbol_name(stack->rip, &offset);
+        const char* symbol = get_symbol_name(stack->rip, &offset);
 
         if (symbol)
         {
-            printk("  [%p] <%s+%p>\n", (void *)stack->rip, symbol, (void *)offset);
+            printk("  [%p] <%s+%p>\n", (void*)stack->rip, symbol, (void*)offset);
         }
         else
         {
-            printk("  [%p]\n", (void *)stack->rip);
+            printk("  [%p]\n", (void*)stack->rip);
         }
 
         stack = stack->rbp;

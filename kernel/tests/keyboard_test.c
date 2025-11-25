@@ -19,25 +19,25 @@ TEST(test_keyboard_basic_and_modifiers)
     // Simple characters
     keyboard_inject_scancode(SC_A);
     keyboard_inject_scancode(SC_B);
-    ASSERT(keyboard_get_char() == 'a');
-    ASSERT(keyboard_get_char() == 'b');
+    TEST_ASSERT(keyboard_get_char() == 'a');
+    TEST_ASSERT(keyboard_get_char() == 'b');
 
     // CapsLock toggles case for letters.
     keyboard_inject_scancode(SC_CAPSLOCK);
     keyboard_inject_scancode(SC_A);
-    ASSERT(keyboard_get_char() == 'A');
+    TEST_ASSERT(keyboard_get_char() == 'A');
 
     // Shift + letter -> uppercase
     keyboard_inject_scancode(SC_SHIFT_PRESS);
     keyboard_inject_scancode(SC_B);
     keyboard_inject_scancode(SC_SHIFT_RELEASE);
-    ASSERT(keyboard_get_char() == 'b'); // caps + shift cancels to lowercase
+    TEST_ASSERT(keyboard_get_char() == 'b'); // caps + shift cancels to lowercase
 
     // Ctrl + letter -> control code
     keyboard_inject_scancode(SC_CTRL_PRESS);
     keyboard_inject_scancode(SC_C);
     keyboard_inject_scancode(SC_CTRL_RELEASE);
-    ASSERT(keyboard_get_char() == 3); // CTRL+C
+    TEST_ASSERT(keyboard_get_char() == 3); // CTRL+C
 
     return true;
 }
@@ -54,7 +54,7 @@ TEST(test_keyboard_buffer_wraparound)
     // Drain half
     for (int i = 0; i < 50; i++)
     {
-        ASSERT(keyboard_get_char() == 'a');
+        TEST_ASSERT(keyboard_get_char() == 'a');
     }
 
     // Add another 60 'b's to wrap write pointer
@@ -66,13 +66,13 @@ TEST(test_keyboard_buffer_wraparound)
     // Consume remaining 110 chars: 50 'a' + 60 'b'
     for (int i = 0; i < 50; i++)
     {
-        ASSERT(keyboard_get_char() == 'a');
+        TEST_ASSERT(keyboard_get_char() == 'a');
     }
     for (int i = 0; i < 60; i++)
     {
-        ASSERT(keyboard_get_char() == 'b');
+        TEST_ASSERT(keyboard_get_char() == 'b');
     }
 
-    ASSERT(!keyboard_has_char());
+    TEST_ASSERT(!keyboard_has_char());
     return true;
 }

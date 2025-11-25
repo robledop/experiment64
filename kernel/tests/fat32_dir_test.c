@@ -99,18 +99,18 @@ TEST(test_fat32_directory_cluster_spill_and_delete)
     {
         snprintk(filename, sizeof(filename), "EDGEDIR/F%d.TXT", i);
         uint8_t payload = (uint8_t)(i & 0xFF);
-        ASSERT(fat32_write_file(&test_fs, filename, &payload, 1) == 0);
+        TEST_ASSERT(fat32_write_file(&test_fs, filename, &payload, 1) == 0);
         fat32_file_info_t info;
-        ASSERT(fat32_stat(&test_fs, filename, &info) == 0);
+        TEST_ASSERT(fat32_stat(&test_fs, filename, &info) == 0);
     }
 
     // Delete a middle and last entry, ensure stat fails afterward.
-    ASSERT(fat32_delete_file(&test_fs, "EDGEDIR/F5.TXT") == 0);
+    TEST_ASSERT(fat32_delete_file(&test_fs, "EDGEDIR/F5.TXT") == 0);
     fat32_file_info_t info;
-    ASSERT(fat32_stat(&test_fs, "EDGEDIR/F5.TXT", &info) != 0);
+    TEST_ASSERT(fat32_stat(&test_fs, "EDGEDIR/F5.TXT", &info) != 0);
 
-    ASSERT(fat32_delete_file(&test_fs, "EDGEDIR/F23.TXT") == 0);
-    ASSERT(fat32_stat(&test_fs, "EDGEDIR/F23.TXT", &info) != 0);
+    TEST_ASSERT(fat32_delete_file(&test_fs, "EDGEDIR/F23.TXT") == 0);
+    TEST_ASSERT(fat32_stat(&test_fs, "EDGEDIR/F23.TXT", &info) != 0);
 
     // Clean up remaining files
     for (int i = 0; i < file_count; i++)
@@ -131,6 +131,6 @@ TEST(test_fat32_long_name_rejected)
 
     const char *longname = "VERY_LONG_FILE_NAME_THAT_SHOULD_FAIL.TXT";
     int res = fat32_write_file(&test_fs, longname, (uint8_t *)"x", 1);
-    ASSERT(res != 0); // Short-name implementation should reject long names.
+    TEST_ASSERT(res != 0); // Short-name implementation should reject long names.
     return true;
 }

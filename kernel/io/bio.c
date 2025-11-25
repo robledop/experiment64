@@ -79,21 +79,21 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
     }
 
     printk("BIO: No free buffers!\n");
-    return NULL;
+    return nullptr;
 }
 
 buffer_head_t *bread(uint8_t device, uint32_t block)
 {
     buffer_head_t *bh = get_blk(device, block);
     if (!bh)
-        return NULL;
+        return nullptr;
 
     if (!(bh->flags & BIO_FLAG_VALID))
     {
         if (ide_read_sectors(device, block, 1, bh->data) != 0)
         {
             brelse(bh);
-            return NULL;
+            return nullptr;
         }
         bh->flags |= BIO_FLAG_VALID;
     }

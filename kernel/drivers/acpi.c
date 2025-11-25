@@ -12,15 +12,15 @@ __attribute__((used, section(".requests"))) static volatile struct limine_rsdp_r
 
 void *acpi_find_table(const char *signature)
 {
-    if (rsdp_request.response == NULL || rsdp_request.response->address == NULL || hhdm_request.response == NULL)
+    if (rsdp_request.response == nullptr || rsdp_request.response->address == nullptr || hhdm_request.response == nullptr)
     {
-        return NULL;
+        return nullptr;
     }
 
     uint64_t hhdm_offset = hhdm_request.response->offset;
     struct rsdp *rsdp = (struct rsdp *)rsdp_request.response->address;
-    struct sdt_header *xsdt = NULL;
-    struct sdt_header *rsdt = NULL;
+    struct sdt_header *xsdt = nullptr;
+    struct sdt_header *rsdt = nullptr;
 
     if (rsdp->revision >= 2 && ((struct xsdp *)rsdp)->xsdt_address != 0)
     {
@@ -31,7 +31,7 @@ void *acpi_find_table(const char *signature)
         rsdt = (struct sdt_header *)((uint64_t)rsdp->rsdt_address + hhdm_offset);
     }
 
-    if (xsdt != NULL)
+    if (xsdt != nullptr)
     {
         size_t entries = (xsdt->length - sizeof(struct sdt_header)) / 8;
         if (entries > (size_t)INT_MAX)
@@ -49,7 +49,7 @@ void *acpi_find_table(const char *signature)
             }
         }
     }
-    else if (rsdt != NULL)
+    else if (rsdt != nullptr)
     {
         size_t entries = (rsdt->length - sizeof(struct sdt_header)) / 4;
         if (entries > (size_t)INT_MAX)
@@ -68,5 +68,5 @@ void *acpi_find_table(const char *signature)
         }
     }
 
-    return NULL;
+    return nullptr;
 }

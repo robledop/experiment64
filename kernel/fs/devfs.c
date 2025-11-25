@@ -30,7 +30,7 @@ vfs_inode_t *devfs_finddir([[maybe_unused]] const vfs_inode_t *node, const char 
     return nullptr;
 }
 
-vfs_dirent_t *devfs_readdir([[maybe_unused]] vfs_inode_t *node, uint32_t index)
+vfs_dirent_t *devfs_readdir([[maybe_unused]] const vfs_inode_t *node, uint32_t index)
 {
     if (index < (uint32_t)device_count)
     {

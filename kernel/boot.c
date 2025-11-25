@@ -27,7 +27,7 @@ void boot_init(void)
         hcf();
     }
 
-    if (hhdm_request.response == NULL)
+    if (hhdm_request.response == nullptr)
     {
         hcf();
     }
@@ -35,7 +35,7 @@ void boot_init(void)
 
 void boot_init_terminal(void)
 {
-    if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1)
+    if (framebuffer_request.response == nullptr || framebuffer_request.response->framebuffer_count < 1)
     {
         hcf();
     }

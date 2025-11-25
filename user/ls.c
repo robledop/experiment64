@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     }
 
     struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL)
+    while ((entry = readdir(dir)) != nullptr)
     {
         printf("%s\n", entry->d_name);
     }

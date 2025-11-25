@@ -12,7 +12,7 @@
 #define KBGRN "\033[1;32m"
 #define KWHT "\033[37m"
 
-static struct limine_framebuffer *terminal_fb = NULL;
+static struct limine_framebuffer *terminal_fb = nullptr;
 static int terminal_x = 0;
 static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
@@ -542,7 +542,10 @@ void vprintk(const char *format, va_list args)
         return;
     }
 #endif
-    vcbprintf(NULL, terminal_putc_callback, format, args);
+    va_list args_copy;
+    va_copy(args_copy, args); // NOLINT(clang-analyzer-security.VAList)
+    vcbprintf(nullptr, terminal_putc_callback, format, &args_copy);
+    va_end(args_copy);
 }
 
 void printk(const char *format, ...)
@@ -572,6 +575,6 @@ void boot_message(t level, const char *fmt, ...)
     va_start(ap, fmt);
     char buf[512];
     vsnprintk(buf, sizeof(buf), fmt, ap);
-    va_end(ap);
+    va_end(ap); // NOLINT(clang-analyzer-security.VAList)
     printk("%s\n", buf);
 }

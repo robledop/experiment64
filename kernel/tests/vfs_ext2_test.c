@@ -158,10 +158,10 @@ TEST(test_ext2_long_name_and_duplicate_rejection)
     }
 
     // Duplicate creation should fail.
-    ASSERT(vfs_mknod(path, VFS_FILE, 0) != 0);
+    TEST_ASSERT(vfs_mknod(path, VFS_FILE, 0) != 0);
 
     vfs_inode_t *node = vfs_resolve_path(path);
-    ASSERT(node != NULL);
+    TEST_ASSERT(node != nullptr);
     kfree(node);
     return true;
 }

@@ -24,14 +24,14 @@ static Elf64_Phdr *elf_read_program_headers(vfs_inode_t *node, Elf64_Ehdr *heade
     if (!phdrs)
     {
         printk("ELF: Failed to allocate memory for program headers\n");
-        return NULL;
+        return nullptr;
     }
 
     if (vfs_read(node, header->e_phoff, ph_size, (uint8_t *)phdrs) != ph_size)
     {
         printk("ELF: Failed to read program headers\n");
         kfree(phdrs);
-        return NULL;
+        return nullptr;
     }
     return phdrs;
 }
@@ -51,7 +51,7 @@ static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uin
     }
 
     // Read segment data into a temporary buffer first
-    uint8_t *temp_buf = NULL;
+    uint8_t *temp_buf = nullptr;
     if (ph->p_filesz > 0)
     {
         temp_buf = kmalloc(ph->p_filesz);
