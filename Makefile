@@ -105,12 +105,12 @@ image.hdd: $(KERNEL) limine limine.conf userland
 
 .PHONY: run
 run: clean
-	$(MAKE) image.hdd
+	$(MAKE) KASAN=1 image.hdd
 	qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
 
 .PHONY: vbox
 vbox: clean
-	$(MAKE) image.hdd
+	$(MAKE) KASAN=1 image.hdd
 	./scripts/start_vbox.sh
 
 .PHONY: run-gdb

@@ -216,7 +216,7 @@ static int shell_run_command(const char *command)
 int main(void)
 {
     char buf[128];
-    printf("Welcome to Minimal Shell!\n");
+    printf("User mode shell started\n");
 
     while (1)
     {

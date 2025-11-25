@@ -9,7 +9,11 @@
 #include "keyboard.h"
 #include "uart.h"
 #include <limits.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include "kasan.h"
+#include "string.h"
+#include "heap.h"
 
 static int clamp_size_to_int(size_t value)
 {
@@ -24,9 +28,47 @@ static int clamp_u64_to_int(uint64_t value)
         return INT_MAX;
     return (int)value;
 }
-#include "string.h"
-#include "heap.h"
-#include <stdint.h>
+
+static bool prepare_user_buffer(void *addr, size_t size, bool is_write)
+{
+    (void)is_write;
+    if (!addr || size == 0)
+        return true;
+#ifdef KASAN
+    if (kasan_is_ready())
+    {
+        if (is_write)
+        {
+            kasan_unpoison_range(addr, size);
+        }
+        else if (!kasan_check_range(addr, size, false, __builtin_return_address(0)))
+        {
+            return false;
+        }
+    }
+#endif
+    return true;
+}
+
+static bool copy_to_user(void *dst, const void *src, size_t size)
+{
+    if (!dst || !src)
+        return false;
+    if (!prepare_user_buffer(dst, size, true))
+        return false;
+    memcpy(dst, src, size);
+    return true;
+}
+
+static bool __attribute__((unused)) copy_from_user(void *dst, const void *src, size_t size)
+{
+    if (!dst || !src)
+        return false;
+    if (!prepare_user_buffer((void *)src, size, false))
+        return false;
+    memcpy(dst, src, size);
+    return true;
+}
 
 #ifdef TEST_MODE
 volatile uint64_t test_syscall_count = 0;
@@ -237,6 +279,9 @@ void syscall_set_exit_hook(void (*hook)(int))
 
 int sys_write(int fd, const char *buf, size_t count)
 {
+    if (!prepare_user_buffer((void *)buf, count, false))
+        return -1;
+
     if (fd == 1 || fd == 2) // stdout or stderr
     {
         terminal_write(buf, count);
@@ -258,7 +303,7 @@ void sys_exit(int code)
     {
         exit_hook(code);
     }
-    printk("Process %d exited with code %d\n", current_process->pid, code);
+    // printk("Process %d exited with code %d\n", current_process->pid, code);
     current_process->exit_code = code;
     current_process->terminated = true;
     current_thread->state = THREAD_TERMINATED;
@@ -347,12 +392,12 @@ int sys_spawn(const char *path)
 
 int sys_fork(struct syscall_regs *regs)
 {
-    // 1. Copy Address Space
+    // Copy Address Space
     pml4_t child_pml4 = vmm_copy_pml4(current_process->pml4);
     if (!child_pml4)
         return -1;
 
-    // 2. Create Process
+    // Create Process
     process_t *child_proc = process_create(current_process->name);
     if (!child_proc)
         return -1;
@@ -362,12 +407,12 @@ int sys_fork(struct syscall_regs *regs)
 
     process_copy_fds(child_proc, current_process);
 
-    // 3. Create Thread
+    // Create Thread
     thread_t *child_thread = thread_create(child_proc, NULL, true);
     if (!child_thread)
         return -1;
 
-    // 4. Setup Child Stack
+    // Setup Child Stack
     // We need to place syscall_regs and a new context on the stack.
     // thread_create already put a context at the top, but we need to push regs first.
     // Stack Layout (High to Low):
@@ -397,7 +442,6 @@ int sys_fork(struct syscall_regs *regs)
     // The ret will pop rip (which is fork_return).
     // At that point rsp will be child_ctx + sizeof(context) == child_regs.
     // fork_return expects rsp to point to child_regs.
-    // Perfect.
 
     child_thread->context = child_ctx;
     cpu_t *cpu = get_cpu();
@@ -424,10 +468,10 @@ int sys_wait(int *status)
                 has_children = true;
                 if (p->terminated)
                 {
-                    if (status)
+                    if (status && (uint64_t)status < 0x800000000000)
                     {
-                        if ((uint64_t)status < 0x800000000000)
-                            *status = p->exit_code;
+                        int code = p->exit_code;
+                        copy_to_user(status, &code, sizeof(int));
                     }
                     int pid = p->pid;
 
@@ -631,6 +675,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
 
 int sys_read(int fd, char *buf, size_t count)
 {
+    if (!prepare_user_buffer(buf, count, true))
+        return -1;
+
     if (fd == 0)
     { // stdin
         size_t read = 0;
@@ -727,7 +774,11 @@ int sys_readdir(int fd, vfs_dirent_t *dent)
     if (!d)
         return 0; // End of directory
 
-    memcpy(dent, d, sizeof(vfs_dirent_t));
+    // Ensure the kernel buffer is marked accessible and copy out.
+#ifdef KASAN
+    kasan_unpoison_range(d, sizeof(vfs_dirent_t));
+#endif
+    copy_to_user(dent, d, sizeof(vfs_dirent_t));
     kfree(d);
     desc->offset++;
     return 1; // Success
