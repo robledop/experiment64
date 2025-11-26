@@ -33,6 +33,25 @@ typedef struct slab_header
 static list_head_t slab_caches[CACHE_COUNT];
 
 #ifdef KASAN
+#define KASAN_HEAP_ALIGNMENT 64
+
+static size_t slab_data_offset(void)
+{
+    // Ensure returned slab objects remain aligned even with redzones.
+    size_t offset = sizeof(slab_header_t);
+    size_t misalign = (offset + KASAN_REDZONE_SIZE) & (KASAN_HEAP_ALIGNMENT - 1);
+    if (misalign)
+        offset += KASAN_HEAP_ALIGNMENT - misalign;
+    return offset;
+}
+#else
+static size_t slab_data_offset(void)
+{
+    return sizeof(slab_header_t);
+}
+#endif
+
+#ifdef KASAN
 #define SLOT_USER_PTR(slot) ((uint8_t *)(slot) + KASAN_REDZONE_SIZE)
 #define SLOT_BASE_FROM_USER(ptr) ((uint8_t *)(ptr) - KASAN_REDZONE_SIZE)
 #define SLOT_USER_SIZE(slot_size) ((slot_size) - 2 * KASAN_REDZONE_SIZE)
@@ -211,11 +230,11 @@ static void *alloc_slab(int index)
         INIT_LIST_HEAD(&slab->list);
 
         // Initialize free list
-        size_t available_size = PAGE_SIZE - sizeof(slab_header_t);
+        size_t available_size = PAGE_SIZE - slab_data_offset();
         size_t max_objects = available_size / slab->obj_size;
         slab->free_count = max_objects;
 
-        uint8_t *base = (uint8_t *)virt + sizeof(slab_header_t);
+        uint8_t *base = (uint8_t *)virt + slab_data_offset();
         slab->free_list = base;
 
         for (size_t i = 0; i < max_objects - 1; i++)
@@ -311,7 +330,7 @@ void kfree(void *ptr)
 #endif
 
         // If slab is completely free, release the page.
-        size_t capacity = (PAGE_SIZE - sizeof(slab_header_t)) / header->obj_size;
+        size_t capacity = (PAGE_SIZE - slab_data_offset()) / header->obj_size;
         if (header->free_count == capacity)
         {
             int index = get_cache_index(header->obj_size);

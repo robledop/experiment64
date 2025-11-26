@@ -9,6 +9,7 @@
         if (!(condition))                                                                                 \
         {                                                                                                 \
             test_mark_failure(__FILE__, __LINE__, #condition);                                            \
+            return false;                                                                                 \
         }                                                                                                 \
     } while (0)
 

@@ -1,13 +1,20 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "gdt.h"
 
-// 512-byte buffer for FXSAVE/FXRSTOR, must be 16-byte aligned
+// XCR0 feature bits
+#define XCR0_X87 (1u << 0)
+#define XCR0_SSE (1u << 1)
+#define XCR0_AVX (1u << 2)
+
+// Buffer for XSAVE/FXSAVE state (x87 + SSE + AVX); 64-byte aligned for XSAVE
+#define FPU_STATE_SIZE 1024
 typedef struct
 {
-    uint8_t data[512];
-} __attribute__((aligned(16))) fpu_state_t;
+    uint8_t data[FPU_STATE_SIZE];
+} __attribute__((aligned(64))) fpu_state_t;
 
 // MSR Constants
 #define MSR_EFER 0xC0000080
@@ -43,6 +50,9 @@ void enable_sse(void);
 void init_fpu_state(fpu_state_t *state);
 void save_fpu_state(fpu_state_t *state);
 void restore_fpu_state(fpu_state_t *state);
+bool cpu_has_avx(void);
+uint32_t cpu_fpu_save_size(void);
+bool cpu_is_hypervisor(void);
 
 static inline uint64_t rdtsc(void)
 {

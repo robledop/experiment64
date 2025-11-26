@@ -55,9 +55,9 @@ struct ext2fs_addrs ext2fs_addrs[NINODE];
 struct ext2_super_block ext2_sb;
 static uint32_t first_partition_blocks[4] = {0};
 
-static inline uint32_t part_offset(int dev)
+static inline uint32_t part_offset(uint32_t dev)
 {
-    if (dev < 0 || dev >= 4)
+    if (dev >= 4)
         return 0;
     return first_partition_blocks[dev];
 }

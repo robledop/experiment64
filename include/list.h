@@ -70,18 +70,21 @@ static inline bool list_empty(const list_head_t *head)
 #define list_for_each(pos, head) \
     for ((pos) = (head)->next; (pos) != (head); (pos) = (pos)->next)
 
-#define list_for_each_entry(pos, head, member)                       \
-    for ((pos) = list_entry((head)->next, typeof(*(pos)), member);   \
-         &((pos)->member) != (head);                                 \
-         (pos) = list_entry((pos)->member.next, typeof(*(pos)), member))
+// UBSAN-friendly iteration that avoids container_of on the list head when empty and
+// does not introduce helper variables that shadow in nested loops.
+#define list_for_each_entry(pos, head, member)                                                   \
+    for ((pos) = list_empty(head) ? NULL : list_entry((head)->next, typeof(*(pos)), member);     \
+         (pos) != NULL;                                                                          \
+         (pos) = ((pos)->member.next == (head)) ? NULL : list_entry((pos)->member.next, typeof(*(pos)), member))
 
-#define list_for_each_entry_safe(pos, n, head, member)               \
-    for ((pos) = list_entry((head)->next, typeof(*(pos)), member),   \
-        (n) = list_entry((pos)->member.next, typeof(*(n)), member);  \
-         &((pos)->member) != (head);                                 \
-         (pos) = (n), (n) = list_entry((n)->member.next, typeof(*(n)), member))
+#define list_for_each_entry_safe(pos, n, head, member)                                           \
+    for ((pos) = list_empty(head) ? NULL : list_entry((head)->next, typeof(*(pos)), member),     \
+         (n) = (pos) ? (((pos)->member.next == (head)) ? NULL : list_entry((pos)->member.next, typeof(*(n)), member)) : NULL; \
+         (pos) != NULL;                                                                          \
+         (pos) = (n),                                                                            \
+         (n) = (pos) ? (((pos)->member.next == (head)) ? NULL : list_entry((pos)->member.next, typeof(*(n)), member)) : NULL)
 
-#define list_for_each_entry_reverse(pos, head, member)               \
-    for ((pos) = list_entry((head)->prev, typeof(*(pos)), member);   \
-         &((pos)->member) != (head);                                 \
-         (pos) = list_entry((pos)->member.prev, typeof(*(pos)), member))
+#define list_for_each_entry_reverse(pos, head, member)                                           \
+    for ((pos) = list_empty(head) ? NULL : list_entry((head)->prev, typeof(*(pos)), member);     \
+         (pos) != NULL;                                                                          \
+         (pos) = ((pos)->member.prev == (head)) ? NULL : list_entry((pos)->member.prev, typeof(*(pos)), member))
