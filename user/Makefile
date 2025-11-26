@@ -6,7 +6,7 @@ AR = x86_64-elf-ar
 
 BUILD_DIR = build
 
-CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -masm=intel -Ilibc/include -g -Wa,--noexecstack
+CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -mavx -masm=intel -Ilibc/include -g -Wa,--noexecstack
 LDFLAGS = -Wl,-Ttext=0x400000 -Wl,--build-id=none
 
 LIBC_SRC = $(wildcard libc/src/*.c)

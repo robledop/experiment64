@@ -110,6 +110,13 @@ static void keyboard_process_scancode(uint8_t scancode)
 
             if (c)
             {
+                // Ctrl+P prints the process/thread list (xv6-style)
+                if (c == 0x10)
+                {
+                    process_dump();
+                    return;
+                }
+
                 const int next = (write_ptr + 1) % BUFFER_SIZE;
                 if (next != read_ptr)
                 {

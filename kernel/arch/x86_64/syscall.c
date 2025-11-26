@@ -175,6 +175,19 @@ static void simplify_path(char *path)
         path[idx] = '\0';
 }
 
+static void set_process_name_from_path(process_t *proc, const char *path)
+{
+    if (!proc || !path)
+        return;
+    const char *name = path;
+    for (const char *p = path; *p; p++)
+    {
+        if (*p == '/' && p[1])
+            name = p + 1;
+    }
+    safe_copy(proc->name, sizeof(proc->name), name);
+}
+
 static void build_absolute_path(const char *base, const char *input, char *output, size_t size)
 {
     const char *root = (base && base[0]) ? base : "/";
@@ -309,6 +322,8 @@ void sys_exit(int code)
     current_process->exit_code = code;
     current_process->terminated = true;
     current_thread->state = THREAD_TERMINATED;
+    if (current_process->parent)
+        thread_wakeup(current_process->parent);
 
     // Save current thread state
     thread_t *current = get_current_thread();
@@ -379,6 +394,7 @@ int sys_spawn(const char *path)
     }
 
     process_t *proc = process_create(path);
+    set_process_name_from_path(proc, abs_path);
     proc->pml4 = new_pml4;
     proc->parent = current_process;
     proc->heap_end = max_vaddr;
@@ -487,7 +503,7 @@ int sys_wait(int *status)
         {
             return -1;
         }
-        schedule();
+        thread_sleep(current_process, nullptr);
     }
 }
 
@@ -528,6 +544,7 @@ int sys_exec(const char *path, struct syscall_regs *regs)
     }
 
     current_process->heap_end = max_vaddr;
+    set_process_name_from_path(current_process, abs_path);
     regs->rcx = entry_point;
     get_cpu()->user_rsp = stack_top;
 

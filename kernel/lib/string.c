@@ -166,7 +166,7 @@ static void cb_emit_string(const char *s, void *arg, printf_callback_t callback)
     }
 }
 
-static void cb_emit_unsigned(uint64_t value, unsigned base, bool uppercase, void *arg, printf_callback_t callback)
+static int cb_emit_unsigned(uint64_t value, unsigned base, bool uppercase, void *arg, printf_callback_t callback)
 {
     char tmp[32];
     int idx = 0;
@@ -185,10 +185,12 @@ static void cb_emit_unsigned(uint64_t value, unsigned base, bool uppercase, void
         }
     }
 
+    int written = idx ? idx : 1;
     while (idx-- > 0)
     {
         callback(tmp[idx], arg);
     }
+    return written;
 }
 
 int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list *args)
@@ -213,6 +215,21 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             continue;
         }
 
+        bool left_align = false;
+        int width = 0;
+
+        if (*format == '-')
+        {
+            left_align = true;
+            format++;
+        }
+
+        while (*format >= '0' && *format <= '9')
+        {
+            width = width * 10 + (*format - '0');
+            format++;
+        }
+
         int length_mod = 0;
         while (*format == 'l')
         {
@@ -225,6 +242,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
 
         char spec = *format++;
 
+        char numbuf[64];
+        int content_len = 0;
+
         switch (spec)
         {
         case 's':
@@ -233,17 +253,27 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             if (!s)
                 s = "(null)";
             size_t len = strlen(s);
+            content_len = (len > (size_t)INT_MAX) ? INT_MAX : (int)len;
+            int pad = (width > content_len) ? (width - content_len) : 0;
+            if (!left_align)
+                while (pad--) { callback(' ', arg); total++; }
             cb_emit_string(s, arg, callback);
-            if (len > (size_t)INT_MAX)
-                len = INT_MAX;
-            total += (int)len;
+            total += content_len;
+            if (left_align)
+                while (pad--) { callback(' ', arg); total++; }
             break;
         }
         case 'c':
         {
             char c = (char)va_arg(*args, int);
+            content_len = 1;
+            int pad = (width > content_len) ? (width - content_len) : 0;
+            if (!left_align)
+                while (pad--) { callback(' ', arg); total++; }
             callback(c, arg);
             total++;
+            if (left_align)
+                while (pad--) { callback(' ', arg); total++; }
             break;
         }
         case 'd':
@@ -251,46 +281,79 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         {
             long long value = read_signed_arg(args, length_mod);
 
-            unsigned long long magnitude;
-            if (value < 0)
+            bool negative = value < 0;
+            unsigned long long magnitude = negative ? (unsigned long long)(-(value + 1)) + 1 : (unsigned long long)value;
+
+            int idx = 0;
+            if (magnitude == 0)
+                numbuf[idx++] = '0';
+            while (magnitude && idx < (int)sizeof(numbuf))
             {
-                callback('-', arg);
-                total++;
-                magnitude = (unsigned long long)(-(value + 1)) + 1;
+                numbuf[idx++] = (char)('0' + (magnitude % 10));
+                magnitude /= 10;
             }
-            else
-            {
-                magnitude = (unsigned long long)value;
-            }
+            if (negative && idx < (int)sizeof(numbuf))
+                numbuf[idx++] = '-';
 
-            // Calculate length for total count?
-            // cb_emit_unsigned doesn't return count.
-            // We can just wrap the callback to count?
-            // Or just let the user count?
-            // Wait, vcbprintf is supposed to return total chars written.
-            // But I can't easily know how many chars cb_emit_unsigned writes without modifying it or counting.
-            // I'll modify cb_emit_unsigned to return count or just increment total inside the loop.
-            // Actually, let's just increment total in the loop.
-            // But I need to know how many digits.
-            // Let's just make a helper that counts.
-
-            // Re-implementing cb_emit_unsigned logic here to count is annoying.
-            // Better: The callback itself doesn't return anything.
-            // I can wrap the callback passed to vcbprintf with a counting wrapper?
-            // No, vcbprintf takes the callback.
-            // I should just update total as I emit.
-
-            // Let's modify cb_emit_unsigned to take &total.
-            cb_emit_unsigned(magnitude, 10, false, arg, callback);
-            // Wait, I need to update total.
-            // I'll modify the helpers to take int *total.
+            content_len = idx;
+            int pad = (width > content_len) ? (width - content_len) : 0;
+            if (!left_align)
+                while (pad--) { callback(' ', arg); total++; }
+            while (idx-- > 0)
+                callback(numbuf[idx], arg);
+            total += content_len;
+            if (left_align)
+                while (pad--) { callback(' ', arg); total++; }
             break;
         }
         case 'u':
         {
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
-            cb_emit_unsigned(value, 10, false, arg, callback);
+            int digits = cb_emit_unsigned(value, 10, false, arg, callback);
+            content_len = digits;
+            if (width > content_len && !left_align)
+            {
+                // Need to pad left; emit padding before digits
+                int pad = width - content_len;
+                // Move the digits output after padding:
+                // Simpler: re-render with padding using buffer.
+                // Build string in reverse then emit with padding.
+                int idx = 0;
+                unsigned long long tmp = value;
+                if (tmp == 0)
+                    numbuf[idx++] = '0';
+                while (tmp && idx < (int)sizeof(numbuf))
+                {
+                    numbuf[idx++] = (char)('0' + (tmp % 10));
+                    tmp /= 10;
+                }
+                // rewind the already emitted digits count
+                // We can't "unwrite"; emit padding first then digits now.
+                // Adjust total to include padding.
+                // Emit padding
+                for (int i = 0; i < pad; i++)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
+                // emit digits
+                while (idx-- > 0)
+                {
+                    callback(numbuf[idx], arg);
+                }
+                total += content_len; // digits already counted
+            }
+            else if (width > content_len && left_align)
+            {
+                int pad = width - content_len;
+                total += content_len;
+                while (pad--) { callback(' ', arg); total++; }
+            }
+            else
+            {
+                total += content_len;
+            }
             break;
         }
         case 'x':
@@ -302,22 +365,86 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             if (spec == 'p')
             {
                 value = (uintptr_t)va_arg(*args, void *);
-                callback('0', arg);
-                callback('x', arg);
-                total += 2;
+                numbuf[0] = '0';
+                numbuf[1] = 'x';
+                content_len = 2 + cb_emit_unsigned(value, 16, uppercase, arg, callback);
             }
             else
             {
                 value = read_unsigned_arg(args, length_mod);
+                content_len = cb_emit_unsigned(value, 16, uppercase, arg, callback);
             }
-
-            cb_emit_unsigned(value, 16, uppercase, arg, callback);
+            int pad = (width > content_len) ? (width - content_len) : 0;
+            if (!left_align && pad > 0)
+            {
+                // Similar to %u, need to render with padding first.
+                int idx = 0;
+                unsigned long long tmp = value;
+                if (tmp == 0)
+                    numbuf[idx++] = '0';
+                while (tmp && idx < (int)sizeof(numbuf))
+                {
+                    numbuf[idx++] = uppercase ? "0123456789ABCDEF"[tmp % 16] : "0123456789abcdef"[tmp % 16];
+                    tmp /= 16;
+                }
+                for (int i = 0; i < pad; i++)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
+                if (spec == 'p')
+                {
+                    callback('0', arg);
+                    callback('x', arg);
+                }
+                while (idx-- > 0)
+                    callback(numbuf[idx], arg);
+                total += content_len;
+            }
+            else
+            {
+                if (spec == 'p')
+                {
+                    callback('0', arg);
+                    callback('x', arg);
+                }
+                if (left_align && pad > 0)
+                {
+                    while (pad--) { callback(' ', arg); total++; }
+                }
+                total += content_len;
+            }
             break;
         }
         case 'o':
         {
             unsigned long long value = read_unsigned_arg(args, length_mod);
-            cb_emit_unsigned(value, 8, false, arg, callback);
+            int digits = cb_emit_unsigned(value, 8, false, arg, callback);
+            content_len = digits;
+            int pad = (width > content_len) ? (width - content_len) : 0;
+            if (!left_align)
+            {
+                for (int i = 0; i < pad; i++) { callback(' ', arg); total++; }
+                // digits already emitted; nothing to rewind cleanly, so re-emit
+                int idx = 0;
+                unsigned long long tmp = value;
+                if (tmp == 0)
+                    numbuf[idx++] = '0';
+                while (tmp && idx < (int)sizeof(numbuf))
+                {
+                    numbuf[idx++] = (char)('0' + (tmp % 8));
+                    tmp /= 8;
+                }
+                while (idx-- > 0)
+                    callback(numbuf[idx], arg);
+            }
+            else
+            {
+                total += content_len;
+                while (pad--) { callback(' ', arg); total++; }
+                break;
+            }
+            total += content_len;
             break;
         }
         default:

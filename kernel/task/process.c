@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "spinlock.h"
 #include "apic.h"
+#include "terminal.h"
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
@@ -577,4 +578,48 @@ void thread_wakeup(void* chan)
 void yield(void)
 {
     schedule();
+}
+
+static const char* thread_state_str(thread_state_t state)
+{
+    switch (state)
+    {
+    case THREAD_READY:
+        return "READY";
+    case THREAD_RUNNING:
+        return "RUN";
+    case THREAD_BLOCKED:
+        return "SLEEP";
+    case THREAD_TERMINATED:
+        return "DEAD";
+    default:
+        return "?";
+    }
+}
+
+void process_dump(void)
+{
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    spinlock_acquire(&scheduler_lock);
+    printk("\n%-5s %-5s %-6s %s\n", "PID", "TID", "STATE", "NAME");
+    process_t* p;
+    list_for_each_entry(p, &process_list, list)
+    {
+        thread_t* t;
+        list_for_each_entry(t, &p->threads, list)
+        {
+            printk("%-5d %-5d %-6s %s%s\n",
+                   p->pid,
+                   t->tid,
+                   thread_state_str(t->state),
+                   p->name,
+                   t->is_idle ? " (idle)" : "");
+        }
+    }
+    spinlock_release(&scheduler_lock);
+
+    if (rflags & RFLAGS_IF)
+        __asm__ volatile("sti");
 }

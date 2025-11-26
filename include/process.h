@@ -102,3 +102,4 @@ void thread_wakeup(void *chan);
 void switch_to(thread_t *prev, thread_t *next);
 
 void process_spawn_init(void);
+void process_dump(void);
