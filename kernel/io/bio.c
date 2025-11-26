@@ -1,6 +1,6 @@
 #include "bio.h"
 #include "heap.h"
-#include "ide.h"
+#include "storage.h"
 #include "string.h"
 #include "terminal.h"
 
@@ -60,7 +60,8 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
             if (bh->flags & BIO_FLAG_DIRTY)
             {
                 // Write back if dirty
-                if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
+                int rc = storage_write(bh->device, bh->block, 1, bh->data);
+                if (rc != 0)
                 {
                     printk("BIO: Failed to write back block %d\n", bh->block);
                     // If write fails, we shouldn't reuse this buffer if we care about data integrity.
@@ -90,7 +91,8 @@ buffer_head_t *bread(uint8_t device, uint32_t block)
 
     if (!(bh->flags & BIO_FLAG_VALID))
     {
-        if (ide_read_sectors(device, block, 1, bh->data) != 0)
+        int rc = storage_read(device, block, 1, bh->data);
+        if (rc != 0)
         {
             brelse(bh);
             return nullptr;
@@ -106,7 +108,8 @@ void bwrite(buffer_head_t *bh)
         return;
     bh->flags |= BIO_FLAG_DIRTY;
     // For now, write-through
-    if (ide_write_sectors(bh->device, bh->block, 1, bh->data) != 0)
+    int rc = storage_write(bh->device, bh->block, 1, bh->data);
+    if (rc != 0)
     {
         // printk("BIO: bwrite failed for block %d\n", bh->block);
     }

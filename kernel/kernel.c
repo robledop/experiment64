@@ -27,6 +27,8 @@
 #include "devfs.h"
 #include "kernel.h"
 #include "kasan.h"
+#include "pci.h"
+#include "storage.h"
 
 void shutdown()
 {
@@ -69,6 +71,8 @@ void kernel_splash(void)
         return;
     }
 
+    terminal_clear(0x00000000);
+
     uint32_t *pixels = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
@@ -80,16 +84,17 @@ void kernel_splash(void)
 
     int cursor_x, cursor_y_start;
     terminal_get_cursor(&cursor_x, &cursor_y_start);
+    cursor_y_start = TERMINAL_MARGIN;
 
-    const uint32_t splash_bottom_margin = 13;
-    const uint32_t origin_x = 0;
-    uint32_t origin_y = (uint32_t)cursor_y_start;
+    constexpr uint32_t splash_bottom_margin = 13;
+    constexpr uint32_t origin_x = 0;
+    const uint32_t origin_y = (uint32_t)cursor_y_start;
 
-    uint32_t max_width = fb->width - origin_x;
-    uint32_t max_height = (fb->height > origin_y) ? (fb->height - origin_y) : 0;
+    const uint32_t max_width = fb->width - origin_x;
+    const uint32_t max_height = (fb->height > origin_y) ? (fb->height - origin_y) : 0;
 
-    uint32_t draw_width = (width > max_width) ? max_width : width;
-    uint32_t draw_height = (height > max_height) ? max_height : height;
+    const uint32_t draw_width = (width > max_width) ? max_width : width;
+    const uint32_t draw_height = (height > max_height) ? max_height : height;
 
     for (uint32_t row = 0; row < draw_height; row++)
     {
@@ -127,7 +132,9 @@ void _start(void)
 #endif
     heap_init(hhdm_offset);
     process_init();
+    pci_scan();
     ide_init();
+    storage_init();
     bio_init();
     vfs_init();
     devfs_init();

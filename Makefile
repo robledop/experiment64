@@ -28,6 +28,16 @@ ROOTFS=rootfs
 
 override MEM ?= 32M
 override SMP ?= 8
+# Secondary disk image for IDE (ext2).
+IDE_DISK := image2.ide
+
+# Common QEMU pieces
+QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP)
+QEMU_DRIVES := \
+	-drive if=none,file=image.hdd,format=raw,id=ahcibase \
+	-device ahci,id=ahci \
+	-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
+	-drive if=ide,file=$(IDE_DISK),format=raw,index=1
 
 override CFLAGS += \
     -I. \
@@ -35,8 +45,6 @@ override CFLAGS += \
     -std=c23 \
     -ffreestanding \
     -nostdlib \
-    -fstack-protector-strong \
-	-fsanitize=undefined \
     -fno-lto \
     -fPIE \
     -ggdb \
@@ -47,7 +55,9 @@ override CFLAGS += \
     -mno-red-zone \
     -MMD \
     -MP \
-    -Wa,--noexecstack
+    -Wa,--noexecstack \
+    -fstack-protector-strong \
+	-fsanitize=undefined \
 
 override LDFLAGS += \
     -m elf_x86_64 \
@@ -105,10 +115,15 @@ userland:
 image.hdd: $(KERNEL) limine limine.conf userland
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
 
+.PHONY: disk
+disk: clean
+	$(MAKE) image.hdd CFLAGS+=" -DTEST_MODE -DDEBUG -DKASAN"
+	./scripts/install-on-disk.sh
+
 .PHONY: run
 run: clean
 	$(MAKE) KASAN=1 image.hdd
-	qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) -drive file=image.hdd,format=raw -serial stdio -display gtk,zoom-to-fit=on
+	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on
 
 .PHONY: vbox
 vbox: clean
@@ -118,24 +133,29 @@ vbox: clean
 .PHONY: run-gdb
 run-gdb: clean
 	$(MAKE) KASAN=1 image.hdd
-	qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) -drive file=image.hdd,format=raw -display gtk,zoom-to-fit=on ${QEMUGDB}
+	qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) \
+		-drive if=none,file=image.hdd,format=raw,id=ahcibase \
+		-device ahci,id=ahci \
+		-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
+		-drive if=ide,file=$(IDE_DISK),format=raw,index=1 \
+		-display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 20s qemu-system-x86_64 -smp $(SMP) -M pc -m $(MEM) -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 20s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
 	cat test.log
 
 .PHONY: tests-kasan
 tests-kasan: clean
 	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 20s qemu-system-x86_64 -smp $(SMP) -M pc -m $(MEM) -drive file=image.hdd,format=raw -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 20s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
 	cat test.log
 
 .PHONY: tests-gdb
 tests-gdb: clean
 	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	qemu-system-x86_64 -smp $(SMP) -M pc -m $(MEM) -drive file=image.hdd,format=raw -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} | tee test.log
+	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} | tee test.log
 
 .PHONY: bear
 bear: clean

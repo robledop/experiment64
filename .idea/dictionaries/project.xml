@@ -17,6 +17,8 @@
       <w>ifree</w>
       <w>iget</w>
       <w>ilock</w>
+      <w>insl</w>
+      <w>iobase</w>
       <w>iupdate</w>
       <w>kasan</w>
       <w>lalt</w>
@@ -27,6 +29,7 @@
       <w>msyntax</w>
       <w>nbits</w>
       <w>ndev</w>
+      <w>outsl</w>
       <w>pathlib</w>
       <w>poff</w>
       <w>prio</w>

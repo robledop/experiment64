@@ -18,7 +18,7 @@ static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
 static uint32_t terminal_bg_color = 0x00000000;
 
-#define LINE_SPACING 5
+
 
 static inline int terminal_left(void)
 {
@@ -176,12 +176,42 @@ static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
     }
 }
 
-static void terminal_scroll(void)
+static void *fb_memmove(void *dst, const void *src, size_t n)
 {
+    uint8_t *d = (uint8_t *)dst;
+    const uint8_t *s = (const uint8_t *)src;
+    if (d == s || n == 0)
+        return dst;
+    if (d < s)
+    {
+        size_t i = 0;
+        for (; i + sizeof(uint64_t) <= n; i += sizeof(uint64_t))
+            *(uint64_t *)(d + i) = *(const uint64_t *)(s + i);
+        for (; i < n; i++)
+            d[i] = s[i];
+    }
+    else
+    {
+        size_t i = n;
+        while (i >= sizeof(uint64_t))
+        {
+            i -= sizeof(uint64_t);
+            *(uint64_t *)(d + i) = *(const uint64_t *)(s + i);
+        }
+        while (i-- > 0)
+            d[i] = s[i];
+    }
+    return dst;
+}
+
+void terminal_scroll(int rows)
+{
+    if (rows < 1)
+        rows = 1;
     if (!terminal_fb)
         return;
 
-    int char_height = 8 + LINE_SPACING;
+    int char_height = FONT_HEIGHT + LINE_SPACING;
     int left = terminal_left();
     int right = terminal_right();
     int top = terminal_top();
@@ -195,15 +225,30 @@ static void terminal_scroll(void)
         return;
     }
 
-    int row_bytes = (right - left) * 4;
-    for (int row = 0; row < usable_height - char_height; row++)
+    int scroll_px = rows * char_height;
+    if (scroll_px > usable_height - char_height)
+        scroll_px = usable_height - char_height;
+
+    // Fast path: when margins are zero, move the whole visible area in one copy.
+    if (left == 0 && right == (int)terminal_fb->width)
     {
-        uint8_t *dst = (uint8_t *)terminal_fb->address + (top + row) * terminal_fb->pitch + left * 4;
-        uint8_t *src = dst + char_height * terminal_fb->pitch;
-        memcpy(dst, src, row_bytes);
+        size_t move_bytes = (size_t)(usable_height - scroll_px) * terminal_fb->pitch;
+        uint8_t *dst = (uint8_t *)terminal_fb->address + top * terminal_fb->pitch;
+        uint8_t *src = dst + scroll_px * terminal_fb->pitch;
+        fb_memmove(dst, src, move_bytes);
+    }
+    else
+    {
+        int row_bytes = (right - left) * 4;
+        for (int row = 0; row < usable_height - scroll_px; row++)
+        {
+            uint8_t *dst = (uint8_t *)terminal_fb->address + (top + row) * terminal_fb->pitch + left * 4;
+            uint8_t *src = dst + scroll_px * terminal_fb->pitch;
+            fb_memmove(dst, src, (size_t)row_bytes);
+        }
     }
 
-    terminal_rect_fill(left, bottom - char_height, right - left, char_height, terminal_bg_color);
+    terminal_rect_fill(left, bottom - scroll_px, right - left, scroll_px, terminal_bg_color);
 }
 
 static void terminal_process_ansi(char cmd)
@@ -353,7 +398,7 @@ static void terminal_draw_char(char c)
         int bottom_limit = terminal_bottom();
         if (terminal_y + 8 + LINE_SPACING > bottom_limit)
         {
-            terminal_scroll();
+            terminal_scroll(1);
             terminal_y -= (8 + LINE_SPACING);
         }
         terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
@@ -404,7 +449,7 @@ static void terminal_draw_char(char c)
         int bottom_limit = terminal_bottom();
         if (terminal_y + 8 + LINE_SPACING > bottom_limit)
         {
-            terminal_scroll();
+            terminal_scroll(1);
             terminal_y -= (8 + LINE_SPACING);
         }
     }

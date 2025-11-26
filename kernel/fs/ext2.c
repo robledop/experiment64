@@ -53,13 +53,20 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn);
 static void ext2fs_itrunc(struct ext2_inode* ip);
 struct ext2fs_addrs ext2fs_addrs[NINODE];
 struct ext2_super_block ext2_sb;
-uint32_t first_partition_block = 0;
+static uint32_t first_partition_blocks[4] = {0};
+
+static inline uint32_t part_offset(int dev)
+{
+    if (dev < 0 || dev >= 4)
+        return 0;
+    return first_partition_blocks[dev];
+}
 // extern struct mbr mbr; // Removed dependency
 
 void ext2fs_readsb(int dev, struct ext2_super_block* sb)
 {
     // Superblock starts at byte 1024 (Sector 2)
-    const uint32_t sb_blockno = first_partition_block + 2;
+    const uint32_t sb_blockno = part_offset(dev) + 2;
 
     buffer_head_t* bp = bread(dev, sb_blockno);
     memcpy(sb, bp->data, 512);
@@ -150,7 +157,7 @@ static uint32_t ext2fs_get_free_bit(uint8_t* bitmap, const uint32_t nbits)
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 {
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
     const int gno = GET_GROUP_NO(inum, ext2_sb);
@@ -158,7 +165,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp1);
 
-    const uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + first_partition_block;
+    const uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + part_offset(dev);
 
     buffer_head_t* bp2 = bread(dev, bitmap_block);
 
@@ -170,7 +177,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 
         const uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
         const uint32_t rel_block = group_first_block + fbit;
-        const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + first_partition_block;
+        const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + part_offset(dev);
         for (uint32_t i = 0; i < EXT2_BSIZE / 512; i++)
         {
             ext2fs_bzero(dev, start_sector + i);
@@ -187,7 +194,7 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 static void ext2fs_bfree(uint32_t dev, uint32_t b)
 {
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
     if (b < ext2_sb.s_first_data_block)
@@ -202,7 +209,7 @@ static void ext2fs_bfree(uint32_t dev, uint32_t b)
 
     buffer_head_t* bp1 = bread(dev, desc_blockno);
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-    buffer_head_t* bp2 = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + first_partition_block);
+    buffer_head_t* bp2 = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + part_offset(dev));
     const uint32_t byte_index = offset / 8;
     if (byte_index >= EXT2_BSIZE)
     {
@@ -242,7 +249,7 @@ void ext2_init_inode(int dev)
 struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
 {
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
     const uint32_t bgcount = ext2_sb.s_blocks_count / ext2_sb.s_blocks_per_group;
@@ -252,7 +259,7 @@ struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
         memcpy(&bgdesc, group_desc_buf->data + i * sizeof(bgdesc), sizeof(bgdesc));
         brelse(group_desc_buf);
 
-        buffer_head_t* ibitmap_buff = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + first_partition_block);
+        buffer_head_t* ibitmap_buff = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(dev));
         const uint32_t fbit = ext2fs_get_free_bit((uint8_t*)ibitmap_buff->data, ext2_sb.s_inodes_per_group);
         if (fbit == (uint32_t)-1)
         {
@@ -270,7 +277,7 @@ struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
 
         const uint32_t inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
 
-        const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + first_partition_block;
+        const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + part_offset(dev);
         const uint32_t iindex = fbit % inodes_per_block;
 
         const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
@@ -312,7 +319,7 @@ struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
 void ext2fs_iupdate(const struct ext2_inode* ip)
 {
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_blockno = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
     const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
@@ -321,7 +328,7 @@ void ext2fs_iupdate(const struct ext2_inode* ip)
     memcpy(&bgdesc, bp->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp);
     const int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / (EXT2_BSIZE / ext2_sb.s_inode_size)) +
-        first_partition_block;
+        part_offset(ip->dev);
     const int iindex = ioff % (EXT2_BSIZE / ext2_sb.s_inode_size);
 
     const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
@@ -376,7 +383,7 @@ void ext2fs_ilock(struct ext2_inode* ip)
     sleeplock_acquire(&ip->lock);
     ASSERT(ip->addrs != nullptr, "ip->addrs is null in ext2fs_ilock");
     auto const ad = (struct ext2fs_addrs*)ip->addrs;
-    const uint32_t desc_block = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_block = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
     // Group descriptor at ext2 block 2 = sector 4
 
     if (ip->valid == 0)
@@ -391,7 +398,7 @@ void ext2fs_ilock(struct ext2_inode* ip)
         memcpy(&bgdesc, bp->data + gno * sizeof(bgdesc), sizeof(bgdesc));
         brelse(bp);
         const int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / (EXT2_BSIZE / ext2_sb.s_inode_size)) +
-            first_partition_block;
+            part_offset(ip->dev);
         const int iindex = ioff % (EXT2_BSIZE / ext2_sb.s_inode_size);
 
         const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
@@ -459,14 +466,14 @@ void ext2fs_iunlock(struct ext2_inode* ip)
 static void ext2_free_inode(const struct ext2_inode* ip)
 {
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = first_partition_block + BLOCK_TO_SECTOR(2);
+    const uint32_t desc_blockno = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
     const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
     buffer_head_t* bp1 = bread(ip->dev, desc_blockno);
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp1);
-    buffer_head_t* bp2 = bread(ip->dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + first_partition_block);
+    buffer_head_t* bp2 = bread(ip->dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(ip->dev));
     const uint32_t index = (ip->inum - 1) % ext2_sb.s_inodes_per_group;
     const uint32_t byte_index = index / 8;
     if (byte_index >= EXT2_BSIZE)
@@ -575,7 +582,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
             addr = ext2fs_balloc(ip->dev, ip->inum);
             ad->addrs[bn] = addr;
         }
-        return BLOCK_TO_SECTOR(addr) + first_partition_block;
+        return BLOCK_TO_SECTOR(addr) + part_offset(ip->dev);
     }
     bn -= EXT2_NDIR_BLOCKS;
     if (bn < EXT2_INDIRECT)
@@ -589,7 +596,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
         const uint32_t sector_offset = bn / (512 / 4);
         const uint32_t entry_index = bn % (512 / 4);
 
-        bp = bread(ip->dev, first_partition_block + BLOCK_TO_SECTOR(addr) + sector_offset);
+        bp = bread(ip->dev, part_offset(ip->dev) + BLOCK_TO_SECTOR(addr) + sector_offset);
         a = (uint32_t*)bp->data;
         uint32_t entry = a[entry_index];
         if (entry == 0)
@@ -599,7 +606,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
             bwrite(bp);
         }
         brelse(bp);
-        return BLOCK_TO_SECTOR(entry) + first_partition_block;
+        return BLOCK_TO_SECTOR(entry) + part_offset(ip->dev);
     }
     bn -= EXT2_INDIRECT;
 
@@ -615,7 +622,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
         const uint32_t first_sector_offset = first_index / (512 / 4);
         const uint32_t first_entry_index = first_index % (512 / 4);
 
-        bp = bread(ip->dev, first_partition_block + BLOCK_TO_SECTOR(addr) + first_sector_offset);
+        bp = bread(ip->dev, part_offset(ip->dev) + BLOCK_TO_SECTOR(addr) + first_sector_offset);
         a = (uint32_t*)bp->data;
         uint32_t entry = a[first_entry_index];
         if (entry == 0)
@@ -630,7 +637,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
         const uint32_t second_sector_offset = second_index / (512 / 4);
         const uint32_t second_entry_index = second_index % (512 / 4);
 
-        bp1 = bread(ip->dev, first_partition_block + BLOCK_TO_SECTOR(entry) + second_sector_offset);
+        bp1 = bread(ip->dev, part_offset(ip->dev) + BLOCK_TO_SECTOR(entry) + second_sector_offset);
         b = (uint32_t*)bp1->data;
         uint32_t leaf = b[second_entry_index];
         if (leaf == 0)
@@ -640,7 +647,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
             bwrite(bp1);
         }
         brelse(bp1);
-        return BLOCK_TO_SECTOR(leaf) + first_partition_block;
+        return BLOCK_TO_SECTOR(leaf) + part_offset(ip->dev);
     }
     bn -= EXT2_DINDIRECT;
 
@@ -651,7 +658,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
             addr = ext2fs_balloc(ip->dev, ip->inum);
             ad->addrs[EXT2_TIND_BLOCK] = addr;
         }
-        bp = bread(ip->dev, first_partition_block + BLOCK_TO_SECTOR(addr));
+        bp = bread(ip->dev, part_offset(ip->dev) + BLOCK_TO_SECTOR(addr));
         a = (uint32_t*)bp->data;
         const uint32_t first_index = bn / EXT2_DINDIRECT;
         uint32_t entry = a[first_index];
@@ -663,7 +670,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
         }
         brelse(bp);
 
-        bp1 = bread(ip->dev, first_partition_block + BLOCK_TO_SECTOR(entry));
+        bp1 = bread(ip->dev, part_offset(ip->dev) + BLOCK_TO_SECTOR(entry));
         b = (uint32_t*)bp1->data;
         const uint32_t remainder = bn % EXT2_DINDIRECT;
         const uint32_t second_idx = remainder / EXT2_INDIRECT;
@@ -676,7 +683,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
         }
         brelse(bp1);
 
-        buffer_head_t* bp2 = bread(ip->dev, first_partition_block + mid);
+        buffer_head_t* bp2 = bread(ip->dev, part_offset(ip->dev) + mid);
         uint32_t* c = (uint32_t*)bp2->data;
         const uint32_t third_idx = remainder % EXT2_INDIRECT;
         uint32_t leaf = c[third_idx];
@@ -687,7 +694,7 @@ static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn)
             bwrite(bp2);
         }
         brelse(bp2);
-        return BLOCK_TO_SECTOR(leaf) + first_partition_block;
+        return BLOCK_TO_SECTOR(leaf) + part_offset(ip->dev);
     }
     printk("PANIC: ");
     printk("ext2_bmap: block number out of range\n");
@@ -719,7 +726,7 @@ static void ext2fs_itrunc(struct ext2_inode* ip)
     // for indirect blocks
     if (ad->addrs[EXT2_IND_BLOCK])
     {
-        bp1 = bread(ip->dev, ad->addrs[EXT2_IND_BLOCK] + first_partition_block);
+        bp1 = bread(ip->dev, ad->addrs[EXT2_IND_BLOCK] + part_offset(ip->dev));
         a = (uint32_t*)bp1->data;
         for (i = 0; i < EXT2_INDIRECT; i++)
         {
@@ -737,13 +744,13 @@ static void ext2fs_itrunc(struct ext2_inode* ip)
     // for double indirect blocks
     if (ad->addrs[EXT2_DIND_BLOCK])
     {
-        bp1 = bread(ip->dev, ad->addrs[EXT2_DIND_BLOCK] + first_partition_block);
+        bp1 = bread(ip->dev, ad->addrs[EXT2_DIND_BLOCK] + part_offset(ip->dev));
         a = (uint32_t*)bp1->data;
         for (i = 0; i < EXT2_INDIRECT; i++)
         {
             if (a[i])
             {
-                bp2 = bread(ip->dev, a[i] + first_partition_block);
+                bp2 = bread(ip->dev, a[i] + part_offset(ip->dev));
                 b = (uint32_t*)bp2->data;
                 for (j = 0; j < EXT2_INDIRECT; j++)
                 {
@@ -766,19 +773,19 @@ static void ext2fs_itrunc(struct ext2_inode* ip)
     // for triple indirect blocks
     if (ad->addrs[EXT2_TIND_BLOCK])
     {
-        bp1 = bread(ip->dev, ad->addrs[EXT2_TIND_BLOCK] + first_partition_block);
+        bp1 = bread(ip->dev, ad->addrs[EXT2_TIND_BLOCK] + part_offset(ip->dev));
         a = (uint32_t*)bp1->data;
         for (i = 0; i < EXT2_INDIRECT; i++)
         {
             if (a[i])
             {
-                bp2 = bread(ip->dev, a[i] + first_partition_block);
+                bp2 = bread(ip->dev, a[i] + part_offset(ip->dev));
                 b = (uint32_t*)bp2->data;
                 for (j = 0; j < EXT2_INDIRECT; j++)
                 {
                     if (b[j])
                     {
-                        buffer_head_t* bp3 = bread(ip->dev, b[j] + first_partition_block);
+                        buffer_head_t* bp3 = bread(ip->dev, b[j] + part_offset(ip->dev));
                         uint32_t* c = (uint32_t*)bp3->data;
                         for (uint32_t k = 0; k < EXT2_INDIRECT; k++)
                         {
@@ -1210,7 +1217,7 @@ vfs_inode_t* ext2_mount(uint8_t drive_index, uint32_t partition_lba)
         initialized = true;
     }
 
-    first_partition_block = partition_lba;
+    first_partition_blocks[drive_index] = partition_lba;
     ext2fs_readsb(drive_index, &ext2_sb);
 
     struct ext2_inode* root_ip = iget(drive_index, 2);

@@ -57,8 +57,21 @@ void vfs_init()
 
 static partition_info_t root_part;
 static partition_info_t mnt_part;
+static partition_info_t disk1_part;
 static bool root_found = false;
 static bool mnt_found = false;
+static bool disk1_found = false;
+
+static void mount_disk1_callback(partition_info_t *part)
+{
+    const char *type = gpt_get_guid_name(part->type_guid);
+    if (strcmp(type, "Linux Filesystem") == 0)
+    {
+        disk1_part = *part;
+        disk1_found = true;
+        boot_message(INFO, "VFS: Found disk1 ext2 partition at LBA %ld", part->start_lba);
+    }
+}
 
 static void mount_callback(partition_info_t *part)
 {
@@ -131,6 +144,33 @@ void vfs_mount_root(void)
         else
         {
             boot_message(WARNING, "VFS: /mnt not found in root, skipping FAT32 mount");
+        }
+    }
+
+    // Mount disk1 (IDE ext2) at /disk1 if present on drive 1
+    disk1_found = false;
+    gpt_read_partitions(1, mount_disk1_callback);
+
+    if (vfs_root && disk1_found)
+    {
+        vfs_inode_t *node = vfs_finddir(vfs_root, "disk1");
+        if (node)
+        {
+            kfree(node); // replace placeholder
+            vfs_inode_t *ext_root = ext2_mount(disk1_part.drive, disk1_part.start_lba);
+            if (ext_root)
+            {
+                vfs_register_mount("disk1", ext_root);
+                boot_message(INFO, "VFS: Mounted EXT2 on /disk1");
+            }
+            else
+            {
+                boot_message(ERROR, "VFS: Failed to mount EXT2 on /disk1");
+            }
+        }
+        else
+        {
+            boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
         }
     }
 }

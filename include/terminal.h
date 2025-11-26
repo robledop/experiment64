@@ -6,6 +6,9 @@
 #include "limine.h"
 
 #define TERMINAL_MARGIN 10
+#define LINE_SPACING 5
+#define FONT_HEIGHT 8
+
 // Do not change this
 typedef enum warning_level
 {
@@ -24,6 +27,7 @@ void terminal_set_cursor(int x, int y);
 void terminal_get_cursor(int *x, int *y);
 void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
+void terminal_scroll(int rows);
 void boot_message(t level, const char *fmt, ...);
 
 #ifdef TEST_MODE
