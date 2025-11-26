@@ -41,6 +41,7 @@
       <w>rflags</w>
       <w>setjmp</w>
       <w>usercopy</w>
+      <w>vprintk</w>
     </words>
   </dictionary>
 </component>

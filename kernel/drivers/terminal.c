@@ -588,7 +588,7 @@ void vprintk(const char *format, va_list args)
     }
 #endif
     va_list args_copy;
-    va_copy(args_copy, args); // NOLINT(clang-analyzer-security.VAList)
+    va_copy(args_copy, args);
     vcbprintf(nullptr, terminal_putc_callback, format, &args_copy);
     va_end(args_copy);
 }

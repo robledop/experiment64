@@ -44,19 +44,15 @@ void enable_sse(void)
     cpuid(1, 0, &eax, &ebx, &ecx, &edx);
 
     const bool has_xsave = (ecx & (1u << 26)) != 0;
-    const bool has_osxsave = (ecx & (1u << 27)) != 0;
     const bool has_avx = (ecx & (1u << 28)) != 0;
 
-    g_use_xsave = has_xsave && has_osxsave;
+    g_use_xsave = has_xsave;
     g_avx_enabled = false;
     g_use_xsaveopt = false;
     g_xsave_mask = XCR0_X87 | XCR0_SSE;
 
     if (g_use_xsave)
     {
-        if (has_avx)
-            g_xsave_mask |= XCR0_AVX;
-
         cr4 |= (1 << 18); // Set OSXSAVE (enable XSETBV/XGETBV)
     }
 
@@ -64,12 +60,18 @@ void enable_sse(void)
 
     if (g_use_xsave)
     {
+        cpuid(0xD, 0, &eax, &ebx, &ecx, &edx);
+        uint64_t supported = ((uint64_t)edx << 32) | eax;
+        g_xsave_mask &= supported;
+        if (has_avx && (supported & XCR0_AVX))
+            g_xsave_mask |= XCR0_AVX;
+
         // Enable states in XCR0 (x87 + SSE + AVX if present)
         xsetbv(0, g_xsave_mask);
 
         // Size of XSAVE area for currently enabled features
         cpuid(0xD, 0, &eax, &ebx, &ecx, &edx);
-        g_fpu_save_size = (eax > FPU_STATE_SIZE || eax == 0) ? FPU_STATE_SIZE : eax;
+        g_fpu_save_size = (ebx > FPU_STATE_SIZE || ebx == 0) ? FPU_STATE_SIZE : ebx;
 
         // XSAVEOPT support
         cpuid(0xD, 1, &eax, &ebx, &ecx, &edx);

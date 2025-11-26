@@ -32,8 +32,8 @@ override SMP ?= 8
 IDE_DISK := image2.ide
 
 # Common QEMU pieces
-QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP)
-QEMU_DRIVES := \
+QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) #-cpu max #-cpu host -enable-kvm
+QEMU_DRIVES :=  \
 	-drive if=none,file=image.hdd,format=raw,id=ahcibase \
 	-device ahci,id=ahci \
 	-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
@@ -48,6 +48,7 @@ override CFLAGS += \
     -fno-lto \
     -fPIE \
     -ggdb \
+    -mavx \
     -m64 \
     -march=x86-64 \
     -masm=intel \
@@ -73,7 +74,7 @@ override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
 run-gdb tests tests-kasan: CFLAGS += -DDEBUG
 
-QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log
+QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log -cpu max
 
 .PHONY: all
 all: $(KERNEL)
@@ -123,7 +124,7 @@ disk: clean
 .PHONY: run
 run: clean
 	$(MAKE) KASAN=1 image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on
+	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox
 vbox: clean
@@ -133,29 +134,24 @@ vbox: clean
 .PHONY: run-gdb
 run-gdb: clean
 	$(MAKE) KASAN=1 image.hdd
-	qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) \
-		-drive if=none,file=image.hdd,format=raw,id=ahcibase \
-		-device ahci,id=ahci \
-		-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
-		-drive if=ide,file=$(IDE_DISK),format=raw,index=1 \
-		-display gtk,zoom-to-fit=on ${QEMUGDB}
+	$(QEMU_BASE) $(QEMU_DRIVES) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 20s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 5s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 -cpu host -enable-kvm || true
 	cat test.log
 
 .PHONY: tests-kasan
 tests-kasan: clean
 	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 20s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 || true
+	timeout 5s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04  -cpu host -enable-kvm || true
 	cat test.log
 
 .PHONY: tests-gdb
 tests-gdb: clean
 	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} | tee test.log
+	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} -cpu max | tee test.log
 
 .PHONY: bear
 bear: clean
