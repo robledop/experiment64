@@ -22,6 +22,8 @@ int sys_read(int fd, char *buf, size_t count);
 int sys_write(int fd, const char *buf, size_t count);
 int sys_chdir(const char *path);
 int sys_exec(const char *path, struct syscall_regs *regs);
+int sys_getcwd(char *buf, size_t size);
+int sys_unlink(const char *path);
 
 // Buffer for setjmp/longjmp
 static void *test_env[64];
@@ -806,6 +808,50 @@ TEST(test_syscall_chdir)
         syscall_set_exit_hook(nullptr);
         return passed;
     }
+}
+
+TEST(test_syscall_getcwd)
+{
+    char buf[64] = {0};
+    TEST_ASSERT(sys_getcwd(buf, sizeof(buf)) == 0);
+    TEST_ASSERT(strcmp(buf, "/") == 0);
+
+    char saved[sizeof(current_process->cwd)];
+    strncpy(saved, current_process->cwd, sizeof(saved) - 1);
+    saved[sizeof(saved) - 1] = '\0';
+
+    strncpy(current_process->cwd, "/tmp", sizeof(current_process->cwd) - 1);
+    current_process->cwd[sizeof(current_process->cwd) - 1] = '\0';
+
+    memset(buf, 0, sizeof(buf));
+    TEST_ASSERT(sys_getcwd(buf, sizeof(buf)) == 0);
+    TEST_ASSERT(strcmp(buf, "/tmp") == 0);
+
+    strncpy(current_process->cwd, saved, sizeof(current_process->cwd) - 1);
+    current_process->cwd[sizeof(current_process->cwd) - 1] = '\0';
+    return true;
+}
+
+TEST(test_syscall_open_create_fat32)
+{
+    const char *path = "/mnt/SYS_TOUCH.TST";
+
+    int fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    TEST_ASSERT(fd >= 0);
+
+    const char *payload = "sys_touch_payload";
+    TEST_ASSERT(sys_write(fd, payload, strlen(payload)) == (int)strlen(payload));
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_RDONLY);
+    TEST_ASSERT(fd >= 0);
+    char buf[32] = {0};
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == (int)strlen(payload));
+    TEST_ASSERT(strncmp(buf, payload, strlen(payload)) == 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    TEST_ASSERT(sys_unlink(path) == 0);
+    return true;
 }
 
 TEST(test_syscall_sleep)

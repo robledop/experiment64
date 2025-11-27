@@ -111,6 +111,99 @@ TEST_PRIO(test_vfs_fat32_read, 30)
     return passed;
 }
 
+TEST_PRIO(test_vfs_fat32_link_not_supported, 60)
+{
+    vfs_inode_t *mnt = vfs_resolve_path("/mnt");
+    if (!mnt)
+        return false;
+
+    const char *src = "/mnt/DATA_T~1.TXT";
+    const char *dst = "/mnt/FAT32_LINK.TST";
+
+    vfs_unlink((char *)dst);
+
+    int res = vfs_link(src, dst);
+    bool passed = (res != 0);
+
+    vfs_inode_t *maybe = vfs_resolve_path(dst);
+    if (maybe)
+    {
+        // Unexpectedly created a link; clean up and mark failure.
+        vfs_unlink((char *)dst);
+        passed = false;
+        kfree(maybe);
+    }
+
+    if (mnt != vfs_root)
+        kfree(mnt);
+    return passed;
+}
+
+TEST_PRIO(test_vfs_fat32_unlink_file, 70)
+{
+    vfs_inode_t *mnt = vfs_resolve_path("/mnt");
+    if (!mnt)
+        return false;
+
+    fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
+    TEST_ASSERT(mnt_data != nullptr);
+    fat32_fs_t *fs = mnt_data->fs;
+    TEST_ASSERT(fs != nullptr);
+
+    const char *fname = "UNLINK.TST";
+    const char *full_path = "/mnt/UNLINK.TST";
+
+    // Remove leftovers if any.
+    vfs_unlink((char *)full_path);
+
+    TEST_ASSERT(fat32_create_file(fs, fname) == 0);
+
+    vfs_inode_t *node = vfs_resolve_path(full_path);
+    TEST_ASSERT(node != nullptr);
+
+    const char *payload = "fat32_unlink_payload";
+    TEST_ASSERT(vfs_write(node, 0, strlen(payload), (uint8_t *)payload) == strlen(payload));
+
+    TEST_ASSERT(vfs_unlink(full_path) == 0);
+    TEST_ASSERT(vfs_resolve_path(full_path) == nullptr);
+
+    // Confirm removal from FAT metadata as well.
+    fat32_file_info_t info;
+    TEST_ASSERT(fat32_stat(fs, fname, &info) != 0);
+
+    kfree(node);
+    if (mnt != vfs_root)
+        kfree(mnt);
+    return true;
+}
+
+TEST_PRIO(test_vfs_fat32_mknod_touch, 65)
+{
+    if (!vfs_root)
+        return false;
+
+    const char *path = "/mnt/TOUCH.TST";
+    vfs_unlink((char *)path); // clean up any leftovers
+
+    TEST_ASSERT(vfs_mknod((char *)path, VFS_FILE, 0) == 0);
+
+    vfs_inode_t *node = vfs_resolve_path(path);
+    TEST_ASSERT(node != nullptr);
+
+    const char *payload = "touch_fat32";
+    TEST_ASSERT(vfs_write(node, 0, strlen(payload), (uint8_t *)payload) == strlen(payload));
+
+    char buf[16] = {0};
+    TEST_ASSERT(vfs_read(node, 0, strlen(payload), (uint8_t *)buf) == strlen(payload));
+    TEST_ASSERT(strncmp(buf, payload, strlen(payload)) == 0);
+
+    TEST_ASSERT(vfs_unlink(path) == 0);
+    TEST_ASSERT(vfs_resolve_path(path) == nullptr);
+
+    kfree(node);
+    return true;
+}
+
 TEST_PRIO(test_vfs_fat32_zero_length_read, 45)
 {
     vfs_inode_t *mnt = vfs_resolve_path("/mnt");

@@ -1071,6 +1071,78 @@ static void ext2_vfs_close(vfs_inode_t* node)
 
 static struct inode_operations ext2_vfs_ops;
 
+static int ext2_vfs_link(vfs_inode_t* parent, const char* name, vfs_inode_t* target)
+{
+    if (!parent || !target || !name)
+        return -1;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+        return -1;
+
+    struct ext2_inode* dp = (struct ext2_inode*)parent->device;
+    struct ext2_inode* ip = (struct ext2_inode*)target->device;
+    if (!dp || !ip)
+        return -1;
+
+    ext2fs_ilock(dp);
+    int res = ext2fs_dirlink(dp, name, ip->inum);
+    ext2fs_iunlock(dp);
+    if (res < 0)
+        return -1;
+
+    ext2fs_ilock(ip);
+    ip->nlink++;
+    ext2fs_iupdate(ip);
+    ext2fs_iunlock(ip);
+    return 0;
+}
+
+static int ext2_vfs_unlink(vfs_inode_t* parent, const char* name)
+{
+    if (!parent || !name)
+        return -1;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+        return -1;
+
+    struct ext2_inode* dp = (struct ext2_inode*)parent->device;
+    if (!dp)
+        return -1;
+
+    ext2fs_ilock(dp);
+    uint32_t off = 0;
+    struct ext2_inode* ip = ext2fs_dirlookup(dp, name, &off);
+    if (!ip)
+    {
+        ext2fs_iunlock(dp);
+        return -1;
+    }
+
+    // Do not allow unlinking directories.
+    if (ip->type == T_DIR)
+    {
+        ext2fs_iput(ip);
+        ext2fs_iunlock(dp);
+        return -1;
+    }
+
+    // Zero the inode field of the directory entry.
+    uint32_t zero = 0;
+    if (ext2_write_inode(dp, (char *)&zero, off, sizeof(zero)) != sizeof(zero))
+    {
+        ext2fs_iput(ip);
+        ext2fs_iunlock(dp);
+        return -1;
+    }
+    ext2fs_iunlock(dp);
+
+    ext2fs_ilock(ip);
+    if (ip->nlink > 0)
+        ip->nlink--;
+    ext2fs_iupdate(ip);
+    ext2fs_iunlock(ip);
+    ext2fs_iput(ip);
+    return 0;
+}
+
 static vfs_inode_t* ext2_vfs_finddir(const vfs_inode_t* node, const char* name)
 {
     struct ext2_inode* dp = (struct ext2_inode*)node->device;
@@ -1221,6 +1293,8 @@ static struct inode_operations ext2_vfs_ops = {
     .finddir = ext2_vfs_finddir,
     .mknod = ext2_vfs_mknod,
     .clone = ext2_vfs_clone,
+    .link = ext2_vfs_link,
+    .unlink = ext2_vfs_unlink,
 };
 
 vfs_inode_t* ext2_mount(uint8_t drive_index, uint32_t partition_lba)

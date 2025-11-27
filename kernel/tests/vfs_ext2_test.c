@@ -165,3 +165,47 @@ TEST(test_ext2_long_name_and_duplicate_rejection)
     kfree(node);
     return true;
 }
+
+TEST_PRIO(test_ext2_link_and_unlink, 40)
+{
+    if (!vfs_root)
+        return false;
+
+    const char *src_path = "/ext2_link_src";
+    const char *link_path = "/ext2_link_dst";
+
+    // Clean up any previous leftovers.
+    vfs_unlink((char *)link_path);
+    vfs_unlink((char *)src_path);
+
+    TEST_ASSERT(vfs_mknod((char *)src_path, VFS_FILE, 0) == 0);
+
+    vfs_inode_t *src = vfs_resolve_path(src_path);
+    TEST_ASSERT(src != nullptr);
+
+    const char *payload = "ext2_link_payload";
+    TEST_ASSERT(vfs_write(src, 0, strlen(payload), (uint8_t *)payload) == strlen(payload));
+
+    TEST_ASSERT(vfs_link(src_path, link_path) == 0);
+
+    vfs_inode_t *dst = vfs_resolve_path(link_path);
+    TEST_ASSERT(dst != nullptr);
+
+    char buf[32] = {0};
+    TEST_ASSERT(vfs_read(dst, 0, strlen(payload), (uint8_t *)buf) == strlen(payload));
+    TEST_ASSERT(strncmp(buf, payload, strlen(payload)) == 0);
+
+    // Removing the link should not delete the original.
+    TEST_ASSERT(vfs_unlink(link_path) == 0);
+    TEST_ASSERT(vfs_resolve_path(link_path) == nullptr);
+
+    vfs_inode_t *src_check = vfs_resolve_path(src_path);
+    TEST_ASSERT(src_check != nullptr);
+    kfree(src_check);
+
+    TEST_ASSERT(vfs_unlink(src_path) == 0);
+
+    kfree(dst);
+    kfree(src);
+    return true;
+}

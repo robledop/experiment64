@@ -49,6 +49,8 @@ struct inode_operations
     struct vfs_inode*(*finddir)(const struct vfs_inode* node, const char* name);
     struct vfs_inode*(*clone)(const struct vfs_inode* node);
     int (*mknod)(const struct vfs_inode* node, const char* name, int mode, int dev);
+    int (*link)(struct vfs_inode* parent, const char* name, struct vfs_inode* target);
+    int (*unlink)(struct vfs_inode* parent, const char* name);
 };
 
 typedef struct vfs_inode
@@ -74,6 +76,8 @@ vfs_inode_t* vfs_finddir(vfs_inode_t* node, char* name);
 vfs_inode_t* vfs_resolve_path(const char* path);
 int vfs_mknod(char* path, int mode, int dev);
 int vfs_ioctl(vfs_inode_t* node, int request, void* arg);
+int vfs_link(const char* oldpath, const char* newpath);
+int vfs_unlink(const char* path);
 
 void vfs_mount_root(void);
 void vfs_register_mount(const char* name, vfs_inode_t* root);

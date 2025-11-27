@@ -131,6 +131,16 @@ int chdir(const char *path)
     return clamp_signed_to_int(syscall1(SYS_CHDIR, (long)path));
 }
 
+int link(const char *oldpath, const char *newpath)
+{
+    return clamp_signed_to_int(syscall2(SYS_LINK, (long)oldpath, (long)newpath));
+}
+
+int unlink(const char *path)
+{
+    return clamp_signed_to_int(syscall1(SYS_UNLINK, (long)path));
+}
+
 int stat(const char *path, struct stat *st)
 {
     return clamp_signed_to_int(syscall2(SYS_STAT, (long)path, (long)st));
@@ -151,6 +161,14 @@ int sleep(int milliseconds)
 int ioctl(int fd, unsigned long request, void *arg)
 {
     return clamp_signed_to_int(syscall3(SYS_IOCTL, fd, (long)request, (long)arg));
+}
+
+char *getcwd(char *buf, size_t size)
+{
+    long ret = syscall2(SYS_GETCWD, (long)buf, (long)size);
+    if (ret < 0)
+        return nullptr;
+    return buf;
 }
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)

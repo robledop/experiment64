@@ -406,3 +406,136 @@ int vfs_mknod(char *path, int mode, int dev)
 
     return -1;
 }
+
+int vfs_link(const char *oldpath, const char *newpath)
+{
+    if (!oldpath || !newpath || !vfs_root)
+        return -1;
+
+    vfs_inode_t *target = vfs_resolve_path(oldpath);
+    if (!target)
+        return -1;
+
+    char parent_path[VFS_MAX_PATH];
+    char filename[128];
+    char *last_slash = strrchr(newpath, '/');
+
+    if (last_slash)
+    {
+        ptrdiff_t len = last_slash - newpath;
+        if (len <= 0)
+        {
+            strcpy(parent_path, "/");
+        }
+        else
+        {
+            if ((size_t)len >= VFS_MAX_PATH)
+            {
+                vfs_close(target);
+                if (target != vfs_root)
+                    kfree(target);
+                return -1;
+            }
+            strncpy(parent_path, newpath, (size_t)len);
+            parent_path[len] = 0;
+        }
+        if (strlen(last_slash + 1) >= sizeof(filename))
+        {
+            vfs_close(target);
+            if (target != vfs_root)
+                kfree(target);
+            return -1;
+        }
+        strcpy(filename, last_slash + 1);
+    }
+    else
+    {
+        strcpy(parent_path, "/");
+        if (strlen(newpath) >= sizeof(filename))
+        {
+            vfs_close(target);
+            if (target != vfs_root)
+                kfree(target);
+            return -1;
+        }
+        strcpy(filename, newpath);
+    }
+
+    vfs_inode_t *parent = vfs_resolve_path(parent_path);
+    if (!parent)
+    {
+        vfs_close(target);
+        if (target != vfs_root)
+            kfree(target);
+        return -1;
+    }
+
+    int res = -1;
+    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->link)
+    {
+        res = parent->iops->link(parent, filename, target);
+    }
+
+    if (parent != vfs_root)
+    {
+        vfs_close(parent);
+        kfree(parent);
+    }
+    if (target != vfs_root)
+    {
+        vfs_close(target);
+        kfree(target);
+    }
+    return res;
+}
+
+int vfs_unlink(const char *path)
+{
+    if (!path || !vfs_root)
+        return -1;
+
+    char parent_path[VFS_MAX_PATH];
+    char filename[128];
+    char *last_slash = strrchr(path, '/');
+
+    if (last_slash)
+    {
+        ptrdiff_t len = last_slash - path;
+        if (len <= 0)
+        {
+            strcpy(parent_path, "/");
+        }
+        else
+        {
+            if ((size_t)len >= VFS_MAX_PATH)
+                return -1;
+            strncpy(parent_path, path, (size_t)len);
+            parent_path[len] = 0;
+        }
+        if (strlen(last_slash + 1) >= sizeof(filename))
+            return -1;
+        strcpy(filename, last_slash + 1);
+    }
+    else
+    {
+        strcpy(parent_path, "/");
+        if (strlen(path) >= sizeof(filename))
+            return -1;
+        strcpy(filename, path);
+    }
+
+    vfs_inode_t *parent = vfs_resolve_path(parent_path);
+    if (!parent)
+        return -1;
+
+    int res = -1;
+    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->unlink)
+        res = parent->iops->unlink(parent, filename);
+
+    if (parent != vfs_root)
+    {
+        vfs_close(parent);
+        kfree(parent);
+    }
+    return res;
+}

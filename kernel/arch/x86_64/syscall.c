@@ -350,6 +350,8 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t of
 int sys_munmap(void *addr, size_t length);
 int sys_stat(const char *path, struct stat *st);
 int sys_fstat(int fd, struct stat *st);
+int sys_link(const char *oldpath, const char *newpath);
+int sys_unlink(const char *path);
 
 void syscall_init(void)
 {
@@ -719,6 +721,20 @@ int sys_chdir(const char *path)
     return 0;
 }
 
+int sys_getcwd(char *buf, size_t size)
+{
+    if (!buf || size == 0)
+        return -1;
+    const char *cwd = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
+    const size_t len = strlen(cwd);
+    if (len + 1 > size)
+        return -1;
+    if (!prepare_user_buffer(buf, len + 1, true))
+        return -1;
+    memcpy(buf, cwd, len + 1);
+    return 0;
+}
+
 int sys_sleep(uint64_t milliseconds)
 {
     uint64_t start = scheduler_ticks;
@@ -766,6 +782,34 @@ int sys_stat(const char *path, struct stat *st)
         kfree(inode);
     }
     return 0;
+}
+
+int sys_link(const char *oldpath, const char *newpath)
+{
+    if (!oldpath || !newpath || !*oldpath || !*newpath)
+        return -1;
+
+    char abs_old[SYSCALL_MAX_PATH];
+    char abs_new[SYSCALL_MAX_PATH];
+    resolve_user_path(oldpath, abs_old, sizeof(abs_old));
+    resolve_user_path(newpath, abs_new, sizeof(abs_new));
+
+    return vfs_link(abs_old, abs_new);
+}
+
+int sys_unlink(const char *path)
+{
+    if (!path || !*path)
+        return -1;
+
+    char abs_path[SYSCALL_MAX_PATH];
+    resolve_user_path(path, abs_path, sizeof(abs_path));
+
+    // Prevent unlinking the root
+    if (strcmp(abs_path, "/") == 0)
+        return -1;
+
+    return vfs_unlink(abs_path);
 }
 
 int sys_fstat(int fd, struct stat *st)
@@ -879,6 +923,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_stat((const char *)arg1, (struct stat *)arg2);
     case SYS_FSTAT:
         return sys_fstat((int)arg1, (struct stat *)arg2);
+    case SYS_LINK:
+        return sys_link((const char *)arg1, (const char *)arg2);
+    case SYS_UNLINK:
+        return sys_unlink((const char *)arg1);
+    case SYS_GETCWD:
+        return sys_getcwd((char *)arg1, (size_t)arg2);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;

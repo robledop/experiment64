@@ -23,5 +23,7 @@
 #define SYS_EXECVE 19
 #define SYS_STAT 20
 #define SYS_FSTAT 21
+#define SYS_LINK 22
+#define SYS_UNLINK 23
 
 #endif
