@@ -9,9 +9,8 @@ bool fs_initialized = false;
 
 TEST_PRIO(test_fat32_init, 0)
 {
-    // Assuming Drive 0, Partition starts at 1MB (LBA 2048)
-    // This matches the Makefile: parted ... mkpart ESP fat32 1MiB ...
-    if (fat32_init(&test_fs, 0, 2048) == 0)
+    // Data partition starts at 95MiB (LBA 194560) per scripts/make_image.sh.
+    if (fat32_init(&test_fs, 0, 194560) == 0)
     {
         fs_initialized = true;
         return true;

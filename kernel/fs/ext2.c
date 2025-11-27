@@ -823,7 +823,7 @@ int ext2_read_inode(const struct ext2_inode* ip, char* dst, uint32_t off, uint32
         return -1;
     }
 
-    if (off > ip->size || off + n < off)
+    if (off >= ip->size || off + n < off)
     {
         return 0;
     }
@@ -831,7 +831,6 @@ int ext2_read_inode(const struct ext2_inode* ip, char* dst, uint32_t off, uint32
     {
         n = ip->size - off;
     }
-
     for (uint32_t tot = 0; tot < n;)
     {
         const uint32_t logical_block = off / EXT2_BSIZE;

@@ -26,19 +26,18 @@ mkdir -p build/rootfs_esp/boot/limine
 mkdir -p build/rootfs_ext2/bin
 mkdir -p build/rootfs_ext2/mnt
 mkdir -p build/rootfs_ext2/disk1
+mkdir -p build/rootfs_ext2/boot
 mkdir -p build/rootfs_data/test_dir
 mkdir -p build/rootfs_data/docs
 
 # Populate ESP
-cp -v $KERNEL build/rootfs_esp/boot/
-cp -v assets/logo.bmp build/rootfs_esp/boot/logo.bmp
+cp -v "$KERNEL" build/rootfs_esp/boot/
 cp -v limine.conf limine/limine-bios.sys build/rootfs_esp/boot/limine/
 cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI build/rootfs_esp/EFI/BOOT/
-echo "Hello FAT32" > build/rootfs_esp/TEST.TXT
 
 # Populate RootFS (Ext2)
-mkdir -p build/rootfs_ext2/boot
-cp -v assets/logo.bmp build/rootfs_ext2/boot/logo.bmp
+mkdir -p build/rootfs_ext2/var
+cp -v assets/logo.bmp build/rootfs_ext2/var/logo.bmp
 for bin in "$USER_BUILD_DIR"/*; do
     if [ ! -f "$bin" ]; then
         continue
@@ -54,7 +53,7 @@ for bin in "$USER_BUILD_DIR"/*; do
     cp -v "$bin" "build/rootfs_ext2/bin/$dest"
 done
 echo "Hello Ext2" > build/rootfs_ext2/test.txt
-echo "Hello FAT32" > build/rootfs_ext2/TEST.TXT
+echo "Hello Ext2 Upper" > build/rootfs_ext2/TEST.TXT
 
 # Create ESP Image (Part 1, 62MB)
 dd if=/dev/zero of=esp.img bs=1M count=62
@@ -69,6 +68,7 @@ mkfs.ext2 -b 1024 -d build/rootfs_ext2 -r 1 -N 0 -m 0 -L "ROOT" root.img
 echo "Hello Data Partition" > build/rootfs_data/data_test.txt
 echo "This is a file in a subdirectory" > build/rootfs_data/test_dir/subfile.txt
 echo "Documentation file" > build/rootfs_data/docs/readme.md
+echo "Hello FAT32" > build/rootfs_data/TEST.TXT
 
 dd if=/dev/zero of=data.img bs=1M count=32
 mformat -i data.img -F ::

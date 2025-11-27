@@ -3,6 +3,9 @@
 #include "uart.h"
 #include "string.h"
 #include "framebuffer.h"
+#include "vfs.h"
+#include "heap.h"
+#include "util.h"
 #include <stdarg.h>
 #include <limits.h>
 #include <string.h>
@@ -18,6 +21,21 @@ static int terminal_x = 0;
 static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
 static uint32_t terminal_bg_color = 0x00000000;
+static char boot_log_buffer[8192];
+static size_t boot_log_len = 0;
+static bool boot_log_ready = false;
+
+static void cleanup_vfs_inode(void* ptr)
+{
+    if (!ptr)
+        return;
+    vfs_inode_t* node = *(vfs_inode_t**)ptr;
+    if (node && node != vfs_root)
+    {
+        vfs_close(node);
+        kfree(node);
+    }
+}
 
 static inline int terminal_left(void)
 {
@@ -570,18 +588,103 @@ void printk(const char* format, ...)
     va_end(args);
 }
 
+static vfs_inode_t* boot_log_open_file(void)
+{
+    if (!vfs_root)
+        return nullptr;
+
+    // Ensure /var
+    vfs_inode_t* node = vfs_resolve_path("/var");
+    defer(cleanup_vfs_inode, &node);
+    if (!node)
+    {
+        vfs_mknod("/var", VFS_DIRECTORY, 0);
+        node = vfs_resolve_path("/var");
+    }
+
+    // Ensure /var/log
+    vfs_inode_t* log_dir = vfs_resolve_path("/var/log");
+    defer(cleanup_vfs_inode, &log_dir);
+    if (!log_dir)
+    {
+        vfs_mknod("/var/log", VFS_DIRECTORY, 0);
+        log_dir = vfs_resolve_path("/var/log");
+    }
+
+    vfs_inode_t* file = vfs_resolve_path("/var/log/boot");
+    if (!file)
+    {
+        vfs_mknod("/var/log/boot", VFS_FILE, 0);
+        file = vfs_resolve_path("/var/log/boot");
+    }
+    return file;
+}
+
+static void boot_log_record(const char* line)
+{
+    if (!line)
+        return;
+
+    if (boot_log_ready)
+    {
+        vfs_inode_t* file = boot_log_open_file();
+        if (file)
+        {
+            vfs_write(file, file->size, strlen(line), (uint8_t*)line);
+            vfs_close(file);
+            kfree(file);
+            return;
+        }
+    }
+
+    size_t len = strlen(line);
+    if (len > sizeof(boot_log_buffer) - 1)
+        len = sizeof(boot_log_buffer) - 1;
+    if (boot_log_len + len < sizeof(boot_log_buffer))
+    {
+        memcpy(boot_log_buffer + boot_log_len, line, len);
+        boot_log_len += len;
+        boot_log_buffer[boot_log_len] = '\0';
+    }
+}
+
+void boot_log_flush(void)
+{
+    vfs_inode_t* file = boot_log_open_file();
+    if (!file)
+        return;
+
+    if (boot_log_len > 0)
+    {
+        vfs_write(file, file->size, boot_log_len, (uint8_t*)boot_log_buffer);
+        boot_log_len = 0;
+        boot_log_buffer[0] = '\0';
+    }
+
+    vfs_close(file);
+    kfree(file);
+    boot_log_ready = true;
+}
+
 void boot_message(t level, const char* fmt, ...)
 {
+    const char* level_str;
     switch (level)
     {
     case INFO:
+        level_str = "INFO";
         printk(KWHT "[ " KBGRN "INFO" KRESET " ] ");
         break;
     case WARNING:
+        level_str = "WARNING";
         printk(KWHT "[ " KYEL "WARNING" KRESET " ] ");
         break;
     case ERROR:
+        level_str = "ERROR";
         printk(KWHT "[ " KRED "ERROR" KRESET " ] ");
+        break;
+    default:
+        level_str = "INFO";
         break;
     }
 
@@ -591,4 +694,9 @@ void boot_message(t level, const char* fmt, ...)
     vsnprintk(buf, sizeof(buf), fmt, ap);
     va_end(ap); // NOLINT(clang-analyzer-security.VAList)
     printk("%s\n", buf);
+
+    // Also append to boot log (plain text)
+    char line[640];
+    snprintk(line, sizeof(line), "[%s] %s\n", level_str, buf);
+    boot_log_record(line);
 }

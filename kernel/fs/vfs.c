@@ -57,9 +57,11 @@ void vfs_init()
 
 static partition_info_t root_part;
 static partition_info_t mnt_part;
+static partition_info_t boot_part;
 static partition_info_t disk1_part;
 static bool root_found = false;
 static bool mnt_found = false;
+static bool boot_found = false;
 static bool disk1_found = false;
 
 static void mount_disk1_callback(partition_info_t *part)
@@ -82,6 +84,12 @@ static void mount_callback(partition_info_t *part)
         mnt_part = *part;
         mnt_found = true;
         boot_message(INFO, "VFS: Found Data partition at LBA %ld", part->start_lba);
+    }
+    else if (strcmp(type, "EFI System Partition") == 0)
+    {
+        boot_part = *part;
+        boot_found = true;
+        boot_message(INFO, "VFS: Found ESP partition at LBA %ld", part->start_lba);
     }
     else if (strcmp(type, "Linux Filesystem") == 0)
     {
@@ -147,6 +155,30 @@ void vfs_mount_root(void)
         }
     }
 
+    // Mount ESP at /boot if present
+    if (vfs_root && boot_found)
+    {
+        vfs_inode_t *boot_node = vfs_finddir(vfs_root, "boot");
+        if (boot_node)
+        {
+            kfree(boot_node); // replace placeholder
+            vfs_inode_t *esp_root = fat32_mount(boot_part.drive, boot_part.start_lba);
+            if (esp_root)
+            {
+                vfs_register_mount("boot", esp_root);
+                boot_message(INFO, "VFS: Mounted ESP on /boot");
+            }
+            else
+            {
+                boot_message(ERROR, "VFS: Failed to mount ESP on /boot");
+            }
+        }
+        else
+        {
+            boot_message(WARNING, "VFS: /boot not found in root, skipping ESP mount");
+        }
+    }
+
     // Mount disk1 (IDE ext2) at /disk1 if present on drive 1
     disk1_found = false;
     gpt_read_partitions(1, mount_disk1_callback);
@@ -173,6 +205,9 @@ void vfs_mount_root(void)
             boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
         }
     }
+
+    // Flush buffered boot logs to disk once mounts are ready.
+    boot_log_flush();
 }
 
 uint64_t vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)

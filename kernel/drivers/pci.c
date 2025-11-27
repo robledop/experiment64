@@ -2,6 +2,7 @@
 #include "io.h"
 #include "terminal.h"
 #include "ahci.h"
+#include "ide.h"
 #include <stddef.h>
 
 // https://wiki.osdev.org/PCI
@@ -139,8 +140,15 @@ struct pci_vendor vendors[] = {
     {0x10EC, "Realtek Semiconductor Co."}
 };
 
+static void pci_ide_init(struct pci_device device)
+{
+    (void)device;
+    ide_init();
+}
+
 struct pci_driver pci_drivers[] = {
     {.class = 0x01, .subclass = 0x06, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &ahci_init},
+    {.class = 0x01, .subclass = 0x01, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &pci_ide_init},
 };
 
 /**

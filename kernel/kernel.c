@@ -80,7 +80,7 @@ void kernel_splash(void)
     uint32_t* pixels = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
-    if (bitmap_load_argb("/boot/logo.bmp", &pixels, &width, &height) != 0 || !pixels)
+    if (bitmap_load_argb("/var/logo.bmp", &pixels, &width, &height) != 0 || !pixels)
     {
         kernel_splash_ascii();
         return;
@@ -138,7 +138,6 @@ void _start(void) // NOLINT(*-reserved-identifier)
     heap_init(hhdm_offset);
     process_init();
     pci_scan();
-    ide_init();
     storage_init();
     bio_init();
     vfs_init();

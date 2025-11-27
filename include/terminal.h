@@ -31,6 +31,7 @@ void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
 void terminal_scroll(int rows);
 void boot_message(t level, const char *fmt, ...);
+void boot_log_flush(void);
 
 #ifdef TEST_MODE
 void test_capture_begin(void);

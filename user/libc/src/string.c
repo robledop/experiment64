@@ -182,7 +182,7 @@ void reverse(char* s)
 
     for (i = 0, j = (int)strlen(s) - 1; i < j; i++, j--)
     {
-        const int c = s[i];
+        const char c = s[i];
         s[i] = s[j];
         s[j] = c;
     }
