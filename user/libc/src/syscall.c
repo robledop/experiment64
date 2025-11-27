@@ -77,6 +77,8 @@ void __exit_impl(int status)
 void exit(int status)
 {
     __exit_impl(status);
+
+    __builtin_unreachable();
 }
 
 int fork(void)

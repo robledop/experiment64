@@ -1,10 +1,9 @@
 #pragma once
 
-#define nullptr ((void *)0)
 #define NULL ((void *)0)
 
-typedef unsigned long long size_t;
-typedef long long ptrdiff_t;
+typedef unsigned long size_t;
+typedef long ptrdiff_t;
 
 // ReSharper disable once CppInconsistentNaming
 #define offsetof(type, member) __builtin_offsetof(type, member)

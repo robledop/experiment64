@@ -31,7 +31,7 @@ static block_meta *request_space(block_meta *last, size_t size)
     block_meta* block = sbrk(0);
     if (size > (size_t)INTPTR_MAX - META_SIZE)
         return nullptr;
-    intptr_t increment = (intptr_t)(size + META_SIZE);
+    intptr_t increment = (intptr_t)size + (intptr_t)META_SIZE;
     const void *request = sbrk(increment);
     if (request == (void *)-1)
     {

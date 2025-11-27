@@ -135,7 +135,7 @@ void ls(char *path)
             break;
         }
         strcpy(ctx.path, path);
-        ctx.base_len = strlen(ctx.path);
+        ctx.base_len = (int)strlen(ctx.path);
         if (ctx.base_len == 0 || ctx.path[ctx.base_len - 1] != '/') {
             ctx.path[ctx.base_len++] = '/';
             ctx.path[ctx.base_len]   = 0;

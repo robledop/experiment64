@@ -127,9 +127,9 @@ static void format_double(char *buf, size_t cap, double val, int precision)
     {
         *p++ = '.';
         remaining--;
-        unsigned long scale = 1;
+        double scale = 1.0;
         for (int i = 0; i < precision; i++)
-            scale *= 10;
+            scale *= 10.0;
         unsigned long frac = (unsigned long)(frac_d * scale + 0.5);
         char fracbuf[32];
         int fraclen = format_uint(fracbuf, sizeof fracbuf, frac, 10, true);
@@ -256,7 +256,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             if (precision < 0)
                 precision = 6;
             double val = va_arg(args, double);
-            char buf[64];
+            char buf[64] = {0};
             format_double(buf, sizeof buf, val, precision);
             int len = strnlen_s(buf, 64);
             out_padding(ctx, width, len, ' ');

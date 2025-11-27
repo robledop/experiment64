@@ -14,8 +14,8 @@
 #define EOF (-1)
 
 int printf(const char *format, ...);
-int vsnprintf(char *buf, size_t size, const char *format, va_list args);
-int snprintf(char *buf, size_t size, const char *format, ...);
+int vsnprintf(char *restrict buf, size_t size, const char *restrict format, va_list args);
+int snprintf(char *restrict buf, size_t size, const char *restrict format, ...);
 int getchar(void);
 int putchar(int c);
 char *gets(char *s);
