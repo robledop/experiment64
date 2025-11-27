@@ -116,7 +116,7 @@ void kernel_splash(void)
 [[noreturn]]
 void _start(void) // NOLINT(*-reserved-identifier)
 {
-    enable_sse();
+    enable_simd();
     uart_init();
     boot_init();
     boot_init_terminal();

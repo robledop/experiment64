@@ -11,6 +11,7 @@
 
 // Buffer for XSAVE/FXSAVE state (x87 + SSE + AVX); 64-byte aligned for XSAVE
 #define FPU_STATE_SIZE 1024
+
 typedef struct
 {
     uint8_t data[FPU_STATE_SIZE];
@@ -32,24 +33,24 @@ struct Thread;
 
 typedef struct cpu
 {
-    struct cpu *self;
+    struct cpu* self;
     uint64_t user_rsp;
     uint64_t kernel_rsp;
-    struct Thread *active_thread;
+    struct Thread* active_thread;
     int lapic_id;
     struct gdt_desc gdt[7];
     struct tss_entry tss;
 } cpu_t;
 
-cpu_t *get_cpu(void);
+cpu_t* get_cpu(void);
 
-void hcf(void);
+[[noreturn]] void hcf(void);
 void wrmsr(uint32_t msr, uint64_t value);
 uint64_t rdmsr(uint32_t msr);
-void enable_sse(void);
-void init_fpu_state(fpu_state_t *state);
-void save_fpu_state(fpu_state_t *state);
-void restore_fpu_state(fpu_state_t *state);
+void enable_simd(void);
+void init_fpu_state(fpu_state_t* state);
+void save_fpu_state(fpu_state_t* state);
+void restore_fpu_state(fpu_state_t* state);
 bool cpu_has_avx(void);
 uint32_t cpu_fpu_save_size(void);
 bool cpu_is_hypervisor(void);

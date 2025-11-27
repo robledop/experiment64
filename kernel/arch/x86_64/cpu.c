@@ -25,7 +25,7 @@ static inline void xsetbv(uint32_t index, uint64_t value)
     __asm__ volatile("xsetbv" : : "c"(index), "a"(low), "d"(high) : "memory");
 }
 
-void enable_sse(void)
+void enable_simd(void)
 {
     uint64_t cr0;
     uint64_t cr4;

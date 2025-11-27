@@ -18,7 +18,7 @@ static cpu_t cpus[MAX_CPUS];
 
 static void ap_main(struct limine_smp_info *info)
 {
-    enable_sse();
+    enable_simd();
     cpu_t *cpu = (cpu_t *)info->extra_argument;
     wrmsr(MSR_GS_BASE, (uint64_t)cpu);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
