@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 int putchar(int c)
 {
@@ -14,9 +15,7 @@ int getchar(void)
 {
     char c;
     if (read(0, &c, 1) == 1)
-    {
         return (unsigned char)c;
-    }
     return EOF;
 }
 
@@ -25,89 +24,158 @@ char *gets(char *s)
     char *p = s;
     int c;
     while ((c = getchar()) != EOF && c != '\n')
-    {
         *p++ = (char)c;
-    }
     *p = '\0';
     if (c == EOF && p == s)
-        return nullptr;
+        return NULL;
     return s;
 }
 
-static int print_uint(unsigned long n)
+struct out_ctx
 {
-    char buf[32];
-    int i = 0;
-    if (n == 0)
+    char *buf;
+    size_t size;
+    size_t pos;
+    int count;
+    bool is_buffer;
+};
+
+static void out_char(struct out_ctx *ctx, char c)
+{
+    if (ctx->is_buffer)
     {
-        putchar('0');
-        return 1;
+        if (ctx->pos + 1 < ctx->size)
+            ctx->buf[ctx->pos] = c;
     }
-    while (n > 0 && i < (int)sizeof(buf))
+    else
     {
-        buf[i++] = (char)('0' + (n % 10));
-        n /= 10;
+        putchar(c);
     }
-    int written = i;
-    while (i-- > 0)
-        putchar(buf[i]);
-    return written;
+    ctx->pos++;
+    ctx->count++;
 }
 
-static int print_int(long n)
+static int strnlen_s(const char *s, int limit)
 {
-    int written = 0;
-    if (n < 0)
+    int len = 0;
+    while (s && *s && len < limit)
     {
-        putchar('-');
-        written++;
-        n = -n;
+        s++;
+        len++;
     }
-    return written + print_uint((unsigned long)n);
+    return len;
 }
 
-static int print_hex(unsigned long n)
-{
-    if (n >= 16)
-        print_hex(n / 16);
-    int rem = (int)(n % 16);
-    char c = (rem < 10) ? (char)('0' + rem) : (char)('a' + (rem - 10));
-    putchar(c);
-    return 1; // caller manages width if needed
-}
-
-static int print_padding(int width, int content_len, char pad_char)
+static void out_padding(struct out_ctx *ctx, int width, int content_len, char pad)
 {
     int pads = width - content_len;
     if (pads < 0)
         pads = 0;
     for (int i = 0; i < pads; i++)
-        putchar(pad_char);
-    return pads;
+        out_char(ctx, pad);
 }
 
-int printf(const char *format, ...)
+static int format_uint(char *buf, size_t cap, unsigned long val, int base, bool lowercase)
 {
-    va_list args;
-    va_start(args, format);
-    int count = 0;
+    const char *digits = lowercase ? "0123456789abcdef" : "0123456789ABCDEF";
+    int i = 0;
+    if (val == 0 && cap > 1)
+    {
+        buf[i++] = '0';
+    }
+    else
+    {
+        while (val > 0 && i + 1 < (int)cap)
+        {
+            buf[i++] = digits[val % (unsigned)base];
+            val /= (unsigned)base;
+        }
+    }
+    buf[i] = '\0';
+    // reverse
+    for (int l = 0, r = i - 1; l < r; l++, r--)
+    {
+        char tmp = buf[l];
+        buf[l] = buf[r];
+        buf[r] = tmp;
+    }
+    return i;
+}
 
+static void format_double(char *buf, size_t cap, double val, int precision)
+{
+    if (cap == 0)
+        return;
+    char *p = buf;
+    size_t remaining = cap;
+    if (val < 0)
+    {
+        *p++ = '-';
+        remaining--;
+        val = -val;
+    }
+    unsigned long whole = (unsigned long)val;
+    double frac_d = val - (double)whole;
+    char intbuf[32];
+    int intlen = format_uint(intbuf, sizeof intbuf, whole, 10, true);
+    for (int i = 0; i < intlen && remaining > 1; i++)
+    {
+        *p++ = intbuf[i];
+        remaining--;
+    }
+    if (precision > 0 && remaining > 1)
+    {
+        *p++ = '.';
+        remaining--;
+        unsigned long scale = 1;
+        for (int i = 0; i < precision; i++)
+            scale *= 10;
+        unsigned long frac = (unsigned long)(frac_d * scale + 0.5);
+        char fracbuf[32];
+        int fraclen = format_uint(fracbuf, sizeof fracbuf, frac, 10, true);
+        // pad leading zeros if needed
+        while (fraclen < precision && remaining > 1)
+        {
+            *p++ = '0';
+            remaining--;
+            precision--;
+        }
+        for (int i = 0; i < fraclen && remaining > 1; i++)
+        {
+            *p++ = fracbuf[i];
+            remaining--;
+        }
+    }
+    *p = '\0';
+}
+
+static void vformat(struct out_ctx *ctx, const char *format, va_list args)
+{
     for (const char *p = format; *p; p++)
     {
         if (*p != '%')
         {
-            putchar(*p);
-            count++;
+            out_char(ctx, *p);
             continue;
         }
         p++;
-        // Parse minimal width (decimal digits) and a single 'l' length modifier.
         int width = 0;
+        int precision = -1;
         bool long_mod = false;
         while (*p >= '0' && *p <= '9')
         {
             width = width * 10 + (*p - '0');
             p++;
+        }
+        if (*p == '.')
+        {
+            precision = 0;
+            p++;
+            while (*p >= '0' && *p <= '9')
+            {
+                precision = precision * 10 + (*p - '0');
+                p++;
+            }
         }
         if (*p == 'l')
         {
@@ -118,40 +186,50 @@ int printf(const char *format, ...)
         switch (*p)
         {
         case 'd':
+        case 'i':
         {
             long val = long_mod ? va_arg(args, long) : va_arg(args, int);
-            // Capture output length by printing into a temp buffer via recursion? Simpler: format into stack buffer.
-            char tmp[32];
-            int len = 0;
-            long n = val;
-            if (n < 0)
-            {
-                tmp[len++] = '-';
-                n = -n;
-            }
-            // write number into buffer reversed
             char numbuf[32];
-            int ni = 0;
-            if (n == 0)
-                numbuf[ni++] = '0';
-            while (n > 0 && ni < (int)sizeof(numbuf))
-            {
-                numbuf[ni++] = (char)('0' + (n % 10));
-                n /= 10;
-            }
-            // now emit padding then buffer
-            int total_len = len + ni;
-            count += print_padding(width, total_len, ' ');
-            for (int j = 0; j < len; j++)
-            {
-                putchar(tmp[j]);
-                count++;
-            }
-            while (ni-- > 0)
-            {
-                putchar(numbuf[ni]);
-                count++;
-            }
+            int len = 0;
+            unsigned long abs = (val < 0) ? (unsigned long)(-val) : (unsigned long)val;
+            len = format_uint(numbuf, sizeof numbuf, abs, 10, true);
+            int total_len = len + (val < 0 ? 1 : 0);
+            out_padding(ctx, width, total_len, ' ');
+            if (val < 0)
+                out_char(ctx, '-');
+            for (int i = 0; i < len; i++)
+                out_char(ctx, numbuf[i]);
+            break;
+        }
+        case 'u':
+        {
+            unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
+            char numbuf[32];
+            int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
+            out_padding(ctx, width, len, ' ');
+            for (int i = 0; i < len; i++)
+                out_char(ctx, numbuf[i]);
+            break;
+        }
+        case 'x':
+        {
+            unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
+            char numbuf[32];
+            int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
+            out_padding(ctx, width, len, ' ');
+            for (int i = 0; i < len; i++)
+                out_char(ctx, numbuf[i]);
+            break;
+        }
+        case 'p':
+        {
+            unsigned long val = va_arg(args, unsigned long);
+            out_char(ctx, '0');
+            out_char(ctx, 'x');
+            char numbuf[32];
+            int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
+            for (int i = 0; i < len; i++)
+                out_char(ctx, numbuf[i]);
             break;
         }
         case 's':
@@ -159,77 +237,96 @@ int printf(const char *format, ...)
             char *s = va_arg(args, char *);
             if (!s)
                 s = "(null)";
-            while (*s)
-            {
-                putchar(*s++);
-                count++;
-            }
+            int len = strnlen_s(s, 1024);
+            if (precision >= 0 && precision < len)
+                len = precision;
+            out_padding(ctx, width, len, ' ');
+            for (int i = 0; i < len; i++)
+                out_char(ctx, s[i]);
             break;
         }
         case 'c':
         {
             int c = va_arg(args, int);
-            putchar(c);
-            count++;
+            out_char(ctx, (char)c);
             break;
         }
-        case 'p':
+        case 'f':
         {
-            unsigned long ptr = va_arg(args, unsigned long);
-            putchar('0');
-            putchar('x');
-            print_hex(ptr);
-            // crude width handling: prepend padding only, since pointer printed last
+            if (precision < 0)
+                precision = 6;
+            double val = va_arg(args, double);
+            char buf[64];
+            format_double(buf, sizeof buf, val, precision);
+            int len = strnlen_s(buf, 64);
+            out_padding(ctx, width, len, ' ');
+            for (int i = 0; i < len; i++)
+                out_char(ctx, buf[i]);
             break;
         }
-        case 'x':
-        {
-            unsigned long ptr = va_arg(args, unsigned long);
-            // hex width: pad based on hex digit count
-            char numbuf[32];
-            int ni = 0;
-            if (ptr == 0)
-                numbuf[ni++] = '0';
-            unsigned long tmp = ptr;
-            while (tmp > 0 && ni < (int)sizeof(numbuf))
-            {
-                int rem = (int)(tmp % 16);
-                numbuf[ni++] = (rem < 10) ? (char)('0' + rem) : (char)('a' + (rem - 10));
-                tmp /= 16;
-            }
-            count += print_padding(width, ni, ' ');
-            while (ni-- > 0)
-            {
-                putchar(numbuf[ni]);
-                count++;
-            }
+        case '%':
+            out_char(ctx, '%');
             break;
-        }
         default:
-            putchar('%');
+            out_char(ctx, '%');
             if (*p)
-            {
-                putchar(*p);
-                count += 2;
-            }
+                out_char(ctx, *p);
             else
-            {
-                count += 1;
-                p--; // so outer loop terminates
-            }
+                p--;
             break;
         }
     }
+}
+
+int vsnprintf(char *buf, size_t size, const char *format, va_list args)
+{
+    struct out_ctx ctx = {
+        .buf = buf,
+        .size = size,
+        .pos = 0,
+        .count = 0,
+        .is_buffer = true,
+    };
+    vformat(&ctx, format, args);
+    if (size > 0)
+    {
+        if (ctx.pos >= size)
+            buf[size - 1] = '\0';
+        else
+            buf[ctx.pos] = '\0';
+    }
+    return ctx.count;
+}
+
+int snprintf(char *buf, size_t size, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int res = vsnprintf(buf, size, format, args);
     va_end(args);
-    return count;
+    return res;
+}
+
+int printf(const char *format, ...)
+{
+    struct out_ctx ctx = {
+        .buf = NULL,
+        .size = 0,
+        .pos = 0,
+        .count = 0,
+        .is_buffer = false,
+    };
+    va_list args;
+    va_start(args, format);
+    vformat(&ctx, format, args);
+    va_end(args);
+    return ctx.count;
 }
 
 int puts(const char *s)
 {
     while (*s)
-    {
         putchar(*s++);
-    }
     putchar('\n');
     return 0;
 }
