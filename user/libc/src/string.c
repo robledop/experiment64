@@ -56,6 +56,28 @@ void *memcpy(void *dest, const void *src, size_t n)
     return dest;
 }
 
+void *memmove(void *dest, const void *src, size_t n)
+{
+    char *d = (char *)dest;
+    const char *s = (const char *)src;
+    if (d == s || n == 0)
+        return dest;
+
+    if (d < s)
+    {
+        while (n--)
+            *d++ = *s++;
+    }
+    else
+    {
+        d += n;
+        s += n;
+        while (n--)
+            *--d = *--s;
+    }
+    return dest;
+}
+
 char *strchr(const char *s, int c)
 {
     while (*s != (char)c)
