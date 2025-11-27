@@ -22,6 +22,8 @@
 #define SYS_MMAP 17
 #define SYS_MUNMAP 18
 #define SYS_EXECVE 19
+#define SYS_STAT 20
+#define SYS_FSTAT 21
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

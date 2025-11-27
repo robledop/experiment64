@@ -18,6 +18,7 @@
 #include "mman.h"
 #include "util.h"
 #include "fcntl.h"
+#include "vfs.h"
 
 // ReSharper disable once CppDFAConstantFunctionResult
 static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
@@ -77,6 +78,25 @@ static bool fd_can_write(const file_descriptor_t *desc)
         return false;
     const int mode = desc->flags & (O_WRONLY | O_RDWR);
     return mode == O_WRONLY || mode == O_RDWR || mode == (O_WRONLY | O_RDWR);
+}
+
+static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
+{
+    if (!inode || !st)
+        return;
+    st->dev = 0;
+    st->ino = (int)inode->inode;
+    st->type = inode->flags & 0x07;
+    st->nlink = 1;
+    st->size = inode->size;
+    st->ref = 0;
+    st->i_atime = 0;
+    st->i_ctime = 0;
+    st->i_mtime = 0;
+    st->i_dtime = 0;
+    st->i_uid = 0;
+    st->i_gid = 0;
+    st->i_flags = 0;
 }
 
 #ifdef TEST_MODE
@@ -328,6 +348,8 @@ int sys_ioctl(int fd, int request, void *arg);
 int sys_open(const char *path, int flags);
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
 int sys_munmap(void *addr, size_t length);
+int sys_stat(const char *path, struct stat *st);
+int sys_fstat(int fd, struct stat *st);
 
 void syscall_init(void)
 {
@@ -723,6 +745,42 @@ int sys_mknod(const char *path, int mode, int dev)
     return vfs_mknod(kpath, mode, dev);
 }
 
+int sys_stat(const char *path, struct stat *st)
+{
+    if (!path || !st)
+        return -1;
+    if (!prepare_user_buffer(st, sizeof(struct stat), true))
+        return -1;
+
+    char abs_path[SYSCALL_MAX_PATH];
+    resolve_user_path(path, abs_path, sizeof(abs_path));
+
+    vfs_inode_t *inode = vfs_resolve_path(abs_path);
+    if (!inode)
+        return -1;
+
+    fill_stat_from_inode(inode, st);
+    vfs_close(inode);
+    if (inode != vfs_root)
+        kfree(inode);
+    return 0;
+}
+
+int sys_fstat(int fd, struct stat *st)
+{
+    if (!st || fd < 0 || fd >= MAX_FDS)
+        return -1;
+    if (!prepare_user_buffer(st, sizeof(struct stat), true))
+        return -1;
+
+    file_descriptor_t *desc = current_process->fd_table[fd];
+    if (!desc || !desc->inode)
+        return -1;
+
+    fill_stat_from_inode(desc->inode, st);
+    return 0;
+}
+
 int64_t sys_sbrk(int64_t increment)
 {
     uint64_t old_brk = current_process->heap_end;
@@ -815,6 +873,10 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return (uint64_t)sys_mmap((void *)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
     case SYS_MUNMAP:
         return (uint64_t)sys_munmap((void *)arg1, (size_t)arg2);
+    case SYS_STAT:
+        return sys_stat((const char *)arg1, (struct stat *)arg2);
+    case SYS_FSTAT:
+        return sys_fstat((int)arg1, (struct stat *)arg2);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;

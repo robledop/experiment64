@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <util.h>
 
 static inline long syscall0(long n)
@@ -121,6 +122,16 @@ int sys_readdir(int fd, void *dent)
 int chdir(const char *path)
 {
     return clamp_signed_to_int(syscall1(SYS_CHDIR, (long)path));
+}
+
+int stat(const char *path, struct stat *st)
+{
+    return clamp_signed_to_int(syscall2(SYS_STAT, (long)path, (long)st));
+}
+
+int fstat(int fd, struct stat *st)
+{
+    return clamp_signed_to_int(syscall2(SYS_FSTAT, fd, (long)st));
 }
 
 int sleep(int milliseconds)

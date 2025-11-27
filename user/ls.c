@@ -3,19 +3,76 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
+// Simple color helpers (ANSI); safe to adjust or drop if needed.
+#define COLOR_RESET "\033[0m"
+#define COLOR_DIR   "\033[34m"
+#define COLOR_DEV   "\033[33m"
+#define COLOR_FILE  "\033[37m"
+
+static void print_human_size(uint64_t bytes)
+{
+    const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+    size_t unit_index = 0;
+    double size = (double)bytes;
+
+    while (size >= 1024.0 && unit_index + 1 < (sizeof units / sizeof units[0]))
+    {
+        size /= 1024.0;
+        unit_index++;
+    }
+
+    // Our libc is minimal; format directly via printf.
+    printf("%.2f %s", size, units[unit_index]);
+}
+
+static void print_entry_detailed(const char *name, const char *full_path, const struct stat *st)
+{
+    const char *type_char = "-";
+    const char *color = COLOR_FILE;
+    switch (st->type)
+    {
+    case T_DIR:
+        type_char = "d";
+        color = COLOR_DIR;
+        break;
+    case T_DEV:
+        type_char = "c";
+        color = COLOR_DEV;
+        break;
+    default:
+        type_char = "-";
+        color = COLOR_FILE;
+        break;
+    }
+
+    // We don't yet have full time formatting; show raw mtime for now.
+    printf("%s %5d ", type_char, st->ino);
+    print_human_size(st->size);
+    printf(" %10u %s%s%s\n",
+           st->i_mtime,
+           color,
+           name,
+           COLOR_RESET);
+    (void)full_path;
+}
 
 static void print_entry(const char *name, const char *full_path)
 {
-    // Treat an entry as a directory if we can open it with opendir.
+    struct stat st;
+    if (stat(full_path, &st) == 0)
+    {
+        print_entry_detailed(name, full_path, &st);
+        return;
+    }
+
+    // Fallback if stat fails.
     DIR *maybe_dir = opendir(full_path);
     const int is_dir = (maybe_dir != nullptr);
     if (maybe_dir)
         closedir(maybe_dir);
-
-    if (is_dir)
-        printf("%s/\n", name);
-    else
-        printf("%s\n", name);
+    printf("%s%s%s%s\n", is_dir ? COLOR_DIR : COLOR_FILE, name, is_dir ? "/" : "", COLOR_RESET);
 }
 
 static int list_dir(const char *path)
