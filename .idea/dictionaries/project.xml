@@ -8,6 +8,7 @@
       <w>bzero</w>
       <w>cfiles</w>
       <w>chardevice</w>
+      <w>cilas</w>
       <w>devfs</w>
       <w>distclean</w>
       <w>dtime</w>
