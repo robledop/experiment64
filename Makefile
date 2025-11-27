@@ -32,7 +32,7 @@ override SMP ?= 8
 IDE_DISK := image2.ide
 
 # Common QEMU pieces
-QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP) #-cpu max #-cpu host -enable-kvm
+QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP)
 QEMU_DRIVES :=  \
 	-drive if=none,file=image.hdd,format=raw,id=ahcibase \
 	-device ahci,id=ahci \
@@ -57,8 +57,6 @@ override CFLAGS += \
     -MMD \
     -MP \
     -Wa,--noexecstack \
-    -fstack-protector-strong \
-	-fsanitize=undefined \
 
 override LDFLAGS += \
     -m elf_x86_64 \
@@ -72,7 +70,7 @@ override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
 override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
-run-gdb tests tests-kasan: CFLAGS += -DDEBUG
+run-gdb tests tests-gdb: CFLAGS += -DDEBUG -fstack-protector-strong -fsanitize=undefined
 
 QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log -cpu max
 
