@@ -9,6 +9,7 @@
 
 void exit(int status);
 int atoi(const char *nptr);
+int abs(int x);
 long strtol(const char *nptr, char **endptr, int base);
 
 void *malloc(size_t size);

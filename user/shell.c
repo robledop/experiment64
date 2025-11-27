@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <fcntl.h>
 
 #define SHELL_PATH_MAX 256
 #define SHELL_MAX_SEGMENTS 64
@@ -122,7 +123,7 @@ static int path_exists(const char *path)
     if (!path || !*path)
         return 0;
 
-    int fd = open(path);
+    int fd = open(path, O_RDONLY);
     if (fd < 0)
         return 0;
 
@@ -190,18 +191,46 @@ static int shell_change_directory(const char *path)
     return 0;
 }
 
-static int shell_run_command(const char *command)
+static int shell_run_command(const char *command_line)
 {
-    char resolved[SHELL_PATH_MAX];
-    if (resolve_command_path(command, resolved, sizeof(resolved)) != 0)
+    if (!command_line || !*command_line)
         return -1;
+
+    char line[SHELL_PATH_MAX];
+    safe_copy(line, sizeof(line), command_line);
+
+    // Tokenize
+    char *argv[16];
+    int argc = 0;
+    char *p = line;
+    while (*p && argc < (int)(sizeof(argv) / sizeof(argv[0])) - 1)
+    {
+        while (*p == ' ')
+            p++;
+        if (!*p)
+            break;
+        argv[argc++] = p;
+        while (*p && *p != ' ')
+            p++;
+        if (*p)
+            *p++ = '\0';
+    }
+    argv[argc] = nullptr;
+    if (argc == 0)
+        return -1;
+
+    char resolved[SHELL_PATH_MAX];
+    if (resolve_command_path(argv[0], resolved, sizeof(resolved)) != 0)
+        return -1;
+
+    argv[0] = resolved;
 
     int pid = fork();
     if (pid < 0)
         return -1;
     if (pid == 0)
     {
-        exec(resolved);
+        execve(resolved, argv, nullptr);
         printf("Failed to exec %s\n", resolved);
         exit(1);
     }

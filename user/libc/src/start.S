@@ -4,7 +4,10 @@
 .extern exit
 
 _start:
-    # Stack is already set up by kernel
+    # Stack layout: argc, argv..., nullptr, envp..., nullptr
+    mov rdi, [rsp]        # argc
+    lea rsi, [rsp + 8]    # argv
+    xor rdx, rdx          # envp (currently unused, set to nullptr)
     call main
     mov rdi, rax
     call exit

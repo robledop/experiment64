@@ -16,5 +16,10 @@
 #define SYS_READDIR 12
 #define SYS_CHDIR 13
 #define SYS_SLEEP 14
+#define SYS_MKNOD 15
+#define SYS_IOCTL 16
+#define SYS_MMAP 17
+#define SYS_MUNMAP 18
+#define SYS_EXECVE 19
 
 #endif

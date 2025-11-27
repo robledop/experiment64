@@ -39,10 +39,20 @@ echo "Hello FAT32" > build/rootfs_esp/TEST.TXT
 # Populate RootFS (Ext2)
 mkdir -p build/rootfs_ext2/boot
 cp -v assets/logo.bmp build/rootfs_ext2/boot/logo.bmp
-cp -v $USER_BUILD_DIR/user_prog build/rootfs_ext2/bin/prog
-cp -v $USER_BUILD_DIR/init build/rootfs_ext2/bin/init
-cp -v $USER_BUILD_DIR/shell build/rootfs_ext2/bin/shell
-cp -v $USER_BUILD_DIR/ls build/rootfs_ext2/bin/ls
+for bin in "$USER_BUILD_DIR"/*; do
+    if [ ! -f "$bin" ]; then
+        continue
+    fi
+    base=$(basename "$bin")
+    case "$base" in
+        *.o|*.a|*.d) continue ;;
+    esac
+    dest="$base"
+    if [ "$base" = "user_prog" ]; then
+        dest="prog"
+    fi
+    cp -v "$bin" "build/rootfs_ext2/bin/$dest"
+done
 echo "Hello Ext2" > build/rootfs_ext2/test.txt
 echo "Hello FAT32" > build/rootfs_ext2/TEST.TXT
 

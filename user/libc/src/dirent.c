@@ -1,10 +1,14 @@
 #include <dirent.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdlib.h>
+
+// Internal syscall wrapper; not part of the public libc API.
+extern int sys_readdir(int fd, void *dent);
 
 DIR *opendir(const char *name)
 {
-    const int fd = open(name);
+    const int fd = open(name, O_RDONLY);
     if (fd < 0)
         return nullptr;
 

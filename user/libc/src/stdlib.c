@@ -17,6 +17,12 @@ int atoi(const char *nptr)
     return res * sign;
 }
 
+
+int abs(int x)
+{
+    return x < 0 ? -x : x;
+}
+
 long strtol(const char *nptr, char **endptr, int base)
 {
     if (base != 0 && base != 10)

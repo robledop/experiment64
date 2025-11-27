@@ -15,9 +15,11 @@ LIBC_OBJ = $(LIBC_SRC:libc/src/%.c=$(BUILD_DIR)/libc/src/%.o) \
            $(LIBC_ASM:libc/src/%.S=$(BUILD_DIR)/libc/src/%.o)
 LIBC_A = $(BUILD_DIR)/libc/libc.a
 
-TARGETS = $(BUILD_DIR)/user_prog $(BUILD_DIR)/init $(BUILD_DIR)/shell $(BUILD_DIR)/ls
-PROGRAMS = init shell ls
+PROGRAM_SOURCES = $(wildcard *.c)
+PROGRAMS = $(basename $(PROGRAM_SOURCES))
 PROGRAM_OBJS = $(PROGRAMS:%=$(BUILD_DIR)/%.o)
+
+TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%)
 
 .PHONY: all
 all: $(TARGETS)
