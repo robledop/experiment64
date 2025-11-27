@@ -86,7 +86,7 @@ static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
         return;
     st->dev = 0;
     st->ino = (int)inode->inode;
-    st->type = inode->flags & 0x07;
+    st->type = (int)(inode->flags & 0x07);
     st->nlink = 1;
     st->size = inode->size;
     st->ref = 0;
@@ -246,8 +246,8 @@ static int copy_in_args(const char *const *argv, char args[EXEC_MAX_ARGS][EXEC_M
     return count;
 }
 
-static int setup_user_stack(pml4_t pml4, uint64_t stack_top, const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc,
-                            uint64_t *out_rsp)
+static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
+                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t *out_rsp)
 {
     uint64_t sp = stack_top;
     uint64_t arg_ptrs[EXEC_MAX_ARGS];

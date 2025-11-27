@@ -63,10 +63,18 @@ void ext2fs_readsb(int dev, struct ext2_super_block* sb)
     const uint32_t sb_blockno = part_offset(dev) + 2;
 
     buffer_head_t* bp = bread(dev, sb_blockno);
+    if (!bp || !bp->data)
+    {
+        panic("ext2fs_readsb: failed to read superblock");
+    }
     memcpy(sb, bp->data, 512);
     brelse(bp);
 
     bp = bread(dev, sb_blockno + 1);
+    if (!bp || !bp->data)
+    {
+        panic("ext2fs_readsb: failed to read superblock (second half)");
+    }
     memcpy((uint8_t*)sb + 512, bp->data, 512);
     brelse(bp);
 
