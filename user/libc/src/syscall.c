@@ -67,11 +67,16 @@ int execve(const char *path, char *const argv[], char *const envp[])
     return clamp_signed_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, (long)envp));
 }
 
-void exit(int status)
+void __exit_impl(int status)
 {
     syscall1(SYS_EXIT, status);
     while (1)
         ;
+}
+
+void exit(int status)
+{
+    __exit_impl(status);
 }
 
 int fork(void)

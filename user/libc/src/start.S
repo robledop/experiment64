@@ -8,6 +8,7 @@ _start:
     mov rdi, [rsp]        # argc
     lea rsi, [rsp + 8]    # argv
     xor rdx, rdx          # envp (currently unused, set to nullptr)
+    and rsp, -16          # align stack to 16-byte boundary as per SysV ABI
     call main
     mov rdi, rax
     call exit

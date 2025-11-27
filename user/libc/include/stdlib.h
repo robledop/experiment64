@@ -7,7 +7,8 @@
 
 #include <stddef.h>
 
-void exit(int status);
+void __exit_impl(int status);
+#define exit(...) __exit_impl(__VA_ARGS__ + 0)
 int atoi(const char *nptr);
 int abs(int x);
 long strtol(const char *nptr, char **endptr, int base);
