@@ -25,5 +25,6 @@
 #define SYS_FSTAT 21
 #define SYS_LINK 22
 #define SYS_UNLINK 23
+#define SYS_GETCWD 24
 
 #endif
