@@ -118,7 +118,7 @@ image.hdd: $(KERNEL) limine limine.conf userland
 
 .PHONY: disk
 disk: clean
-	$(MAKE) image.hdd CFLAGS+=" -DTEST_MODE -DDEBUG -DKASAN"
+	$(MAKE) image.hdd CFLAGS+=" -DDEBUG -DKASAN"
 	./scripts/install-on-disk.sh
 
 .PHONY: run
