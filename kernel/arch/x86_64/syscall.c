@@ -760,9 +760,11 @@ int sys_stat(const char *path, struct stat *st)
         return -1;
 
     fill_stat_from_inode(inode, st);
-    vfs_close(inode);
     if (inode != vfs_root)
+    {
+        vfs_close(inode);
         kfree(inode);
+    }
     return 0;
 }
 

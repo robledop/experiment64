@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <sys/stat.h>
 
 // Simple color helpers (ANSI); safe to adjust or drop if needed.
@@ -11,20 +12,133 @@
 #define COLOR_DEV   "\033[33m"
 #define COLOR_FILE  "\033[37m"
 
-static void print_human_size(uint64_t bytes)
+static void print_u64(uint64_t n)
+{
+    char buf[32];
+    int i = 0;
+    if (n == 0)
+    {
+        putchar('0');
+        return;
+    }
+    while (n > 0 && i < (int)sizeof(buf))
+    {
+        buf[i++] = (char)('0' + (n % 10));
+        n /= 10;
+    }
+    while (i-- > 0)
+        putchar(buf[i]);
+}
+
+static void print_spaces(int count)
+{
+    while (count-- > 0)
+        putchar(' ');
+}
+
+static int u64_to_str(uint64_t n, char *buf, size_t cap)
+{
+    if (cap == 0)
+        return 0;
+    if (n == 0)
+    {
+        if (cap > 1)
+            buf[0] = '0', buf[1] = 0;
+        else
+            buf[0] = 0;
+        return 1;
+    }
+    size_t i = 0;
+    while (n > 0 && i + 1 < cap)
+    {
+        buf[i++] = (char)('0' + (n % 10));
+        n /= 10;
+    }
+    if (i >= cap)
+        i = cap - 1;
+    buf[i] = 0;
+    // reverse
+    for (size_t l = 0, r = i - 1; l < r; l++, r--)
+    {
+        char tmp = buf[l];
+        buf[l] = buf[r];
+        buf[r] = tmp;
+    }
+    return (int)i;
+}
+
+static void format_human_size(uint64_t bytes, char *out, size_t out_sz)
 {
     const char *units[] = {"B", "KB", "MB", "GB", "TB"};
     size_t unit_index = 0;
-    double size = (double)bytes;
-
-    while (size >= 1024.0 && unit_index + 1 < (sizeof units / sizeof units[0]))
+    uint64_t scale = 1;
+    uint64_t whole = bytes;
+    while (whole >= 1024 && unit_index + 1 < (sizeof units / sizeof units[0]))
     {
-        size /= 1024.0;
+        scale *= 1024;
         unit_index++;
+        whole = bytes / scale;
     }
 
-    // Our libc is minimal; format directly via printf.
-    printf("%.2f %s", size, units[unit_index]);
+    uint64_t rem = bytes - (whole * scale);
+    uint64_t frac = (unit_index > 0) ? (rem * 100) / scale : 0;
+
+    char *p = out;
+    size_t remaining = out_sz;
+
+    // whole
+    int len = u64_to_str(whole, p, remaining);
+    p += len;
+    remaining = (remaining > (size_t)len) ? (remaining - len) : 0;
+
+    if (remaining > 0 && frac > 0)
+    {
+        *p++ = '.';
+        remaining--;
+        if (remaining > 0)
+        {
+            if (frac < 10)
+            {
+                *p++ = '0';
+                remaining--;
+            }
+            len = u64_to_str(frac, p, remaining);
+            p += len;
+            remaining = (remaining > (size_t)len) ? (remaining - len) : 0;
+        }
+    }
+
+    if (remaining > 1)
+    {
+        *p++ = ' ';
+        remaining--;
+    }
+
+    const char *unit = units[unit_index];
+    while (remaining > 1 && *unit)
+    {
+        *p++ = *unit++;
+        remaining--;
+    }
+    *p = 0;
+}
+
+static void print_padded_str(const char *s, int width)
+{
+    int len = (int)strlen(s);
+    int pad = width - len;
+    if (pad < 0)
+        pad = 0;
+    print_spaces(pad);
+    while (*s)
+        putchar(*s++);
+}
+
+static void print_padded_u64(uint64_t val, int width)
+{
+    char buf[32];
+    u64_to_str(val, buf, sizeof buf);
+    print_padded_str(buf, width);
 }
 
 static void print_entry_detailed(const char *name, const char *full_path, const struct stat *st)
@@ -48,13 +162,16 @@ static void print_entry_detailed(const char *name, const char *full_path, const 
     }
 
     // We don't yet have full time formatting; show raw mtime for now.
-    printf("%s %5d ", type_char, st->ino);
-    print_human_size(st->size);
-    printf(" %10u %s%s%s\n",
-           st->i_mtime,
-           color,
-           name,
-           COLOR_RESET);
+    char size_buf[32];
+    format_human_size(st->size, size_buf, sizeof size_buf);
+
+    printf("%s ", type_char);
+    print_padded_u64((uint64_t)st->ino, 6);
+    putchar(' ');
+    print_padded_str(size_buf, 9);
+    putchar(' ');
+    print_padded_u64(st->i_mtime, 10);
+    printf(" %s%s%s\n", color, name, COLOR_RESET);
     (void)full_path;
 }
 
