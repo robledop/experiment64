@@ -88,7 +88,7 @@ void kernel_splash(void)
 
     int cursor_x, cursor_y_start;
     terminal_get_cursor(&cursor_x, &cursor_y_start);
-    cursor_y_start = TERMINAL_MARGIN;
+    cursor_y_start = 0;
 
     constexpr uint32_t splash_bottom_margin = 13;
     constexpr uint32_t origin_x = 0;
@@ -110,7 +110,7 @@ void kernel_splash(void)
     uint32_t cursor_y = origin_y + draw_height + splash_bottom_margin;
     if (cursor_y >= fb->height)
         cursor_y = fb->height ? (fb->height - 1) : 0;
-    terminal_set_cursor(TERMINAL_MARGIN, (int)cursor_y);
+    terminal_set_cursor(0, (int)cursor_y);
 }
 
 [[noreturn]]

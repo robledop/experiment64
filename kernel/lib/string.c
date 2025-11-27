@@ -78,6 +78,26 @@ void *memcpy(void *dest, const void *src, size_t n)
     return dest;
 }
 
+
+void *memmove(void *dst, const void *src, size_t n)
+{
+    const char *s = src;
+    char *d       = dst;
+    if (s < d && s + n > d) {
+        s += n;
+        d += n;
+        while (n-- > 0) {
+            *--d = *--s;
+        }
+    } else {
+        while (n-- > 0) {
+            *d++ = *s++;
+        }
+    }
+
+    return dst;
+}
+
 void *memset(void *s, int c, size_t n)
 {
     KASAN_ASSERT_RANGE(s, n, true);
@@ -361,59 +381,44 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         case 'p':
         {
             bool uppercase = (spec == 'X');
-            unsigned long long value;
-            if (spec == 'p')
+            bool is_pointer = (spec == 'p');
+            unsigned long long value = is_pointer ? (uintptr_t)va_arg(*args, void *)
+                                                  : read_unsigned_arg(args, length_mod);
+
+            int idx = 0;
+            if (value == 0)
+                numbuf[idx++] = '0';
+            while (value && idx < (int)sizeof(numbuf))
             {
-                value = (uintptr_t)va_arg(*args, void *);
-                numbuf[0] = '0';
-                numbuf[1] = 'x';
-                content_len = 2 + cb_emit_unsigned(value, 16, uppercase, arg, callback);
+                unsigned digit = (unsigned)(value % 16);
+                numbuf[idx++] = uppercase ? "0123456789ABCDEF"[digit] : "0123456789abcdef"[digit];
+                value /= 16;
             }
-            else
-            {
-                value = read_unsigned_arg(args, length_mod);
-                content_len = cb_emit_unsigned(value, 16, uppercase, arg, callback);
-            }
+
+            int prefix_len = is_pointer ? 2 : 0;
+            content_len = prefix_len + idx;
             int pad = (width > content_len) ? (width - content_len) : 0;
-            if (!left_align && pad > 0)
+
+            if (!left_align)
             {
-                // Similar to %u, need to render with padding first.
-                int idx = 0;
-                unsigned long long tmp = value;
-                if (tmp == 0)
-                    numbuf[idx++] = '0';
-                while (tmp && idx < (int)sizeof(numbuf))
-                {
-                    numbuf[idx++] = uppercase ? "0123456789ABCDEF"[tmp % 16] : "0123456789abcdef"[tmp % 16];
-                    tmp /= 16;
-                }
-                for (int i = 0; i < pad; i++)
-                {
-                    callback(' ', arg);
-                    total++;
-                }
-                if (spec == 'p')
-                {
-                    callback('0', arg);
-                    callback('x', arg);
-                }
-                while (idx-- > 0)
-                    callback(numbuf[idx], arg);
-                total += content_len;
+                while (pad-- > 0) { callback(' ', arg); total++; }
             }
-            else
+
+            if (is_pointer)
             {
-                if (spec == 'p')
-                {
-                    callback('0', arg);
-                    callback('x', arg);
-                }
-                if (left_align && pad > 0)
-                {
-                    while (pad--) { callback(' ', arg); total++; }
-                }
-                total += content_len;
+                callback('0', arg);
+                callback('x', arg);
             }
+
+            while (idx-- > 0)
+                callback(numbuf[idx], arg);
+
+            if (left_align)
+            {
+                while (pad-- > 0) { callback(' ', arg); total++; }
+            }
+
+            total += content_len;
             break;
         }
         case 'o':

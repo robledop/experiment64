@@ -5,6 +5,7 @@
 #include "framebuffer.h"
 #include <stdarg.h>
 #include <limits.h>
+#include <string.h>
 
 #define KRESET "\033[0m"
 #define KRED "\033[31m"
@@ -12,13 +13,11 @@
 #define KBGRN "\033[1;32m"
 #define KWHT "\033[37m"
 
-static struct limine_framebuffer *terminal_fb = nullptr;
+static struct limine_framebuffer* terminal_fb = nullptr;
 static int terminal_x = 0;
 static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
 static uint32_t terminal_bg_color = 0x00000000;
-
-
 
 static inline int terminal_left(void)
 {
@@ -51,14 +50,14 @@ static void terminal_draw_cursor(int x, int y, uint32_t color)
             uint64_t offset = (y + row) * terminal_fb->pitch + (x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
             {
-                uint32_t *pixel = (uint32_t *)((uint8_t *)terminal_fb->address + offset);
+                uint32_t* pixel = (uint32_t*)((uint8_t*)terminal_fb->address + offset);
                 *pixel = color;
             }
         }
     }
 }
 
-void terminal_init(struct limine_framebuffer *fb)
+void terminal_init(struct limine_framebuffer* fb)
 {
     terminal_fb = fb;
     framebuffer_init(fb);
@@ -77,7 +76,7 @@ void terminal_set_cursor(int x, int y)
         terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
 }
 
-void terminal_get_cursor(int *x, int *y)
+void terminal_get_cursor(int* x, int* y)
 {
     if (x)
         *x = terminal_x;
@@ -97,7 +96,7 @@ void terminal_clear(uint32_t color)
         return;
     for (size_t y = 0; y < terminal_fb->height; y++)
     {
-        uint32_t *fb_ptr = (uint32_t *)((uint8_t *)terminal_fb->address + y * terminal_fb->pitch);
+        uint32_t* fb_ptr = (uint32_t*)((uint8_t*)terminal_fb->address + y * terminal_fb->pitch);
         for (size_t x = 0; x < terminal_fb->width; x++)
         {
             fb_ptr[x] = color;
@@ -129,7 +128,7 @@ static uint32_t ansi_colors_normal[] = {
     0xFF0000AA, // 4: Blue
     0xFFAA00AA, // 5: Magenta
     0xFF00AAAA, // 6: Cyan
-    0xFFAAAAAA  // 7: Light Gray
+    0xFFAAAAAA // 7: Light Gray
 };
 
 static uint32_t ansi_colors_bright[] = {
@@ -140,7 +139,7 @@ static uint32_t ansi_colors_bright[] = {
     0xFF5555FF, // 4: Bright Blue
     0xFFFF55FF, // 5: Bright Magenta
     0xFF55FFFF, // 6: Bright Cyan
-    0xFFFFFFFF  // 7: White
+    0xFFFFFFFF // 7: White
 };
 
 static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
@@ -168,40 +167,12 @@ static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
 
     for (int row = 0; row < h; row++)
     {
-        uint32_t *fb_ptr = (uint32_t *)((uint8_t *)terminal_fb->address + (y + row) * terminal_fb->pitch);
+        uint32_t* fb_ptr = (uint32_t*)((uint8_t*)terminal_fb->address + (y + row) * terminal_fb->pitch);
         for (int col = 0; col < w; col++)
         {
             fb_ptr[x + col] = color;
         }
     }
-}
-
-static void *fb_memmove(void *dst, const void *src, size_t n)
-{
-    uint8_t *d = (uint8_t *)dst;
-    const uint8_t *s = (const uint8_t *)src;
-    if (d == s || n == 0)
-        return dst;
-    if (d < s)
-    {
-        size_t i = 0;
-        for (; i + sizeof(uint64_t) <= n; i += sizeof(uint64_t))
-            *(uint64_t *)(d + i) = *(const uint64_t *)(s + i);
-        for (; i < n; i++)
-            d[i] = s[i];
-    }
-    else
-    {
-        size_t i = n;
-        while (i >= sizeof(uint64_t))
-        {
-            i -= sizeof(uint64_t);
-            *(uint64_t *)(d + i) = *(const uint64_t *)(s + i);
-        }
-        while (i-- > 0)
-            d[i] = s[i];
-    }
-    return dst;
 }
 
 void terminal_scroll(int rows)
@@ -211,44 +182,17 @@ void terminal_scroll(int rows)
     if (!terminal_fb)
         return;
 
-    int char_height = FONT_HEIGHT + LINE_SPACING;
-    int left = terminal_left();
-    int right = terminal_right();
-    int top = terminal_top();
-    int bottom = terminal_bottom();
-    int usable_height = bottom - top;
-    if (usable_height <= char_height)
-    {
-        terminal_rect_fill(left, top, right - left, usable_height, terminal_bg_color);
-        terminal_x = left;
-        terminal_y = top;
-        return;
-    }
-
+    constexpr int char_height = FONT_HEIGHT + LINE_SPACING;
     int scroll_px = rows * char_height;
-    if (scroll_px > usable_height - char_height)
-        scroll_px = usable_height - char_height;
+    const int fb_height = (int)terminal_fb->height;
+    if (scroll_px > fb_height)
+        scroll_px = fb_height;
 
-    // Fast path: when margins are zero, move the whole visible area in one copy.
-    if (left == 0 && right == (int)terminal_fb->width)
-    {
-        size_t move_bytes = (size_t)(usable_height - scroll_px) * terminal_fb->pitch;
-        uint8_t *dst = (uint8_t *)terminal_fb->address + top * terminal_fb->pitch;
-        uint8_t *src = dst + scroll_px * terminal_fb->pitch;
-        fb_memmove(dst, src, move_bytes);
-    }
-    else
-    {
-        int row_bytes = (right - left) * 4;
-        for (int row = 0; row < usable_height - scroll_px; row++)
-        {
-            uint8_t *dst = (uint8_t *)terminal_fb->address + (top + row) * terminal_fb->pitch + left * 4;
-            uint8_t *src = dst + scroll_px * terminal_fb->pitch;
-            fb_memmove(dst, src, (size_t)row_bytes);
-        }
-    }
+    const size_t move_bytes = (size_t)(fb_height - scroll_px) * terminal_fb->pitch;
+    auto const fb_base = (uint8_t*)terminal_fb->address;
+    memmove(fb_base, fb_base + (size_t)scroll_px * terminal_fb->pitch, move_bytes);
 
-    terminal_rect_fill(left, bottom - scroll_px, right - left, scroll_px, terminal_bg_color);
+    terminal_rect_fill(0, fb_height - scroll_px, (int)terminal_fb->width, scroll_px, terminal_bg_color);
 }
 
 static void terminal_process_ansi(char cmd)
@@ -296,7 +240,8 @@ static void terminal_process_ansi(char cmd)
         int mode = (ansi_param_count > 0) ? ansi_params[0] : 0;
         if (mode == 2)
         {
-            terminal_rect_fill(terminal_left(), terminal_top(), terminal_right() - terminal_left(), terminal_bottom() - terminal_top(), terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_top(), terminal_right() - terminal_left(),
+                               terminal_bottom() - terminal_top(), terminal_bg_color);
             terminal_x = terminal_left();
             terminal_y = terminal_top();
             terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
@@ -307,13 +252,16 @@ static void terminal_process_ansi(char cmd)
             if (w < 0)
                 w = 0;
             terminal_rect_fill(terminal_x, terminal_y, w, 8 + LINE_SPACING, terminal_bg_color);
-            terminal_rect_fill(terminal_left(), terminal_y + 8 + LINE_SPACING, terminal_right() - terminal_left(), terminal_bottom() - (terminal_y + 8 + LINE_SPACING), terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_y + 8 + LINE_SPACING, terminal_right() - terminal_left(),
+                               terminal_bottom() - (terminal_y + 8 + LINE_SPACING), terminal_bg_color);
             terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
         }
         else if (mode == 1) // Clear from beginning of screen to cursor
         {
-            terminal_rect_fill(terminal_left(), terminal_top(), terminal_right() - terminal_left(), terminal_y - terminal_top(), terminal_bg_color);
-            terminal_rect_fill(terminal_left(), terminal_y, terminal_x - terminal_left() + 8, 8 + LINE_SPACING, terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_top(), terminal_right() - terminal_left(),
+                               terminal_y - terminal_top(), terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_y, terminal_x - terminal_left() + 8, 8 + LINE_SPACING,
+                               terminal_bg_color);
             terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
         }
     }
@@ -329,11 +277,13 @@ static void terminal_process_ansi(char cmd)
         }
         else if (mode == 1) // Clear from beginning of line to cursor
         {
-            terminal_rect_fill(terminal_left(), terminal_y, terminal_x - terminal_left(), 8 + LINE_SPACING, terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_y, terminal_x - terminal_left(), 8 + LINE_SPACING,
+                               terminal_bg_color);
         }
         else if (mode == 2) // Clear entire line
         {
-            terminal_rect_fill(terminal_left(), terminal_y, terminal_right() - terminal_left(), 8 + LINE_SPACING, terminal_bg_color);
+            terminal_rect_fill(terminal_left(), terminal_y, terminal_right() - terminal_left(), 8 + LINE_SPACING,
+                               terminal_bg_color);
         }
         terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
     }
@@ -418,7 +368,7 @@ static void terminal_draw_char(char c)
     if (c < 32 || c > 126)
         c = '?';
 
-    const uint8_t *glyph = font8x8_basic[c - 32];
+    const uint8_t* glyph = font8x8_basic[c - 32];
 
     for (int row = 0; row < 8 + LINE_SPACING; row++)
     {
@@ -427,7 +377,7 @@ static void terminal_draw_char(char c)
             uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
             {
-                uint32_t *pixel = (uint32_t *)((uint8_t *)terminal_fb->address + offset);
+                uint32_t* pixel = (uint32_t*)((uint8_t*)terminal_fb->address + offset);
 
                 bool is_fg = false;
                 if (row < 8)
@@ -521,19 +471,19 @@ void terminal_putc(char c)
     }
 }
 
-void terminal_write(const char *data, size_t size)
+void terminal_write(const char* data, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         terminal_putc(data[i]);
 }
 
-void terminal_write_string(const char *data)
+void terminal_write_string(const char* data)
 {
     while (*data)
         terminal_putc(*data++);
 }
 
-static void terminal_putc_callback(char c, void *arg)
+static void terminal_putc_callback(char c, void* arg)
 {
     (void)arg;
     terminal_putc(c);
@@ -571,7 +521,7 @@ void test_capture_flush(void)
 }
 #endif
 
-void vprintk(const char *format, va_list args)
+void vprintk(const char* format, va_list args)
 {
 #ifdef TEST_MODE
     if (test_capture_active)
@@ -588,12 +538,12 @@ void vprintk(const char *format, va_list args)
     }
 #endif
     va_list args_copy;
-    va_copy(args_copy, args);
+    va_copy(args_copy, args); // NOLINT(clang-analyzer-security.VAList)
     vcbprintf(nullptr, terminal_putc_callback, format, &args_copy);
     va_end(args_copy);
 }
 
-void printk(const char *format, ...)
+void printk(const char* format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -601,7 +551,7 @@ void printk(const char *format, ...)
     va_end(args);
 }
 
-void boot_message(t level, const char *fmt, ...)
+void boot_message(t level, const char* fmt, ...)
 {
     switch (level)
     {

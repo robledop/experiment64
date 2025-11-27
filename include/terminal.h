@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include "limine.h"
 
-#define TERMINAL_MARGIN 10
+#define TERMINAL_MARGIN 0
 #define LINE_SPACING 5
 #define FONT_HEIGHT 8
 
