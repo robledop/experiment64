@@ -189,6 +189,20 @@ uint64_t vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *b
     return 0;
 }
 
+int vfs_truncate(vfs_inode_t *node)
+{
+    if (node->iops && node->iops->truncate)
+        return node->iops->truncate(node);
+    return -1;
+}
+
+int vfs_ioctl(vfs_inode_t *node, int request, void *arg)
+{
+    if (node->iops && node->iops->ioctl)
+        return node->iops->ioctl(node, request, arg);
+    return -1;
+}
+
 void vfs_open(vfs_inode_t *node)
 {
     if (node->iops && node->iops->open)

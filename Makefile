@@ -139,14 +139,17 @@ run-gdb: clean
 .PHONY: tests
 tests: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 5s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 -cpu host -enable-kvm || true
+	timeout 10s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04 -cpu host -enable-kvm || true
 	cat test.log
+	@grep -q "ALL TESTS PASSED" test.log || (echo "Tests did not complete successfully"; exit 1)
 
 .PHONY: tests-kasan
 tests-kasan: clean
 	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
-	timeout 5s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04  -cpu host -enable-kvm || true
+	timeout 10s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04  -cpu host -enable-kvm || true
 	cat test.log
+	@grep -q "ALL TESTS PASSED" test.log || (echo "Tests did not complete successfully"; exit 1)
+
 
 .PHONY: tests-gdb
 tests-gdb: clean

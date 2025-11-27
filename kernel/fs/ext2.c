@@ -9,6 +9,7 @@
 #include "heap.h"
 #include "debug.h"
 #include <limits.h>
+#include "util.h"
 #ifdef KASAN
 #include "kasan.h"
 #endif
@@ -27,13 +28,6 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 #define MAX_FILE_PATH 256
-
-static int clamp_u32_to_int(uint32_t value)
-{
-    if (value > (uint32_t)INT_MAX)
-        return INT_MAX;
-    return (int)value;
-}
 
 // Map internal types to VFS types or just use constants
 #define T_DIR EXT2_FT_DIR
@@ -537,8 +531,8 @@ void ext2fs_iunlockput(struct ext2_inode* ip)
 
 void ext2_stat_inode(const struct ext2_inode* ip, struct stat* st)
 {
-    st->dev = clamp_u32_to_int(ip->dev);
-    st->ino = clamp_u32_to_int(ip->inum);
+    st->dev = clamp_to_int(ip->dev);
+    st->ino = clamp_to_int(ip->inum);
     st->type = ip->type;
     st->nlink = ip->nlink;
     st->size = ip->size;
@@ -549,7 +543,7 @@ void ext2_stat_inode(const struct ext2_inode* ip, struct stat* st)
     st->i_dtime = ip->i_dtime;
     st->i_uid = ip->i_uid;
     st->i_gid = ip->i_gid;
-    st->i_flags = clamp_u32_to_int(ip->i_flags);
+    st->i_flags = clamp_to_int(ip->i_flags);
 }
 
 // Inode content
@@ -859,7 +853,7 @@ int ext2_read_inode(const struct ext2_inode* ip, char* dst, uint32_t off, uint32
         off += bytes_to_copy;
         dst += bytes_to_copy;
     }
-    return clamp_u32_to_int(n);
+    return clamp_to_int(n);
 }
 
 int ext2_write_inode(struct ext2_inode* ip, const char* src, uint32_t off, uint32_t n)
@@ -911,7 +905,7 @@ int ext2_write_inode(struct ext2_inode* ip, const char* src, uint32_t off, uint3
             ip->size = off;
         ext2fs_iupdate(ip);
     }
-    return clamp_u32_to_int(n);
+    return clamp_to_int(n);
 }
 
 int ext2fs_namecmp(const char* s, const char* t)
@@ -1032,8 +1026,23 @@ static uint64_t ext2_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t size
     struct ext2_inode* ip = (struct ext2_inode*)node->device;
     ext2fs_ilock(ip);
     const int n = ext2_write_inode(ip, (char*)buffer, offset, size);
+    if (n > 0)
+        node->size = ip->size;
     ext2fs_iunlock(ip);
     return n > 0 ? n : 0;
+}
+
+static int ext2_vfs_truncate(vfs_inode_t* node)
+{
+    struct ext2_inode* ip = (struct ext2_inode*)node->device;
+    if (!ip)
+        return -1;
+
+    ext2fs_ilock(ip);
+    ext2fs_itrunc(ip);
+    ext2fs_iunlock(ip);
+    node->size = 0;
+    return 0;
 }
 
 static void ext2_vfs_open(const vfs_inode_t* node)
@@ -1197,6 +1206,7 @@ static vfs_inode_t* ext2_vfs_clone(const vfs_inode_t* node)
 static struct inode_operations ext2_vfs_ops = {
     .read = ext2_vfs_read,
     .write = ext2_vfs_write,
+    .truncate = ext2_vfs_truncate,
     .open = ext2_vfs_open,
     .close = ext2_vfs_close,
     .readdir = ext2_vfs_readdir,

@@ -25,6 +25,8 @@ void vprintk(const char *format, va_list args);
 void printk(const char *format, ...);
 void terminal_set_cursor(int x, int y);
 void terminal_get_cursor(int *x, int *y);
+void terminal_get_dimensions(int *cols, int *rows);
+void terminal_get_resolution(int *width, int *height);
 void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
 void terminal_scroll(int rows);

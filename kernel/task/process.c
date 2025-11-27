@@ -23,6 +23,79 @@ static bool scheduler_ready = false; // Ignore timer ticks until process_init co
 
 extern void fork_return(void);
 
+void vm_area_init(process_t* proc)
+{
+    if (!proc)
+        return;
+    INIT_LIST_HEAD(&proc->vm_areas);
+    proc->vm_area_count = 0;
+}
+
+vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t flags)
+{
+    if (!proc || start >= end)
+        return nullptr;
+
+    if (!list_empty(&proc->vm_areas))
+    {
+        list_head_t* head = &proc->vm_areas;
+        for (list_head_t* pos = head->next; pos != head; pos = pos->next)
+        {
+            if (pos == head)
+                break;
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            vm_area_t* existing = list_entry(pos, vm_area_t, list);
+            if (!existing)
+                continue;
+            if (!(end <= existing->start || start >= existing->end)) // NOLINT(clang-analyzer-security.ArrayBound)
+            {
+                return nullptr; // overlap
+            }
+        }
+    }
+
+    vm_area_t* area = kmalloc(sizeof(vm_area_t));
+    if (!area)
+        return nullptr;
+
+    area->start = start;
+    area->end = end;
+    area->flags = flags;
+    list_add_tail(&area->list, &proc->vm_areas);
+    proc->vm_area_count++;
+    return area;
+}
+
+void vm_area_clone(process_t* dest, const process_t* src)
+{
+    if (!dest || !src)
+        return;
+
+    INIT_LIST_HEAD(&dest->vm_areas);
+    dest->vm_area_count = 0;
+
+    vm_area_t* area;
+    list_for_each_entry(area, &src->vm_areas, list)
+    {
+        vm_area_add(dest, area->start, area->end, area->flags);
+    }
+}
+
+void vm_area_clear(process_t* proc)
+{
+    if (!proc)
+        return;
+
+    vm_area_t *area, *tmp;
+    list_for_each_entry_safe(area, tmp, &proc->vm_areas, list)
+    {
+        list_del(&area->list);
+        kfree(area);
+    }
+    INIT_LIST_HEAD(&proc->vm_areas);
+    proc->vm_area_count = 0;
+}
+
 [[noreturn]] static void idle_task(void)
 {
     while (1)
@@ -104,6 +177,7 @@ void process_init(void)
     strcpy(kernel_process->name, "kernel");
     kernel_process->cwd[0] = '/';
     kernel_process->cwd[1] = '\0';
+    vm_area_init(kernel_process);
 
     // Use current CR3
     uint64_t cr3;
@@ -158,6 +232,7 @@ process_t* process_create(const char* name)
     if (!proc)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
+    vm_area_init(proc);
 
     spinlock_acquire(&scheduler_lock);
     proc->pid = next_pid++;
@@ -199,6 +274,7 @@ void process_copy_fds(process_t* dest, const process_t* src)
             file_descriptor_t* new_desc = kmalloc(sizeof(file_descriptor_t));
             if (new_desc)
             {
+                new_desc->flags = old_desc->flags;
                 new_desc->offset = old_desc->offset;
                 if (old_desc->inode)
                 {
@@ -266,6 +342,9 @@ void process_destroy(process_t* proc)
             proc->fd_table[i] = nullptr;
         }
     }
+
+    // Free vm areas
+    vm_area_clear(proc);
 
     // Free address space
     if (proc->pml4 && proc->pid != 1)

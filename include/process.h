@@ -8,6 +8,14 @@
 #define MAX_FDS 16
 #define TIME_SLICE_MS 50
 
+// VM area flags (expandable as we add mmap/munmap)
+#define VMA_READ  (1u << 0)
+#define VMA_WRITE (1u << 1)
+#define VMA_EXEC  (1u << 2)
+#define VMA_USER  (1u << 3)
+#define VMA_MMAP  (1u << 4)
+#define VMA_STACK (1u << 5)
+
 typedef enum
 {
     THREAD_READY,
@@ -39,7 +47,16 @@ typedef struct
 {
     struct vfs_inode *inode;
     uint64_t offset;
+    int flags;
 } file_descriptor_t;
+
+typedef struct vm_area
+{
+    uint64_t start;
+    uint64_t end;
+    uint32_t flags;
+    list_head_t list;
+} vm_area_t;
 
 typedef struct Process
 {
@@ -54,6 +71,8 @@ typedef struct Process
     uint64_t heap_end; // Current program break
     file_descriptor_t *fd_table[MAX_FDS];
     char cwd[VFS_MAX_PATH];
+    list_head_t vm_areas; // List of vm_area_t
+    uint32_t vm_area_count;
 } process_t;
 
 typedef struct Thread
@@ -86,6 +105,10 @@ void process_init(void);
 process_t *process_create(const char *name);
 void process_destroy(process_t *process);
 void process_copy_fds(process_t *dest, const process_t *src);
+void vm_area_init(process_t *proc);
+vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t flags);
+void vm_area_clone(process_t *dest, const process_t *src);
+void vm_area_clear(process_t *proc);
 thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user);
 thread_t *get_current_thread(void);
 process_t *get_current_process(void);

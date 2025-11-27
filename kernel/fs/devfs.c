@@ -49,12 +49,27 @@ struct inode_operations devfs_ops = {
 
 void devfs_register_device(const char *name, vfs_inode_t *device_node)
 {
-    if (device_count < MAX_DEVICES)
+    if (device_count >= MAX_DEVICES || !name || !device_node)
+        return;
+
+    // Insert in lexicographic order to keep stable directory listing.
+    int idx = 0;
+    for (; idx < device_count; idx++)
     {
-        strncpy(device_registry[device_count].name, name, 63);
-        device_registry[device_count].inode = device_node;
-        device_count++;
+        if (strcmp(name, device_registry[idx].name) < 0)
+            break;
     }
+
+    // Shift to make room.
+    for (int j = device_count; j > idx; j--)
+    {
+        device_registry[j] = device_registry[j - 1];
+    }
+
+    strncpy(device_registry[idx].name, name, 63);
+    device_registry[idx].name[63] = '\0';
+    device_registry[idx].inode = device_node;
+    device_count++;
 }
 
 void devfs_init(void)

@@ -4,6 +4,7 @@
 #include "vmm.h"
 #include "terminal.h"
 #include "heap.h"
+#include "fcntl.h"
 
 void init_process_entry(void)
 {
@@ -27,17 +28,20 @@ void init_process_entry(void)
         current_process->fd_table[0] = kmalloc(sizeof(file_descriptor_t));
         current_process->fd_table[0]->inode = console;
         current_process->fd_table[0]->offset = 0;
+        current_process->fd_table[0]->flags = O_RDONLY;
         vfs_open(console);
 
         // fd 1: stdout
         current_process->fd_table[1] = kmalloc(sizeof(file_descriptor_t));
         current_process->fd_table[1]->inode = console;
         current_process->fd_table[1]->offset = 0;
+        current_process->fd_table[1]->flags = O_WRONLY;
 
         // fd 2: stderr
         current_process->fd_table[2] = kmalloc(sizeof(file_descriptor_t));
         current_process->fd_table[2]->inode = console;
         current_process->fd_table[2]->offset = 0;
+        current_process->fd_table[2]->flags = O_WRONLY;
     }
     else
     {
@@ -58,6 +62,12 @@ void init_process_entry(void)
         vmm_map_page(pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 
+    // Set up an empty argc/argv for _start.
+    uint64_t user_rsp = stack_top - 16;
+    uint64_t *stack_ptr = (uint64_t *)user_rsp;
+    stack_ptr[0] = 0; // argc
+    stack_ptr[1] = 0; // argv terminator
+
     // Jump to user mode
     uint64_t user_cs = 0x20 | 3;
     uint64_t user_ss = 0x18 | 3;
@@ -77,7 +87,7 @@ void init_process_entry(void)
         "push %5\n" // RIP
         "iretq\n"
         :
-        : "r"(user_ss), "r"(user_ss), "r"(stack_top), "r"(rflags), "r"(user_cs), "r"(entry_point)
+        : "r"(user_ss), "r"(user_ss), "r"(user_rsp), "r"(rflags), "r"(user_cs), "r"(entry_point)
         : "memory");
 }
 

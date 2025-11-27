@@ -84,6 +84,25 @@ void terminal_get_cursor(int* x, int* y)
         *y = terminal_y;
 }
 
+void terminal_get_resolution(int* width, int* height)
+{
+    if (width)
+        *width = terminal_fb ? (int)terminal_fb->width : 0;
+    if (height)
+        *height = terminal_fb ? (int)terminal_fb->height : 0;
+}
+
+void terminal_get_dimensions(int* cols, int* rows)
+{
+    int w = 0;
+    int h = 0;
+    terminal_get_resolution(&w, &h);
+    if (cols)
+        *cols = (w > 0) ? (w / 8) : 0;
+    if (rows)
+        *rows = (h > 0) ? (h / (FONT_HEIGHT + LINE_SPACING)) : 0;
+}
+
 void terminal_set_color(uint32_t color)
 {
     terminal_color = color;

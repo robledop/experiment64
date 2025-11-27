@@ -1,8 +1,13 @@
 #include "framebuffer.h"
 #include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
 
 #include "assert.h"
 #include "test.h"
+#include "devfs.h"
+#include "vfs.h"
+#include "ioctl.h"
 
 static struct limine_framebuffer* active_fb = nullptr;
 
@@ -24,10 +29,112 @@ static inline uint32_t* framebuffer_row(uint32_t y)
     return (uint32_t*)((uint8_t*)active_fb->address + (uint64_t)y * active_fb->pitch);
 }
 
+static uint64_t framebuffer_size_bytes(const struct limine_framebuffer* fb)
+{
+    if (!fb)
+        return 0;
+    return fb->pitch * fb->height;
+}
+
+static uint64_t framebuffer_dev_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
+{
+    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    if (!fb)
+        fb = framebuffer_current();
+    if (!fb)
+        return 0;
+
+    uint64_t fb_size = framebuffer_size_bytes(fb);
+    if (offset >= fb_size)
+        return 0;
+
+    uint64_t to_copy = size;
+    if (offset + to_copy > fb_size)
+        to_copy = fb_size - offset;
+
+    memcpy(buffer, (uint8_t*)fb->address + offset, to_copy);
+    return to_copy;
+}
+
+static uint64_t framebuffer_dev_write(vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
+{
+    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    if (!fb)
+        fb = framebuffer_current();
+    if (!fb)
+        return 0;
+
+    uint64_t fb_size = framebuffer_size_bytes(fb);
+    if (offset >= fb_size)
+        return 0;
+
+    uint64_t to_copy = size;
+    if (offset + to_copy > fb_size)
+        to_copy = fb_size - offset;
+
+    memcpy((uint8_t*)fb->address + offset, buffer, to_copy);
+    return to_copy;
+}
+
+static int framebuffer_dev_ioctl(vfs_inode_t* node, int request, void* arg)
+{
+    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    if (!fb)
+        fb = framebuffer_current();
+    if (!fb)
+        return -1;
+
+    switch (request)
+    {
+    case FB_IOCTL_GET_WIDTH:
+        if (!arg)
+            return -1;
+        *(uint32_t*)arg = (uint32_t)fb->width;
+        return 0;
+    case FB_IOCTL_GET_HEIGHT:
+        if (!arg)
+            return -1;
+        *(uint32_t*)arg = (uint32_t)fb->height;
+        return 0;
+    case FB_IOCTL_GET_PITCH:
+        if (!arg)
+            return -1;
+        *(uint32_t*)arg = fb->pitch;
+        return 0;
+    case FB_IOCTL_GET_FBADDR:
+        if (!arg)
+            return -1;
+        *(uint64_t*)arg = (uint64_t)fb->address;
+        return 0;
+    default:
+        return -1;
+    }
+}
+
+static struct inode_operations framebuffer_dev_ops = {
+    .read = framebuffer_dev_read,
+    .write = framebuffer_dev_write,
+    .ioctl = framebuffer_dev_ioctl,
+};
+
+static vfs_inode_t framebuffer_device_node;
+static bool framebuffer_device_registered = false;
+
 void framebuffer_init(struct limine_framebuffer* fb)
 {
     assert(fb != nullptr);
     active_fb = fb;
+
+    framebuffer_device_node.flags = VFS_CHARDEVICE;
+    framebuffer_device_node.iops = &framebuffer_dev_ops;
+    framebuffer_device_node.size = framebuffer_size_bytes(fb);
+    framebuffer_device_node.device = fb;
+
+    if (!framebuffer_device_registered)
+    {
+        devfs_register_device("fb0", &framebuffer_device_node);
+        framebuffer_device_registered = true;
+    }
 }
 
 struct limine_framebuffer* framebuffer_current(void)

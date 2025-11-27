@@ -6,6 +6,7 @@
 #include "pmm.h"
 #include "terminal.h"
 #include "process.h"
+#include "fcntl.h"
 
 struct syscall_regs
 {
@@ -15,9 +16,10 @@ struct syscall_regs
 };
 
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c
-int sys_open(const char *path);
+int sys_open(const char *path, int flags);
 int sys_close(int fd);
 int sys_read(int fd, char *buf, size_t count);
+int sys_write(int fd, const char *buf, size_t count);
 int sys_chdir(const char *path);
 int sys_exec(const char *path, struct syscall_regs *regs);
 
@@ -193,9 +195,10 @@ static uint8_t sbrk_stub_bytes[] = {
 static uint8_t file_io_stub_bytes[] = {
     0xB8, 0x0A, 0x00, 0x00, 0x00,             // mov eax, 10
     0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100
+    0x31, 0xF6,                               // xor esi, esi
     0x0F, 0x05,                               // syscall
     0x83, 0xF8, 0x00,                         // cmp eax, 0
-    0x7C, 0x31,                               // jl error (+49)
+    0x7C, 0x33,                               // jl error (+51)
     0x41, 0x89, 0xC4,                         // mov r12d, eax
     0xB8, 0x01, 0x00, 0x00, 0x00,             // mov eax, 1
     0x44, 0x89, 0xE7,                         // mov edi, r12d
@@ -203,7 +206,7 @@ static uint8_t file_io_stub_bytes[] = {
     0xBA, 0x0C, 0x00, 0x00, 0x00,             // mov edx, 12
     0x0F, 0x05,                               // syscall
     0x83, 0xF8, 0x0C,                         // cmp eax, 12
-    0x75, 0x13,                               // jne error (+19)
+    0x75, 0x15,                               // jne error (+21)
     0xB8, 0x0B, 0x00, 0x00, 0x00,             // mov eax, 11
     0x44, 0x89, 0xE7,                         // mov edi, r12d
     0x0F, 0x05,                               // syscall
@@ -264,6 +267,35 @@ static uint8_t exec_stub_bytes[] = {
     0x0F, 0x05,                               // syscall
     0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
     0xBF, 0x7B, 0x00, 0x00, 0x00,             // mov edi, 123
+    0x0F, 0x05                                // syscall
+};
+
+static uint8_t execve_stub_bytes[] = {
+    0xB8, 0x04, 0x00, 0x00, 0x00,             // mov eax, 4 (FORK)
+    0x0F, 0x05,                               // syscall
+    0x83, 0xF8, 0x00,                         // cmp eax, 0
+    0x74, 0x31,                               // je child (+49)
+    0xB8, 0x05, 0x00, 0x00, 0x00,             // mov eax, 5 (WAIT)
+    0x48, 0xC7, 0xC7, 0x00, 0x02, 0x40, 0x00, // mov rdi, 0x400200
+    0x0F, 0x05,                               // syscall
+    0x8B, 0x04, 0x25, 0x00, 0x02, 0x40, 0x00, // mov eax, [0x400200]
+    0x3D, 0x7B, 0x00, 0x00, 0x00,             // cmp eax, 123
+    0x75, 0x09,                               // jne error (+9)
+    0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
+    0x31, 0xFF,                               // xor edi, edi
+    0x0F, 0x05,                               // syscall
+    // error:
+    0xB8, 0x03, 0x00, 0x00, 0x00, // mov eax, 3
+    0xBF, 0x01, 0x00, 0x00, 0x00, // mov edi, 1
+    0x0F, 0x05,                   // syscall
+    // child:
+    0xB8, 0x13, 0x00, 0x00, 0x00,             // mov eax, 19 (EXECVE)
+    0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100 (path)
+    0x48, 0xC7, 0xC6, 0x80, 0x01, 0x40, 0x00, // mov rsi, 0x400180 (argv)
+    0x48, 0x31, 0xD2,                         // xor rdx, rdx (envp = nullptr)
+    0x0F, 0x05,                               // syscall
+    0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
+    0xBF, 0x02, 0x00, 0x00, 0x00,             // mov edi, 2
     0x0F, 0x05                                // syscall
 };
 
@@ -685,6 +717,57 @@ TEST(test_syscall_file_io)
     }
 }
 
+TEST(test_syscall_open_flags)
+{
+    const char *path = "/flag_test.txt";
+    char buf[32];
+
+    int fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_write(fd, "abc", 3) == 3);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_RDONLY);
+    TEST_ASSERT(fd >= 0);
+    memset(buf, 0, sizeof(buf));
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 3);
+    TEST_ASSERT(strncmp(buf, "abc", 3) == 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_WRONLY | O_TRUNC);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_RDONLY);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_write(fd, "one", 3) == 3);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_WRONLY | O_APPEND);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_write(fd, "two", 3) == 3);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_RDONLY);
+    TEST_ASSERT(fd >= 0);
+    memset(buf, 0, sizeof(buf));
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 6);
+    TEST_ASSERT(strncmp(buf, "onetwo", 6) == 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    fd = sys_open(path, O_WRONLY);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == -1);
+    TEST_ASSERT(sys_close(fd) == 0);
+
+    return true;
+}
+
 TEST(test_syscall_chdir)
 {
     test_runner_pid = current_process->pid;
@@ -804,6 +887,51 @@ TEST(test_syscall_exec)
     }
 }
 
+TEST(test_syscall_execve)
+{
+    test_runner_pid = current_process->pid;
+    void *phys_page = pmm_alloc_page();
+    if (!phys_page)
+        return false;
+
+    uint64_t user_base = 0x400000;
+    uint64_t cr3;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    uint64_t hhdm_offset = 0xffff800000000000;
+    vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+    void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
+    memcpy(virt_page, execve_stub_bytes, sizeof(execve_stub_bytes));
+
+    const char *path = "/bin/prog";
+    memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
+    uint64_t *argv_area = (uint64_t *)((uint64_t)virt_page + 0x180);
+    argv_area[0] = 0x400100;
+    argv_area[1] = 0;
+    uint32_t expected_status = 123;
+    memcpy((void *)((uint64_t)virt_page + 0x200), &expected_status, sizeof(uint32_t));
+
+    syscall_set_exit_hook(syscall_test_exit_handler);
+
+    if (__builtin_setjmp(test_env) == 0)
+    {
+        uint64_t user_stack = user_base + 4096 - 16;
+        enter_user_mode(user_base, user_stack);
+        return false;
+    }
+    else
+    {
+        syscall_test_resume_after_longjmp();
+        bool passed = (test_exit_code == 0);
+        if (passed)
+            printk("Syscall Test: EXECVE successful\n");
+        else
+            printk("Syscall Test: EXECVE failed, exit code %d\n", test_exit_code);
+        syscall_set_exit_hook(nullptr);
+        return passed;
+    }
+}
+
 TEST_PRIO(test_syscall_mknod, 10)
 {
     uint64_t user_base = 0x400000;
@@ -859,14 +987,14 @@ TEST_PRIO(test_syscall_mknod, 10)
 TEST(test_syscall_invalid_paths_and_fds)
 {
     // Empty path rejected.
-    TEST_ASSERT(sys_open("") == -1);
+    TEST_ASSERT(sys_open("", 0) == -1);
     TEST_ASSERT(sys_chdir("") == -1);
 
     // chdir to non-directory should fail.
     TEST_ASSERT(sys_chdir("/bin/init") == -1);
 
     char buf[8];
-    int fd = sys_open("/bin/init");
+    int fd = sys_open("/bin/init", 0);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_close(fd) == 0);
 
