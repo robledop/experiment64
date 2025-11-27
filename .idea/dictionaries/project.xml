@@ -12,6 +12,8 @@
       <w>devfs</w>
       <w>distclean</w>
       <w>dtime</w>
+      <w>envp</w>
+      <w>execve</w>
       <w>finddir</w>
       <w>fsize</w>
       <w>hhdm</w>
@@ -30,6 +32,8 @@
       <w>msyntax</w>
       <w>nbits</w>
       <w>ndev</w>
+      <w>nolintbegin</w>
+      <w>nolintend</w>
       <w>outsl</w>
       <w>pathlib</w>
       <w>poff</w>
