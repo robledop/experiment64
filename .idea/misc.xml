@@ -3,6 +3,15 @@
   <component name="CMakePythonSetting">
     <option name="pythonIntegrationState" value="YES" />
   </component>
+  <component name="CidrRootsConfiguration">
+    <excludeRoots>
+      <file path="$PROJECT_DIR$/.cache" />
+      <file path="$PROJECT_DIR$/.venv" />
+      <file path="$PROJECT_DIR$/build" />
+      <file path="$PROJECT_DIR$/limine" />
+      <file path="$PROJECT_DIR$/user/build" />
+    </excludeRoots>
+  </component>
   <component name="CompDBSettings">
     <option name="linkedExternalProjectsSettings">
       <CompDBProjectSettings>

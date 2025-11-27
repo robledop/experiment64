@@ -7,7 +7,7 @@ This KASAN-style implementation adds a shadow memory region to catch some classe
 - Shadow memory: a parallel address space where each shadow byte summarizes 8 bytes of real memory. Accesses consult the shadow to decide if the target bytes are addressable; poisoning/unpoisoning shadow bytes encodes validity.
 - Poisoning: writing special tag values into shadow to mark real bytes as invalid (e.g., freed) or valid. An access to a poisoned region triggers a KASAN report; unpoisoning marks the region addressable again.
 - Shadow layout: each shadow byte covers 8 bytes of real memory (`KASAN_SHADOW_SCALE_SHIFT = 3`), located at `KASAN_SHADOW_OFFSET = 0xffff900000000000`.
-- Coverage: currently limited to the first 1GiB of physical memory as mapped through the HHDM. The covered real address range is `[HHDM, HHDM + 1 GiB)`. Extend `KASAN_MAX_PHYS_COVER` in `kernel/mem/kasan.c` if you need more.
+- Coverage: currently limited to the first 1GiB of physical memory as mapped through the HHDM. The covered real address range is `[HHDM, HHDM + 1GiB)`. 
 - Early init: after paging is set up, `kasan_early_init` maps the shadow region, zeros it, and marks itself ready. The PMM exposes `pmm_get_highest_addr` to size coverage.
 - Poisoning:
   - PMM: `pmm_alloc_page(s)` unpoisons the corresponding HHDM mapping; `pmm_free_page(s)` poisons it with `0xFF` (non-addressable).
@@ -18,12 +18,4 @@ This KASAN-style implementation adds a shadow memory region to catch some classe
 
 ## Usage
 
-- Build/run with KASAN: `make tests-kasan` (adds `-DKASAN`, maps shadow, runs tests under QEMU).
-- Regular builds (`make`, `make tests`) are unchanged and leave KASAN disabled.
-
-## Limitations / next steps
-
-- Only HHDM + heap/page allocations are covered; user mappings and kernel stacks/globals are not yet poisoned.
-- Redzones are minimal: slab/big allocations rely on full-object poisoning, not per-object tail redzones.
-- `memcpy/memset/memcmp` are checked; other copy/usercopy paths are not instrumented yet.
-- Shadow size is capped at 1GiB; widen if your workload touches more RAM.
+- Build/run with KASAN: `make tests`
