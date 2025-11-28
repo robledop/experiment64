@@ -93,7 +93,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide
 	$(MAKE) -C user clean
 
 .PHONY: distclean
