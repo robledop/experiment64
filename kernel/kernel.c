@@ -126,7 +126,6 @@ void _start(void) // NOLINT(*-reserved-identifier)
     debug_init();
     apic_init();
     tsc_init();
-    keyboard_init();
     smp_boot_aps();
     syscall_init();
     uint64_t hhdm_offset = boot_get_hhdm_offset();
@@ -136,6 +135,7 @@ void _start(void) // NOLINT(*-reserved-identifier)
     kasan_early_init(hhdm_offset, pmm_get_highest_addr());
 #endif
     heap_init(hhdm_offset);
+    keyboard_init();
     process_init();
     pci_scan();
     storage_init();

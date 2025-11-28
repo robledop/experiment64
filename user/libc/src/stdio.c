@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <ctype.h>
 
 int putchar(int c)
 {
@@ -329,4 +330,96 @@ int puts(const char *s)
         putchar(*s++);
     putchar('\n');
     return 0;
+}
+
+int sscanf(const char *str, const char *format, ...)
+{
+    if (!str || !format)
+        return 0;
+
+    va_list args;
+    va_start(args, format);
+    int assigned = 0;
+    const char *s = str;
+
+    for (const char *f = format; *f; f++)
+    {
+        if (isspace((unsigned char)*f))
+        {
+            while (isspace((unsigned char)*s))
+                s++;
+            continue;
+        }
+
+        if (*f != '%')
+        {
+            if (*s != *f)
+                break;
+            s++;
+            continue;
+        }
+
+        f++;
+        if (*f == '%')
+        {
+            if (*s != '%')
+                break;
+            s++;
+            continue;
+        }
+
+        int base = 10;
+        bool is_unsigned = false;
+        switch (*f)
+        {
+        case 'd':
+            base = 10;
+            break;
+        case 'i':
+            base = 0; // auto-detect via strtol
+            break;
+        case 'x':
+            base = 16;
+            break;
+        case 'o':
+            base = 8;
+            break;
+        case 'u':
+            base = 10;
+            is_unsigned = true;
+            break;
+        default:
+            goto out;
+        }
+
+        while (isspace((unsigned char)*s))
+            s++;
+        if (*s == '\0')
+            break;
+
+        char *endptr = NULL;
+        long val = strtol(s, &endptr, base);
+        if (endptr == s)
+            break;
+
+        if (is_unsigned)
+        {
+            unsigned int *out = va_arg(args, unsigned int *);
+            if (out)
+                *out = (unsigned int)val;
+        }
+        else
+        {
+            int *out = va_arg(args, int *);
+            if (out)
+                *out = (int)val;
+        }
+
+        s = endptr;
+        assigned++;
+    }
+
+out:
+    va_end(args);
+    return assigned;
 }

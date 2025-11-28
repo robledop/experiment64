@@ -7,6 +7,10 @@
 
 typedef long ssize_t;
 
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
 ssize_t write(int fd, const void *buf, size_t count);
 ssize_t read(int fd, void *buf, size_t count);
 int exec(const char *path);
@@ -25,6 +29,8 @@ int unlink(const char *path);
 int stat(const char *path, struct stat *st);
 int fstat(int fd, struct stat *st);
 int sleep(int milliseconds);
+int usleep(unsigned int usec);
+int mkdir(const char *path, int mode);
 int ioctl(int fd, unsigned long request, void *arg);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
 int munmap(void *addr, size_t length);

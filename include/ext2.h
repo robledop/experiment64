@@ -281,7 +281,7 @@ int ext2fs_dirlink(struct ext2_inode*, const char*, uint32_t);
 struct ext2_inode* ext2fs_dirlookup(const struct ext2_inode*, const char*, uint32_t*);
 struct ext2_inode* ext2fs_ialloc(uint32_t, short);
 void ext2_init_inode(int dev);
-void ext2fs_ilock(struct ext2_inode*);
+int ext2fs_ilock(struct ext2_inode*);
 void ext2fs_iput(struct ext2_inode*);
 void ext2fs_iunlock(struct ext2_inode*);
 void ext2fs_iunlockput(struct ext2_inode*);

@@ -1,4 +1,6 @@
 #include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 size_t strlen(const char* s)
 {
@@ -174,6 +176,82 @@ char* strncat(char dest[static 1], const char src[static 1], size_t n)
     }
     *d = '\0';
     return dest;
+}
+
+int strcasecmp(const char *s1, const char *s2)
+{
+    while (*s1 && *s2)
+    {
+        int c1 = tolower((unsigned char)*s1);
+        int c2 = tolower((unsigned char)*s2);
+        if (c1 != c2)
+            return c1 - c2;
+        s1++;
+        s2++;
+    }
+    return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+}
+
+int strncasecmp(const char *s1, const char *s2, size_t n)
+{
+    while (n > 0 && *s1 && *s2)
+    {
+        int c1 = tolower((unsigned char)*s1);
+        int c2 = tolower((unsigned char)*s2);
+        if (c1 != c2)
+            return c1 - c2;
+        s1++;
+        s2++;
+        n--;
+    }
+    if (n == 0)
+        return 0;
+    return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+}
+
+char *strdup(const char *s)
+{
+    if (!s)
+        return nullptr;
+    size_t len = strlen(s) + 1;
+    char *p = malloc(len);
+    if (!p)
+        return nullptr;
+    memcpy(p, s, len);
+    return p;
+}
+
+char *strrchr(const char *s, int c)
+{
+    const char *last = nullptr;
+    while (*s)
+    {
+        if (*s == (char)c)
+            last = s;
+        s++;
+    }
+    if (c == '\0')
+        return (char *)s;
+    return (char *)last;
+}
+
+char *strstr(const char *haystack, const char *needle)
+{
+    if (!*needle)
+        return (char *)haystack;
+    for (const char *h = haystack; *h; h++)
+    {
+        const char *p = h;
+        const char *n = needle;
+        while (*p && *n && *p == *n)
+        {
+            p++;
+            n++;
+        }
+        if (*n == '\0')
+            return (char *)h;
+    }
+    return nullptr;
 }
 
 void reverse(char* s)

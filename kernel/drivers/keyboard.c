@@ -2,6 +2,10 @@
 #include "io.h"
 #include "process.h"
 #include "cpu.h"
+#include "devfs.h"
+#include "vfs.h"
+#include "heap.h"
+#include "string.h"
 
 #define KEYBOARD_DATA_PORT 0x60
 
@@ -25,6 +29,13 @@ static volatile char buffer[BUFFER_SIZE];
 static volatile int write_ptr = 0;
 static volatile int read_ptr = 0;
 
+#define RAW_BUFFER_SIZE 256
+static volatile uint8_t raw_buffer[RAW_BUFFER_SIZE];
+static volatile int raw_write_ptr = 0;
+static volatile int raw_read_ptr = 0;
+
+static struct inode_operations keyboard_dev_ops;
+
 static thread_t *keyboard_waiter = nullptr;
 
 static bool shift_pressed = false;
@@ -32,12 +43,34 @@ static bool ctrl_pressed = false;
 static bool alt_pressed = false;
 static bool caps_lock = false;
 
+static void keyboard_enqueue_raw(uint8_t scancode)
+{
+    int next = (raw_write_ptr + 1) % RAW_BUFFER_SIZE;
+    if (next == raw_read_ptr)
+        return; // Drop if full
+    raw_buffer[raw_write_ptr] = scancode;
+    raw_write_ptr = next;
+}
+
 void keyboard_init(void)
 {
+    keyboard_reset_state_for_test();
+
+    vfs_inode_t *node = kmalloc(sizeof(vfs_inode_t));
+    if (!node)
+        return;
+
+    memset(node, 0, sizeof(vfs_inode_t));
+    node->flags = VFS_CHARDEVICE;
+    node->iops = &keyboard_dev_ops;
+
+    devfs_register_device("keyboard", node);
 }
 
 static void keyboard_process_scancode(uint8_t scancode)
 {
+    keyboard_enqueue_raw(scancode);
+
     if (scancode == SCANCODE_LSHIFT_PRESS || scancode == SCANCODE_RSHIFT_PRESS)
     {
         shift_pressed = true;
@@ -149,6 +182,8 @@ void keyboard_reset_state_for_test(void)
 {
     write_ptr = 0;
     read_ptr = 0;
+    raw_write_ptr = 0;
+    raw_read_ptr = 0;
     shift_pressed = false;
     ctrl_pressed = false;
     alt_pressed = false;
@@ -194,3 +229,34 @@ char keyboard_get_char(void)
         // We loop back to check buffer.
     }
 }
+
+uint64_t keyboard_read_raw(uint8_t *out, uint64_t max)
+{
+    if (!out || max == 0)
+        return 0;
+
+    uint64_t read = 0;
+    while (read < max && raw_read_ptr != raw_write_ptr)
+    {
+        out[read++] = raw_buffer[raw_read_ptr];
+        raw_read_ptr = (raw_read_ptr + 1) % RAW_BUFFER_SIZE;
+    }
+    return read;
+}
+
+static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+{
+    (void)offset;
+    return keyboard_read_raw(buffer, size);
+}
+
+static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] int request, [[maybe_unused]] void *arg)
+{
+    // No special configuration supported yet; accept requests for compatibility.
+    return 0;
+}
+
+static struct inode_operations keyboard_dev_ops = {
+    .read = keyboard_dev_read,
+    .ioctl = keyboard_dev_ioctl,
+};

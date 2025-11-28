@@ -26,5 +26,7 @@
 #define SYS_LINK 22
 #define SYS_UNLINK 23
 #define SYS_GETCWD 24
+#define SYS_GETTIMEOFDAY 25
+#define SYS_USLEEP 26
 
 #endif

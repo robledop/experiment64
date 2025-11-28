@@ -15,10 +15,13 @@
 #include "string.h"
 #include "heap.h"
 #include "framebuffer.h"
+#include "apic.h"
 #include "mman.h"
 #include "util.h"
 #include "fcntl.h"
 #include "vfs.h"
+#include "time.h"
+#include "tsc.h"
 
 // ReSharper disable once CppDFAConstantFunctionResult
 static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
@@ -343,6 +346,7 @@ int sys_spawn(const char *path);
 int sys_fork(struct syscall_regs *regs);
 int sys_chdir(const char *path);
 int sys_sleep(uint64_t milliseconds);
+int sys_usleep(uint64_t usec);
 int sys_mknod(const char *path, int mode, int dev);
 int sys_ioctl(int fd, int request, void *arg);
 int sys_open(const char *path, int flags);
@@ -352,6 +356,7 @@ int sys_stat(const char *path, struct stat *st);
 int sys_fstat(int fd, struct stat *st);
 int sys_link(const char *oldpath, const char *newpath);
 int sys_unlink(const char *path);
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 
 void syscall_init(void)
 {
@@ -735,6 +740,30 @@ int sys_getcwd(char *buf, size_t size)
     return 0;
 }
 
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+    if (tv && !prepare_user_buffer(tv, sizeof(*tv), true))
+        return -1;
+    if (tz && !prepare_user_buffer(tz, sizeof(*tz), true))
+        return -1;
+
+    uint64_t ns = tsc_nanos();
+    if (ns == 0)
+        ns = scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
+
+    if (tv)
+    {
+        tv->tv_sec = (int64_t)(ns / 1000000000ull);
+        tv->tv_usec = (int64_t)((ns % 1000000000ull) / 1000ull);
+    }
+    if (tz)
+    {
+        tz->tz_minuteswest = 0;
+        tz->tz_dsttime = 0;
+    }
+    return 0;
+}
+
 int sys_sleep(uint64_t milliseconds)
 {
     uint64_t start = scheduler_ticks;
@@ -746,6 +775,25 @@ int sys_sleep(uint64_t milliseconds)
     {
         schedule();
     }
+    return 0;
+}
+
+int sys_usleep(uint64_t usec)
+{
+    if (usec == 0)
+        return 0;
+
+    const uint64_t tick_us = 1000000ull / TIMER_FREQUENCY_HZ;
+    if (usec >= tick_us)
+    {
+        uint64_t ms = usec / 1000;
+        if (usec % 1000)
+            ms++;
+        return sys_sleep(ms);
+    }
+
+    const uint64_t ns = usec * 1000;
+    tsc_sleep_ns(ns);
     return 0;
 }
 
@@ -911,6 +959,8 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_chdir((const char *)arg1);
     case SYS_SLEEP:
         return sys_sleep(arg1);
+    case SYS_USLEEP:
+        return sys_usleep(arg1);
     case SYS_MKNOD:
         return sys_mknod((const char *)arg1, (int)arg2, (int)arg3);
     case SYS_IOCTL:
@@ -929,6 +979,8 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_unlink((const char *)arg1);
     case SYS_GETCWD:
         return sys_getcwd((char *)arg1, (size_t)arg2);
+    case SYS_GETTIMEOFDAY:
+        return sys_gettimeofday((struct timeval *)arg1, (struct timezone *)arg2);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;

@@ -2,7 +2,11 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <stdlib.h>
 #include <util.h>
+
+#undef exit
 
 static inline long syscall0(long n)
 {
@@ -74,11 +78,17 @@ void __exit_impl(int status)
         ;
 }
 
-void exit(int status)
+void __exit_with_handlers(int status)
 {
+    __libc_run_atexit();
     __exit_impl(status);
 
     __builtin_unreachable();
+}
+
+void exit(int status)
+{
+    __exit_with_handlers(status);
 }
 
 int fork(void)
@@ -158,6 +168,11 @@ int sleep(int milliseconds)
     return clamp_signed_to_int(syscall1(SYS_SLEEP, milliseconds));
 }
 
+int usleep(unsigned int usec)
+{
+    return clamp_signed_to_int(syscall1(SYS_USLEEP, (long)usec));
+}
+
 int ioctl(int fd, unsigned long request, void *arg)
 {
     return clamp_signed_to_int(syscall3(SYS_IOCTL, fd, (long)request, (long)arg));
@@ -169,6 +184,11 @@ char *getcwd(char *buf, size_t size)
     if (ret < 0)
         return nullptr;
     return buf;
+}
+
+int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+    return clamp_signed_to_int(syscall2(SYS_GETTIMEOFDAY, (long)tv, (long)tz));
 }
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)
