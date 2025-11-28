@@ -1,0 +1,14 @@
+CompileFlags:
+  Add:
+    - -target
+    - i686-elf
+    - -nostdlib
+    - -O3
+    - -fno-builtin
+    - -std=gnu23
+    - -I../../include
+    - -I../include
+  Remove:
+    - -march=*
+    - -mcpu=*
+    - -mtune=
