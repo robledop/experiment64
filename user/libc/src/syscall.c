@@ -238,6 +238,11 @@ int dup(int oldfd)
     return clamp_signed_to_int(syscall1(SYS_DUP, oldfd));
 }
 
+int kill(int pid, int sig)
+{
+    return clamp_signed_to_int(syscall2(SYS_KILL, pid, sig));
+}
+
 void shutdown(void)
 {
     syscall0(SYS_SHUTDOWN);

@@ -57,6 +57,7 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 int sys_pipe(int pipefd[2]);
 long sys_lseek(int fd, long offset, int whence);
 int sys_dup(int oldfd);
+int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
 
@@ -358,6 +359,53 @@ void sys_exit(int code)
     }
 
     schedule();
+}
+
+int sys_kill(int pid, int sig)
+{
+    (void)sig; // For now, any signal terminates the process
+
+    // Find the target process
+    process_t *target = nullptr;
+    list_head_t *pos;
+    list_for_each(pos, &process_list)
+    {
+        process_t *p = list_entry(pos, process_t, list);
+        if (p->pid == pid)
+        {
+            target = p;
+            break;
+        }
+    }
+
+    if (!target)
+        return -1; // Process not found
+
+    // Don't allow killing the kernel process or init
+    if (target->pid <= 1)
+        return -1;
+
+    // Mark the process as terminated
+    target->exit_code = 128 + sig; // Convention: exit code = 128 + signal number
+    target->terminated = true;
+
+    // Terminate all threads of the process
+    list_head_t *thread_pos;
+    list_for_each(thread_pos, &target->threads)
+    {
+        thread_t *t = list_entry(thread_pos, thread_t, list);
+        t->state = THREAD_TERMINATED;
+    }
+
+    // Wake up the parent if it's waiting
+    if (target->parent)
+        thread_wakeup(target->parent);
+
+    // If we killed ourselves, reschedule
+    if (target == current_process)
+        schedule();
+
+    return 0;
 }
 
 void spawn_trampoline(void)
@@ -898,6 +946,8 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_REBOOT:
         sys_reboot();
         return 0;
+    case SYS_KILL:
+        return sys_kill((int)arg1, (int)arg2);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;

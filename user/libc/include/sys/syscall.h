@@ -32,6 +32,7 @@
 #define SYS_DUP 29
 #define SYS_SHUTDOWN 30
 #define SYS_REBOOT 31
+#define SYS_KILL 32
 
 static inline long syscall0(long n)
 {
