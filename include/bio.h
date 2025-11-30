@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "list.h"
+#include "sleeplock.h"
 
 #define BIO_BLOCK_SIZE 512
 
@@ -13,6 +14,7 @@ typedef struct buffer_head
     uint8_t flags;
     uint32_t ref_count;
     list_head_t list; // For LRU
+    sleeplock_t lock; // Per-buffer lock for exclusive access
 } buffer_head_t;
 
 #define BIO_FLAG_VALID 0x01

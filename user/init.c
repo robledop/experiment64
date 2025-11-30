@@ -12,7 +12,7 @@ int main(void)
         int pid = fork();
         if (pid == 0)
         {
-            exec("/bin/shell");
+            exec("/bin/sh");
             printf("Failed to exec shell\n");
             exit(1);
         }

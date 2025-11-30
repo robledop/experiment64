@@ -127,6 +127,10 @@ disk: clean
 	$(MAKE) image.hdd
 	./scripts/install-on-disk.sh
 
+.PHONE: qemu-nobuild
+qemu-nobuild:
+	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+
 .PHONY: run
 run: clean
 	$(MAKE) image.hdd

@@ -47,7 +47,13 @@ static inline uint16_t ext2_dirent_size(u8 name_len)
     return (uint16_t)((size + 3) & ~3);
 }
 struct ext2fs_addrs ext2fs_addrs[NINODE];
-struct ext2_super_block ext2_sb;
+static struct ext2_super_block ext2_sb[4]; // Per-device superblock
+
+// Helper to get the superblock for a device
+static inline struct ext2_super_block *ext2_get_sb(uint32_t dev)
+{
+    return (dev < 4) ? &ext2_sb[dev] : &ext2_sb[0];
+}
 
 // part_offset is kept for back-compat; prefer ext2_part_offset().
 static inline uint32_t part_offset(uint32_t dev)
@@ -128,6 +134,11 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
 static void ext2fs_bzero(uint32_t dev, uint32_t bno)
 {
     buffer_head_t *bp = bread(dev, bno);
+    if (!bp)
+    {
+        printk("ext2fs_bzero: bread failed\n");
+        return;
+    }
     memset(bp->data, 0, 512);
     bwrite(bp);
     brelse(bp);
@@ -141,6 +152,11 @@ static void ext2_free_indirect(uint32_t dev, uint32_t block, int depth)
         return;
 
     buffer_head_t *bp = bread(dev, BLOCK_TO_SECTOR(block) + ext2_part_offset(dev));
+    if (!bp)
+    {
+        printk("ext2_free_indirect: bread failed\n");
+        return;
+    }
     uint32_t *ptrs = (uint32_t *)bp->data;
 
     for (uint32_t i = 0; i < EXT2_INDIRECT; i++)
@@ -159,30 +175,37 @@ static void ext2_free_indirect(uint32_t dev, uint32_t block, int depth)
 }
 
 // check if a block is free and return its bit number
-static uint32_t ext2fs_get_free_bit(uint8_t *bitmap, const uint32_t nbits)
+// Helper: find and set a free bit in bitmap sector
+// Returns bit index (absolute) or -1 if none found
+static int find_and_set_free_bit(uint8_t *sector_data, uint32_t start_bit, uint32_t max_bits)
 {
-    const uint32_t bytes = (nbits + 7) / 8;
-    for (uint32_t i = 0; i < bytes && i < EXT2_BSIZE; i++)
+    for (uint32_t i = 0; i < 512; i++)
     {
         for (uint32_t j = 0; j < 8; j++)
         {
-            const uint32_t bit = i * 8 + j;
-            if (bit >= nbits)
-                break;
-            const u8 mask = (u8)(1U << j);
-            if ((bitmap[i] & mask) != 0)
+            const uint32_t bit = start_bit + i * 8 + j;
+            if (bit >= max_bits)
+                return -1;
+            const uint8_t mask = (uint8_t)(1U << j);
+            if ((sector_data[i] & mask) != 0)
                 continue;
-            bitmap[i] |= mask;
-            return bit;
+            sector_data[i] |= mask;
+            return (int)bit;
         }
     }
-    return (uint32_t)-1;
+    return -1;
 }
 
 static inline void ext2_read_group_desc(uint32_t dev, uint32_t gno, struct ext2_group_desc *out)
 {
     const uint32_t desc_blockno = ext2_part_offset(dev) + BLOCK_TO_SECTOR(2);
     buffer_head_t *bp = bread(dev, desc_blockno);
+    if (!bp)
+    {
+        printk("ext2_read_group_desc: bread failed\n");
+        memset(out, 0, sizeof(*out));
+        return;
+    }
     memcpy(out, bp->data + gno * sizeof(*out), sizeof(*out));
     brelse(bp);
 }
@@ -192,12 +215,22 @@ static uint32_t ext2_ensure_ptr(uint32_t dev, uint32_t block, uint32_t slot, uin
 {
     const uint32_t sector = BLOCK_TO_SECTOR(block) + ext2_part_offset(dev) + (slot / PTRS_PER_SECTOR);
     buffer_head_t *bp = bread(dev, sector);
+    if (!bp)
+    {
+        printk("ext2_ensure_ptr: bread failed\n");
+        return 0;
+    }
     uint32_t *table = (uint32_t *)bp->data;
     uint32_t *entry = &table[slot % PTRS_PER_SECTOR];
     uint32_t val = *entry;
     if (val == 0)
     {
         val = ext2fs_balloc(dev, inum);
+        if (val == 0)
+        {
+            brelse(bp);
+            return 0;
+        }
         *entry = val;
         bwrite(bp);
     }
@@ -208,64 +241,94 @@ static uint32_t ext2_ensure_ptr(uint32_t dev, uint32_t block, uint32_t slot, uin
 // Allocate a zeroed disk block.
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 {
-    const int gno = GET_GROUP_NO(inum, ext2_sb);
-    struct ext2_group_desc bgdesc;
-    ext2_read_group_desc(dev, gno, &bgdesc);
+    struct ext2_super_block *sb = ext2_get_sb(dev);
+    const uint32_t bgcount = (sb->s_blocks_count + sb->s_blocks_per_group - 1) / sb->s_blocks_per_group;
+    const int preferred_gno = GET_GROUP_NO(inum, *sb);
+    const uint32_t sectors_per_block = EXT2_BSIZE / 512;
 
-    const uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev);
-    buffer_head_t *bp = bread(dev, bitmap_block);
-
-    const uint32_t fbit = ext2fs_get_free_bit((uint8_t *)bp->data, ext2_sb.s_blocks_per_group);
-    if (fbit == (uint32_t)-1)
+    // Search all block groups, starting with the inode's group
+    for (uint32_t gi = 0; gi < bgcount; gi++)
     {
-        brelse(bp);
-        printk("PANIC: ");
-        printk("ext2_balloc: out of blocks\n");
-        return 0;
+        const uint32_t gno = (preferred_gno + gi) % bgcount;
+        struct ext2_group_desc bgdesc;
+        ext2_read_group_desc(dev, gno, &bgdesc);
+
+        const uint32_t bitmap_first_sector = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev);
+
+        // Search through all sectors of the bitmap block
+        for (uint32_t sec = 0; sec < sectors_per_block; sec++)
+        {
+            buffer_head_t *bp = bread(dev, bitmap_first_sector + sec);
+            if (!bp)
+            {
+                continue;
+            }
+
+            const uint32_t start_bit = sec * 512 * 8; // First bit in this sector
+            int fbit = find_and_set_free_bit(bp->data, start_bit, sb->s_blocks_per_group);
+            if (fbit >= 0)
+            {
+                bwrite(bp);
+                brelse(bp);
+
+                const uint32_t group_first_block = sb->s_first_data_block + gno * sb->s_blocks_per_group;
+                const uint32_t rel_block = group_first_block + (uint32_t)fbit;
+
+                const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + ext2_part_offset(dev);
+                for (uint32_t i = 0; i < sectors_per_block; i++)
+                {
+                    ext2fs_bzero(dev, start_sector + i);
+                }
+                return rel_block;
+            }
+            brelse(bp);
+        }
     }
 
-    bwrite(bp);
-    brelse(bp);
-
-    const uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
-    const uint32_t rel_block = group_first_block + fbit;
-    const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + ext2_part_offset(dev);
-    for (uint32_t i = 0; i < EXT2_BSIZE / 512; i++)
-    {
-        ext2fs_bzero(dev, start_sector + i);
-    }
-    return rel_block;
+    printk("PANIC: ");
+    printk("ext2_balloc: out of blocks\n");
+    return 0;
 }
 
 // Free a disk block.
 static void ext2fs_bfree(uint32_t dev, uint32_t b)
 {
-    if (b < ext2_sb.s_first_data_block)
+    struct ext2_super_block *sb = ext2_get_sb(dev);
+    if (b < sb->s_first_data_block)
     {
         printk("PANIC: ");
         printk("ext2fs_bfree: invalid block\n");
+        return;
     }
 
-    const uint32_t block_index = b - ext2_sb.s_first_data_block;
-    const uint32_t gno = block_index / ext2_sb.s_blocks_per_group;
-    const uint32_t offset = block_index % ext2_sb.s_blocks_per_group;
+    const uint32_t block_index = b - sb->s_first_data_block;
+    const uint32_t gno = block_index / sb->s_blocks_per_group;
+    const uint32_t offset = block_index % sb->s_blocks_per_group;
 
     struct ext2_group_desc bgdesc;
     ext2_read_group_desc(dev, gno, &bgdesc);
 
-    buffer_head_t *bp = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev));
-    const uint32_t byte_index = offset / 8;
-    if (byte_index >= EXT2_BSIZE)
+    // Calculate which sector of the bitmap contains this bit
+    const uint32_t bits_per_sector = 512 * 8;
+    const uint32_t sector_in_block = offset / bits_per_sector;
+    const uint32_t bit_in_sector = offset % bits_per_sector;
+    const uint32_t byte_index = bit_in_sector / 8;
+
+    buffer_head_t *bp = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev) + sector_in_block);
+    if (!bp)
     {
-        printk("PANIC: ");
-        printk("ext2fs_bfree: bitmap overflow\n");
+        printk("ext2fs_bfree: bread failed\n");
+        return;
     }
-    const u8 mask = (u8)(1U << (offset % 8));
+
+    const u8 mask = (u8)(1U << (bit_in_sector % 8));
 
     if ((bp->data[byte_index] & mask) == 0)
     {
         printk("PANIC: ");
         printk("ext2fs_bfree: block already free\n");
+        brelse(bp);
+        return;
     }
     bp->data[byte_index] &= ~mask;
     bwrite(bp);
@@ -275,9 +338,10 @@ static void ext2fs_bfree(uint32_t dev, uint32_t b)
 void ext2_init_inode(int dev)
 {
     // mbr_load();
-    ext2fs_readsb(dev, &ext2_sb);
-    const uint32_t block_bytes = 1024u << ext2_sb.s_log_block_size;
-    const u64 partition_mb = ((u64)ext2_sb.s_blocks_count * block_bytes) / (1024ull * 1024ull);
+    struct ext2_super_block *sb = ext2_get_sb(dev);
+    ext2fs_readsb(dev, sb);
+    const uint32_t block_bytes = 1024u << sb->s_log_block_size;
+    const u64 partition_mb = ((u64)sb->s_blocks_count * block_bytes) / (1024ull * 1024ull);
     const u64 size_value = (partition_mb >= 1024ull) ? partition_mb / 1024ull : partition_mb;
     const char *size_suffix = (partition_mb >= 1024ull) ? "GB" : "MB";
     printk(
@@ -285,50 +349,77 @@ void ext2_init_inode(int dev)
         (unsigned long long)size_value,
         size_suffix,
         block_bytes,
-        ext2_sb.s_blocks_count,
-        ext2_sb.s_inodes_count);
+        sb->s_blocks_count,
+        sb->s_inodes_count);
 }
 
 // Helper to compute sector and byte offset for an inode within its group's inode table.
 // Returns the absolute sector number and the byte offset within that sector.
 static void ext2_inode_loc(uint32_t dev, uint32_t inum, uint32_t *sector, uint32_t *byte_offset)
 {
-    const int gno = GET_GROUP_NO(inum, ext2_sb);
-    const int ioff = GET_INODE_INDEX(inum, ext2_sb);
+    struct ext2_super_block *sb = ext2_get_sb(dev);
+    const int gno = GET_GROUP_NO(inum, *sb);
+    const int ioff = GET_INODE_INDEX(inum, *sb);
     struct ext2_group_desc bgdesc;
     ext2_read_group_desc(dev, gno, &bgdesc);
 
-    const uint32_t inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
+    const uint32_t inodes_per_block = EXT2_BSIZE / sb->s_inode_size;
     const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / inodes_per_block) + ext2_part_offset(dev);
     const uint32_t iindex = ioff % inodes_per_block;
 
-    const uint32_t block_off = iindex * ext2_sb.s_inode_size;
+    const uint32_t block_off = iindex * sb->s_inode_size;
     *sector = bno + block_off / 512;
     *byte_offset = block_off % 512;
 }
 
 struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
 {
+    struct ext2_super_block *sb = ext2_get_sb(dev);
     struct ext2_group_desc bgdesc;
     const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
-    const uint32_t bgcount = ext2_sb.s_blocks_count / ext2_sb.s_blocks_per_group;
+    const uint32_t bgcount = sb->s_blocks_count / sb->s_blocks_per_group;
     for (uint32_t i = 0; i <= bgcount; i++)
     {
         buffer_head_t *group_desc_buf = bread(dev, desc_blockno);
+        if (!group_desc_buf)
+        {
+            printk("ext2fs_ialloc: bread failed for group desc\n");
+            return nullptr;
+        }
         memcpy(&bgdesc, group_desc_buf->data + i * sizeof(bgdesc), sizeof(bgdesc));
         brelse(group_desc_buf);
 
-        buffer_head_t *ibitmap_buff = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(dev));
-        const uint32_t fbit = ext2fs_get_free_bit((uint8_t *)ibitmap_buff->data, ext2_sb.s_inodes_per_group);
-        if (fbit == (uint32_t)-1)
+        // Search inode bitmap (may span multiple sectors)
+        const uint32_t ibitmap_first_sector = BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(dev);
+        const uint32_t sectors_per_block = EXT2_BSIZE / 512;
+        int fbit = -1;
+        buffer_head_t *ibitmap_buff = nullptr;
+
+        for (uint32_t sec = 0; sec < sectors_per_block && fbit < 0; sec++)
         {
-            brelse(ibitmap_buff);
+            ibitmap_buff = bread(dev, ibitmap_first_sector + sec);
+            if (!ibitmap_buff)
+            {
+                printk("ext2fs_ialloc: bread failed for inode bitmap\n");
+                return nullptr;
+            }
+            const uint32_t start_bit = sec * 512 * 8;
+            fbit = find_and_set_free_bit(ibitmap_buff->data, start_bit, sb->s_inodes_per_group);
+            if (fbit < 0)
+            {
+                brelse(ibitmap_buff);
+                ibitmap_buff = nullptr;
+            }
+        }
+
+        if (fbit < 0)
+        {
             continue;
         }
 
-        if (ext2_sb.s_inode_size == 0)
+        if (sb->s_inode_size == 0)
         {
             printk("PANIC: ");
             printk("ext2fs_ialloc: invalid inode size");
@@ -336,19 +427,25 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
             return nullptr;
         }
 
-        const uint32_t inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
+        const uint32_t inodes_per_block = EXT2_BSIZE / sb->s_inode_size;
 
-        const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + fbit / inodes_per_block) + part_offset(dev);
-        const uint32_t iindex = fbit % inodes_per_block;
+        const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + (uint32_t)fbit / inodes_per_block) + part_offset(dev);
+        const uint32_t iindex = (uint32_t)fbit % inodes_per_block;
 
-        const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
+        const uint32_t block_offset = iindex * sb->s_inode_size;
         const uint32_t sector_offset = block_offset / 512;
         const uint32_t sector_byte_offset = block_offset % 512;
 
         buffer_head_t *dinode_buff = bread(dev, bno + sector_offset);
+        if (!dinode_buff)
+        {
+            printk("ext2fs_ialloc: bread failed for inode block\n");
+            brelse(ibitmap_buff);
+            return nullptr;
+        }
         u8 *slot = dinode_buff->data + sector_byte_offset;
 
-        memset(slot, 0, ext2_sb.s_inode_size);
+        memset(slot, 0, sb->s_inode_size);
         struct ext2_disk_inode *din = (struct ext2_disk_inode *)slot;
         if (type == T_DIR)
         {
@@ -367,7 +464,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(dinode_buff);
         brelse(ibitmap_buff);
 
-        const uint32_t inum = i * ext2_sb.s_inodes_per_group + fbit + 1;
+        const uint32_t inum = i * sb->s_inodes_per_group + (uint32_t)fbit + 1;
         struct ext2_inode *ip = iget(dev, inum);
         ip->type = type;
         return ip;
@@ -383,10 +480,18 @@ void ext2fs_iupdate(const struct ext2_inode *ip)
     ext2_inode_loc(ip->dev, ip->inum, &sector, &sector_byte_offset);
 
     buffer_head_t *bp1 = bread(ip->dev, sector);
-    if (ext2_sb.s_inode_size > EXT2_MAX_INODE_SIZE)
+    if (!bp1)
+    {
+        printk("ext2fs_iupdate: bread failed\n");
+        return;
+    }
+    struct ext2_super_block *sb = ext2_get_sb(ip->dev);
+    if (sb->s_inode_size > EXT2_MAX_INODE_SIZE)
     {
         printk("PANIC: ");
         printk("ext2fs_iupdate: inode too large");
+        brelse(bp1);
+        return;
     }
 
     struct ext2_disk_inode *din = (struct ext2_disk_inode *)(bp1->data + sector_byte_offset);
@@ -445,14 +550,15 @@ int ext2fs_ilock(struct ext2_inode *ip)
             sleeplock_release(&ip->lock);
             return -1;
         }
-        if (ext2_sb.s_inode_size > EXT2_MAX_INODE_SIZE)
+        struct ext2_super_block *sb = ext2_get_sb(ip->dev);
+        if (sb->s_inode_size > EXT2_MAX_INODE_SIZE)
         {
             brelse(bp1);
             sleeplock_release(&ip->lock);
             return -1;
         }
         u8 raw[EXT2_MAX_INODE_SIZE];
-        memcpy(raw, bp1->data + sector_byte_offset, ext2_sb.s_inode_size);
+        memcpy(raw, bp1->data + sector_byte_offset, sb->s_inode_size);
         brelse(bp1);
 
         const struct ext2_disk_inode *din = (struct ext2_disk_inode *)raw;
@@ -510,23 +616,32 @@ void ext2fs_iunlock(struct ext2_inode *ip)
 // Free an inode
 static void ext2_free_inode(const struct ext2_inode *ip)
 {
+    struct ext2_super_block *sb = ext2_get_sb(ip->dev);
     struct ext2_group_desc bgdesc;
     const uint32_t desc_blockno = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
     // block group descriptor table starts at block 2
 
-    const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
+    const int gno = GET_GROUP_NO(ip->inum, *sb);
     buffer_head_t *bp1 = bread(ip->dev, desc_blockno);
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp1);
-    buffer_head_t *bp2 = bread(ip->dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(ip->dev));
-    const uint32_t index = (ip->inum - 1) % ext2_sb.s_inodes_per_group;
-    const uint32_t byte_index = index / 8;
-    if (byte_index >= EXT2_BSIZE)
+
+    const uint32_t index = (ip->inum - 1) % sb->s_inodes_per_group;
+
+    // Calculate which sector of the bitmap contains this bit
+    const uint32_t bits_per_sector = 512 * 8;
+    const uint32_t sector_in_block = index / bits_per_sector;
+    const uint32_t bit_in_sector = index % bits_per_sector;
+    const uint32_t byte_index = bit_in_sector / 8;
+
+    buffer_head_t *bp2 = bread(ip->dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + part_offset(ip->dev) + sector_in_block);
+    if (!bp2)
     {
-        printk("PANIC: ");
-        printk("ext2fs_ifree: bitmap overflow\n");
+        printk("ext2_free_inode: bread failed\n");
+        return;
     }
-    const u8 mask = (u8)(1U << (index % 8));
+
+    const u8 mask = (u8)(1U << (bit_in_sector % 8));
 
     if ((bp2->data[byte_index] & mask) == 0)
     {
@@ -623,6 +738,8 @@ static uint32_t ext2fs_bmap(const struct ext2_inode *ip, uint32_t bn)
         if (ad->addrs[bn] == 0)
         {
             ad->addrs[bn] = ext2fs_balloc(ip->dev, ip->inum);
+            if (ad->addrs[bn] == 0)
+                return 0;
         }
         return BLOCK_TO_SECTOR(ad->addrs[bn]) + ext2_part_offset(ip->dev);
     }
@@ -632,8 +749,12 @@ static uint32_t ext2fs_bmap(const struct ext2_inode *ip, uint32_t bn)
         if (ad->addrs[EXT2_IND_BLOCK] == 0)
         {
             ad->addrs[EXT2_IND_BLOCK] = ext2fs_balloc(ip->dev, ip->inum);
+            if (ad->addrs[EXT2_IND_BLOCK] == 0)
+                return 0;
         }
         const uint32_t entry = ext2_ensure_ptr(ip->dev, ad->addrs[EXT2_IND_BLOCK], bn, ip->inum);
+        if (entry == 0)
+            return 0;
         return BLOCK_TO_SECTOR(entry) + ext2_part_offset(ip->dev);
     }
     bn -= EXT2_INDIRECT;
@@ -643,13 +764,19 @@ static uint32_t ext2fs_bmap(const struct ext2_inode *ip, uint32_t bn)
         if (ad->addrs[EXT2_DIND_BLOCK] == 0)
         {
             ad->addrs[EXT2_DIND_BLOCK] = ext2fs_balloc(ip->dev, ip->inum);
+            if (ad->addrs[EXT2_DIND_BLOCK] == 0)
+                return 0;
         }
 
         const uint32_t first_index = bn / EXT2_INDIRECT;
         const uint32_t second_index = bn % EXT2_INDIRECT;
 
         const uint32_t mid = ext2_ensure_ptr(ip->dev, ad->addrs[EXT2_DIND_BLOCK], first_index, ip->inum);
+        if (mid == 0)
+            return 0;
         const uint32_t leaf = ext2_ensure_ptr(ip->dev, mid, second_index, ip->inum);
+        if (leaf == 0)
+            return 0;
         return BLOCK_TO_SECTOR(leaf) + ext2_part_offset(ip->dev);
     }
     bn -= EXT2_DINDIRECT;
@@ -659,6 +786,8 @@ static uint32_t ext2fs_bmap(const struct ext2_inode *ip, uint32_t bn)
         if (ad->addrs[EXT2_TIND_BLOCK] == 0)
         {
             ad->addrs[EXT2_TIND_BLOCK] = ext2fs_balloc(ip->dev, ip->inum);
+            if (ad->addrs[EXT2_TIND_BLOCK] == 0)
+                return 0;
         }
 
         const uint32_t first_index = bn / EXT2_DINDIRECT;
@@ -667,8 +796,14 @@ static uint32_t ext2fs_bmap(const struct ext2_inode *ip, uint32_t bn)
         const uint32_t third_index = remainder % EXT2_INDIRECT;
 
         const uint32_t level1 = ext2_ensure_ptr(ip->dev, ad->addrs[EXT2_TIND_BLOCK], first_index, ip->inum);
+        if (level1 == 0)
+            return 0;
         const uint32_t level2 = ext2_ensure_ptr(ip->dev, level1, second_index, ip->inum);
+        if (level2 == 0)
+            return 0;
         const uint32_t leaf = ext2_ensure_ptr(ip->dev, level2, third_index, ip->inum);
+        if (leaf == 0)
+            return 0;
         return BLOCK_TO_SECTOR(leaf) + ext2_part_offset(ip->dev);
     }
     printk("PANIC: ");
@@ -731,10 +866,15 @@ int ext2_read_inode(const struct ext2_inode *ip, char *dst, uint32_t off, uint32
     {
         n = ip->size - off;
     }
+
     for (uint32_t tot = 0; tot < n;)
     {
         const uint32_t logical_block = off / EXT2_BSIZE;
         const uint32_t sector_start = ext2fs_bmap(ip, logical_block); // Returns starting sector
+        if (sector_start == 0)
+        {
+            return -1;
+        }
         const uint32_t offset_in_block = off % EXT2_BSIZE;
 
         const uint32_t sector_offset = offset_in_block / 512;
@@ -760,6 +900,7 @@ int ext2_read_inode(const struct ext2_inode *ip, char *dst, uint32_t off, uint32
         off += bytes_to_copy;
         dst += bytes_to_copy;
     }
+
     return clamp_to_int(n);
 }
 
@@ -783,6 +924,10 @@ int ext2_write_inode(struct ext2_inode *ip, const char *src, uint32_t off, uint3
     {
         const uint32_t logical_block = off / EXT2_BSIZE;
         const uint32_t sector_start = ext2fs_bmap(ip, logical_block); // Returns starting sector
+        if (sector_start == 0)
+        {
+            return -1;
+        }
         const uint32_t offset_in_block = off % EXT2_BSIZE;
 
         const uint32_t sector_offset = offset_in_block / 512;
@@ -885,28 +1030,111 @@ int ext2fs_dirlink(struct ext2_inode *dp, const char *name, uint32_t inum)
         return -1;
     }
 
-    const uint32_t off = dp->size;
-    const uint16_t rec_len = ext2_dirent_size((u8)name_len);
+    const uint16_t needed = ext2_dirent_size((u8)name_len);
 
+    // Search for free space in existing directory entries
+    for (uint32_t off = 0; off + 8 <= dp->size;)
+    {
+        if (ext2_read_inode(dp, (char *)&de, off, 8) != 8)
+            break;
+        if (de.rec_len < 8 || de.rec_len > EXT2_BSIZE)
+            break;
+
+        uint16_t actual = (de.inode == 0) ? 0 : ext2_dirent_size(de.name_len);
+        uint16_t free_space = de.rec_len - actual;
+
+        if (free_space >= needed)
+        {
+            // Found space - split this entry
+            if (de.inode != 0)
+            {
+                // Shrink existing entry to its actual size
+                uint16_t old_rec_len = de.rec_len;
+                de.rec_len = actual;
+                if (ext2_write_inode(dp, (char *)&de, off, 8) != 8)
+                    return -1;
+
+                // Write new entry after the existing one
+                off += actual;
+                memset(&de, 0, sizeof(de));
+                de.inode = inum;
+                de.rec_len = old_rec_len - actual;
+                de.name_len = (uint8_t)name_len;
+                de.file_type = EXT2_FT_UNKNOWN;
+                memcpy(de.name, name, name_len);
+
+                if (ext2_write_inode(dp, (char *)&de, off, 8 + name_len) != (int)(8 + name_len))
+                    return -1;
+            }
+            else
+            {
+                // Reuse deleted entry
+                de.inode = inum;
+                // Keep rec_len as is - it includes slack space
+                de.name_len = (uint8_t)name_len;
+                de.file_type = EXT2_FT_UNKNOWN;
+                memcpy(de.name, name, name_len);
+
+                if (ext2_write_inode(dp, (char *)&de, off, 8 + name_len) != (int)(8 + name_len))
+                    return -1;
+            }
+            return 0;
+        }
+
+        off += de.rec_len;
+    }
+
+    // No space found - need to extend directory to a new block
+    // Calculate position for new entry (should be at block boundary or end of dir)
+    uint32_t off = dp->size;
+
+    // If we're not at a block boundary, we need to extend the last entry's rec_len
+    // to fill the current block, then add new entry in new block
+    uint32_t block_off = off % EXT2_BSIZE;
+    if (block_off != 0)
+    {
+        // Find and extend the last entry to fill the rest of this block
+        uint32_t last_off = 0;
+        for (uint32_t scan = 0; scan + 8 <= dp->size;)
+        {
+            if (ext2_read_inode(dp, (char *)&de, scan, 8) != 8)
+                break;
+            if (de.rec_len < 8 || de.rec_len > EXT2_BSIZE)
+                break;
+            last_off = scan;
+            scan += de.rec_len;
+        }
+
+        // Read the last entry and extend its rec_len
+        if (ext2_read_inode(dp, (char *)&de, last_off, 8) == 8)
+        {
+            uint16_t new_rec_len = de.rec_len + (EXT2_BSIZE - block_off);
+            de.rec_len = new_rec_len;
+            ext2_write_inode(dp, (char *)&de, last_off, 8);
+        }
+
+        // Extend directory size to block boundary
+        dp->size = ((dp->size + EXT2_BSIZE - 1) / EXT2_BSIZE) * EXT2_BSIZE;
+        off = dp->size;
+    }
+
+    // Now add new entry at the start of a new block
     memset(&de, 0, sizeof(de));
     de.inode = inum;
-    de.rec_len = rec_len;
+    de.rec_len = EXT2_BSIZE; // Takes the whole block (last entry in block)
     de.name_len = (uint8_t)name_len;
     de.file_type = EXT2_FT_UNKNOWN;
     memcpy(de.name, name, name_len);
 
-    if (ext2_write_inode(dp, (char *)&de, off, rec_len) != rec_len)
+    if (ext2_write_inode(dp, (char *)&de, off, 8 + name_len) != (int)(8 + name_len))
     {
         printk("ext2fs_dirlink: writei failed\n");
         return -1;
     }
 
-    // Grow directory size to include the new entry and persist it.
-    if (off + rec_len > dp->size)
-    {
-        dp->size = off + rec_len;
-        ext2fs_iupdate(dp);
-    }
+    // Update directory size
+    dp->size = off + EXT2_BSIZE;
+    ext2fs_iupdate(dp);
 
     return 0;
 }
@@ -1220,7 +1448,7 @@ vfs_inode_t *ext2_mount(uint8_t drive_index, uint32_t partition_lba)
     }
 
     first_partition_blocks[drive_index] = partition_lba;
-    ext2fs_readsb(drive_index, &ext2_sb);
+    ext2fs_readsb(drive_index, ext2_get_sb(drive_index));
 
     struct ext2_inode *root_ip = iget(drive_index, 2);
     if (ext2fs_ilock(root_ip) != 0)

@@ -8,7 +8,7 @@
                 "${workspaceFolder}/**"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang",
+            "compilerPath": "/home/robledo/opt/llvm/bin/clang",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-clang-x64"
         }

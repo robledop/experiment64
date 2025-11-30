@@ -16,18 +16,20 @@ TEST(bio_test)
     }
     printk("BIO Test: Read block 0 successfully\n");
 
-    // Test 2: Modify the block and write it back (in memory)
+    // Test 2: Modify the block and write it back
     bh->data[0] = 0xAA;
     bh->data[1] = 0x55;
     bwrite(bh);
     printk("BIO Test: Wrote to block 0\n");
+
+    // Release the buffer before reading it again
+    brelse(bh);
 
     // Test 3: Read the block again and verify the data is cached
     buffer_head_t *bh2 = bread(0, 0);
     if (!bh2)
     {
         printk("BIO Test: Failed to read block 0 again\n");
-        brelse(bh);
         return false;
     }
 
@@ -42,7 +44,6 @@ TEST(bio_test)
         printk("BIO Test: Data verification failed\n");
     }
 
-    brelse(bh);
     brelse(bh2);
 
     if (!success)
