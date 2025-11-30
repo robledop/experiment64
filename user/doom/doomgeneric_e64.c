@@ -41,6 +41,7 @@ static unsigned int s_PositionY = 0;
 
 static unsigned int s_ScreenWidth  = 0;
 static unsigned int s_ScreenHeight = 0;
+static unsigned int s_ScreenPitch  = 0; // Bytes per row (may differ from width*4 due to alignment)
 
 static unsigned char convertConsoleKey(unsigned char scancode)
 {
@@ -265,11 +266,11 @@ void DG_Init()
         }
 
         uint32_t fb_addr  = 0;
-        uint32_t fb_pitch = 0;
         ioctl(FrameBufferFd, FB_IOCTL_GET_FBADDR, &fb_addr);
-        ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &fb_pitch);
+        ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_ScreenPitch);
+        printf("Screen pitch: %d bytes\n", s_ScreenPitch);
 
-        size_t fb_map_size = (size_t)fb_pitch * (size_t)s_ScreenHeight;
+        size_t fb_map_size = (size_t)s_ScreenPitch * (size_t)s_ScreenHeight;
 
         FrameBuffer = mmap((void *)fb_addr,
                            fb_map_size,
@@ -405,11 +406,12 @@ void DG_DrawFrame()
         const int srcH = DOOMGENERIC_RESY;
         const int dstW = s_ScreenWidth;
         const int dstH = s_ScreenHeight;
+        const int dstPitchPixels = s_ScreenPitch / 4; // Convert bytes to pixels
 
         for (int y = 0; y < dstH; ++y) {
             int srcY         = (y * srcH) / dstH;
             uint32_t *srcRow = src + srcY * srcW;
-            uint32_t *dstRow = dst + (y + s_PositionY) * s_ScreenWidth + s_PositionX;
+            uint32_t *dstRow = dst + (y + s_PositionY) * dstPitchPixels + s_PositionX;
 
             for (int x = 0; x < dstW; ++x) {
                 int srcX  = (x * srcW) / dstW;

@@ -27,7 +27,7 @@ endif
 
 ROOTFS=rootfs
 
-override MEM ?= 2G
+override MEM ?= 64M
 override SMP ?= 8
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
@@ -123,7 +123,8 @@ image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 
 .PHONY: disk
 disk: clean
-	$(MAKE) image.hdd CFLAGS+=" -DDEBUG -DKASAN"
+	#$(MAKE) image.hdd CFLAGS+=" -DDEBUG -DKASAN"
+	$(MAKE) image.hdd
 	./scripts/install-on-disk.sh
 
 .PHONY: run
