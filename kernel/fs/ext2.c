@@ -277,6 +277,24 @@ void ext2_init_inode(int dev)
         ext2_sb.s_inodes_count);
 }
 
+// Helper to compute sector and byte offset for an inode within its group's inode table.
+// Returns the absolute sector number and the byte offset within that sector.
+static void ext2_inode_loc(uint32_t dev, uint32_t inum, uint32_t* sector, uint32_t* byte_offset)
+{
+    const int gno = GET_GROUP_NO(inum, ext2_sb);
+    const int ioff = GET_INODE_INDEX(inum, ext2_sb);
+    struct ext2_group_desc bgdesc;
+    ext2_read_group_desc(dev, gno, &bgdesc);
+
+    const uint32_t inodes_per_block = EXT2_BSIZE / ext2_sb.s_inode_size;
+    const uint32_t bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / inodes_per_block) + ext2_part_offset(dev);
+    const uint32_t iindex = ioff % inodes_per_block;
+
+    const uint32_t block_off = iindex * ext2_sb.s_inode_size;
+    *sector = bno + block_off / 512;
+    *byte_offset = block_off % 512;
+}
+
 struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
 {
     struct ext2_group_desc bgdesc;
@@ -349,24 +367,10 @@ struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
 
 void ext2fs_iupdate(const struct ext2_inode* ip)
 {
-    struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
-    // block group descriptor table starts at block 2
+    uint32_t sector, sector_byte_offset;
+    ext2_inode_loc(ip->dev, ip->inum, &sector, &sector_byte_offset);
 
-    const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
-    const int ioff = GET_INODE_INDEX(ip->inum, ext2_sb);
-    buffer_head_t* bp = bread(ip->dev, desc_blockno);
-    memcpy(&bgdesc, bp->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-    brelse(bp);
-    const int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / (EXT2_BSIZE / ext2_sb.s_inode_size)) +
-        part_offset(ip->dev);
-    const int iindex = ioff % (EXT2_BSIZE / ext2_sb.s_inode_size);
-
-    const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
-    const uint32_t sector_offset = block_offset / 512;
-    const uint32_t sector_byte_offset = block_offset % 512;
-
-    buffer_head_t* bp1 = bread(ip->dev, bno + sector_offset);
+    buffer_head_t* bp1 = bread(ip->dev, sector);
     if (ext2_sb.s_inode_size > EXT2_MAX_INODE_SIZE)
     {
         printk("PANIC: ");
@@ -404,7 +408,6 @@ void ext2fs_iupdate(const struct ext2_inode* ip)
 
 int ext2fs_ilock(struct ext2_inode* ip)
 {
-    struct ext2_group_desc bgdesc;
     if (ip == nullptr || ip->ref < 1)
     {
         return -1;
@@ -418,30 +421,13 @@ int ext2fs_ilock(struct ext2_inode* ip)
         return -1;
     }
     auto const ad = (struct ext2fs_addrs*)ip->addrs;
-    const uint32_t desc_block = part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
-    // Group descriptor at ext2 block 2 = sector 4
 
     if (ip->valid == 0)
     {
-        const int gno = GET_GROUP_NO(ip->inum, ext2_sb);
-        const int ioff = GET_INODE_INDEX(ip->inum, ext2_sb);
-        buffer_head_t* bp = bread(ip->dev, desc_block);
-        if (!bp)
-        {
-            sleeplock_release(&ip->lock);
-            return -1;
-        }
-        memcpy(&bgdesc, bp->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-        brelse(bp);
-        const int bno = BLOCK_TO_SECTOR(bgdesc.bg_inode_table + ioff / (EXT2_BSIZE / ext2_sb.s_inode_size)) +
-            part_offset(ip->dev);
-        const int iindex = ioff % (EXT2_BSIZE / ext2_sb.s_inode_size);
+        uint32_t sector, sector_byte_offset;
+        ext2_inode_loc(ip->dev, ip->inum, &sector, &sector_byte_offset);
 
-        const uint32_t block_offset = iindex * ext2_sb.s_inode_size;
-        const uint32_t sector_offset = block_offset / 512;
-        const uint32_t sector_byte_offset = block_offset % 512;
-
-        buffer_head_t* bp1 = bread(ip->dev, bno + sector_offset);
+        buffer_head_t* bp1 = bread(ip->dev, sector);
         if (!bp1)
         {
             sleeplock_release(&ip->lock);
