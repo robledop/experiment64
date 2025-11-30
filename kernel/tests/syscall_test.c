@@ -8,6 +8,8 @@
 #include "process.h"
 #include "fcntl.h"
 #include "uart.h"
+#include "vfs.h"
+#include "mman.h"
 
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c
 int sys_open(const char *path, int flags);
@@ -18,6 +20,15 @@ int sys_chdir(const char *path);
 int sys_exec(const char *path, struct syscall_regs *regs);
 int sys_getcwd(char *buf, size_t size);
 int sys_unlink(const char *path);
+int sys_stat(const char *path, struct stat *st);
+int sys_fstat(int fd, struct stat *st);
+int sys_link(const char *oldpath, const char *newpath);
+int sys_readdir(int fd, vfs_dirent_t *dent);
+int sys_mknod(const char *path, int mode, int dev);
+int sys_usleep(uint64_t usec);
+int sys_kill(int pid, int sig);
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
+int sys_munmap(void *addr, size_t length);
 
 // Buffer for setjmp/longjmp
 static void *test_env[64];
@@ -696,7 +707,7 @@ TEST(test_syscall_file_io)
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, file_io_stub_bytes, sizeof(file_io_stub_bytes));
 
-    const char *path = "/mnt/TEST.TXT";
+    const char *path = "/mnt/FILEIO.TXT";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
     const char *data = "Hello FileIO";
     memcpy((void *)((uint64_t)virt_page + 0x200), data, strlen(data) + 1);
@@ -1311,5 +1322,268 @@ TEST(test_syscall_dup_ref_counting)
 
     sys_close(fd2);
     sys_unlink("/dup_ref.txt");
+    return true;
+}
+
+// ============================================================================
+// Tests for stat/fstat syscalls
+// ============================================================================
+
+TEST(test_syscall_stat_basic)
+{
+    // Create a test file with known content
+    int fd = sys_open("/stat_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    const char *content = "Hello, stat!";
+    int written = sys_write(fd, content, strlen(content));
+    TEST_ASSERT(written == (int)strlen(content));
+    sys_close(fd);
+
+    // Now stat the file
+    struct stat st = {0};
+    int rc = sys_stat("/stat_test.txt", &st);
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(st.size == strlen(content));
+    TEST_ASSERT(st.type == VFS_FILE);
+
+    sys_unlink("/stat_test.txt");
+    return true;
+}
+
+TEST(test_syscall_stat_directory)
+{
+    struct stat st = {0};
+    int rc = sys_stat("/", &st);
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(st.type == VFS_DIRECTORY);
+    return true;
+}
+
+TEST(test_syscall_stat_nonexistent)
+{
+    struct stat st = {0};
+    int rc = sys_stat("/nonexistent_file_xyz.txt", &st);
+    TEST_ASSERT(rc == -1);
+    return true;
+}
+
+TEST(test_syscall_fstat_basic)
+{
+    int fd = sys_open("/fstat_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    const char *content = "fstat test data";
+    sys_write(fd, content, strlen(content));
+
+    struct stat st = {0};
+    int rc = sys_fstat(fd, &st);
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(st.size == strlen(content));
+    TEST_ASSERT(st.type == VFS_FILE);
+
+    sys_close(fd);
+    sys_unlink("/fstat_test.txt");
+    return true;
+}
+
+TEST(test_syscall_fstat_invalid_fd)
+{
+    struct stat st = {0};
+    TEST_ASSERT(sys_fstat(-1, &st) == -1);
+    TEST_ASSERT(sys_fstat(999, &st) == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for link/unlink syscalls
+// ============================================================================
+
+TEST(test_syscall_link_basic)
+{
+    // Create a file
+    int fd = sys_open("/link_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    sys_write(fd, "link test", 9);
+    sys_close(fd);
+
+    // Create a hard link
+    int rc = sys_link("/link_src.txt", "/link_dst.txt");
+    TEST_ASSERT(rc == 0);
+
+    // Both files should have same content
+    fd = sys_open("/link_dst.txt", O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+    char buf[16] = {0};
+    int bytes = sys_read(fd, buf, 9);
+    TEST_ASSERT(bytes == 9);
+    TEST_ASSERT(strncmp(buf, "link test", 9) == 0);
+    sys_close(fd);
+
+    // Cleanup
+    sys_unlink("/link_src.txt");
+    sys_unlink("/link_dst.txt");
+    return true;
+}
+
+TEST(test_syscall_unlink_basic)
+{
+    // Create a file
+    int fd = sys_open("/unlink_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    sys_close(fd);
+
+    // File should exist
+    struct stat st;
+    TEST_ASSERT(sys_stat("/unlink_test.txt", &st) == 0);
+
+    // Unlink it
+    TEST_ASSERT(sys_unlink("/unlink_test.txt") == 0);
+
+    // File should no longer exist
+    TEST_ASSERT(sys_stat("/unlink_test.txt", &st) == -1);
+    return true;
+}
+
+TEST(test_syscall_unlink_nonexistent)
+{
+    TEST_ASSERT(sys_unlink("/nonexistent_xyz.txt") == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for readdir syscall
+// ============================================================================
+
+TEST(test_syscall_readdir_basic)
+{
+    int fd = sys_open("/", O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+
+    vfs_dirent_t dent;
+    int count = 0;
+    while (sys_readdir(fd, &dent) > 0)
+    {
+        count++;
+        // Each entry should have a name
+        TEST_ASSERT(dent.name[0] != '\0');
+    }
+    // Root directory should have some entries
+    TEST_ASSERT(count > 0);
+
+    sys_close(fd);
+    return true;
+}
+
+TEST(test_syscall_readdir_invalid_fd)
+{
+    vfs_dirent_t dent;
+    TEST_ASSERT(sys_readdir(-1, &dent) == -1);
+    TEST_ASSERT(sys_readdir(999, &dent) == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for usleep syscall
+// ============================================================================
+
+TEST(test_syscall_usleep_basic)
+{
+    // usleep should return 0 on success
+    int rc = sys_usleep(1000); // 1ms
+    TEST_ASSERT(rc == 0);
+    return true;
+}
+
+TEST(test_syscall_usleep_zero)
+{
+    // usleep(0) should succeed
+    int rc = sys_usleep(0);
+    TEST_ASSERT(rc == 0);
+    return true;
+}
+
+// ============================================================================
+// Tests for mmap/munmap syscalls
+// ============================================================================
+
+TEST(test_syscall_mmap_anonymous)
+{
+    // Note: Current mmap implementation only supports shared framebuffer mappings.
+    // Anonymous mappings are not yet implemented.
+    // Map anonymous memory
+    void *addr = sys_mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    // Anonymous mmap is not supported - expect failure
+    if (addr == MAP_FAILED)
+    {
+        // Expected behavior for current implementation
+        return true;
+    }
+
+    // If it somehow succeeds in the future, verify it works
+    char *p = (char *)addr;
+    p[0] = 'A';
+    p[4095] = 'Z';
+    TEST_ASSERT(p[0] == 'A');
+    TEST_ASSERT(p[4095] == 'Z');
+
+    int rc = sys_munmap(addr, 4096);
+    TEST_ASSERT(rc == 0);
+    return true;
+}
+
+TEST(test_syscall_mmap_invalid_length)
+{
+    void *addr = sys_mmap(NULL, 0, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    TEST_ASSERT(addr == MAP_FAILED);
+    return true;
+}
+
+TEST(test_syscall_munmap_invalid)
+{
+    // munmap with NULL should fail
+    TEST_ASSERT(sys_munmap(NULL, 4096) == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for kill syscall
+// ============================================================================
+
+TEST(test_syscall_kill_invalid_pid)
+{
+    // Kill non-existent process should fail
+    TEST_ASSERT(sys_kill(99999, 9) == -1);
+    return true;
+}
+
+TEST(test_syscall_kill_protected_pids)
+{
+    // Should not be able to kill PID 0 or 1
+    TEST_ASSERT(sys_kill(0, 9) == -1);
+    TEST_ASSERT(sys_kill(1, 9) == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for mknod syscall
+// ============================================================================
+
+TEST(test_syscall_mknod_basic)
+{
+    // Try to create a character device node (may not be fully supported)
+    int rc = sys_mknod("/dev/testdev", VFS_CHARDEVICE, 0);
+    // If the filesystem supports mknod, it should succeed or fail gracefully
+    // We just check it doesn't crash
+    (void)rc;
+    return true;
+}
+
+TEST(test_syscall_mknod_invalid_path)
+{
+    TEST_ASSERT(sys_mknod(NULL, VFS_CHARDEVICE, 0) == -1);
+    TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -1);
     return true;
 }

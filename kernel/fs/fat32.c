@@ -134,7 +134,7 @@ static int fat32_read_fat_entry(fat32_fs_t* fs, uint32_t cluster, uint32_t* valu
     if (!bh)
         return 1;
 
-    *value = *(uint32_t*)&bh->data[ent_offset] & 0x0FFFFFFF;
+    *value = *(uint32_t*)&bh->data[ent_offset] & FAT32_CLUSTER_MASK;
     brelse(bh);
     return 0;
 }
@@ -197,7 +197,7 @@ static int fat32_unlink_entry(fat32_fs_t* fs, uint32_t parent_cluster, const cha
         size_t idx = dir_offset / sizeof(fat32_directory_entry_t);
         if (idx < fs->bytes_per_cluster / sizeof(fat32_directory_entry_t))
         {
-            entries[idx].name[0] = 0xE5; // Mark as deleted
+            entries[idx].name[0] = FAT32_DIRENT_DELETED; // Mark as deleted
             fat32_write_cluster(fs, dir_cluster_num, cluster_buf);
             res = 0;
         }
@@ -209,7 +209,7 @@ static int fat32_unlink_entry(fat32_fs_t* fs, uint32_t parent_cluster, const cha
 static void fat32_free_chain(fat32_fs_t* fs, uint32_t start_cluster)
 {
     uint32_t cluster = start_cluster;
-    while (cluster < 0x0FFFFFF8 && cluster != 0)
+    while (cluster < FAT32_EOC && cluster != 0)
     {
         if (cluster < 2 || cluster >= fs->total_clusters + 2)
             break;
@@ -266,7 +266,7 @@ static int fat32_find_entry(fat32_fs_t* fs, uint32_t dir_cluster, const char* na
         return 1;
     defer(cleanup_kfree, &cluster_buf);
 
-    while (current_cluster < 0x0FFFFFF8 && current_cluster != 0)
+    while (current_cluster < FAT32_EOC && current_cluster != 0)
     {
         if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
             return 1;
@@ -276,9 +276,9 @@ static int fat32_find_entry(fat32_fs_t* fs, uint32_t dir_cluster, const char* na
 
         for (size_t i = 0; i < entries_per_cluster; i++)
         {
-            if (entry[i].name[0] == 0x00)
+            if (entry[i].name[0] == FAT32_DIRENT_FREE)
                 return 1; // End of dir
-            if (entry[i].name[0] == 0xE5)
+            if (entry[i].name[0] == FAT32_DIRENT_DELETED)
                 continue;
             if (entry[i].attr & ATTR_LONG_NAME)
                 continue;
@@ -389,9 +389,9 @@ void fat32_list_dir(fat32_fs_t* fs, const char* path)
 
         for (size_t i = 0; i < entries_per_cluster; i++)
         {
-            if (entry[i].name[0] == 0x00)
+            if (entry[i].name[0] == FAT32_DIRENT_FREE)
                 goto end; // End of directory
-            if (entry[i].name[0] == 0xE5)
+            if (entry[i].name[0] == FAT32_DIRENT_DELETED)
                 continue; // Deleted
             if (entry[i].attr & ATTR_LONG_NAME)
                 continue; // Skip LFN
@@ -410,7 +410,7 @@ void fat32_list_dir(fat32_fs_t* fs, const char* path)
         if (fat32_read_fat_entry(fs, current_cluster, &next) != 0)
             break;
 
-        if (next >= 0x0FFFFFF8)
+        if (next >= FAT32_EOC)
             break;
 
         current_cluster = next;
@@ -464,7 +464,7 @@ static uint64_t fat32_vfs_read(const vfs_inode_t* node, uint64_t offset, uint64_
         uint32_t next_cluster;
         if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
             return 0;
-        if (next_cluster >= 0x0FFFFFF8)
+        if (next_cluster >= FAT32_EOC)
             return 0;
         current_cluster = next_cluster;
     }
@@ -493,7 +493,7 @@ static uint64_t fat32_vfs_read(const vfs_inode_t* node, uint64_t offset, uint64_
             uint32_t next_cluster;
             if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
                 break;
-            if (next_cluster >= 0x0FFFFFF8)
+            if (next_cluster >= FAT32_EOC)
                 break;
             current_cluster = next_cluster;
         }
@@ -519,7 +519,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t siz
         if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
             return 0; // Error
 
-        if (next_cluster >= 0x0FFFFFF8)
+        if (next_cluster >= FAT32_EOC)
         {
             // End of chain, but we need to write further. Allocate new cluster.
             uint32_t new_cluster = fat32_find_free_cluster(fs);
@@ -527,7 +527,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t siz
                 return 0; // Disk full
 
             fat32_write_fat_entry(fs, current_cluster, new_cluster);
-            fat32_write_fat_entry(fs, new_cluster, 0x0FFFFFFF);
+            fat32_write_fat_entry(fs, new_cluster, FAT32_EOC_MARK);
 
             // Clear new cluster
             uint8_t* zero_buf = kmalloc(bytes_per_cluster);
@@ -582,7 +582,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t siz
             if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
                 break;
 
-            if (next_cluster >= 0x0FFFFFF8)
+            if (next_cluster >= FAT32_EOC)
             {
                 // Allocate new
                 uint32_t new_cluster = fat32_find_free_cluster(fs);
@@ -590,7 +590,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t siz
                     break;
 
                 fat32_write_fat_entry(fs, current_cluster, new_cluster);
-                fat32_write_fat_entry(fs, new_cluster, 0x0FFFFFFF);
+                fat32_write_fat_entry(fs, new_cluster, FAT32_EOC_MARK);
 
                 // Clear new cluster
                 uint8_t* zero_buf = kmalloc(bytes_per_cluster);
@@ -675,9 +675,9 @@ static vfs_dirent_t* fat32_vfs_readdir(const vfs_inode_t* node, uint32_t index)
 
         for (size_t i = 0; i < entries_per_cluster; i++)
         {
-            if (entry[i].name[0] == 0x00)
+            if (entry[i].name[0] == FAT32_DIRENT_FREE)
                 goto end;
-            if (entry[i].name[0] == 0xE5)
+            if (entry[i].name[0] == FAT32_DIRENT_DELETED)
                 continue;
             if (entry[i].attr & ATTR_LONG_NAME)
                 continue;
@@ -697,7 +697,7 @@ static vfs_dirent_t* fat32_vfs_readdir(const vfs_inode_t* node, uint32_t index)
         uint32_t next;
         if (fat32_read_fat_entry(fs, current_cluster, &next) != 0)
             break;
-        if (next >= 0x0FFFFFF8)
+        if (next >= FAT32_EOC)
             break;
         current_cluster = next;
     }
@@ -760,7 +760,7 @@ static int fat32_vfs_mknod(const vfs_inode_t* node, const char* name, int mode, 
         uint32_t cluster = fat32_find_free_cluster(fs);
         if (cluster == 0)
             return -1;
-        fat32_write_fat_entry(fs, cluster, 0x0FFFFFFF); // EOC
+        fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
 
         uint8_t* cluster_buf = kmalloc(fs->bytes_per_cluster);
         if (!cluster_buf)
@@ -794,7 +794,7 @@ static int fat32_vfs_mknod(const vfs_inode_t* node, const char* name, int mode, 
     uint32_t cluster = fat32_find_free_cluster(fs);
     if (cluster == 0)
         return -1;
-    fat32_write_fat_entry(fs, cluster, 0x0FFFFFFF); // EOC
+    fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
 
     uint8_t* cluster_buf = kmalloc(fs->bytes_per_cluster);
     if (!cluster_buf)
@@ -872,7 +872,7 @@ static int fat32_vfs_truncate(vfs_inode_t* node)
     uint32_t new_cluster = fat32_find_free_cluster(fs);
     if (new_cluster == 0)
         return -1;
-    fat32_write_fat_entry(fs, new_cluster, 0x0FFFFFFF);
+    fat32_write_fat_entry(fs, new_cluster, FAT32_EOC_MARK);
 
     // Clear the new cluster.
     uint8_t* zero = kmalloc(fs->bytes_per_cluster);
@@ -1030,7 +1030,7 @@ static int fat32_add_entry(fat32_fs_t* fs, uint32_t dir_cluster, const char* nam
 
         for (size_t i = 0; i < entries_per_cluster; i++)
         {
-            if (entry[i].name[0] == 0x00 || entry[i].name[0] == 0xE5)
+            if (entry[i].name[0] == FAT32_DIRENT_FREE || entry[i].name[0] == FAT32_DIRENT_DELETED)
             {
                 free_idx = i;
                 break;
@@ -1055,7 +1055,7 @@ static int fat32_add_entry(fat32_fs_t* fs, uint32_t dir_cluster, const char* nam
         if (fat32_read_fat_entry(fs, current_cluster, &next_cluster) != 0)
             break;
 
-        if (next_cluster >= 0x0FFFFFF8)
+        if (next_cluster >= FAT32_EOC)
         {
             // End of chain, allocate new cluster for directory
             uint32_t new_cluster = fat32_find_free_cluster(fs);
@@ -1063,7 +1063,7 @@ static int fat32_add_entry(fat32_fs_t* fs, uint32_t dir_cluster, const char* nam
                 break;
 
             fat32_write_fat_entry(fs, current_cluster, new_cluster);
-            fat32_write_fat_entry(fs, new_cluster, 0x0FFFFFFF);
+            fat32_write_fat_entry(fs, new_cluster, FAT32_EOC_MARK);
 
             // Clear new cluster
             memset(cluster_buf, 0, fs->bytes_per_cluster);
@@ -1097,7 +1097,7 @@ int fat32_create_file(fat32_fs_t* fs, const char* path)
     uint32_t cluster = fat32_find_free_cluster(fs);
     if (cluster == 0)
         return 1;
-    fat32_write_fat_entry(fs, cluster, 0x0FFFFFFF); // EOC
+    fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
 
     // Clear the new file cluster
     uint8_t* cluster_buf = kmalloc(fs->bytes_per_cluster);
@@ -1127,7 +1127,7 @@ int fat32_create_dir(fat32_fs_t* fs, const char* path)
     uint32_t cluster = fat32_find_free_cluster(fs);
     if (cluster == 0)
         return 1;
-    fat32_write_fat_entry(fs, cluster, 0x0FFFFFFF); // EOC
+    fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
 
     // Initialize new directory with . and ..
     uint8_t* cluster_buf = kmalloc(fs->bytes_per_cluster);
@@ -1203,7 +1203,7 @@ int fat32_write_file(fat32_fs_t* fs, const char* path, uint8_t* buffer, uint32_t
             if (fat32_read_fat_entry(fs, current_cluster, &next) != 0)
                 return 1;
 
-            if (next >= 0x0FFFFFF8)
+            if (next >= FAT32_EOC)
             {
                 // Allocate new
                 uint32_t new_cluster = fat32_find_free_cluster(fs);
@@ -1211,7 +1211,7 @@ int fat32_write_file(fat32_fs_t* fs, const char* path, uint8_t* buffer, uint32_t
                     return 1;
 
                 fat32_write_fat_entry(fs, current_cluster, new_cluster);
-                fat32_write_fat_entry(fs, new_cluster, 0x0FFFFFFF);
+                fat32_write_fat_entry(fs, new_cluster, FAT32_EOC_MARK);
                 current_cluster = new_cluster;
             }
             else
@@ -1278,7 +1278,7 @@ int fat32_delete_file(fat32_fs_t* fs, const char* path)
             return 1;
 
         // Free chain
-        while (cluster < 0x0FFFFFF8 && cluster != 0)
+        while (cluster < FAT32_EOC && cluster != 0)
         {
             if (cluster < 2 || cluster >= fs->total_clusters + 2)
             {

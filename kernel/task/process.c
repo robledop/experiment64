@@ -252,13 +252,10 @@ process_t *process_create(const char *name)
     }
 
     uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-    spinlock_acquire(&scheduler_lock);
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
     INIT_LIST_HEAD(&proc->threads);
     list_add_tail(&proc->list, &process_list);
-    spinlock_release(&scheduler_lock);
-    if (rflags & RFLAGS_IF)
-        __asm__ volatile("sti");
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
 
     return proc;
 }
@@ -397,12 +394,9 @@ void process_destroy(process_t *proc)
     }
 
     uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-    spinlock_acquire(&scheduler_lock);
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
     list_del(&proc->list);
-    spinlock_release(&scheduler_lock);
-    if (rflags & RFLAGS_IF)
-        __asm__ volatile("sti");
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
 
     kfree(proc);
 }
@@ -447,12 +441,9 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
     thread->context = ctx;
 
     uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-    spinlock_acquire(&scheduler_lock);
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
     list_add_tail(&thread->list, &process->threads);
-    spinlock_release(&scheduler_lock);
-    if (rflags & RFLAGS_IF)
-        __asm__ volatile("sti");
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
 
     return thread;
 }
@@ -673,11 +664,8 @@ void thread_sleep(void *chan, spinlock_t *lock)
 
 void thread_wakeup(void *chan)
 {
-    // Save interrupt state and disable interrupts
     uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-
-    spinlock_acquire(&scheduler_lock);
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
     process_t *p;
     list_for_each_entry(p, &process_list, list)
     {
@@ -691,11 +679,7 @@ void thread_wakeup(void *chan)
             }
         }
     }
-    spinlock_release(&scheduler_lock);
-
-    // Restore interrupt state
-    if (rflags & RFLAGS_IF)
-        __asm__ volatile("sti");
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
 }
 
 void yield(void)
@@ -723,9 +707,7 @@ static const char *thread_state_str(thread_state_t state)
 void process_dump(void)
 {
     uint64_t rflags;
-    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
-
-    spinlock_acquire(&scheduler_lock);
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
     printk("\n%-5s %-5s %-6s %s\n", "PID", "TID", "STATE", "NAME");
     process_t *p;
     list_for_each_entry(p, &process_list, list)
@@ -741,8 +723,5 @@ void process_dump(void)
                    t->is_idle ? " (idle)" : "");
         }
     }
-    spinlock_release(&scheduler_lock);
-
-    if (rflags & RFLAGS_IF)
-        __asm__ volatile("sti");
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
 }

@@ -57,6 +57,16 @@ typedef struct __attribute__((packed))
 #define ATTR_ARCHIVE 0x20
 #define ATTR_LONG_NAME 0x0F
 
+// FAT32 cluster chain markers
+#define FAT32_CLUSTER_MASK 0x0FFFFFFF // Mask for 28-bit cluster value
+#define FAT32_EOC 0x0FFFFFF8          // End of cluster chain threshold
+#define FAT32_EOC_MARK 0x0FFFFFFF     // Value to write for end of chain
+#define FAT32_IS_EOC(cluster) ((cluster) >= FAT32_EOC)
+
+// Directory entry markers
+#define FAT32_DIRENT_FREE 0x00    // Entry is free (end of directory)
+#define FAT32_DIRENT_DELETED 0xE5 // Entry has been deleted
+
 typedef struct
 {
     uint8_t drive_index;

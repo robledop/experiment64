@@ -84,7 +84,8 @@ static void ide_log_devices(void)
     }
 }
 
-static uint8_t ide_wait_ready(uint8_t channel)
+// Consolidated wait function - waits for BSY to clear and specified flag to set
+static uint8_t ide_wait_flag(uint8_t channel, uint8_t flag)
 {
     uint8_t status;
     uint64_t timeout = 1000000;
@@ -93,28 +94,15 @@ static uint8_t ide_wait_ready(uint8_t channel)
         status = inb(ide_channels[channel] + 7);
         if (status & IDE_ERR)
             return 1; // Error
-        if (!(status & IDE_BSY) && (status & IDE_DRDY))
+        if (!(status & IDE_BSY) && (status & flag))
             break;
         timeout--;
     }
     return 0;
 }
 
-static uint8_t ide_wait_drq(uint8_t channel)
-{
-    uint8_t status;
-    uint64_t timeout = 1000000;
-    while (timeout > 0)
-    {
-        status = inb(ide_channels[channel] + 7);
-        if (status & IDE_ERR)
-            return 1; // Error
-        if (!(status & IDE_BSY) && (status & IDE_DRQ))
-            break;
-        timeout--;
-    }
-    return 0;
-}
+#define ide_wait_ready(channel) ide_wait_flag((channel), IDE_DRDY)
+#define ide_wait_drq(channel) ide_wait_flag((channel), IDE_DRQ)
 
 void ide_init(void)
 {
