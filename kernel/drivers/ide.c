@@ -51,10 +51,37 @@ static void ide_delay(uint8_t channel)
 {
     // Reading the Alternate Status port 4 times introduces a 400ns delay
     // which is suggested by the ATA spec after changing drive selection.
-    // However, for simple PIO, just reading status is often enough.
-    // We'll just do a small wait.
     for (int i = 0; i < 4; i++)
-        inb(ide_channels[channel] + 7); // Reading Status register
+        inb(ide_channels[channel] + 7);
+}
+
+static void ide_swap_and_trim_model(char *dst, const uint8_t *src)
+{
+    for (int k = 0; k < 40; k += 2)
+    {
+        dst[k] = (char)src[k + 1];
+        dst[k + 1] = (char)src[k];
+    }
+    dst[40] = 0;
+    for (int k = 39; k > 0; k--)
+    {
+        if (dst[k] == ' ')
+            dst[k] = 0;
+        else
+            break;
+    }
+}
+
+static void ide_log_devices(void)
+{
+    boot_message(INFO, "IDE Initialized.");
+    for (int i = 0; i < 4; i++)
+    {
+        if (ide_devices[i].exists)
+        {
+            boot_message(INFO, "IDE Drive %d: %s - %d Sectors", i, ide_devices[i].model, ide_devices[i].size);
+        }
+    }
 }
 
 static uint8_t ide_wait_ready(uint8_t channel)
@@ -93,11 +120,11 @@ void ide_init(void)
 {
     memset(ide_devices, 0, sizeof(ide_devices));
 
-    int count = 0;
     for (int i = 0; i < 2; i++)
     { // Channels
         for (int j = 0; j < 2; j++)
         { // Drives
+            const int idx = i * 2 + j;
             uint8_t err = 0;
             uint8_t type = IDE_ATA;
 
@@ -133,44 +160,20 @@ void ide_init(void)
             // Read Identification Data
             insw(ide_channels[i] + 0, (void *)ide_buf, 256);
 
-            ide_devices[count].exists = 1;
-            ide_devices[count].type = type;
-            ide_devices[count].channel = i;
-            ide_devices[count].drive = j;
-            ide_devices[count].signature = *((uint16_t *)(ide_buf + 0));
-            ide_devices[count].capabilities = *((uint16_t *)(ide_buf + 49));
-            ide_devices[count].command_sets = *((uint32_t *)(ide_buf + 82));
-            ide_devices[count].size = *((uint32_t *)(ide_buf + 60)); // Total sectors (LBA28)
+            ide_devices[idx].exists = 1;
+            ide_devices[idx].type = type;
+            ide_devices[idx].channel = i;
+            ide_devices[idx].drive = j;
+            ide_devices[idx].signature = *((uint16_t *)(ide_buf + 0));
+            ide_devices[idx].capabilities = *((uint16_t *)(ide_buf + 49));
+            ide_devices[idx].command_sets = *((uint32_t *)(ide_buf + 82));
+            ide_devices[idx].size = *((uint32_t *)(ide_buf + 60)); // Total sectors (LBA28)
 
             // Model string needs byte swapping
-            for (int k = 0; k < 40; k += 2)
-            {
-                ide_devices[count].model[k] = (char)ide_buf[27 * 2 + k + 1];
-                ide_devices[count].model[k + 1] = (char)ide_buf[27 * 2 + k];
-            }
-            ide_devices[count].model[40] = 0; // Null terminate
-
-            // Fix spaces
-            for (int k = 39; k > 0; k--)
-            {
-                if (ide_devices[count].model[k] == ' ')
-                    ide_devices[count].model[k] = 0;
-                else
-                    break;
-            }
-
-            count++;
+            ide_swap_and_trim_model(ide_devices[idx].model, ide_buf + 27 * 2);
         }
     }
-
-    boot_message(INFO, "IDE Initialized.");
-    for (int i = 0; i < 4; i++)
-    {
-        if (ide_devices[i].exists)
-        {
-            boot_message(INFO, "IDE Drive %d: %s - %d Sectors", i, ide_devices[i].model, ide_devices[i].size);
-        }
-    }
+    ide_log_devices();
 
     // Enable IRQs
     outb(ide_control[0], 0);
