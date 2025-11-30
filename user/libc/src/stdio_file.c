@@ -6,95 +6,194 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-// Simple FILE abstraction backed by an in-memory buffer loaded from disk.
-
-static int parse_mode(const char *mode, bool *out_write, bool *out_append)
+static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *out_append, bool *out_trunc, bool *out_create)
 {
-    bool w = false;
-    bool a = false;
+    bool r = false, w = false, a = false, plus = false;
     for (const char *p = mode; *p; p++)
     {
-        if (*p == 'w')
-            w = true;
-        else if (*p == 'a')
-            a = true;
+        if (*p == 'r') r = true;
+        if (*p == 'w') w = true;
+        if (*p == 'a') a = true;
+        if (*p == '+') plus = true;
     }
-    *out_write = w || a;
+    bool readable = r || (!w && !a) || plus;
+    bool writable = w || a || plus;
+    *out_read = readable;
+    *out_write = writable;
     *out_append = a;
-    return 0;
+    if (out_trunc)
+        *out_trunc = w;
+    if (out_create)
+        *out_create = w || a;
 }
 
-FILE __stdin_file_obj = {.fd = 0, .data = nullptr, .size = 0, .pos = 0, .mode = 0, .is_mem = false, .dirty = false};
-FILE __stdout_file_obj = {.fd = 1, .data = nullptr, .size = 0, .pos = 0, .mode = 0, .is_mem = false, .dirty = false};
-FILE __stderr_file_obj = {.fd = 2, .data = nullptr, .size = 0, .pos = 0, .mode = 0, .is_mem = false, .dirty = false};
+FILE __stdin_file_obj = {.fd = 0, .readable = true, .writable = false, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_RDONLY, .path = ""};
+FILE __stdout_file_obj = {.fd = 1, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
+FILE __stderr_file_obj = {.fd = 2, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
 FILE *__stdin_file = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
 
-static int load_file_into_memory(FILE *f, const char *path)
+static int reopen_and_seek(FILE *f, size_t target, bool for_write)
 {
-    struct stat st;
-    if (stat(path, &st) < 0)
+    if (!f)
         return -1;
+    if (f->path[0] == '\0')
+        return f->fd >= 0 ? 0 : -1;
 
-    f->size = (size_t)st.size;
-    f->data = malloc(f->size);
-    if (!f->data)
-        return -1;
+    if (f->fd >= 0)
+        close(f->fd);
 
-    int fd = open(path, O_RDONLY);
+    int flags = f->open_flags;
+    if (for_write && f->append)
+        flags |= O_APPEND;
+
+    int fd = open(f->path, flags);
     if (fd < 0)
+    {
+        f->fd = -1;
+        return -1;
+    }
+
+    size_t skip_target = (for_write && f->append) ? f->size : target;
+    size_t skipped = 0;
+    char buf[256];
+    while (skipped < skip_target)
+    {
+        size_t to_read = skip_target - skipped;
+        if (to_read > sizeof buf)
+            to_read = sizeof buf;
+        ssize_t r = read(fd, buf, to_read);
+        if (r <= 0)
+        {
+            close(fd);
+            f->fd = -1;
+            return -1;
+        }
+        skipped += (size_t)r;
+    }
+
+    f->fd = fd;
+    f->pos = skip_target;
+    return 0;
+}
+
+static int ensure_position(FILE *f, size_t target, bool for_write)
+{
+    if (!f)
         return -1;
 
-    size_t read_total = 0;
-    while (read_total < f->size)
+    if (f->data)
     {
-        ssize_t r = read(fd, f->data + read_total, f->size - read_total);
-        if (r <= 0)
-            break;
-        read_total += (size_t)r;
+        f->pos = target;
+        f->need_seek = false;
+        return 0;
     }
-    close(fd);
-    return 0;
+
+    if (f->path[0] == '\0')
+    {
+        f->pos = target;
+        f->need_seek = false;
+        return 0;
+    }
+
+    if (!f->need_seek && f->fd >= 0 && f->pos == target)
+        return 0;
+
+    int res = reopen_and_seek(f, target, for_write);
+    if (res == 0)
+    {
+        f->pos = target;
+        f->need_seek = false;
+    }
+    return res;
 }
 
 FILE *fopen(const char *path, const char *mode)
 {
     if (!path || !mode)
         return nullptr;
+
+    bool rd = false, wr = false, ap = false, trunc = false, create = false;
+    parse_mode(mode, &rd, &wr, &ap, &trunc, &create);
+
     FILE *f = malloc(sizeof(FILE));
     if (!f)
         return nullptr;
     memset(f, 0, sizeof(FILE));
-    f->fd = -1;
-    bool write_mode = false, append_mode = false;
-    parse_mode(mode, &write_mode, &append_mode);
-    f->mode = write_mode ? 1 : 0;
     strncpy(f->path, path, sizeof(f->path) - 1);
-    f->path[sizeof(f->path) - 1] = '\0';
 
-    if (!write_mode)
+    f->readable = rd || (!wr && !ap);
+    f->writable = wr;
+    f->append = ap;
+    f->need_seek = false;
+    if (f->readable && f->writable)
+        f->open_flags = O_RDWR;
+    else if (f->writable)
+        f->open_flags = O_WRONLY;
+    else
+        f->open_flags = O_RDONLY;
+    if (create)
+        f->open_flags |= O_CREATE;
+    if (trunc && !ap)
+        f->open_flags |= O_TRUNC;
+    f->pos = 0;
+    f->fd = open(path, f->open_flags);
+    f->data = nullptr;
+
+    if (f->fd < 0)
     {
-        if (load_file_into_memory(f, path) != 0)
+        free(f);
+        return nullptr;
+    }
+    if (f->open_flags & O_TRUNC)
+        f->open_flags &= ~O_TRUNC;
+
+    struct stat st;
+    if (fstat(f->fd, &st) == 0)
+        f->size = (size_t)st.size;
+    else
+        f->size = 0;
+
+    // Small/medium read-only files are buffered fully to make seeking efficient.
+    const size_t BUFFER_LIMIT = 32 * 1024 * 1024; // 32 MB
+    if (f->readable && !f->writable && f->size > 0 && f->size <= BUFFER_LIMIT)
+    {
+        f->data = malloc(f->size);
+        if (f->data)
         {
-            free(f);
-            return nullptr;
+            size_t read_total = 0;
+            while (read_total < f->size)
+            {
+                ssize_t r = read(f->fd, f->data + read_total, f->size - read_total);
+                if (r <= 0)
+                    break;
+                read_total += (size_t)r;
+            }
+            if (read_total == f->size)
+            {
+                close(f->fd);
+                f->fd = -1;
+                f->need_seek = false;
+            }
+            else
+            {
+                free(f->data);
+                f->data = nullptr;
+            }
         }
+    }
+
+    if (ap)
+    {
+        f->pos = f->size;
+        if (f->pos > 0)
+            f->need_seek = true;
     }
     else
     {
-        f->data = nullptr;
-        f->size = 0;
-        f->dirty = true;
-        f->fd = open(path, O_CREATE | O_TRUNC | O_RDWR);
-        if (f->fd < 0)
-        {
-            free(f);
-            return nullptr;
-        }
+        f->pos = 0;
     }
-    if (append_mode)
-        f->pos = f->size;
     return f;
 }
 
@@ -104,81 +203,105 @@ int fclose(FILE *stream)
         return -1;
     if (stream == __stdin_file || stream == __stdout_file || stream == __stderr_file)
         return 0;
-
-    if (stream->dirty)
-    {
-        int fd = open(stream->path, O_CREATE | O_TRUNC | O_RDWR);
-        if (fd >= 0)
-        {
-            write(fd, stream->data, stream->size);
-            close(fd);
-        }
-    }
-    free(stream->data);
+    if (stream->fd >= 0)
+        close(stream->fd);
+    if (stream->data)
+        free(stream->data);
     free(stream);
     return 0;
 }
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-    if (!stream || !ptr || size == 0)
+    if (!stream || !ptr || size == 0 || !stream->readable)
         return 0;
     size_t bytes = size * nmemb;
-    if (stream->pos >= stream->size)
+    if (bytes == 0)
         return 0;
-    if (stream->pos + bytes > stream->size)
-        bytes = stream->size - stream->pos;
-    memcpy(ptr, stream->data + stream->pos, bytes);
-    stream->pos += bytes;
-    return bytes / size;
+
+    if (stream->data)
+    {
+        if (stream->pos >= stream->size)
+            return 0;
+        if (bytes > stream->size - stream->pos)
+            bytes = stream->size - stream->pos;
+        memcpy(ptr, stream->data + stream->pos, bytes);
+        stream->pos += bytes;
+        return bytes / size;
+    }
+
+    if (stream->path[0] == '\0' && stream->fd >= 0)
+    {
+        ssize_t direct = read(stream->fd, ptr, bytes);
+        if (direct <= 0)
+            return 0;
+        stream->pos += (size_t)direct;
+        return (size_t)direct / size;
+    }
+
+    if (ensure_position(stream, stream->pos, false) != 0)
+        return 0;
+
+    ssize_t r = read(stream->fd, ptr, bytes);
+    if (r <= 0)
+        return 0;
+    stream->pos += (size_t)r;
+    return (size_t)r / size;
 }
 
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-    if (!stream || !ptr || size == 0)
+    if (!stream || !ptr || size == 0 || !stream->writable)
         return 0;
     size_t bytes = size * nmemb;
-    size_t needed = stream->pos + bytes;
-    if (needed > stream->size)
+    if (bytes == 0)
+        return 0;
+
+    if (stream->path[0] == '\0' && stream->fd >= 0)
     {
-        char *newbuf = realloc(stream->data, needed);
-        if (!newbuf)
+        ssize_t direct = write(stream->fd, ptr, bytes);
+        if (direct <= 0)
             return 0;
-        stream->data = newbuf;
-        stream->size = needed;
+        stream->pos += (size_t)direct;
+        if (stream->pos > stream->size)
+            stream->size = stream->pos;
+        return (size_t)direct / size;
     }
-    memcpy(stream->data + stream->pos, ptr, bytes);
-    stream->pos += bytes;
-    stream->dirty = true;
-    return nmemb;
+
+    size_t target = stream->append ? stream->size : stream->pos;
+    if (ensure_position(stream, target, true) != 0)
+        return 0;
+
+    ssize_t w = write(stream->fd, ptr, bytes);
+    if (w <= 0)
+        return 0;
+    stream->pos = target + (size_t)w;
+    if (stream->pos > stream->size)
+        stream->size = stream->pos;
+    return (size_t)w / size;
 }
 
 int fseek(FILE *stream, long offset, int whence)
 {
     if (!stream)
         return -1;
-    size_t newpos = 0;
+    size_t newpos = stream->pos;
     switch (whence)
     {
     case SEEK_SET:
         newpos = (offset < 0) ? 0 : (size_t)offset;
         break;
     case SEEK_CUR:
-        if (offset < 0 && (size_t)(-offset) > stream->pos)
-            newpos = 0;
-        else
-            newpos = stream->pos + offset;
+        newpos = (offset < 0 && (size_t)(-offset) > stream->pos) ? 0 : stream->pos + offset;
         break;
     case SEEK_END:
-        if (offset < 0 && (size_t)(-offset) > stream->size)
-            newpos = 0;
-        else
-            newpos = stream->size + offset;
+        newpos = (offset < 0 && (size_t)(-offset) > stream->size) ? 0 : stream->size + offset;
         break;
     default:
         return -1;
     }
     stream->pos = newpos;
+    stream->need_seek = (stream->data == nullptr && stream->path[0] != '\0');
     return 0;
 }
 
@@ -189,11 +312,8 @@ long ftell(FILE *stream)
     return (long)stream->pos;
 }
 
-int fflush(FILE *stream)
+int fflush([[maybe_unused]] FILE *stream)
 {
-    if (!stream)
-        return -1;
-    // Nothing to do; writes are buffered in memory and flushed on close.
     return 0;
 }
 
@@ -201,9 +321,10 @@ int vfprintf(FILE *stream, const char *format, va_list args)
 {
     char buf[1024];
     int len = vsnprintf(buf, sizeof buf, format, args);
-    fwrite(buf, 1, (size_t)len, stream);
-    if (stream == __stdout_file || stream == __stderr_file)
-        write(stream->fd, buf, (size_t)len);
+    if (len < 0)
+        return len;
+    size_t to_write = (len >= (int)sizeof buf) ? (sizeof buf - 1) : (size_t)len;
+    fwrite(buf, 1, to_write, stream);
     return len;
 }
 
@@ -214,14 +335,4 @@ int fprintf(FILE *stream, const char *format, ...)
     int res = vfprintf(stream, format, args);
     va_end(args);
     return res;
-}
-
-int remove(const char *path)
-{
-    return unlink(path);
-}
-
-int rename(const char *oldpath, const char *newpath)
-{
-    return link(oldpath, newpath) || unlink(oldpath);
 }

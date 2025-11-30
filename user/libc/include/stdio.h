@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #define EOF (-1)
 #define SEEK_SET 0
@@ -20,12 +21,14 @@
 typedef struct FILE
 {
     int fd;
+    bool readable;
+    bool writable;
+    bool append;
+    bool need_seek;
     char *data;
     size_t size;
     size_t pos;
-    int mode;
-    bool is_mem;
-    bool dirty;
+    int open_flags;
     char path[128];
 } FILE;
 

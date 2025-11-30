@@ -35,3 +35,5 @@ int ioctl(int fd, unsigned long request, void *arg);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
 int munmap(void *addr, size_t length);
 char *getcwd(char *buf, size_t size);
+long lseek(int fd, long offset, int whence);
+int isatty(int fd);

@@ -5,6 +5,15 @@
 static struct termios termios_table[16];
 static bool termios_initialized = false;
 
+static int map_fd(int fd)
+{
+    if (fd < 0)
+        return fd;
+    if (fd <= 2)
+        return 0; // stdin/stdout/stderr share the same TTY attributes
+    return fd;
+}
+
 static void init_defaults(void)
 {
     if (termios_initialized)
@@ -29,10 +38,17 @@ static void init_defaults(void)
 
 static struct termios *get_entry(int fd)
 {
-    if (fd < 0 || fd >= (int)(sizeof(termios_table) / sizeof(termios_table[0])))
+    int idx = map_fd(fd);
+    if (idx < 0 || idx >= (int)(sizeof(termios_table) / sizeof(termios_table[0])))
         return NULL;
     init_defaults();
-    return &termios_table[fd];
+    return &termios_table[idx];
+}
+
+tcflag_t __termios_get_oflag(int fd)
+{
+    struct termios *entry = get_entry(fd);
+    return entry ? entry->c_oflag : 0;
 }
 
 int tcgetattr(int fd, struct termios *termios_p)

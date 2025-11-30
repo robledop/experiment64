@@ -19,6 +19,7 @@
 #define SCANCODE_LALT_RELEASE 0xB8
 #define SCANCODE_CAPSLOCK_PRESS 0x3A
 #define SCANCODE_RELEASE_MASK 0x80
+#define SCANCODE_EXTENDED_PREFIX 0xE0
 
 #define BUFFER_SIZE 128
 // Volatile is necessary here because these variables are modified by the interrupt handler
@@ -42,6 +43,7 @@ static bool shift_pressed = false;
 static bool ctrl_pressed = false;
 static bool alt_pressed = false;
 static bool caps_lock = false;
+static bool extended_scancode = false;
 
 static void keyboard_enqueue_raw(uint8_t scancode)
 {
@@ -50,6 +52,27 @@ static void keyboard_enqueue_raw(uint8_t scancode)
         return; // Drop if full
     raw_buffer[raw_write_ptr] = scancode;
     raw_write_ptr = next;
+}
+
+static void keyboard_enqueue_char(char c)
+{
+    const int next = (write_ptr + 1) % BUFFER_SIZE;
+    if (next == read_ptr)
+        return;
+    buffer[write_ptr] = c;
+    write_ptr = next;
+
+    if (keyboard_waiter)
+    {
+        keyboard_waiter->state = THREAD_READY;
+        keyboard_waiter = nullptr;
+    }
+}
+
+static void keyboard_enqueue_sequence(const char* seq, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+        keyboard_enqueue_char(seq[i]);
 }
 
 void keyboard_init(void)
@@ -71,98 +94,138 @@ static void keyboard_process_scancode(uint8_t scancode)
 {
     keyboard_enqueue_raw(scancode);
 
-    if (scancode == SCANCODE_LSHIFT_PRESS || scancode == SCANCODE_RSHIFT_PRESS)
+    if (scancode == SCANCODE_EXTENDED_PREFIX)
     {
-        shift_pressed = true;
+        extended_scancode = true;
         return;
     }
-    if (scancode == SCANCODE_LSHIFT_RELEASE || scancode == SCANCODE_RSHIFT_RELEASE)
+
+    const bool is_release = (scancode & SCANCODE_RELEASE_MASK) != 0;
+    const uint8_t code = scancode & ~SCANCODE_RELEASE_MASK;
+
+    if (extended_scancode)
     {
-        shift_pressed = false;
+        extended_scancode = false;
+
+        if (code == 0x1D) // Right Ctrl
+        {
+            ctrl_pressed = !is_release;
+            return;
+        }
+
+        if (is_release)
+            return;
+
+        switch (code)
+        {
+        case 0x48: // Up
+            keyboard_enqueue_sequence("\x1b[A", 3);
+            return;
+        case 0x50: // Down
+            keyboard_enqueue_sequence("\x1b[B", 3);
+            return;
+        case 0x4B: // Left
+            keyboard_enqueue_sequence("\x1b[D", 3);
+            return;
+        case 0x4D: // Right
+            keyboard_enqueue_sequence("\x1b[C", 3);
+            return;
+        case 0x47: // Home
+            keyboard_enqueue_sequence("\x1b[H", 3);
+            return;
+        case 0x4F: // End
+            keyboard_enqueue_sequence("\x1b[F", 3);
+            return;
+        case 0x49: // Page Up
+            keyboard_enqueue_sequence("\x1b[5~", 4);
+            return;
+        case 0x51: // Page Down
+            keyboard_enqueue_sequence("\x1b[6~", 4);
+            return;
+        case 0x53: // Delete
+            keyboard_enqueue_sequence("\x1b[3~", 4);
+            return;
+        case 0x52: // Insert
+            keyboard_enqueue_sequence("\x1b[2~", 4);
+            return;
+        default:
+            return;
+        }
+    }
+    else
+    {
+        // Handle right Ctrl release (E0 9D) that sets is_release and clears flag.
+        if (code == 0x1D && is_release)
+        {
+            ctrl_pressed = false;
+            return;
+        }
+    }
+
+    if (code == SCANCODE_LSHIFT_PRESS || code == SCANCODE_RSHIFT_PRESS)
+    {
+        shift_pressed = !is_release;
         return;
     }
-    if (scancode == SCANCODE_LCTRL_PRESS)
+    if (code == SCANCODE_LCTRL_PRESS)
     {
-        ctrl_pressed = true;
+        ctrl_pressed = !is_release;
         return;
     }
-    if (scancode == SCANCODE_LCTRL_RELEASE)
+    if (code == SCANCODE_LALT_PRESS)
     {
-        ctrl_pressed = false;
+        alt_pressed = !is_release;
         return;
     }
-    if (scancode == SCANCODE_LALT_PRESS)
-    {
-        alt_pressed = true;
-        return;
-    }
-    if (scancode == SCANCODE_LALT_RELEASE)
-    {
-        alt_pressed = false;
-        return;
-    }
-    if (scancode == SCANCODE_CAPSLOCK_PRESS)
+    if (code == SCANCODE_CAPSLOCK_PRESS && !is_release)
     {
         caps_lock = !caps_lock;
         return;
     }
 
-    if (scancode & SCANCODE_RELEASE_MASK)
+    if (is_release)
     {
         return;
     }
-    else
+
+    if (code < sizeof(scancode_to_char))
     {
-        if (scancode < sizeof(scancode_to_char))
+        bool use_shift = shift_pressed;
+
+        char c = (char)scancode_to_char[code];
+        if (caps_lock && c >= 'a' && c <= 'z')
         {
-            bool use_shift = shift_pressed;
+            use_shift = !use_shift;
+        }
 
-            char c = (char)scancode_to_char[scancode];
-            if (caps_lock && c >= 'a' && c <= 'z')
+        if (use_shift)
+        {
+            c = (char)scancode_to_char_shifted[code];
+        }
+        else
+        {
+            c = (char)scancode_to_char[code];
+        }
+
+        // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)
+        if (ctrl_pressed)
+        {
+            if (c >= 'a' && c <= 'z')
+                c = (char)(c - 'a' + 1);
+            else if (c >= 'A' && c <= 'Z')
+                c = (char)(c - 'A' + 1);
+        }
+
+        if (c)
+        {
+            // Ctrl+P prints the process/thread list (xv6-style)
+            if (c == 0x10)
             {
-                use_shift = !use_shift;
+                process_dump();
+                return;
             }
 
-            if (use_shift)
-            {
-                c = (char)scancode_to_char_shifted[scancode];
-            }
-            else
-            {
-                c = (char)scancode_to_char[scancode];
-            }
-
-            // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)
-            if (ctrl_pressed)
-            {
-                if (c >= 'a' && c <= 'z')
-                    c = (char)(c - 'a' + 1);
-                else if (c >= 'A' && c <= 'Z')
-                    c = (char)(c - 'A' + 1);
-            }
-
-            if (c)
-            {
-                // Ctrl+P prints the process/thread list (xv6-style)
-                if (c == 0x10)
-                {
-                    process_dump();
-                    return;
-                }
-
-                const int next = (write_ptr + 1) % BUFFER_SIZE;
-                if (next != read_ptr)
-                {
-                    buffer[write_ptr] = c;
-                    write_ptr = next;
-
-                    if (keyboard_waiter)
-                    {
-                        keyboard_waiter->state = THREAD_READY;
-                        keyboard_waiter = nullptr;
-                    }
-                }
-            }
+            keyboard_enqueue_char(c);
         }
     }
 }
@@ -189,6 +252,7 @@ void keyboard_reset_state_for_test(void)
     alt_pressed = false;
     caps_lock = false;
     keyboard_waiter = nullptr;
+    extended_scancode = false;
 }
 
 bool keyboard_has_char(void)

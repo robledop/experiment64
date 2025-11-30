@@ -21,6 +21,13 @@ static int terminal_x = 0;
 static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
 static uint32_t terminal_bg_color = 0x00000000;
+static bool terminal_cursor_visible = true;
+static bool cursor_drawn = false;
+static int cursor_last_x = 0;
+static int cursor_last_y = 0;
+static uint32_t cursor_backing[8 + LINE_SPACING][8];
+static bool cursor_overlay_enabled = false; // Disable framebuffer cursor overlay to avoid redraw artifacts.
+static bool cursor_batch = false;
 static char boot_log_buffer[8192];
 static size_t boot_log_len = 0;
 static bool boot_log_ready = false;
@@ -57,22 +64,57 @@ static inline int terminal_bottom(void)
     return terminal_fb ? (int)terminal_fb->height - TERMINAL_MARGIN : 0;
 }
 
-static void terminal_draw_cursor(int x, int y, uint32_t color)
+static void cursor_restore(void)
 {
-    if (!terminal_fb)
+    if (!cursor_overlay_enabled)
         return;
+    if (!cursor_drawn || !terminal_fb)
+        return;
+
+    for (int row = 0; row < 8 + LINE_SPACING; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
+            uint64_t offset = (cursor_last_y + row) * terminal_fb->pitch + (cursor_last_x + col) * 4;
+            if (offset < terminal_fb->pitch * terminal_fb->height)
+                memcpy((uint8_t*)terminal_fb->address + offset, &cursor_backing[row][col], sizeof(uint32_t));
+        }
+    }
+    cursor_drawn = false;
+}
+
+static void cursor_save_and_draw(void)
+{
+    if (!cursor_overlay_enabled)
+        return;
+    if (!terminal_fb || !terminal_cursor_visible)
+        return;
+
+    for (int row = 0; row < 8 + LINE_SPACING; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
+            uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
+            if (offset < terminal_fb->pitch * terminal_fb->height)
+                memcpy(&cursor_backing[row][col], (uint8_t*)terminal_fb->address + offset, sizeof(uint32_t));
+        }
+    }
+
     for (int row = 6; row < 8; row++)
     {
         for (int col = 0; col < 8; col++)
         {
-            uint64_t offset = (y + row) * terminal_fb->pitch + (x + col) * 4;
+            uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
             {
                 uint32_t* pixel = (uint32_t*)((uint8_t*)terminal_fb->address + offset);
-                *pixel = color;
+                *pixel = terminal_color;
             }
         }
     }
+    cursor_last_x = terminal_x;
+    cursor_last_y = terminal_y;
+    cursor_drawn = true;
 }
 
 void terminal_init(struct limine_framebuffer* fb)
@@ -82,16 +124,20 @@ void terminal_init(struct limine_framebuffer* fb)
     terminal_x = terminal_left();
     terminal_y = terminal_top();
     terminal_bg_color = 0x00000000;
+    terminal_cursor_visible = true;
+    cursor_drawn = false;
+    cursor_last_x = terminal_x;
+    cursor_last_y = terminal_y;
 }
 
 void terminal_set_cursor(int x, int y)
 {
-    if (terminal_fb)
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_bg_color);
+    cursor_restore();
     terminal_x = x;
     terminal_y = y;
-    if (terminal_fb)
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+    cursor_last_x = x;
+    cursor_last_y = y;
+    cursor_save_and_draw();
 }
 
 void terminal_get_cursor(int* x, int* y)
@@ -118,7 +164,12 @@ void terminal_get_dimensions(int* cols, int* rows)
     if (cols)
         *cols = (w > 0) ? (w / 8) : 0;
     if (rows)
-        *rows = (h > 0) ? (h / (FONT_HEIGHT + LINE_SPACING)) : 0;
+    {
+        int raw = (h > 0) ? (h / (FONT_HEIGHT + LINE_SPACING)) : 0;
+        if (raw > 1)
+            raw -= 1; // Leave a guard line to avoid accidental scroll/overscan.
+        *rows = raw;
+    }
 }
 
 void terminal_set_color(uint32_t color)
@@ -129,6 +180,7 @@ void terminal_set_color(uint32_t color)
 void terminal_clear(uint32_t color)
 {
     terminal_bg_color = color;
+    cursor_restore();
     if (!terminal_fb)
         return;
     for (size_t y = 0; y < terminal_fb->height; y++)
@@ -141,7 +193,7 @@ void terminal_clear(uint32_t color)
     }
     terminal_x = terminal_left();
     terminal_y = terminal_top();
-    terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+    cursor_drawn = false;
 }
 
 enum AnsiState
@@ -156,6 +208,7 @@ static int ansi_params[16];
 static int ansi_param_count = 0;
 static int ansi_current_param = 0;
 static bool ansi_bold = false;
+static bool ansi_private = false;
 
 static uint32_t ansi_colors_normal[] = {
     0xFF000000, // 0: Black
@@ -219,6 +272,8 @@ void terminal_scroll(int rows)
     if (!terminal_fb)
         return;
 
+    cursor_restore();
+
     constexpr int char_height = FONT_HEIGHT + LINE_SPACING;
     int scroll_px = rows * char_height;
     const int fb_height = (int)terminal_fb->height;
@@ -230,10 +285,35 @@ void terminal_scroll(int rows)
     memmove(fb_base, fb_base + (size_t)scroll_px * terminal_fb->pitch, move_bytes);
 
     terminal_rect_fill(0, fb_height - scroll_px, (int)terminal_fb->width, scroll_px, terminal_bg_color);
+    cursor_drawn = false;
 }
 
 static void terminal_process_ansi(char cmd)
 {
+    if (cmd == 'h' || cmd == 'l')
+    {
+        bool set_mode = (cmd == 'h');
+        if (ansi_private && ansi_param_count > 0)
+        {
+            for (int i = 0; i < ansi_param_count; i++)
+            {
+                int mode = ansi_params[i];
+                if (mode == 25)
+                {
+                    if (!set_mode)
+                        cursor_restore();
+                    terminal_cursor_visible = set_mode;
+                    if (set_mode)
+                        cursor_save_and_draw();
+                    else
+                        cursor_drawn = false;
+                }
+            }
+        }
+        ansi_private = false;
+        return;
+    }
+
     if (cmd == 'm')
     {
         if (ansi_param_count == 0)
@@ -274,6 +354,7 @@ static void terminal_process_ansi(char cmd)
     }
     else if (cmd == 'J')
     {
+        cursor_restore();
         int mode = (ansi_param_count > 0) ? ansi_params[0] : 0;
         if (mode == 2)
         {
@@ -281,7 +362,7 @@ static void terminal_process_ansi(char cmd)
                                terminal_bottom() - terminal_top(), terminal_bg_color);
             terminal_x = terminal_left();
             terminal_y = terminal_top();
-            terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+            cursor_save_and_draw();
         }
         else if (mode == 0) // Clear from cursor to end of screen
         {
@@ -291,7 +372,7 @@ static void terminal_process_ansi(char cmd)
             terminal_rect_fill(terminal_x, terminal_y, w, 8 + LINE_SPACING, terminal_bg_color);
             terminal_rect_fill(terminal_left(), terminal_y + 8 + LINE_SPACING, terminal_right() - terminal_left(),
                                terminal_bottom() - (terminal_y + 8 + LINE_SPACING), terminal_bg_color);
-            terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+            cursor_save_and_draw();
         }
         else if (mode == 1) // Clear from beginning of screen to cursor
         {
@@ -299,11 +380,12 @@ static void terminal_process_ansi(char cmd)
                                terminal_y - terminal_top(), terminal_bg_color);
             terminal_rect_fill(terminal_left(), terminal_y, terminal_x - terminal_left() + 8, 8 + LINE_SPACING,
                                terminal_bg_color);
-            terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+            cursor_save_and_draw();
         }
     }
     else if (cmd == 'K')
     {
+        cursor_restore();
         int mode = (ansi_param_count > 0) ? ansi_params[0] : 0;
         if (mode == 0) // Clear from cursor to end of line
         {
@@ -322,7 +404,7 @@ static void terminal_process_ansi(char cmd)
             terminal_rect_fill(terminal_left(), terminal_y, terminal_right() - terminal_left(), 8 + LINE_SPACING,
                                terminal_bg_color);
         }
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
+        cursor_save_and_draw();
     }
     else if (cmd == 'A') // Cursor Up
     {
@@ -375,11 +457,14 @@ static void terminal_process_ansi(char cmd)
 
 static void terminal_draw_char(char c)
 {
+    if (c == '\r')
+    {
+        terminal_x = terminal_left();
+        return;
+    }
+
     if (c == '\n')
     {
-        // Clear the cursor at the old position (by drawing background)
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_bg_color);
-
         terminal_x = terminal_left();
         terminal_y += 8 + LINE_SPACING;
         int bottom_limit = terminal_bottom();
@@ -388,17 +473,14 @@ static void terminal_draw_char(char c)
             terminal_scroll(1);
             terminal_y -= (8 + LINE_SPACING);
         }
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
         return;
     }
 
     if (c == '\b')
     {
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_bg_color);
         terminal_x -= 8;
         if (terminal_x < terminal_left())
             terminal_x = terminal_left();
-        terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
         return;
     }
 
@@ -440,7 +522,6 @@ static void terminal_draw_char(char c)
             terminal_y -= (8 + LINE_SPACING);
         }
     }
-    terminal_draw_cursor(terminal_x, terminal_y, terminal_color);
 }
 
 void terminal_putc(char c)
@@ -448,6 +529,12 @@ void terminal_putc(char c)
     uart_putc(c);
     if (!terminal_fb)
         return;
+
+    if (!cursor_batch)
+    {
+        cursor_restore();
+        cursor_drawn = false;
+    }
 
     if (ansi_state == ANSI_NORMAL)
     {
@@ -467,6 +554,7 @@ void terminal_putc(char c)
             ansi_state = ANSI_CSI;
             ansi_param_count = 0;
             ansi_current_param = 0;
+            ansi_private = false;
             for (int i = 0; i < 16; i++)
                 ansi_params[i] = 0;
         }
@@ -492,6 +580,10 @@ void terminal_putc(char c)
         {
             ansi_current_param = ansi_current_param * 10 + (c - '0');
         }
+        else if (c == '?')
+        {
+            ansi_private = true;
+        }
         else if (c == ';')
         {
             if (ansi_param_count < 16)
@@ -504,14 +596,38 @@ void terminal_putc(char c)
                 ansi_params[ansi_param_count++] = ansi_current_param;
             terminal_process_ansi(c);
             ansi_state = ANSI_NORMAL;
+            ansi_private = false;
         }
+    }
+
+    if (!cursor_batch)
+    {
+        if (terminal_cursor_visible)
+            cursor_save_and_draw();
+        else
+            cursor_drawn = false;
     }
 }
 
 void terminal_write(const char* data, size_t size)
 {
+    bool prev_batch = cursor_batch;
+    cursor_batch = true;
+
+    cursor_drawn = false;
+
     for (size_t i = 0; i < size; i++)
         terminal_putc(data[i]);
+
+    cursor_batch = prev_batch;
+
+    if (cursor_overlay_enabled)
+    {
+        if (terminal_cursor_visible)
+            cursor_save_and_draw();
+        else
+            cursor_drawn = false;
+    }
 }
 
 void terminal_write_string(const char* data)
@@ -523,7 +639,15 @@ void terminal_write_string(const char* data)
 static void terminal_putc_callback(char c, void* arg)
 {
     (void)arg;
-    terminal_putc(c);
+    if (c == '\n')
+    {
+        terminal_putc('\r');
+        terminal_putc('\n');
+    }
+    else
+    {
+        terminal_putc(c);
+    }
 }
 
 #ifdef TEST_MODE

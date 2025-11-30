@@ -25,11 +25,6 @@ void _Exit(int status)
     __exit_impl(status);
 }
 
-void __ae_exit(void)
-{
-    exit(0);
-}
-
 int system([[maybe_unused]] const char *command)
 {
     // No shell; stub returns failure.

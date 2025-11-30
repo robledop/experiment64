@@ -460,7 +460,51 @@ void DG_SetWindowTitle([[maybe_unused]] const char *title)
 
 int main(int argc, char **argv)
 {
-    doomgeneric_Create(argc, argv);
+    const char *default_iwad = "/doom.wad";
+    const char *candidate_iwads[] = {
+        "/doom.wad",
+        "/bin/doom.wad",
+        "/mnt/doom.wad",
+        "doom.wad",
+    };
+    int need_default_iwad = 1;
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "-iwad") == 0)
+        {
+            need_default_iwad = 0;
+            break;
+        }
+    }
+
+    const char *found_wad = nullptr;
+    if (need_default_iwad)
+    {
+        for (size_t i = 0; i < sizeof(candidate_iwads) / sizeof(candidate_iwads[0]); i++)
+        {
+            int fd = open(candidate_iwads[i], O_RDONLY);
+            if (fd >= 0)
+            {
+                close(fd);
+                found_wad = candidate_iwads[i];
+                break;
+            }
+        }
+    }
+
+    const char *argv_buf[64];
+    int new_argc = argc;
+    char **new_argv = argv;
+    if (need_default_iwad && found_wad && argc + 2 < (int)(sizeof(argv_buf) / sizeof(argv_buf[0])))
+    {
+        for (int i = 0; i < argc; i++)
+            argv_buf[i] = argv[i];
+        argv_buf[new_argc++] = "-iwad";
+        argv_buf[new_argc++] = found_wad;
+        new_argv = (char **)argv_buf;
+    }
+
+    doomgeneric_Create(new_argc, new_argv);
 
     while (1) {
         doomgeneric_Tick();

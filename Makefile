@@ -5,6 +5,7 @@ export PATH
 override MAKEFLAGS += -rR
 
 override KERNEL := build/kernel.elf
+DOOM_BIN := assets/fbdoom
 
 define DEFAULT_VAR =
     ifeq ($(origin $1),default)
@@ -93,7 +94,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide $(DOOM_BIN)
 	$(MAKE) -C user clean
 
 .PHONY: distclean
@@ -111,7 +112,13 @@ USER_BUILD_DIR = user/build
 userland:
 	$(MAKE) -C user
 
-image.hdd: $(KERNEL) limine limine.conf userland
+.PHONY: doom
+doom: $(DOOM_BIN)
+
+$(DOOM_BIN):
+	$(MAKE) -C user/doom
+
+image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
 
 .PHONY: disk

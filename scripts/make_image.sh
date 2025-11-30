@@ -81,6 +81,12 @@ cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI build/rootfs_esp/EFI/BOOT/
 # Populate RootFS (Ext2)
 mkdir -p build/rootfs_ext2/var
 cp -v assets/logo.bmp build/rootfs_ext2/var/logo.bmp
+if [ -f assets/doom.wad ]; then
+    cp -v assets/doom.wad build/rootfs_ext2/doom.wad
+fi
+if [ -f assets/fbdoom ]; then
+    cp -v assets/fbdoom build/rootfs_ext2/bin/doom
+fi
 for bin in "$USER_BUILD_DIR"/*; do
     if [ ! -f "$bin" ]; then
         continue

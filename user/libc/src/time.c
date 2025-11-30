@@ -1,5 +1,7 @@
 #include <time.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/time.h>
 
 static bool is_leap(int year)
 {
@@ -158,4 +160,16 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
 
     *p = '\0';
     return (size_t)(p - out);
+}
+
+
+time_t time(long long int *time)
+{
+    struct timeval tv = {0};
+    if (gettimeofday(&tv, NULL) < 0)
+        return -1;
+
+    if (time)
+        *time = (long long int)tv.tv_sec;
+    return (time_t)tv.tv_sec;
 }
