@@ -55,7 +55,7 @@ TEST(test_bmp_load_valid)
     row1[7] = 0x00;
 
     // Write to file
-    const char *filename = "test.bmp";
+    const char *filename = "/mnt/test.bmp";
     vfs_mknod((char *)filename, VFS_FILE, 0);
     vfs_inode_t *node = vfs_resolve_path(filename);
 
@@ -101,26 +101,41 @@ TEST(test_bmp_invalid_file)
 {
     uint32_t *p;
     uint32_t w, h;
-    TEST_ASSERT(bitmap_load_argb("nonexistent_bmp_file.bmp", &p, &w, &h) != 0);
+    TEST_ASSERT(bitmap_load_argb("/mnt/nonexistent_bmp_file.bmp", &p, &w, &h) != 0);
     return true;
 }
 
 TEST(test_bmp_bad_header)
 {
-    // Create a file with bad magic
-    uint8_t bad_data[100];
-    memset(bad_data, 0, sizeof(bad_data));
-    // Magic is 00 00
+    // Write a BMP-like file with an invalid signature and ensure loader rejects it.
+    const char *filename = "/mnt/bad_header.bmp";
+    uint8_t buf[64];
+    memset(buf, 0, sizeof(buf));
 
-    const char *filename = "bad.bmp";
+    BITMAPFILEHEADER *fh = (BITMAPFILEHEADER *)buf;
+    fh->bfType = 0x5858; // 'XX' invalid magic
+    fh->bfSize = sizeof(buf);
+    fh->bfOffBits = 54;
+
+    BITMAPINFOHEADER *ih = (BITMAPINFOHEADER *)(buf + 14);
+    ih->biSize = 40;
+    ih->biWidth = 1;
+    ih->biHeight = 1;
+    ih->biPlanes = 1;
+    ih->biBitCount = 24;
+    ih->biCompression = 0;
+    ih->biSizeImage = 3;
+
     vfs_mknod((char *)filename, VFS_FILE, 0);
     vfs_inode_t *node = vfs_resolve_path(filename);
     TEST_ASSERT(node != nullptr);
-    vfs_write(node, 0, sizeof(bad_data), bad_data);
+    TEST_ASSERT(vfs_write(node, 0, sizeof(buf), buf) == sizeof(buf));
     vfs_close(node);
 
-    uint32_t *p;
-    uint32_t w, h;
-    TEST_ASSERT(bitmap_load_argb(filename, &p, &w, &h) != 0);
+    uint32_t *pixels = nullptr;
+    uint32_t w = 0, h = 0;
+    TEST_ASSERT(bitmap_load_argb(filename, &pixels, &w, &h) != 0);
+    if (pixels)
+        kfree(pixels);
     return true;
 }

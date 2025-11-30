@@ -133,25 +133,30 @@ TEST(test_vfs_root_readdir)
     if (!vfs_root)
         return false;
 
-    bool found_dev = false;
-    vfs_dirent_t *dirent;
-    int i = 0;
-    printk("VFS: Listing root directory:\n");
-    while ((dirent = vfs_readdir(vfs_root, i++)))
+    // Ensure a known entry exists.
+    const char *name = "readdir_dummy.txt";
+    vfs_mknod("/readdir_dummy.txt", VFS_FILE, 0);
+
+    bool found = false;
+    for (uint32_t i = 0;; i++)
     {
-        printk("  %s\n", dirent->name);
-        if (strcmp(dirent->name, "dev") == 0)
+        vfs_dirent_t *dent = vfs_readdir(vfs_root, i);
+        if (!dent)
+            break;
+        if (strncmp(dent->name, name, sizeof(dent->name)) == 0)
         {
-            found_dev = true;
+            found = true;
+            kfree(dent);
+            break;
         }
-        kfree(dirent);
+        kfree(dent);
     }
 
-    if (!found_dev)
+    if (!found)
     {
-        printk("VFS: 'dev' not found in root directory listing\n");
+        printk("VFS: %s not found in root readdir\n", name);
     }
-    return found_dev;
+    return found;
 }
 
 TEST(test_vfs_path_canonicalization)

@@ -703,7 +703,7 @@ TEST(test_syscall_file_io)
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, file_io_stub_bytes, sizeof(file_io_stub_bytes));
 
-    const char *path = "/TEST.TXT";
+    const char *path = "/mnt/TEST.TXT";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
     const char *data = "Hello FileIO";
     memcpy((void *)((uint64_t)virt_page + 0x200), data, strlen(data) + 1);
@@ -731,40 +731,40 @@ TEST(test_syscall_file_io)
 
 TEST(test_syscall_open_flags)
 {
-    const char *path = "/flag_test.txt";
-    char buf[32];
+    const char* path = "/mnt/flag_test.txt";
+    char buf[16] = {0};
 
+    // Create and write.
     int fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_write(fd, "abc", 3) == 3);
     TEST_ASSERT(sys_close(fd) == 0);
 
+    // Read back.
     fd = sys_open(path, O_RDONLY);
     TEST_ASSERT(fd >= 0);
-    memset(buf, 0, sizeof(buf));
     TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 3);
     TEST_ASSERT(strncmp(buf, "abc", 3) == 0);
     TEST_ASSERT(sys_close(fd) == 0);
 
+    // Truncate and verify empty.
     fd = sys_open(path, O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_close(fd) == 0);
-
     fd = sys_open(path, O_RDONLY);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
     TEST_ASSERT(sys_close(fd) == 0);
 
+    // Append and verify.
     fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_write(fd, "one", 3) == 3);
     TEST_ASSERT(sys_close(fd) == 0);
-
     fd = sys_open(path, O_WRONLY | O_APPEND);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_write(fd, "two", 3) == 3);
     TEST_ASSERT(sys_close(fd) == 0);
-
     fd = sys_open(path, O_RDONLY);
     TEST_ASSERT(fd >= 0);
     memset(buf, 0, sizeof(buf));
@@ -772,11 +772,11 @@ TEST(test_syscall_open_flags)
     TEST_ASSERT(strncmp(buf, "onetwo", 6) == 0);
     TEST_ASSERT(sys_close(fd) == 0);
 
+    // Read on write-only should fail.
     fd = sys_open(path, O_WRONLY);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == -1);
     TEST_ASSERT(sys_close(fd) == 0);
-
     return true;
 }
 

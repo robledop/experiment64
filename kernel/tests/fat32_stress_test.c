@@ -15,7 +15,8 @@ TEST(test_fat32_stress)
     if (!fs_initialized)
         return false;
 
-    char *dirname = "/STRESS";
+    // Exercise the FAT32 mount at /mnt to avoid touching the root ext2 image.
+    char *dirname = "/mnt/STRESS";
     printk("Creating stress directory %s...\n", dirname);
 
     // Try to create directory, ignore if it exists (though VFS might error)

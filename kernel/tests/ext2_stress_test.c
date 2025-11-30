@@ -23,7 +23,8 @@ TEST(test_ext2_stress)
         return false;
     }
 
-    const char *dirname = "/stress_ext2";
+    // Use the secondary ext2 mount to avoid clobbering the root image.
+    const char *dirname = "/disk1/stress_ext2";
     printk("Creating EXT2 stress directory %s...\n", dirname);
 
     // Create directory

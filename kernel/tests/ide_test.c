@@ -7,10 +7,22 @@ static bool ide_initialized = false;
 
 TEST(test_ide_read_write)
 {
+    // IDE is already initialized during boot; avoid re-initializing unless needed.
     if (!ide_initialized)
     {
-        ide_init();
-        ide_initialized = true;
+        for (int i = 0; i < 4; i++)
+        {
+            if (ide_devices[i].exists)
+            {
+                ide_initialized = true;
+                break;
+            }
+        }
+        if (!ide_initialized)
+        {
+            ide_init();
+            ide_initialized = true;
+        }
     }
 
     // Find a valid drive

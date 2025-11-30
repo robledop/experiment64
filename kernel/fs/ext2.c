@@ -1030,6 +1030,13 @@ int ext2fs_dirlink(struct ext2_inode* dp, const char* name, uint32_t inum)
         return -1;
     }
 
+    // Grow directory size to include the new entry and persist it.
+    if (off + rec_len > dp->size)
+    {
+        dp->size = off + rec_len;
+        ext2fs_iupdate(dp);
+    }
+
     return 0;
 }
 

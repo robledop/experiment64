@@ -51,7 +51,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
         return -1;
     }
 #ifdef KASAN
-    if (kasan_is_ready() && kasan_shadow_value(buffer) != KASAN_POISON_ACCESSIBLE)
+    if (kasan_is_ready())
         kasan_unpoison_range(buffer, file_size);
 #endif
 
