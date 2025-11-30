@@ -2,6 +2,13 @@
 
 #include <stdint.h>
 
+struct syscall_regs
+{
+    uint64_t rdi, rsi, rdx, r10, r8, r9;
+    uint64_t r15, r14, r13, r12, rbx, rbp;
+    uint64_t rcx, r11;
+};
+
 #define SYS_WRITE 0
 #define SYS_READ 1
 #define SYS_EXEC 2

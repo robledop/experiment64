@@ -7,6 +7,37 @@
 #include "heap.h"
 #include "string.h"
 
+// US QWERTY Scancode Set 1
+static const char scancode_to_char[SCANCODE_TABLE_SIZE] = {
+    0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,
+    '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*',
+    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
+    0, 0, 0, '+', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+static const char scancode_to_char_shifted[SCANCODE_TABLE_SIZE] = {
+    0, 27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,
+    '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*',
+    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
+    0, 0, 0, '+', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+char keyboard_scancode_to_char(uint8_t scancode)
+{
+    if (scancode >= SCANCODE_TABLE_SIZE)
+        return 0;
+    return scancode_to_char[scancode];
+}
+
+char keyboard_scancode_to_char_shifted(uint8_t scancode)
+{
+    if (scancode >= SCANCODE_TABLE_SIZE)
+        return 0;
+    return scancode_to_char_shifted[scancode];
+}
+
 #define KEYBOARD_DATA_PORT 0x60
 
 #define SCANCODE_LSHIFT_PRESS 0x2A
@@ -77,7 +108,7 @@ static void keyboard_enqueue_char(char c)
     }
 }
 
-static void keyboard_enqueue_sequence(const char* seq, size_t len)
+static void keyboard_enqueue_sequence(const char *seq, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         keyboard_enqueue_char(seq[i]);
@@ -196,11 +227,11 @@ static void keyboard_process_scancode(uint8_t scancode)
         return;
     }
 
-    if (code < sizeof(scancode_to_char))
+    if (code < SCANCODE_TABLE_SIZE)
     {
         bool use_shift = shift_pressed;
 
-        char c = (char)scancode_to_char[code];
+        char c = keyboard_scancode_to_char(code);
         if (caps_lock && c >= 'a' && c <= 'z')
         {
             use_shift = !use_shift;
@@ -208,11 +239,11 @@ static void keyboard_process_scancode(uint8_t scancode)
 
         if (use_shift)
         {
-            c = (char)scancode_to_char_shifted[code];
+            c = keyboard_scancode_to_char_shifted(code);
         }
         else
         {
-            c = (char)scancode_to_char[code];
+            c = keyboard_scancode_to_char(code);
         }
 
         // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)

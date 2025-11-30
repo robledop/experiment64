@@ -123,14 +123,6 @@ extern void fork_return(void);
 extern void fork_child_trampoline(void);
 
 #define TIMER_TICK_MS 10
-
-struct syscall_regs
-{
-    uint64_t rdi, rsi, rdx, r10, r8, r9;
-    uint64_t r15, r14, r13, r12, rbx, rbp;
-    uint64_t rcx, r11;
-};
-
 #define SYSCALL_MAX_PATH VFS_MAX_PATH
 
 static void set_process_name_from_path(process_t *proc, const char *path)
@@ -1025,11 +1017,6 @@ int sys_ioctl(int fd, int request, void *arg)
         return -1;
 
     return vfs_ioctl(desc->inode, request, arg);
-}
-
-static uint64_t align_up(uint64_t value, uint64_t align)
-{
-    return (value + align - 1) & ~(align - 1);
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)

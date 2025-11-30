@@ -9,6 +9,7 @@
 #include "string.h"
 #include "vmm.h"
 #include "pmm.h"
+#include "util.h"
 
 #define KASAN_POISON_ACCESSIBLE 0x00
 #define KASAN_MAX_PHYS_COVER (1ULL << 30) // Cover up to 1 GiB for now
@@ -18,11 +19,6 @@ static uint64_t kasan_shadow_size = 0;
 static uint64_t kasan_covered_start = 0;
 static uint64_t kasan_covered_end = 0;
 static bool kasan_ready = false;
-
-static inline uint64_t align_up(uint64_t val, uint64_t align)
-{
-    return (val + align - 1) & ~(align - 1);
-}
 
 static inline uint64_t read_cr3_phys(void)
 {

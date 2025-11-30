@@ -8,13 +8,6 @@
 #include "process.h"
 #include "fcntl.h"
 
-struct syscall_regs
-{
-    uint64_t rdi, rsi, rdx, r10, r8, r9;
-    uint64_t r15, r14, r13, r12, rbx, rbp;
-    uint64_t rcx, r11;
-};
-
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c
 int sys_open(const char *path, int flags);
 int sys_close(int fd);
@@ -686,7 +679,6 @@ TEST(test_syscall_sbrk)
     }
 }
 
-
 TEST(test_syscall_file_io)
 {
     test_runner_pid = current_process->pid;
@@ -731,7 +723,7 @@ TEST(test_syscall_file_io)
 
 TEST(test_syscall_open_flags)
 {
-    const char* path = "/mnt/flag_test.txt";
+    const char *path = "/mnt/flag_test.txt";
     char buf[16] = {0};
 
     // Create and write.
