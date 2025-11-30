@@ -1,0 +1,339 @@
+static struct termios console_termios_state;
+static struct winsize console_winsize_state;
+static int console_raw_mode;
+static int console_echo_enabled;
+static int console_opost_enabled;
+
+static struct
+{
+    char buf[INPUT_BUF];
+    u32 r; // Read index
+    u32 w; // Write index
+    u32 e; // Edit index
+} input;
+
+int sys_tcgetattr(void)
+{
+    int fd;
+    char *uptr;
+    if (argint(0, &fd) < 0) {
+        return -1;
+    }
+    if (argptr(1, &uptr, sizeof(struct termios)) < 0) {
+        return -1;
+    }
+    if (!fd_is_console(fd)) {
+        return -1;
+    }
+    struct termios t;
+    if (console_tcgetattr(&t) < 0) {
+        return -1;
+    }
+    memmove(uptr, &t, sizeof(struct termios));
+    return 0;
+}
+
+
+int console_tcgetattr(struct termios *out)
+{
+    if (out == nullptr) {
+        return -1;
+    }
+    acquire(&cons.lock);
+    *out = console_termios_state;
+    release(&cons.lock);
+    return 0;
+}
+
+int console_tcsetattr(int action, const struct termios *t)
+{
+    if (t == nullptr) {
+        return -1;
+    }
+    acquire(&cons.lock);
+    if (action == TCSAFLUSH) {
+        reset_input_locked();
+    }
+    console_termios_state = *t;
+    console_apply_termios();
+    release(&cons.lock);
+    return 0;
+}
+
+
+static void reset_input_locked(void)
+{
+    input.r = input.w = input.e = 0;
+}
+
+
+static void handle_raw_input(int c)
+{
+    // Filter out 0 bytes (key releases, E0 escapes)
+    if (c == 0) {
+        return;
+    }
+
+    switch (c) {
+    case KEY_UP:
+        queue_sequence_locked("\x1b[A");
+        return;
+    case KEY_DN:
+        queue_sequence_locked("\x1b[B");
+        return;
+    case KEY_LF:
+        queue_sequence_locked("\x1b[D");
+        return;
+    case KEY_RT:
+        queue_sequence_locked("\x1b[C");
+        return;
+    case KEY_HOME:
+        queue_sequence_locked("\x1b[H");
+        return;
+    case KEY_END:
+        queue_sequence_locked("\x1b[F");
+        return;
+    case KEY_PGUP:
+        queue_sequence_locked("\x1b[5~");
+        return;
+    case KEY_PGDN:
+        queue_sequence_locked("\x1b[6~");
+        return;
+    case KEY_INS:
+        queue_sequence_locked("\x1b[2~");
+        return;
+    case KEY_DEL:
+        queue_sequence_locked("\x1b[3~");
+        return;
+    default:
+        break;
+    }
+
+    if ((console_termios_state.c_iflag & ICRNL) && c == '\r') {
+        c = '\n';
+    }
+    input_push_locked(c);
+    wakeup(&input.r);
+}
+
+static void queue_sequence_locked(const char *seq)
+{
+    while (*seq) {
+        input_push_locked(*seq++);
+    }
+    wakeup(&input.r);
+}
+
+static void input_push_locked(int c)
+{
+    if (input.e - input.r >= INPUT_BUF) {
+        return;
+    }
+    input.buf[input.e++ % INPUT_BUF] = c;
+    input.w                          = input.e;
+}
+
+#define CTRL(x) ((x) - '@') // Control-x
+
+void console_input_handler(int (*getc)(void))
+{
+    int c, doprocdump = 0;
+
+    acquire(&cons.lock);
+    while ((c = getc()) >= 0) {
+        if (console_raw_mode) {
+            handle_raw_input(c);
+            continue;
+        }
+        switch (c) {
+        case CTRL('P'): // Process listing.
+            // procdump() locks cons.lock indirectly; invoke later
+            doprocdump = 1;
+            break;
+        case CTRL('U'): // Kill line.
+            while (input.e != input.w &&
+                input.buf[(input.e - 1) % INPUT_BUF] != '\n') {
+                input.e--;
+                consputc(BACKSPACE);
+                }
+            break;
+        case CTRL('H'):
+        case '\x7f': // Backspace
+            if (input.e != input.w) {
+                input.e--;
+                consputc(BACKSPACE);
+            }
+            break;
+        case 226: // Up arrow
+        case 227: // Down arrow
+            input.buf[input.e++ % INPUT_BUF] = c;
+            input.w = input.e;
+            wakeup(&input.r);
+            break;
+        default:
+            if (c != 0 && input.e - input.r < INPUT_BUF) {
+                if (console_termios_state.c_iflag & ICRNL) {
+                    c = (c == '\r') ? '\n' : c;
+                }
+                input.buf[input.e++ % INPUT_BUF] = c;
+                if (console_echo_enabled) {
+                    consputc(c);
+                }
+                if (c == '\n' || c == CTRL('D') || input.e == input.r + INPUT_BUF) {
+                    input.w = input.e;
+                    wakeup(&input.r);
+                }
+            }
+            break;
+        }
+    }
+    release(&cons.lock);
+    if (doprocdump) {
+        procdump(); // now call procdump() wo. cons.lock held
+    }
+}
+
+int console_read(struct inode *ip, char *dst, int n, [[maybe_unused]] u32 offset)
+{
+    ip->iops->iunlock(ip);
+    int target = n;
+    acquire(&cons.lock);
+    int raw_mode = console_raw_mode;
+
+    u32 vtime           = console_termios_state.c_cc[VTIME];
+    u32 vmin            = console_termios_state.c_cc[VMIN];
+    u32 start_ticks     = 0;
+    int started_waiting = 0;
+
+    while (n > 0) {
+        while (input.r == input.w) {
+            if (current_process()->killed) {
+                release(&cons.lock);
+                ip->iops->ilock(ip);
+                return -1;
+            }
+
+            // Implement VTIME timeout for raw mode
+            if (vmin == 0 && n == target) {
+                // VMIN=0: return immediately if no data
+                release(&cons.lock);
+                ip->iops->ilock(ip);
+                return 0;
+            }
+
+            if (vtime > 0) {
+                // Start timeout on first wait
+                if (!started_waiting) {
+                    acquire(&tickslock);
+                    start_ticks = ticks;
+                    release(&tickslock);
+                    started_waiting = 1;
+                }
+
+                // Check if timeout expired (VTIME is in tenths of second, ticks are ~100Hz)
+                acquire(&tickslock);
+                u32 elapsed = ticks - start_ticks;
+                release(&tickslock);
+
+                // VTIME is in tenths of second, convert to ticks (100 ticks/sec)
+                u32 timeout_ticks = vtime * 10;
+                if (elapsed >= timeout_ticks) {
+                    // Timeout expired
+                    release(&cons.lock);
+                    ip->iops->ilock(ip);
+                    return target - n;
+                }
+            }
+
+            sleep(&input.r, &cons.lock);
+        }
+        int c = input.buf[input.r++ % INPUT_BUF];
+        if (!raw_mode && c == CTRL('D')) {
+            // EOF
+            if (n < target) {
+                // Save ^D for next time to make sure
+                // the caller gets a 0-byte result.
+                input.r--;
+            }
+            break;
+        }
+        *dst++ = c;
+        --n;
+        if (!raw_mode && c == '\n') {
+            break;
+        }
+        if (raw_mode) {
+            break;
+        }
+    }
+    release(&cons.lock);
+    ip->iops->ilock(ip);
+
+    return target - n;
+}
+
+int console_write(struct inode *ip, char *buf, int n, [[maybe_unused]] u32 offset)
+{
+    ip->iops->iunlock(ip);
+    acquire(&cons.lock);
+    for (int i = 0; i < n; i++) {
+        consputc(buf[i]);
+    }
+    release(&cons.lock);
+    ip->iops->ilock(ip);
+
+    return n;
+}
+
+static void console_apply_termios(void)
+{
+    console_raw_mode      = (console_termios_state.c_lflag & ICANON) == 0;
+    console_echo_enabled  = (console_termios_state.c_lflag & ECHO) != 0;
+    console_opost_enabled = (console_termios_state.c_oflag & OPOST) != 0;
+}
+
+int console_should_auto_scroll(void)
+{
+    return console_opost_enabled;
+}
+
+void console_init(void)
+{
+    initlock(&cons.lock, "console");
+
+    devsw[CONSOLE].write = console_write;
+    devsw[CONSOLE].read  = console_read;
+    cons.locking         = 1;
+
+#ifndef GRAPHICS
+    // Initialize VGA ANSI parser with VGA callbacks
+    vga_terminal_init();
+#else
+    // Initialize VESA ANSI parser with VESA callbacks
+    vesa_terminal_init();
+#endif
+
+    memset(&console_termios_state, 0, sizeof(console_termios_state));
+    console_termios_state.c_iflag     = BRKINT | ICRNL | IXON;
+    console_termios_state.c_oflag     = OPOST;
+    console_termios_state.c_cflag     = CS8;
+    console_termios_state.c_lflag     = ECHO | ICANON | IEXTEN | ISIG;
+    console_termios_state.c_cc[VMIN]  = 1;
+    console_termios_state.c_cc[VTIME] = 0;
+    console_termios_state.c_cc[VINTR] = CTRL('C');
+    console_termios_state.c_cc[VQUIT] = CTRL('\\');
+    console_apply_termios();
+
+#ifdef GRAPHICS
+    console_winsize_state.ws_col = vesa_terminal_columns();
+    console_winsize_state.ws_row = vesa_terminal_rows();
+#else
+    console_winsize_state.ws_col = VGA_WIDTH;
+    console_winsize_state.ws_row = VGA_HEIGHT;
+#endif
+
+    console_winsize_state.ws_xpixel = 0;
+    console_winsize_state.ws_ypixel = 0;
+
+    enable_ioapic_interrupt(IRQ_KBD, 0);
+}

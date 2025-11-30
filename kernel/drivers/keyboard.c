@@ -45,6 +45,14 @@ static bool alt_pressed = false;
 static bool caps_lock = false;
 static bool extended_scancode = false;
 
+void keyboard_clear_modifiers(void)
+{
+    shift_pressed = false;
+    ctrl_pressed = false;
+    alt_pressed = false;
+    extended_scancode = false;
+}
+
 static void keyboard_enqueue_raw(uint8_t scancode)
 {
     int next = (raw_write_ptr + 1) % RAW_BUFFER_SIZE;

@@ -1016,6 +1016,8 @@ int sys_read(int fd, char* buf, size_t count)
                 buf[read++] = c;
             }
         }
+        if (read == 0 && !keyboard_has_char())
+            keyboard_clear_modifiers();
         return clamp_to_int(read);
     }
 

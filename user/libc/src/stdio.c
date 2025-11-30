@@ -194,10 +194,13 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             int len = 0;
             unsigned long abs = (val < 0) ? (unsigned long)(-val) : (unsigned long)val;
             len = format_uint(numbuf, sizeof numbuf, abs, 10, true);
-            int total_len = len + (val < 0 ? 1 : 0);
+            int pad_zero = (precision > len) ? (precision - len) : 0;
+            int total_len = len + pad_zero + (val < 0 ? 1 : 0);
             out_padding(ctx, width, total_len, ' ');
             if (val < 0)
                 out_char(ctx, '-');
+            while (pad_zero-- > 0)
+                out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
             break;
@@ -207,7 +210,10 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
-            out_padding(ctx, width, len, ' ');
+            int pad_zero = (precision > len) ? (precision - len) : 0;
+            out_padding(ctx, width, len + pad_zero, ' ');
+            while (pad_zero-- > 0)
+                out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
             break;
@@ -217,7 +223,10 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
-            out_padding(ctx, width, len, ' ');
+            int pad_zero = (precision > len) ? (precision - len) : 0;
+            out_padding(ctx, width, len + pad_zero, ' ');
+            while (pad_zero-- > 0)
+                out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
             break;

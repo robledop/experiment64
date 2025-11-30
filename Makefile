@@ -27,7 +27,7 @@ endif
 
 ROOTFS=rootfs
 
-override MEM ?= 32M
+override MEM ?= 2G
 override SMP ?= 8
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
