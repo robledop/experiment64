@@ -8,9 +8,9 @@
 #include <stddef.h>
 
 void __exit_with_handlers(int status);
-void exit(int status);
-void _Exit(int status);
-void __exit_impl(int status);
+[[noreturn]] void exit(int status);
+[[noreturn]] void _Exit(int status);
+[[noreturn]] void __exit_impl(int status);
 int atexit(void (*func)(void));
 void __libc_run_atexit(void);
 

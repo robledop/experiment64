@@ -9,11 +9,11 @@
 #define TIME_SLICE_MS 50
 
 // VM area flags (expandable as we add mmap/munmap)
-#define VMA_READ  (1u << 0)
+#define VMA_READ (1u << 0)
 #define VMA_WRITE (1u << 1)
-#define VMA_EXEC  (1u << 2)
-#define VMA_USER  (1u << 3)
-#define VMA_MMAP  (1u << 4)
+#define VMA_EXEC (1u << 2)
+#define VMA_USER (1u << 3)
+#define VMA_MMAP (1u << 4)
 #define VMA_STACK (1u << 5)
 
 typedef enum

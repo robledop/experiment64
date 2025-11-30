@@ -10,16 +10,9 @@
 #include "debug.h"
 #include <limits.h>
 #include "util.h"
+#include "assert.h"
 #ifdef KASAN
 #include "kasan.h"
-#endif
-
-#ifndef ASSERT
-#define ASSERT(c, msg) \
-    if (!(c))          \
-    {                  \
-        panic(msg);    \
-    }
 #endif
 
 typedef uint8_t u8;
@@ -186,7 +179,7 @@ static uint32_t ext2fs_get_free_bit(uint8_t *bitmap, const uint32_t nbits)
     return (uint32_t)-1;
 }
 
-static inline void ext2_read_group_desc(uint32_t dev, int gno, struct ext2_group_desc *out)
+static inline void ext2_read_group_desc(uint32_t dev, uint32_t gno, struct ext2_group_desc *out)
 {
     const uint32_t desc_blockno = ext2_part_offset(dev) + BLOCK_TO_SECTOR(2);
     buffer_head_t *bp = bread(dev, desc_blockno);
@@ -432,7 +425,7 @@ int ext2fs_ilock(struct ext2_inode *ip)
         return -1;
     }
 
-    ASSERT(ip->addrs != nullptr, "ip->addrs is null in ext2fs_ilock before lock");
+    assert(ip->addrs != nullptr, "ip->addrs is null in ext2fs_ilock before lock");
     sleeplock_acquire(&ip->lock);
     if (ip->addrs == nullptr)
     {
@@ -1126,7 +1119,7 @@ static vfs_dirent_t *ext2_vfs_readdir(const vfs_inode_t *node, uint32_t index)
                 if (name_len > EXT2_NAME_LEN)
                     name_len = EXT2_NAME_LEN;
                 ext2_read_inode(dp, dent->name, off + 8, name_len);
-                ASSERT(name_len < 128, "ext2_vfs_readdir: name_len too large");
+                assert(name_len < 128, "ext2_vfs_readdir: name_len too large");
                 dent->name[name_len] = 0;
 
                 ext2fs_iunlock(dp);

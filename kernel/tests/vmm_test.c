@@ -2,8 +2,7 @@
 #include "vmm.h"
 #include "limine.h"
 #include "string.h"
-
-extern void *pmm_alloc_page(void);
+#include "pmm.h"
 
 TEST(test_vmm_map)
 {

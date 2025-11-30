@@ -11,8 +11,8 @@
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
-process_t* kernel_process = nullptr;
-thread_t* idle_thread = nullptr;
+process_t *kernel_process = nullptr;
+thread_t *idle_thread = nullptr;
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
@@ -22,7 +22,7 @@ static bool scheduler_ready = false; // Ignore timer ticks until process_init co
 
 extern void fork_return(void);
 
-void vm_area_init(process_t* proc)
+void vm_area_init(process_t *proc)
 {
     if (!proc)
         return;
@@ -30,20 +30,20 @@ void vm_area_init(process_t* proc)
     proc->vm_area_count = 0;
 }
 
-vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t flags)
+vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t flags)
 {
     if (!proc || start >= end)
         return nullptr;
 
     if (!list_empty(&proc->vm_areas))
     {
-        list_head_t* head = &proc->vm_areas;
-        for (list_head_t* pos = head->next; pos != head; pos = pos->next)
+        list_head_t *head = &proc->vm_areas;
+        for (list_head_t *pos = head->next; pos != head; pos = pos->next)
         {
             if (pos == head)
                 break;
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-            vm_area_t* existing = list_entry(pos, vm_area_t, list);
+            vm_area_t *existing = list_entry(pos, vm_area_t, list);
             if (!existing)
                 continue;
             if (!(end <= existing->start || start >= existing->end)) // NOLINT(clang-analyzer-security.ArrayBound)
@@ -53,7 +53,7 @@ vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t f
         }
     }
 
-    vm_area_t* area = kmalloc(sizeof(vm_area_t));
+    vm_area_t *area = kmalloc(sizeof(vm_area_t));
     if (!area)
         return nullptr;
 
@@ -65,7 +65,7 @@ vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t f
     return area;
 }
 
-void vm_area_clone(process_t* dest, const process_t* src)
+void vm_area_clone(process_t *dest, const process_t *src)
 {
     if (!dest || !src)
         return;
@@ -73,14 +73,14 @@ void vm_area_clone(process_t* dest, const process_t* src)
     INIT_LIST_HEAD(&dest->vm_areas);
     dest->vm_area_count = 0;
 
-    vm_area_t* area;
+    vm_area_t *area;
     list_for_each_entry(area, &src->vm_areas, list)
     {
         vm_area_add(dest, area->start, area->end, area->flags);
     }
 }
 
-void vm_area_clear(process_t* proc)
+void vm_area_clear(process_t *proc)
 {
     if (!proc)
         return;
@@ -119,7 +119,7 @@ bool scheduler_tick(void)
     bool need_resched = false;
 
     spinlock_acquire(&scheduler_lock);
-    process_t* p;
+    process_t *p;
     list_for_each_entry(p, &process_list, list)
     {
         if (list_empty(&p->threads))
@@ -127,7 +127,7 @@ bool scheduler_tick(void)
             continue;
         }
 
-        thread_t* t;
+        thread_t *t;
         list_for_each_entry(t, &p->threads, list)
         {
             if (t->state == THREAD_BLOCKED && t->sleep_until && t->sleep_until <= scheduler_ticks)
@@ -139,7 +139,7 @@ bool scheduler_tick(void)
         }
     }
 
-    thread_t* curr = get_current_thread();
+    thread_t *curr = get_current_thread();
     if (curr)
     {
         if (curr->is_idle)
@@ -183,7 +183,7 @@ void process_init(void)
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     kernel_process->pml4 = (pml4_t)cr3;
 
-    thread_t* kernel_thread = kmalloc(sizeof(thread_t));
+    thread_t *kernel_thread = kmalloc(sizeof(thread_t));
     if (!kernel_thread)
     {
         boot_message(ERROR, "Process: Failed to allocate kernel thread");
@@ -197,7 +197,7 @@ void process_init(void)
     kernel_thread->ticks_remaining = TIME_SLICE_TICKS;
 
     // For the initial kernel thread, we assume we are running on a valid stack.
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu = get_cpu();
     kernel_thread->kstack_top = cpu->kernel_rsp;
 
     kernel_thread->is_idle = false;
@@ -225,9 +225,9 @@ void process_init(void)
     scheduler_ready = true;
 }
 
-process_t* process_create(const char* name)
+process_t *process_create(const char *name)
 {
-    process_t* proc = kmalloc(sizeof(process_t));
+    process_t *proc = kmalloc(sizeof(process_t));
     if (!proc)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
@@ -239,7 +239,7 @@ process_t* process_create(const char* name)
 
     strncpy(proc->name, name, PROCESS_NAME_MAX - 1);
 
-    process_t* current = get_current_process();
+    process_t *current = get_current_process();
     if (current && current->cwd[0])
     {
         strncpy(proc->cwd, current->cwd, VFS_MAX_PATH - 1);
@@ -263,14 +263,14 @@ process_t* process_create(const char* name)
     return proc;
 }
 
-void process_copy_fds(process_t* dest, const process_t* src)
+void process_copy_fds(process_t *dest, const process_t *src)
 {
     for (int i = 0; i < MAX_FDS; i++)
     {
         if (src->fd_table[i])
         {
-            file_descriptor_t* old_desc = src->fd_table[i];
-            file_descriptor_t* new_desc = kmalloc(sizeof(file_descriptor_t));
+            file_descriptor_t *old_desc = src->fd_table[i];
+            file_descriptor_t *new_desc = kmalloc(sizeof(file_descriptor_t));
             if (new_desc)
             {
                 new_desc->flags = old_desc->flags;
@@ -304,7 +304,7 @@ void process_copy_fds(process_t* dest, const process_t* src)
     }
 }
 
-void process_destroy(process_t* proc)
+void process_destroy(process_t *proc)
 {
     if (!proc)
         return;
@@ -317,7 +317,7 @@ void process_destroy(process_t* proc)
 
         // Free kernel stack
         // Stack size is hardcoded 16384 in thread_create
-        void* stack_base = (void*)(t->kstack_top - 16384);
+        void *stack_base = (void *)(t->kstack_top - 16384);
         kfree(stack_base);
 
         kfree(t);
@@ -328,7 +328,7 @@ void process_destroy(process_t* proc)
     {
         if (proc->fd_table[i])
         {
-            file_descriptor_t* desc = proc->fd_table[i];
+            file_descriptor_t *desc = proc->fd_table[i];
             if (desc->inode)
             {
                 vfs_close(desc->inode);
@@ -362,9 +362,9 @@ void process_destroy(process_t* proc)
     kfree(proc);
 }
 
-thread_t* thread_create(process_t* process, void (*entry)(void), [[maybe_unused]] bool is_user)
+thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]] bool is_user)
 {
-    thread_t* thread = kmalloc(sizeof(thread_t));
+    thread_t *thread = kmalloc(sizeof(thread_t));
     if (!thread)
         return nullptr;
     memset(thread, 0, sizeof(thread_t));
@@ -379,7 +379,7 @@ thread_t* thread_create(process_t* process, void (*entry)(void), [[maybe_unused]
 
     init_fpu_state(&thread->fpu_state);
 
-    void* stack = kmalloc(16384); // 16KB stack
+    void *stack = kmalloc(16384); // 16KB stack
     if (!stack)
     {
         kfree(thread);
@@ -387,13 +387,13 @@ thread_t* thread_create(process_t* process, void (*entry)(void), [[maybe_unused]
     }
     thread->kstack_top = (uint64_t)stack + 16384;
 
-    uint64_t* stack_ptr = (uint64_t*)thread->kstack_top;
+    uint64_t *stack_ptr = (uint64_t *)thread->kstack_top;
 
     extern void thread_trampoline(void);
 
     // Reserve space for context
     stack_ptr -= sizeof(struct context) / sizeof(uint64_t);
-    struct context* ctx = (struct context*)stack_ptr;
+    struct context *ctx = (struct context *)stack_ptr;
 
     memset(ctx, 0, sizeof(struct context));
     ctx->rip = (uint64_t)thread_trampoline;
@@ -412,17 +412,17 @@ thread_t* thread_create(process_t* process, void (*entry)(void), [[maybe_unused]
     return thread;
 }
 
-thread_t* get_current_thread(void)
+thread_t *get_current_thread(void)
 {
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu = get_cpu();
     if (!cpu)
         return nullptr;
     return cpu->active_thread;
 }
 
-process_t* get_current_process(void)
+process_t *get_current_process(void)
 {
-    thread_t* t = get_current_thread();
+    thread_t *t = get_current_thread();
     if (t)
         return t->process;
     return nullptr;
@@ -431,8 +431,8 @@ process_t* get_current_process(void)
 // Internal scheduler function. Assumes scheduler_lock is held.
 static void sched(void)
 {
-    cpu_t* cpu = get_cpu();
-    thread_t* curr = cpu->active_thread;
+    cpu_t *cpu = get_cpu();
+    thread_t *curr = cpu->active_thread;
 
 #ifdef TEST_MODE
     if (curr)
@@ -444,17 +444,17 @@ static void sched(void)
     }
 #endif
 
-    thread_t* next_thread = nullptr;
+    thread_t *next_thread = nullptr;
     if (!curr)
         return;
 
-    process_t* p = curr->process;
+    process_t *p = curr->process;
 
     // Search remaining threads in current process
-    list_head_t* t_node = curr->list.next;
+    list_head_t *t_node = curr->list.next;
     while (t_node != &p->threads)
     {
-        thread_t* t = list_entry(t_node, thread_t, list);
+        thread_t *t = list_entry(t_node, thread_t, list);
         if (t->state == THREAD_READY && !t->is_idle)
         {
             next_thread = t;
@@ -464,11 +464,11 @@ static void sched(void)
     }
 
     // Search subsequent processes
-    list_head_t* p_node = p->list.next;
+    list_head_t *p_node = p->list.next;
     while (p_node != &process_list)
     {
-        process_t* next_p = list_entry(p_node, process_t, list);
-        thread_t* t;
+        process_t *next_p = list_entry(p_node, process_t, list);
+        thread_t *t;
         list_for_each_entry(t, &next_p->threads, list)
         {
             if (t->state == THREAD_READY && !t->is_idle)
@@ -484,8 +484,8 @@ static void sched(void)
     p_node = process_list.next;
     while (p_node != &p->list)
     {
-        process_t* prev_p = list_entry(p_node, process_t, list);
-        thread_t* t;
+        process_t *prev_p = list_entry(p_node, process_t, list);
+        thread_t *t;
         list_for_each_entry(t, &prev_p->threads, list)
         {
             if (t->state == THREAD_READY && !t->is_idle)
@@ -501,7 +501,7 @@ static void sched(void)
     t_node = p->threads.next;
     while (t_node != &curr->list)
     {
-        thread_t* t = list_entry(t_node, thread_t, list);
+        thread_t *t = list_entry(t_node, thread_t, list);
         if (t->state == THREAD_READY && !t->is_idle)
         {
             next_thread = t;
@@ -518,7 +518,7 @@ static void sched(void)
 found:
     if (next_thread && next_thread != curr)
     {
-        thread_t* prev = curr;
+        thread_t *prev = curr;
 
         // Switch address space if processes are different
         if (prev->process != next_thread->process)
@@ -572,7 +572,7 @@ void schedule(void)
     uint64_t rflags;
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
-    thread_t* curr = get_current_thread();
+    thread_t *curr = get_current_thread();
     if (!curr)
     {
         if (rflags & RFLAGS_IF)
@@ -589,9 +589,9 @@ void schedule(void)
         __asm__ volatile("sti");
 }
 
-void thread_sleep(void* chan, spinlock_t* lock)
+void thread_sleep(void *chan, spinlock_t *lock)
 {
-    thread_t* curr = get_current_thread();
+    thread_t *curr = get_current_thread();
     if (!curr)
         return;
 
@@ -626,17 +626,17 @@ void thread_sleep(void* chan, spinlock_t* lock)
         __asm__ volatile("sti");
 }
 
-void thread_wakeup(void* chan)
+void thread_wakeup(void *chan)
 {
     // Save interrupt state and disable interrupts
     uint64_t rflags;
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
     spinlock_acquire(&scheduler_lock);
-    process_t* p;
+    process_t *p;
     list_for_each_entry(p, &process_list, list)
     {
-        thread_t* t;
+        thread_t *t;
         list_for_each_entry(t, &p->threads, list)
         {
             if (t->state == THREAD_BLOCKED && t->chan == chan)
@@ -658,7 +658,7 @@ void yield(void)
     schedule();
 }
 
-static const char* thread_state_str(thread_state_t state)
+static const char *thread_state_str(thread_state_t state)
 {
     switch (state)
     {
@@ -682,10 +682,10 @@ void process_dump(void)
 
     spinlock_acquire(&scheduler_lock);
     printk("\n%-5s %-5s %-6s %s\n", "PID", "TID", "STATE", "NAME");
-    process_t* p;
+    process_t *p;
     list_for_each_entry(p, &process_list, list)
     {
-        thread_t* t;
+        thread_t *t;
         list_for_each_entry(t, &p->threads, list)
         {
             printk("%-5d %-5d %-6s %s%s\n",

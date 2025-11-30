@@ -32,9 +32,9 @@ typedef struct FILE
     char path[128];
 } FILE;
 
-extern FILE __stdin_file_obj;
-extern FILE __stdout_file_obj;
-extern FILE __stderr_file_obj;
+extern FILE __stdin_file_obj;  // NOLINT(misc-non-copyable-objects)
+extern FILE __stdout_file_obj; // NOLINT(misc-non-copyable-objects)
+extern FILE __stderr_file_obj; // NOLINT(misc-non-copyable-objects)
 extern FILE *__stdin_file;
 extern FILE *__stdout_file;
 extern FILE *__stderr_file;

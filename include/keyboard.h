@@ -17,5 +17,5 @@ void keyboard_reset_state_for_test(void);
 void keyboard_handler_main(void);
 char keyboard_get_char(void);
 bool keyboard_has_char(void);
-uint64_t keyboard_read_raw(uint8_t *buffer, uint64_t max);
+uint64_t keyboard_read_raw(uint8_t *out, uint64_t max);
 void keyboard_clear_modifiers(void);
