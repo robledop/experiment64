@@ -4,119 +4,9 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <fcntl.h>
+#include <path.h>
 
-#define SHELL_PATH_MAX 256
-#define SHELL_MAX_SEGMENTS 64
-
-static char cwd[SHELL_PATH_MAX] = "/";
-
-static void safe_copy(char *dst, size_t dst_size, const char *src)
-{
-    if (!dst || dst_size == 0)
-        return;
-    if (!src)
-    {
-        dst[0] = '\0';
-        return;
-    }
-
-    size_t i = 0;
-    while (i + 1 < dst_size && src[i])
-    {
-        dst[i] = src[i];
-        i++;
-    }
-    dst[i] = '\0';
-}
-
-static void simplify_path(char *path)
-{
-    char buffer[SHELL_PATH_MAX];
-    safe_copy(buffer, sizeof(buffer), path);
-
-    char *segments[SHELL_MAX_SEGMENTS];
-    int seg_count = 0;
-    char *p = buffer;
-
-    while (*p)
-    {
-        while (*p == '/')
-            p++;
-        if (!*p)
-            break;
-
-        char *segment = p;
-        while (*p && *p != '/')
-            p++;
-        if (*p)
-            *p++ = '\0';
-
-        if (strcmp(segment, ".") == 0)
-            continue;
-        if (strcmp(segment, "..") == 0)
-        {
-            if (seg_count > 0)
-                seg_count--;
-            continue;
-        }
-        if (seg_count < SHELL_MAX_SEGMENTS)
-            segments[seg_count++] = segment;
-    }
-
-    size_t idx = 0;
-    path[idx++] = '/';
-    for (int i = 0; i < seg_count && idx < SHELL_PATH_MAX - 1; i++)
-    {
-        const char *seg = segments[i];
-        for (size_t j = 0; seg[j] && idx < SHELL_PATH_MAX - 1; j++)
-            path[idx++] = seg[j];
-        if (i != seg_count - 1 && idx < SHELL_PATH_MAX - 1)
-            path[idx++] = '/';
-    }
-    if (idx == 1)
-        path[1] = '\0';
-    else
-        path[idx] = '\0';
-}
-
-static void build_absolute_path(const char *input, char *output, size_t size)
-{
-    if (!output || size == 0)
-        return;
-
-    if (!input || !*input)
-    {
-        safe_copy(output, size, cwd);
-        return;
-    }
-
-    if (*input == '/')
-    {
-        safe_copy(output, size, input);
-    }
-    else
-    {
-        size_t idx = 0;
-        if (cwd[0] == '/' && cwd[1] == '\0')
-        {
-            output[idx++] = '/';
-        }
-        else
-        {
-            for (size_t i = 0; cwd[i] && idx + 1 < size; i++)
-                output[idx++] = cwd[i];
-        }
-
-        if (idx > 1 && output[idx - 1] != '/' && idx + 1 < size)
-            output[idx++] = '/';
-
-        for (size_t i = 0; input[i] && idx + 1 < size; i++)
-            output[idx++] = input[i];
-        output[idx] = '\0';
-    }
-
-    simplify_path(output);
-}
+static char cwd[PATH_MAX_LEN] = "/";
 
 static int path_exists(const char *path)
 {
@@ -138,33 +28,33 @@ static int resolve_command_path(const char *command, char *resolved, size_t size
 
     if (command[0] == '/')
     {
-        safe_copy(resolved, size, command);
+        path_safe_copy(resolved, size, command);
         return 0;
     }
 
-    char abs_path[SHELL_PATH_MAX];
-    build_absolute_path(command, abs_path, sizeof(abs_path));
+    char abs_path[PATH_MAX_LEN];
+    path_build_absolute(cwd, command, abs_path, sizeof(abs_path));
     if (path_exists(abs_path))
     {
-        safe_copy(resolved, size, abs_path);
+        path_safe_copy(resolved, size, abs_path);
         return 0;
     }
 
     if (!strchr(command, '/'))
     {
         size_t cmd_len = strlen(command);
-        if (cmd_len + 5 < SHELL_PATH_MAX)
+        if (cmd_len + 5 < PATH_MAX_LEN)
         {
-            char bin_path[SHELL_PATH_MAX];
-            safe_copy(bin_path, sizeof(bin_path), "/bin/");
+            char bin_path[PATH_MAX_LEN];
+            path_safe_copy(bin_path, sizeof(bin_path), "/bin/");
             size_t idx = strlen(bin_path);
-            for (size_t i = 0; command[i] && idx + 1 < SHELL_PATH_MAX; i++)
+            for (size_t i = 0; command[i] && idx + 1 < PATH_MAX_LEN; i++)
                 bin_path[idx++] = command[i];
             bin_path[idx] = '\0';
 
             if (path_exists(bin_path))
             {
-                safe_copy(resolved, size, bin_path);
+                path_safe_copy(resolved, size, bin_path);
                 return 0;
             }
         }
@@ -180,14 +70,14 @@ static void shell_print_prompt(void)
 
 static int shell_change_directory(const char *path)
 {
-    char resolved[SHELL_PATH_MAX];
+    char resolved[PATH_MAX_LEN];
     const char *target = (path && *path) ? path : "/";
-    build_absolute_path(target, resolved, sizeof(resolved));
+    path_build_absolute(cwd, target, resolved, sizeof(resolved));
 
     if (chdir(resolved) != 0)
         return -1;
 
-    safe_copy(cwd, sizeof(cwd), resolved);
+    path_safe_copy(cwd, sizeof(cwd), resolved);
     return 0;
 }
 
@@ -196,8 +86,8 @@ static int shell_run_command(const char *command_line)
     if (!command_line || !*command_line)
         return -1;
 
-    char line[SHELL_PATH_MAX];
-    safe_copy(line, sizeof(line), command_line);
+    char line[PATH_MAX_LEN];
+    path_safe_copy(line, sizeof(line), command_line);
 
     // Tokenize
     char *argv[16];
@@ -219,7 +109,7 @@ static int shell_run_command(const char *command_line)
     if (argc == 0)
         return -1;
 
-    char resolved[SHELL_PATH_MAX];
+    char resolved[PATH_MAX_LEN];
     if (resolve_command_path(argv[0], resolved, sizeof(resolved)) != 0)
         return -1;
 

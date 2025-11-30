@@ -22,9 +22,10 @@
 #include "vfs.h"
 #include "time.h"
 #include "tsc.h"
+#include "path.h"
 
 // ReSharper disable once CppDFAConstantFunctionResult
-static bool prepare_user_buffer(void* addr, const size_t size, const bool is_write)
+static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
 {
     (void)is_write;
     if (!addr || size == 0)
@@ -45,7 +46,7 @@ static bool prepare_user_buffer(void* addr, const size_t size, const bool is_wri
     return true;
 }
 
-static bool copy_to_user(void* dst, const void* src, size_t size)
+static bool copy_to_user(void *dst, const void *src, size_t size)
 {
     if (!dst || !src)
         return false;
@@ -56,18 +57,18 @@ static bool copy_to_user(void* dst, const void* src, size_t size)
     return true;
 }
 
-static bool __attribute__((unused)) copy_from_user(void* dst, const void* src, size_t size)
+static bool __attribute__((unused)) copy_from_user(void *dst, const void *src, size_t size)
 {
     if (!dst || !src)
         return false;
     // ReSharper disable once CppDFAConstantConditions
-    if (!prepare_user_buffer((void*)src, size, false))
+    if (!prepare_user_buffer((void *)src, size, false))
         return false;
     memcpy(dst, src, size);
     return true;
 }
 
-static bool fd_can_read(const file_descriptor_t* desc)
+static bool fd_can_read(const file_descriptor_t *desc)
 {
     if (!desc)
         return false;
@@ -75,7 +76,7 @@ static bool fd_can_read(const file_descriptor_t* desc)
     return mode != O_WRONLY;
 }
 
-static bool fd_can_write(const file_descriptor_t* desc)
+static bool fd_can_write(const file_descriptor_t *desc)
 {
     if (!desc)
         return false;
@@ -83,7 +84,7 @@ static bool fd_can_write(const file_descriptor_t* desc)
     return mode == O_WRONLY || mode == O_RDWR || mode == (O_WRONLY | O_RDWR);
 }
 
-static void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st)
+static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
 {
     if (!inode || !st)
         return;
@@ -112,7 +113,7 @@ uint8_t bootstrap_stack[4096];
 
 void syscall_set_stack(uint64_t stack)
 {
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu = get_cpu();
     cpu->kernel_rsp = stack;
     tss_set_stack(stack);
 }
@@ -131,97 +132,24 @@ struct syscall_regs
 };
 
 #define SYSCALL_MAX_PATH VFS_MAX_PATH
-#define SYSCALL_MAX_SEGMENTS 64
 
-static void safe_copy(char* dst, size_t dst_size, const char* src)
-{
-    if (!dst || dst_size == 0)
-        return;
-    if (kasan_is_ready())
-        kasan_check_range(dst, dst_size, true, __builtin_return_address(0));
-    if (!src)
-    {
-        dst[0] = '\0';
-        return;
-    }
-
-    size_t i = 0;
-    while (i + 1 < dst_size && src[i])
-    {
-        dst[i] = src[i];
-        i++;
-    }
-    dst[i] = '\0';
-}
-
-static void simplify_path(char* path)
-{
-    char buffer[SYSCALL_MAX_PATH];
-    safe_copy(buffer, sizeof(buffer), path);
-
-    char* segments[SYSCALL_MAX_SEGMENTS];
-    int seg_count = 0;
-    char* p = buffer;
-
-    while (*p)
-    {
-        while (*p == '/')
-            p++;
-        if (!*p)
-            break;
-
-        char* segment = p;
-        while (*p && *p != '/')
-            p++;
-        if (*p)
-            *p++ = '\0';
-
-        if (strcmp(segment, ".") == 0)
-            continue;
-        if (strcmp(segment, "..") == 0)
-        {
-            if (seg_count > 0)
-                seg_count--;
-            continue;
-        }
-        if (seg_count < SYSCALL_MAX_SEGMENTS)
-            segments[seg_count++] = segment;
-    }
-
-    size_t idx = 0;
-    path[idx++] = '/';
-    for (int i = 0; i < seg_count && idx < SYSCALL_MAX_PATH - 1; i++)
-    {
-        const char* seg = segments[i];
-        for (size_t j = 0; seg[j] && idx < SYSCALL_MAX_PATH - 1; j++)
-            path[idx++] = seg[j];
-        if (i != seg_count - 1 && idx < SYSCALL_MAX_PATH - 1)
-            path[idx++] = '/';
-    }
-
-    if (idx == 1)
-        path[1] = '\0';
-    else
-        path[idx] = '\0';
-}
-
-static void set_process_name_from_path(process_t* proc, const char* path)
+static void set_process_name_from_path(process_t *proc, const char *path)
 {
     if (!proc || !path)
         return;
-    const char* name = path;
-    for (const char* p = path; *p; p++)
+    const char *name = path;
+    for (const char *p = path; *p; p++)
     {
         if (*p == '/' && p[1])
             name = p + 1;
     }
-    safe_copy(proc->name, sizeof(proc->name), name);
+    path_safe_copy(proc->name, sizeof(proc->name), name);
 }
 
 #define EXEC_MAX_ARGS 16
 #define EXEC_MAX_ARG_LEN 128
 
-static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN])
+static int copy_in_args(const char *const *argv, char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN])
 {
     if (!argv)
         return 0;
@@ -229,11 +157,11 @@ static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_
     int count = 0;
     while (count < EXEC_MAX_ARGS)
     {
-        const char* user_arg = argv[count];
+        const char *user_arg = argv[count];
         if (!user_arg)
             break;
 
-        if (!prepare_user_buffer((void*)user_arg, 1, false))
+        if (!prepare_user_buffer((void *)user_arg, 1, false))
             return -1;
 
         size_t len = 0;
@@ -249,8 +177,8 @@ static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_
     return count;
 }
 
-static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
-                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
+static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
+                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t *out_rsp)
 {
     uint64_t sp = stack_top;
     uint64_t arg_ptrs[EXEC_MAX_ARGS];
@@ -259,7 +187,7 @@ static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
     {
         size_t len = strlen(args[i]) + 1;
         sp -= len;
-        memcpy((void*)sp, args[i], len);
+        memcpy((void *)sp, args[i], len);
         arg_ptrs[i] = sp;
     }
 
@@ -268,95 +196,60 @@ static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
 
     // argv terminator
     sp -= sizeof(uint64_t);
-    *(uint64_t*)sp = 0;
+    *(uint64_t *)sp = 0;
 
     // argv pointers
     for (int i = argc - 1; i >= 0; i--)
     {
         sp -= sizeof(uint64_t);
-        *(uint64_t*)sp = arg_ptrs[i];
+        *(uint64_t *)sp = arg_ptrs[i];
     }
 
     // argc
     sp -= sizeof(uint64_t);
-    *(uint64_t*)sp = (uint64_t)argc;
+    *(uint64_t *)sp = (uint64_t)argc;
 
     *out_rsp = sp;
     (void)pml4;
     return 0;
 }
 
-static void build_absolute_path(const char* base, const char* input, char* output, size_t size)
-{
-    const char* root = (base && base[0]) ? base : "/";
-
-    if (!input || !*input)
-    {
-        safe_copy(output, size, root);
-        return;
-    }
-
-    if (*input == '/')
-    {
-        safe_copy(output, size, input);
-    }
-    else
-    {
-        safe_copy(output, size, root);
-        size_t idx = strlen(output);
-        if (idx == 0)
-        {
-            output[0] = '/';
-            output[1] = '\0';
-            idx = 1;
-        }
-        if (idx > 1 && output[idx - 1] != '/' && idx + 1 < size)
-            output[idx++] = '/';
-
-        for (size_t i = 0; input[i] && idx + 1 < size; i++)
-            output[idx++] = input[i];
-        output[idx] = '\0';
-    }
-
-    simplify_path(output);
-}
-
-static int resolve_user_path(const char* path, char* resolved, size_t size)
+static int resolve_user_path(const char *path, char *resolved, size_t size)
 {
     if (!resolved || size == 0)
         return -1;
 
-    const char* base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
-    build_absolute_path(base, path, resolved, size);
+    const char *base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
+    path_build_absolute(base, path, resolved, size);
     return 0;
 }
 
 // Forward declarations
 int sys_close(int fd);
-int sys_readdir(int fd, vfs_dirent_t* dent);
+int sys_readdir(int fd, vfs_dirent_t *dent);
 int64_t sys_sbrk(int64_t increment);
 void sys_exit(int code);
-int sys_wait(int* status);
+int sys_wait(int *status);
 int sys_getpid(void);
-int sys_read(int fd, char* buf, size_t count);
-int sys_write(int fd, const char* buf, size_t count);
-int sys_exec(const char* path, struct syscall_regs* regs);
-int sys_execve(const char* path, const char* const argv[], const char* const envp[], struct syscall_regs* regs);
-int sys_spawn(const char* path);
-int sys_fork(struct syscall_regs* regs);
-int sys_chdir(const char* path);
+int sys_read(int fd, char *buf, size_t count);
+int sys_write(int fd, const char *buf, size_t count);
+int sys_exec(const char *path, struct syscall_regs *regs);
+int sys_execve(const char *path, const char *const argv[], const char *const envp[], struct syscall_regs *regs);
+int sys_spawn(const char *path);
+int sys_fork(struct syscall_regs *regs);
+int sys_chdir(const char *path);
 int sys_sleep(uint64_t milliseconds);
 int sys_usleep(uint64_t usec);
-int sys_mknod(const char* path, int mode, int dev);
-int sys_ioctl(int fd, int request, void* arg);
-int sys_open(const char* path, int flags);
-void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset);
-int sys_munmap(void* addr, size_t length);
-int sys_stat(const char* path, struct stat* st);
-int sys_fstat(int fd, struct stat* st);
-int sys_link(const char* oldpath, const char* newpath);
-int sys_unlink(const char* path);
-int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
+int sys_mknod(const char *path, int mode, int dev);
+int sys_ioctl(int fd, int request, void *arg);
+int sys_open(const char *path, int flags);
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
+int sys_munmap(void *addr, size_t length);
+int sys_stat(const char *path, struct stat *st);
+int sys_fstat(int fd, struct stat *st);
+int sys_link(const char *oldpath, const char *newpath);
+int sys_unlink(const char *path);
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 
 void syscall_init(void)
 {
@@ -381,7 +274,7 @@ void syscall_init(void)
     // Set TSS RSP0 to the kernel stack
     // For BSP, we use bootstrap stack initially
     // For APs, we should probably have a stack allocated or use what's set
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu = get_cpu();
     if (cpu->kernel_rsp == 0)
     {
         // For BSP, use bootstrap_stack if no stack is set.
@@ -400,17 +293,17 @@ void syscall_set_exit_hook(void (*hook)(int))
     exit_hook = hook;
 }
 
-int sys_write(int fd, const char* buf, size_t count)
+int sys_write(int fd, const char *buf, size_t count)
 {
     if (fd < 0)
         return -1;
 
-    if (!prepare_user_buffer((void*)buf, count, false))
+    if (!prepare_user_buffer((void *)buf, count, false))
         return -1;
 
     if (fd == 1 || fd == 2) // stdout or stderr
     {
-        file_descriptor_t* desc = current_process->fd_table[fd];
+        file_descriptor_t *desc = current_process->fd_table[fd];
         if (desc && !fd_can_write(desc))
             return -1;
 
@@ -421,14 +314,14 @@ int sys_write(int fd, const char* buf, size_t count)
     if (fd < 3 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode || !fd_can_write(desc))
         return -1;
 
     if (desc->flags & O_APPEND)
         desc->offset = desc->inode->size;
 
-    uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t*)buf);
+    uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
     desc->offset += written;
     return clamp_to_int(written);
 }
@@ -447,7 +340,7 @@ void sys_exit(int code)
         thread_wakeup(current_process->parent);
 
     // Save current thread state
-    thread_t* current = get_current_thread();
+    thread_t *current = get_current_thread();
     if (current)
     {
         // Save context if needed (already saved by interrupt handler)
@@ -472,11 +365,11 @@ void spawn_trampoline(void)
         "mov es, %0\n"
         "mov fs, %0\n"
         "mov gs, %0\n"
-        "push %0\n" // SS
-        "push %1\n" // RSP
-        "push %2\n" // RFLAGS
-        "push %3\n" // CS
-        "push %4\n" // RIP
+        "push %0\n"      // SS
+        "push %1\n"      // RSP
+        "push %2\n"      // RFLAGS
+        "push %3\n"      // CS
+        "push %4\n"      // RIP
         "xor rdi, rdi\n" // argc = 0
         "xor rsi, rsi\n" // argv = nullptr
         "iretq\n"
@@ -485,7 +378,7 @@ void spawn_trampoline(void)
         : "memory", "rdi", "rsi");
 }
 
-int sys_spawn(const char* path)
+int sys_spawn(const char *path)
 {
     if (!path || !*path)
         return -1;
@@ -510,11 +403,11 @@ int sys_spawn(const char* path)
 
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
-        void* phys = pmm_alloc_page();
+        void *phys = pmm_alloc_page();
         vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 
-    process_t* proc = process_create(path);
+    process_t *proc = process_create(path);
     set_process_name_from_path(proc, abs_path);
     proc->pml4 = new_pml4;
     proc->parent = current_process;
@@ -523,14 +416,14 @@ int sys_spawn(const char* path)
     process_copy_fds(proc, current_process);
     vm_area_add(proc, stack_base, stack_top, VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK);
 
-    thread_t* thread = thread_create(proc, spawn_trampoline, false);
+    thread_t *thread = thread_create(proc, spawn_trampoline, false);
     thread->user_entry = entry_point;
     thread->user_stack = stack_top;
 
     return proc->pid;
 }
 
-int sys_fork(struct syscall_regs* regs)
+int sys_fork(struct syscall_regs *regs)
 {
     if (!regs)
         return -1;
@@ -541,7 +434,7 @@ int sys_fork(struct syscall_regs* regs)
         return -1;
 
     // Create Process
-    process_t* child_proc = process_create(current_process->name);
+    process_t *child_proc = process_create(current_process->name);
     if (!child_proc)
         return -1;
 
@@ -553,7 +446,7 @@ int sys_fork(struct syscall_regs* regs)
     vm_area_clone(child_proc, current_process);
 
     // Create Thread
-    thread_t* child_thread = thread_create(child_proc, nullptr, true);
+    thread_t *child_thread = thread_create(child_proc, nullptr, true);
     if (!child_thread)
         return -1;
 
@@ -570,11 +463,11 @@ int sys_fork(struct syscall_regs* regs)
     uint64_t context_size = sizeof(struct context);
 
     // Pointer to where regs should be
-    struct syscall_regs* child_regs = (struct syscall_regs*)(stack_top - regs_size);
+    struct syscall_regs *child_regs = (struct syscall_regs *)(stack_top - regs_size);
     *child_regs = *regs; // Copy user registers
 
     // Pointer to where context should be
-    struct context* child_ctx = (struct context*)((uint64_t)child_regs - context_size);
+    struct context *child_ctx = (struct context *)((uint64_t)child_regs - context_size);
     memset(child_ctx, 0, context_size);
 
     child_ctx->rip = (uint64_t)fork_child_trampoline;
@@ -589,7 +482,7 @@ int sys_fork(struct syscall_regs* regs)
     // fork_return expects rsp to point to child_regs.
 
     child_thread->context = child_ctx;
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu = get_cpu();
     child_thread->saved_user_rsp = cpu->user_rsp; // Inherit user stack pointer
 
     return child_proc->pid;
@@ -600,7 +493,7 @@ int sys_getpid(void)
     return current_process->pid;
 }
 
-int sys_wait(int* status)
+int sys_wait(int *status)
 {
     while (1)
     {
@@ -634,15 +527,15 @@ int sys_wait(int* status)
     }
 }
 
-int sys_exec(const char* path, struct syscall_regs* regs)
+int sys_exec(const char *path, struct syscall_regs *regs)
 {
     // Add a null terminator so copy_in_args stops after the single path entry.
-    const char* argv[2] = {path, nullptr};
+    const char *argv[2] = {path, nullptr};
     return sys_execve(path, argv, nullptr, regs);
 }
 
-int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] const char* const envp[],
-               struct syscall_regs* regs)
+int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] const char *const envp[],
+               struct syscall_regs *regs)
 {
     if (!path || !*path)
         return -1;
@@ -657,7 +550,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
         return -1;
     if (argc == 0)
     {
-        safe_copy(args[0], EXEC_MAX_ARG_LEN, abs_path);
+        path_safe_copy(args[0], EXEC_MAX_ARG_LEN, abs_path);
         argc = 1;
     }
 
@@ -681,7 +574,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
 
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
-        void* phys = pmm_alloc_page();
+        void *phys = pmm_alloc_page();
         vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 
@@ -697,14 +590,14 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
     return 0;
 }
 
-int sys_chdir(const char* path)
+int sys_chdir(const char *path)
 {
     if (!path || !*path)
         return -1;
     char abs_path[SYSCALL_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
-    vfs_inode_t* node = vfs_resolve_path(abs_path);
+    vfs_inode_t *node = vfs_resolve_path(abs_path);
     if (!node)
         return -1;
     if ((node->flags & 0x07) != VFS_DIRECTORY)
@@ -717,7 +610,7 @@ int sys_chdir(const char* path)
         return -1;
     }
 
-    safe_copy(current_process->cwd, sizeof(current_process->cwd), abs_path);
+    path_safe_copy(current_process->cwd, sizeof(current_process->cwd), abs_path);
     if (node != vfs_root)
     {
         vfs_close(node);
@@ -726,11 +619,11 @@ int sys_chdir(const char* path)
     return 0;
 }
 
-int sys_getcwd(char* buf, size_t size)
+int sys_getcwd(char *buf, size_t size)
 {
     if (!buf || size == 0)
         return -1;
-    const char* cwd = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
+    const char *cwd = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
     const size_t len = strlen(cwd);
     if (len + 1 > size)
         return -1;
@@ -740,7 +633,7 @@ int sys_getcwd(char* buf, size_t size)
     return 0;
 }
 
-int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
     if (tv && !prepare_user_buffer(tv, sizeof(*tv), true))
         return -1;
@@ -797,19 +690,19 @@ int sys_usleep(uint64_t usec)
     return 0;
 }
 
-int sys_mknod(const char* path, int mode, int dev)
+int sys_mknod(const char *path, int mode, int dev)
 {
     if ((uint64_t)path >= 0x800000000000) // Check if user pointer
         return -1;
 
     char kpath[VFS_MAX_PATH];
-    safe_copy(kpath, sizeof(kpath), path);
-    simplify_path(kpath);
+    path_safe_copy(kpath, sizeof(kpath), path);
+    path_simplify(kpath, sizeof(kpath));
 
     return vfs_mknod(kpath, mode, dev);
 }
 
-int sys_stat(const char* path, struct stat* st)
+int sys_stat(const char *path, struct stat *st)
 {
     if (!path || !st)
         return -1;
@@ -819,7 +712,7 @@ int sys_stat(const char* path, struct stat* st)
     char abs_path[SYSCALL_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
-    vfs_inode_t* inode = vfs_resolve_path(abs_path);
+    vfs_inode_t *inode = vfs_resolve_path(abs_path);
     if (!inode)
         return -1;
 
@@ -832,7 +725,7 @@ int sys_stat(const char* path, struct stat* st)
     return 0;
 }
 
-int sys_link(const char* oldpath, const char* newpath)
+int sys_link(const char *oldpath, const char *newpath)
 {
     if (!oldpath || !newpath || !*oldpath || !*newpath)
         return -1;
@@ -845,7 +738,7 @@ int sys_link(const char* oldpath, const char* newpath)
     return vfs_link(abs_old, abs_new);
 }
 
-int sys_unlink(const char* path)
+int sys_unlink(const char *path)
 {
     if (!path || !*path)
         return -1;
@@ -860,14 +753,14 @@ int sys_unlink(const char* path)
     return vfs_unlink(abs_path);
 }
 
-int sys_fstat(int fd, struct stat* st)
+int sys_fstat(int fd, struct stat *st)
 {
     if (!st || fd < 0 || fd >= MAX_FDS)
         return -1;
     if (!prepare_user_buffer(st, sizeof(struct stat), true))
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return -1;
 
@@ -888,13 +781,13 @@ int64_t sys_sbrk(int64_t increment)
     {
         for (uint64_t addr = old_page_end; addr < new_page_end; addr += PAGE_SIZE)
         {
-            void* phys = pmm_alloc_page();
+            void *phys = pmm_alloc_page();
             if (!phys)
             {
                 return -1; // OOM
             }
             vmm_map_page(current_process->pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-            memset((void*)addr, 0, PAGE_SIZE);
+            memset((void *)addr, 0, PAGE_SIZE);
         }
     }
     else if (increment < 0)
@@ -908,7 +801,7 @@ int64_t sys_sbrk(int64_t increment)
 }
 
 uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3,
-                         struct syscall_regs* regs)
+                         struct syscall_regs *regs)
 {
     // Enable interrupts to allow I/O
     __asm__ volatile("sti");
@@ -926,69 +819,69 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     switch (syscall_number)
     {
     case SYS_WRITE:
-        return sys_write((int)arg1, (const char*)arg2, (size_t)arg3);
+        return sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
     case SYS_EXIT:
         sys_exit((int)arg1);
         return 0;
     case SYS_EXEC:
-        sys_exec((const char*)arg1, regs);
+        sys_exec((const char *)arg1, regs);
         return 0;
     case SYS_EXECVE:
-        return sys_execve((const char*)arg1, (const char*const *)arg2, (const char*const *)arg3, regs);
+        return sys_execve((const char *)arg1, (const char *const *)arg2, (const char *const *)arg3, regs);
     case SYS_FORK:
         return sys_fork(regs);
     case SYS_SPAWN:
-        return sys_spawn((const char*)arg1);
+        return sys_spawn((const char *)arg1);
     case SYS_WAIT:
-        return sys_wait((int*)arg1);
+        return sys_wait((int *)arg1);
     case SYS_GETPID:
         return sys_getpid();
     case SYS_YIELD:
         schedule();
         return 0;
     case SYS_READ:
-        return sys_read((int)arg1, (char*)arg2, (size_t)arg3);
+        return sys_read((int)arg1, (char *)arg2, (size_t)arg3);
     case SYS_SBRK:
         return sys_sbrk((int64_t)arg1);
     case SYS_OPEN:
-        return sys_open((const char*)arg1, (int)arg2);
+        return sys_open((const char *)arg1, (int)arg2);
     case SYS_CLOSE:
         return sys_close((int)arg1);
     case SYS_READDIR:
-        return sys_readdir((int)arg1, (vfs_dirent_t*)arg2);
+        return sys_readdir((int)arg1, (vfs_dirent_t *)arg2);
     case SYS_CHDIR:
-        return sys_chdir((const char*)arg1);
+        return sys_chdir((const char *)arg1);
     case SYS_SLEEP:
         return sys_sleep(arg1);
     case SYS_USLEEP:
         return sys_usleep(arg1);
     case SYS_MKNOD:
-        return sys_mknod((const char*)arg1, (int)arg2, (int)arg3);
+        return sys_mknod((const char *)arg1, (int)arg2, (int)arg3);
     case SYS_IOCTL:
-        return sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
+        return sys_ioctl((int)arg1, (int)arg2, (void *)arg3);
     case SYS_MMAP:
-        return (uint64_t)sys_mmap((void*)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
+        return (uint64_t)sys_mmap((void *)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
     case SYS_MUNMAP:
-        return (uint64_t)sys_munmap((void*)arg1, (size_t)arg2);
+        return (uint64_t)sys_munmap((void *)arg1, (size_t)arg2);
     case SYS_STAT:
-        return sys_stat((const char*)arg1, (struct stat*)arg2);
+        return sys_stat((const char *)arg1, (struct stat *)arg2);
     case SYS_FSTAT:
-        return sys_fstat((int)arg1, (struct stat*)arg2);
+        return sys_fstat((int)arg1, (struct stat *)arg2);
     case SYS_LINK:
-        return sys_link((const char*)arg1, (const char*)arg2);
+        return sys_link((const char *)arg1, (const char *)arg2);
     case SYS_UNLINK:
-        return sys_unlink((const char*)arg1);
+        return sys_unlink((const char *)arg1);
     case SYS_GETCWD:
-        return sys_getcwd((char*)arg1, (size_t)arg2);
+        return sys_getcwd((char *)arg1, (size_t)arg2);
     case SYS_GETTIMEOFDAY:
-        return sys_gettimeofday((struct timeval*)arg1, (struct timezone*)arg2);
+        return sys_gettimeofday((struct timeval *)arg1, (struct timezone *)arg2);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;
     }
 }
 
-int sys_read(int fd, char* buf, size_t count)
+int sys_read(int fd, char *buf, size_t count)
 {
     if (fd < 0)
         return 0;
@@ -998,7 +891,7 @@ int sys_read(int fd, char* buf, size_t count)
 
     if (fd == 0) // stdin
     {
-        file_descriptor_t* desc = current_process->fd_table[0];
+        file_descriptor_t *desc = current_process->fd_table[0];
         if (desc && !fd_can_read(desc))
             return -1;
 
@@ -1024,18 +917,18 @@ int sys_read(int fd, char* buf, size_t count)
     if (fd < 3 || fd >= MAX_FDS)
         return 0;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return 0;
     if (!fd_can_read(desc))
         return -1;
 
-    uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t*)buf);
+    uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
     desc->offset += read;
     return clamp_to_int(read);
 }
 
-int sys_open(const char* path, int flags)
+int sys_open(const char *path, int flags)
 {
     if (!path || !*path)
         return -1;
@@ -1054,7 +947,7 @@ int sys_open(const char* path, int flags)
     if (fd == -1)
         return -1;
 
-    vfs_inode_t* inode = vfs_resolve_path(abs_path);
+    vfs_inode_t *inode = vfs_resolve_path(abs_path);
     if (!inode && (flags & O_CREATE))
     {
         if (vfs_mknod(abs_path, VFS_FILE, 0) == 0)
@@ -1081,7 +974,7 @@ int sys_open(const char* path, int flags)
         }
     }
 
-    file_descriptor_t* desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *desc = kmalloc(sizeof(file_descriptor_t));
     if (!desc)
     {
         vfs_close(inode);
@@ -1101,7 +994,7 @@ int sys_open(const char* path, int flags)
     return fd;
 }
 
-int sys_ioctl(int fd, int request, void* arg)
+int sys_ioctl(int fd, int request, void *arg)
 {
     size_t arg_size = 0;
     switch (request)
@@ -1127,7 +1020,7 @@ int sys_ioctl(int fd, int request, void* arg)
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return -1;
 
@@ -1139,7 +1032,7 @@ static uint64_t align_up(uint64_t value, uint64_t align)
     return (value + align - 1) & ~(align - 1);
 }
 
-void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset)
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)
 {
     (void)prot;
     if (length == 0)
@@ -1152,12 +1045,12 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
     if (fd < 0 || fd >= MAX_FDS)
         return MAP_FAILED;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return MAP_FAILED;
 
     // Require this to be the framebuffer device.
-    struct limine_framebuffer* fb = framebuffer_current();
+    struct limine_framebuffer *fb = framebuffer_current();
     if (!fb || desc->inode->device != fb)
         return MAP_FAILED;
 
@@ -1185,7 +1078,7 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
     while (true)
     {
         bool overlap = false;
-        vm_area_t* area;
+        vm_area_t *area;
         list_for_each_entry(area, &current_process->vm_areas, list)
         {
             if (!(base + total_len <= area->start || base >= area->end))
@@ -1218,10 +1111,10 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
 
     vm_area_add(current_process, base, base + total_len, VMA_READ | VMA_WRITE | VMA_USER | VMA_MMAP);
 
-    return (void*)(base + in_page_delta);
+    return (void *)(base + in_page_delta);
 }
 
-int sys_munmap(void* addr, size_t length)
+int sys_munmap(void *addr, size_t length)
 {
     if (!addr || length == 0)
         return -1;
@@ -1229,7 +1122,7 @@ int sys_munmap(void* addr, size_t length)
     uint64_t start = (uint64_t)addr & ~(PAGE_SIZE - 1);
     uint64_t end = start + align_up(length, PAGE_SIZE);
 
-    vm_area_t* area;
+    vm_area_t *area;
     bool found = false;
     list_for_each_entry(area, &current_process->vm_areas, list)
     {
@@ -1245,7 +1138,7 @@ int sys_munmap(void* addr, size_t length)
     for (uint64_t va = start; va < end; va += PAGE_SIZE)
         vmm_unmap_page(current_process->pml4, va);
 
-    vm_area_t* tmp;
+    vm_area_t *tmp;
     list_for_each_entry_safe(area, tmp, &current_process->vm_areas, list)
     {
         if (area->start == start && area->end == end && (area->flags & VMA_MMAP))
@@ -1263,7 +1156,7 @@ int sys_close(int fd)
 {
     if (fd < 3 || fd >= MAX_FDS)
         return -1;
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc)
         return -1;
 
@@ -1277,15 +1170,15 @@ int sys_close(int fd)
     return 0;
 }
 
-int sys_readdir(int fd, vfs_dirent_t* dent)
+int sys_readdir(int fd, vfs_dirent_t *dent)
 {
     if (fd < 3 || fd >= MAX_FDS)
         return -1;
-    file_descriptor_t* desc = current_process->fd_table[fd];
+    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc)
         return -1;
 
-    vfs_dirent_t* d = vfs_readdir(desc->inode, desc->offset);
+    vfs_dirent_t *d = vfs_readdir(desc->inode, desc->offset);
     if (!d)
         return 0; // End of directory
 
