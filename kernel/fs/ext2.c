@@ -45,15 +45,26 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum);
 static void ext2fs_bfree(uint32_t dev, uint32_t b);
 static uint32_t ext2fs_bmap(const struct ext2_inode* ip, uint32_t bn);
 static void ext2fs_itrunc(struct ext2_inode* ip);
-struct ext2fs_addrs ext2fs_addrs[NINODE];
-struct ext2_super_block ext2_sb;
 static uint32_t first_partition_blocks[4] = {0};
 
+// Small helpers to keep dir/alloc code readable.
+static inline uint32_t ext2_part_offset(uint32_t dev)
+{
+    return (dev < 4) ? first_partition_blocks[dev] : 0;
+}
+
+static inline uint16_t ext2_dirent_size(u8 name_len)
+{
+    const uint16_t size = 8 + name_len;
+    return (uint16_t)((size + 3) & ~3);
+}
+struct ext2fs_addrs ext2fs_addrs[NINODE];
+struct ext2_super_block ext2_sb;
+
+// part_offset is kept for back-compat; prefer ext2_part_offset().
 static inline uint32_t part_offset(uint32_t dev)
 {
-    if (dev >= 4)
-        return 0;
-    return first_partition_blocks[dev];
+    return ext2_part_offset(dev);
 }
 // extern struct mbr mbr; // Removed dependency
 
@@ -155,50 +166,49 @@ static uint32_t ext2fs_get_free_bit(uint8_t* bitmap, const uint32_t nbits)
     return (uint32_t)-1;
 }
 
+static inline void ext2_read_group_desc(uint32_t dev, int gno, struct ext2_group_desc* out)
+{
+    const uint32_t desc_blockno = ext2_part_offset(dev) + BLOCK_TO_SECTOR(2);
+    buffer_head_t* bp = bread(dev, desc_blockno);
+    memcpy(out, bp->data + gno * sizeof(*out), sizeof(*out));
+    brelse(bp);
+}
+
 // Allocate a zeroed disk block.
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 {
-    struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
-    // block group descriptor table starts at block 2
-
     const int gno = GET_GROUP_NO(inum, ext2_sb);
-    buffer_head_t* bp1 = bread(dev, desc_blockno);
-    memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-    brelse(bp1);
+    struct ext2_group_desc bgdesc;
+    ext2_read_group_desc(dev, gno, &bgdesc);
 
-    const uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + part_offset(dev);
+    const uint32_t bitmap_block = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev);
+    buffer_head_t* bp = bread(dev, bitmap_block);
 
-    buffer_head_t* bp2 = bread(dev, bitmap_block);
-
-    const uint32_t fbit = ext2fs_get_free_bit((uint8_t*)bp2->data, ext2_sb.s_blocks_per_group);
-    if (fbit != (uint32_t)-1)
+    const uint32_t fbit = ext2fs_get_free_bit((uint8_t*)bp->data, ext2_sb.s_blocks_per_group);
+    if (fbit == (uint32_t)-1)
     {
-        bwrite(bp2);
-        brelse(bp2);
-
-        const uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
-        const uint32_t rel_block = group_first_block + fbit;
-        const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + part_offset(dev);
-        for (uint32_t i = 0; i < EXT2_BSIZE / 512; i++)
-        {
-            ext2fs_bzero(dev, start_sector + i);
-        }
-        return rel_block;
+        brelse(bp);
+        printk("PANIC: ");
+        printk("ext2_balloc: out of blocks\n");
+        return 0;
     }
-    brelse(bp2);
-    printk("PANIC: ");
-    printk("ext2_balloc: out of blocks\n");
-    return 0;
+
+    bwrite(bp);
+    brelse(bp);
+
+    const uint32_t group_first_block = ext2_sb.s_first_data_block + gno * ext2_sb.s_blocks_per_group;
+    const uint32_t rel_block = group_first_block + fbit;
+    const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + ext2_part_offset(dev);
+    for (uint32_t i = 0; i < EXT2_BSIZE / 512; i++)
+    {
+        ext2fs_bzero(dev, start_sector + i);
+    }
+    return rel_block;
 }
 
 // Free a disk block.
 static void ext2fs_bfree(uint32_t dev, uint32_t b)
 {
-    struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = part_offset(dev) + BLOCK_TO_SECTOR(2);
-    // block group descriptor table starts at block 2
-
     if (b < ext2_sb.s_first_data_block)
     {
         printk("PANIC: ");
@@ -209,9 +219,10 @@ static void ext2fs_bfree(uint32_t dev, uint32_t b)
     const uint32_t gno = block_index / ext2_sb.s_blocks_per_group;
     const uint32_t offset = block_index % ext2_sb.s_blocks_per_group;
 
-    buffer_head_t* bp1 = bread(dev, desc_blockno);
-    memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-    buffer_head_t* bp2 = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + part_offset(dev));
+    struct ext2_group_desc bgdesc;
+    ext2_read_group_desc(dev, gno, &bgdesc);
+
+    buffer_head_t* bp = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev));
     const uint32_t byte_index = offset / 8;
     if (byte_index >= EXT2_BSIZE)
     {
@@ -220,15 +231,14 @@ static void ext2fs_bfree(uint32_t dev, uint32_t b)
     }
     const u8 mask = (u8)(1U << (offset % 8));
 
-    if ((bp2->data[byte_index] & mask) == 0)
+    if ((bp->data[byte_index] & mask) == 0)
     {
         printk("PANIC: ");
         printk("ext2fs_bfree: block already free\n");
     }
-    bp2->data[byte_index] &= ~mask;
-    bwrite(bp2);
-    brelse(bp2);
-    brelse(bp1);
+    bp->data[byte_index] &= ~mask;
+    bwrite(bp);
+    brelse(bp);
 }
 
 void ext2_init_inode(int dev)
@@ -934,12 +944,6 @@ int ext2_write_inode(struct ext2_inode* ip, const char* src, uint32_t off, uint3
 int ext2fs_namecmp(const char* s, const char* t)
 {
     return strncmp(s, t, EXT2_NAME_LEN);
-}
-
-static inline uint16_t ext2_dirent_size(u8 name_len)
-{
-    const uint16_t size = 8 + name_len;
-    return (size + 3) & ~3;
 }
 
 struct ext2_inode* ext2fs_dirlookup(const struct ext2_inode* dp, const char* name, uint32_t* poff)
