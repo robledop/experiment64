@@ -2,8 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-
-#define PAGE_SIZE 4096
+#include "pmm.h" // for PAGE_SIZE
 
 #define PTE_PRESENT (1ull << 0)
 #define PTE_WRITABLE (1ull << 1)

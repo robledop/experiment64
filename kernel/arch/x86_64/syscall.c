@@ -123,7 +123,6 @@ extern void fork_return(void);
 extern void fork_child_trampoline(void);
 
 #define TIMER_TICK_MS 10
-#define SYSCALL_MAX_PATH VFS_MAX_PATH
 
 static void set_process_name_from_path(process_t *proc, const char *path)
 {
@@ -374,7 +373,7 @@ int sys_spawn(const char *path)
 {
     if (!path || !*path)
         return -1;
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         return -1;
 
@@ -532,7 +531,7 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
     if (!path || !*path)
         return -1;
 
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         return -1;
 
@@ -586,7 +585,7 @@ int sys_chdir(const char *path)
 {
     if (!path || !*path)
         return -1;
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     vfs_inode_t *node = vfs_resolve_path(abs_path);
@@ -701,7 +700,7 @@ int sys_stat(const char *path, struct stat *st)
     if (!prepare_user_buffer(st, sizeof(struct stat), true))
         return -1;
 
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     vfs_inode_t *inode = vfs_resolve_path(abs_path);
@@ -722,8 +721,8 @@ int sys_link(const char *oldpath, const char *newpath)
     if (!oldpath || !newpath || !*oldpath || !*newpath)
         return -1;
 
-    char abs_old[SYSCALL_MAX_PATH];
-    char abs_new[SYSCALL_MAX_PATH];
+    char abs_old[VFS_MAX_PATH];
+    char abs_new[VFS_MAX_PATH];
     resolve_user_path(oldpath, abs_old, sizeof(abs_old));
     resolve_user_path(newpath, abs_new, sizeof(abs_new));
 
@@ -735,7 +734,7 @@ int sys_unlink(const char *path)
     if (!path || !*path)
         return -1;
 
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     // Prevent unlinking the root
@@ -925,7 +924,7 @@ int sys_open(const char *path, int flags)
     if (!path || !*path)
         return -1;
     const bool want_write = (flags & O_WRONLY) || (flags & O_RDWR);
-    char abs_path[SYSCALL_MAX_PATH];
+    char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
     int fd = -1;
     for (int i = 3; i < MAX_FDS; i++)

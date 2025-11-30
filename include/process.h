@@ -97,8 +97,6 @@ typedef struct Thread
 extern list_head_t process_list;
 extern process_t *kernel_process;
 extern spinlock_t scheduler_lock;
-// extern process_t *current_process; // Removed
-// extern thread_t *current_thread;   // Removed
 extern volatile uint64_t scheduler_ticks;
 
 void process_init(void);

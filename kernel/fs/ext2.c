@@ -27,16 +27,10 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-#define MAX_FILE_PATH 256
-
-// Map internal types to VFS types or just use constants
+// Map internal types to VFS types
 #define T_DIR EXT2_FT_DIR
 #define T_FILE EXT2_FT_REG_FILE
 #define T_DEV EXT2_FT_CHRDEV
-
-#define NDEV 10 // Dummy value
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define BLOCK_TO_SECTOR(b) ((b) * (EXT2_BSIZE / 512))
 #define PTRS_PER_SECTOR (512 / sizeof(uint32_t))
