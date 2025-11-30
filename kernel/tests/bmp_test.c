@@ -3,6 +3,7 @@
 #include "vfs.h"
 #include "heap.h"
 #include "string.h"
+#include "test_helpers.h"
 
 TEST(test_bmp_load_valid)
 {
@@ -56,14 +57,7 @@ TEST(test_bmp_load_valid)
 
     // Write to file
     const char *filename = "/mnt/test.bmp";
-    vfs_mknod((char *)filename, VFS_FILE, 0);
-    vfs_inode_t *node = vfs_resolve_path(filename);
-
-    TEST_ASSERT(node != nullptr);
-
-    // Truncate/Overwrite
-    TEST_ASSERT(vfs_write(node, 0, sizeof(bmp_data), bmp_data) == sizeof(bmp_data));
-    vfs_close(node);
+    TEST_ASSERT(test_vfs_write_file(filename, 0, bmp_data, sizeof(bmp_data)));
 
     // Load it back
     uint32_t *out_pixels = nullptr;
@@ -126,11 +120,7 @@ TEST(test_bmp_bad_header)
     ih->biCompression = 0;
     ih->biSizeImage = 3;
 
-    vfs_mknod((char *)filename, VFS_FILE, 0);
-    vfs_inode_t *node = vfs_resolve_path(filename);
-    TEST_ASSERT(node != nullptr);
-    TEST_ASSERT(vfs_write(node, 0, sizeof(buf), buf) == sizeof(buf));
-    vfs_close(node);
+    TEST_ASSERT(test_vfs_write_file(filename, 0, buf, sizeof(buf)));
 
     uint32_t *pixels = nullptr;
     uint32_t w = 0, h = 0;
