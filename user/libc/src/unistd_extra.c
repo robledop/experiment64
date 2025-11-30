@@ -1,21 +1,20 @@
 #include <unistd.h>
 #include <errno.h>
+#include <sys/syscall.h>
+
+// VFS_DIRECTORY flag for mknod
+#define VFS_DIRECTORY 0x02
 
 int mkdir(const char *path, [[maybe_unused]] int mode)
 {
-    // No directory creation support yet; pretend success for simple ports.
-    (void)path;
-    (void)mode;
-    return 0;
+    // Use SYS_MKNOD with VFS_DIRECTORY to create a directory
+    (void)mode; // POSIX mode bits not yet supported
+    return (int)syscall3(SYS_MKNOD, (long)path, VFS_DIRECTORY, 0);
 }
 
 long lseek(int fd, long offset, int whence)
 {
-    // Not supported; callers using buffered FILE should not rely on it.
-    (void)fd;
-    (void)offset;
-    (void)whence;
-    return -1;
+    return syscall3(SYS_LSEEK, fd, offset, whence);
 }
 
 int remove(const char *path)
@@ -35,7 +34,8 @@ int rename(const char *oldpath, const char *newpath)
 
 int isatty(int fd)
 {
-    if (fd >= 0 && fd <= 2) {
+    if (fd >= 0 && fd <= 2)
+    {
         return 1;
     }
     errno = -ENOTTY;

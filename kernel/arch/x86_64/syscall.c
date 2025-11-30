@@ -11,7 +11,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "ioctl.h"
-#include "kasan.h"
 #include "string.h"
 #include "heap.h"
 #include "framebuffer.h"
@@ -23,6 +22,40 @@
 #include "time.h"
 #include "tsc.h"
 #include "path.h"
+#include "pipe.h"
+
+#ifdef KASAN
+#include "kasan.h"
+#endif
+
+int sys_close(int fd);
+int sys_readdir(int fd, vfs_dirent_t *dent);
+int64_t sys_sbrk(int64_t increment);
+void sys_exit(int code);
+int sys_wait(int *status);
+int sys_getpid(void);
+int sys_read(int fd, char *buf, size_t count);
+int sys_write(int fd, const char *buf, size_t count);
+int sys_exec(const char *path, struct syscall_regs *regs);
+int sys_execve(const char *path, const char *const argv[], const char *const envp[], struct syscall_regs *regs);
+int sys_spawn(const char *path);
+int sys_fork(struct syscall_regs *regs);
+int sys_chdir(const char *path);
+int sys_sleep(uint64_t milliseconds);
+int sys_usleep(uint64_t usec);
+int sys_mknod(const char *path, int mode, int dev);
+int sys_ioctl(int fd, int request, void *arg);
+int sys_open(const char *path, int flags);
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
+int sys_munmap(void *addr, size_t length);
+int sys_stat(const char *path, struct stat *st);
+int sys_fstat(int fd, struct stat *st);
+int sys_link(const char *oldpath, const char *newpath);
+int sys_unlink(const char *path);
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
+int sys_pipe(int pipefd[2]);
+long sys_lseek(int fd, long offset, int whence);
+int sys_dup(int oldfd);
 
 // ReSharper disable once CppDFAConstantFunctionResult
 static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
@@ -214,33 +247,6 @@ static int resolve_user_path(const char *path, char *resolved, size_t size)
     path_build_absolute(base, path, resolved, size);
     return 0;
 }
-
-// Forward declarations
-int sys_close(int fd);
-int sys_readdir(int fd, vfs_dirent_t *dent);
-int64_t sys_sbrk(int64_t increment);
-void sys_exit(int code);
-int sys_wait(int *status);
-int sys_getpid(void);
-int sys_read(int fd, char *buf, size_t count);
-int sys_write(int fd, const char *buf, size_t count);
-int sys_exec(const char *path, struct syscall_regs *regs);
-int sys_execve(const char *path, const char *const argv[], const char *const envp[], struct syscall_regs *regs);
-int sys_spawn(const char *path);
-int sys_fork(struct syscall_regs *regs);
-int sys_chdir(const char *path);
-int sys_sleep(uint64_t milliseconds);
-int sys_usleep(uint64_t usec);
-int sys_mknod(const char *path, int mode, int dev);
-int sys_ioctl(int fd, int request, void *arg);
-int sys_open(const char *path, int flags);
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
-int sys_munmap(void *addr, size_t length);
-int sys_stat(const char *path, struct stat *st);
-int sys_fstat(int fd, struct stat *st);
-int sys_link(const char *oldpath, const char *newpath);
-int sys_unlink(const char *path);
-int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 
 void syscall_init(void)
 {
@@ -866,6 +872,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_getcwd((char *)arg1, (size_t)arg2);
     case SYS_GETTIMEOFDAY:
         return sys_gettimeofday((struct timeval *)arg1, (struct timezone *)arg2);
+    case SYS_PIPE:
+        return sys_pipe((int *)arg1);
+    case SYS_LSEEK:
+        return sys_lseek((int)arg1, (long)arg2, (int)arg3);
+    case SYS_DUP:
+        return sys_dup((int)arg1);
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;
@@ -947,6 +959,10 @@ int sys_open(const char *path, int flags)
     if (!inode)
         return -1;
 
+    // Initialize ref count for dup() support
+    if (inode->ref == 0)
+        inode->ref = 1;
+
     if ((flags & O_TRUNC) && (inode->flags & VFS_FILE))
     {
         if (!want_write)
@@ -979,6 +995,7 @@ int sys_open(const char *path, int flags)
     if (flags & O_APPEND)
         desc->offset = inode->size;
     desc->flags = flags;
+    desc->ref = 1;
     current_process->fd_table[fd] = desc;
 
     vfs_open(inode);
@@ -1138,6 +1155,76 @@ int sys_munmap(void *addr, size_t length)
     return 0;
 }
 
+int sys_pipe(int pipefd[2])
+{
+    if (!pipefd)
+        return -1;
+    if (!prepare_user_buffer(pipefd, 2 * sizeof(int), true))
+        return -1;
+
+    // Find two free file descriptors
+    int read_fd = -1, write_fd = -1;
+    for (int i = 3; i < MAX_FDS && (read_fd == -1 || write_fd == -1); i++)
+    {
+        if (current_process->fd_table[i] == nullptr)
+        {
+            if (read_fd == -1)
+                read_fd = i;
+            else
+                write_fd = i;
+        }
+    }
+
+    if (read_fd == -1 || write_fd == -1)
+        return -1; // No free file descriptors
+
+    // Create the pipe
+    vfs_inode_t *read_inode = nullptr;
+    vfs_inode_t *write_inode = nullptr;
+    if (pipe_alloc(&read_inode, &write_inode) != 0)
+        return -1;
+
+    // Allocate file descriptors
+    file_descriptor_t *read_desc = kmalloc(sizeof(file_descriptor_t));
+    if (!read_desc)
+    {
+        kfree(read_inode);
+        kfree(write_inode);
+        return -1;
+    }
+
+    file_descriptor_t *write_desc = kmalloc(sizeof(file_descriptor_t));
+    if (!write_desc)
+    {
+        kfree(read_desc);
+        kfree(read_inode);
+        kfree(write_inode);
+        return -1;
+    }
+
+    // Set up read descriptor
+    read_desc->inode = read_inode;
+    read_desc->offset = 0;
+    read_desc->flags = O_RDONLY;
+    read_desc->ref = 1;
+
+    // Set up write descriptor
+    write_desc->inode = write_inode;
+    write_desc->offset = 0;
+    write_desc->flags = O_WRONLY;
+    write_desc->ref = 1;
+
+    // Install in process fd table
+    current_process->fd_table[read_fd] = read_desc;
+    current_process->fd_table[write_fd] = write_desc;
+
+    // Return fds to user
+    pipefd[0] = read_fd;
+    pipefd[1] = write_fd;
+
+    return 0;
+}
+
 int sys_close(int fd)
 {
     if (fd < 3 || fd >= MAX_FDS)
@@ -1146,14 +1233,95 @@ int sys_close(int fd)
     if (!desc)
         return -1;
 
-    if (desc->inode != vfs_root)
+    // Clear this fd slot first
+    current_process->fd_table[fd] = nullptr;
+
+    // Decrement file descriptor ref count
+    if (desc->ref > 1)
     {
-        vfs_close(desc->inode);
-        kfree(desc->inode);
+        desc->ref--;
+        return 0; // Other fds still reference this descriptor
+    }
+
+    // Last reference to this descriptor - close the inode
+    if (desc->inode && desc->inode != vfs_root)
+    {
+        // Only close and free inode when its ref count reaches 0
+        if (desc->inode->ref <= 1)
+        {
+            vfs_close(desc->inode);
+            kfree(desc->inode);
+        }
+        else
+        {
+            desc->inode->ref--;
+        }
     }
     kfree(desc);
-    current_process->fd_table[fd] = nullptr;
     return 0;
+}
+
+long sys_lseek(int fd, long offset, int whence)
+{
+    if (fd < 3 || fd >= MAX_FDS)
+        return -1;
+    file_descriptor_t *desc = current_process->fd_table[fd];
+    if (!desc || !desc->inode)
+        return -1;
+
+    // Pipes are not seekable
+    if (desc->inode->flags == VFS_PIPE)
+        return -1;
+
+    long new_offset;
+    switch (whence)
+    {
+    case 0: // SEEK_SET
+        new_offset = offset;
+        break;
+    case 1: // SEEK_CUR
+        new_offset = (long)desc->offset + offset;
+        break;
+    case 2: // SEEK_END
+        new_offset = (long)desc->inode->size + offset;
+        break;
+    default:
+        return -1;
+    }
+
+    if (new_offset < 0)
+        return -1;
+
+    desc->offset = (uint64_t)new_offset;
+    return new_offset;
+}
+
+int sys_dup(int oldfd)
+{
+    if (oldfd < 0 || oldfd >= MAX_FDS)
+        return -1;
+    file_descriptor_t *old_desc = current_process->fd_table[oldfd];
+    if (!old_desc)
+        return -1;
+
+    // Find lowest available fd starting from 3 (skip stdin, stdout, stderr)
+    int newfd = -1;
+    for (int i = 3; i < MAX_FDS; i++)
+    {
+        if (current_process->fd_table[i] == nullptr)
+        {
+            newfd = i;
+            break;
+        }
+    }
+    if (newfd == -1)
+        return -1;
+
+    // Share the file descriptor (both fds point to same descriptor)
+    // This ensures they share the same file offset per POSIX semantics
+    old_desc->ref++;
+    current_process->fd_table[newfd] = old_desc;
+    return newfd;
 }
 
 int sys_readdir(int fd, vfs_dirent_t *dent)

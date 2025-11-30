@@ -1144,6 +1144,8 @@ int ext2fs_dirlink(struct ext2_inode *dp, const char *name, uint32_t inum)
 static uint64_t ext2_vfs_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
 {
     struct ext2_inode *ip = (struct ext2_inode *)node->device;
+    if (ip == nullptr)
+        return 0;
     if (ext2fs_ilock(ip) != 0)
         return 0;
     const int n = ext2_read_inode(ip, (char *)buffer, offset, size);

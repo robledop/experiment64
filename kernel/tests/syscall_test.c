@@ -7,6 +7,7 @@
 #include "terminal.h"
 #include "process.h"
 #include "fcntl.h"
+#include "uart.h"
 
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c
 int sys_open(const char *path, int flags);
@@ -1057,5 +1058,258 @@ TEST(test_syscall_exec_nonexistent_path)
     struct syscall_regs dummy = {0};
     int res = sys_exec("/does/not/exist", &dummy);
     TEST_ASSERT(res < 0);
+    return true;
+}
+
+// Pipe syscall declaration
+int sys_pipe(int pipefd[2]);
+
+TEST(test_syscall_pipe_basic)
+{
+    int pipefd[2] = {-1, -1};
+
+    // Create a pipe
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+    TEST_ASSERT(pipefd[0] >= 3); // Read end
+    TEST_ASSERT(pipefd[1] >= 3); // Write end
+    TEST_ASSERT(pipefd[0] != pipefd[1]);
+
+    // Write to pipe
+    const char *msg = "Hello, pipe!";
+    int written = sys_write(pipefd[1], msg, strlen(msg));
+    TEST_ASSERT(written == (int)strlen(msg));
+
+    // Read from pipe
+    char buf[32] = {0};
+    int bytes_read = sys_read(pipefd[0], buf, sizeof(buf) - 1);
+    TEST_ASSERT(bytes_read == (int)strlen(msg));
+    TEST_ASSERT(strncmp(buf, msg, strlen(msg)) == 0);
+
+    // Close both ends
+    TEST_ASSERT(sys_close(pipefd[0]) == 0);
+    TEST_ASSERT(sys_close(pipefd[1]) == 0);
+
+    return true;
+}
+
+TEST(test_syscall_pipe_multiple_writes)
+{
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+
+    // Multiple writes
+    const char *msgs[] = {"one", "two", "three"};
+    for (int i = 0; i < 3; i++)
+    {
+        int written = sys_write(pipefd[1], msgs[i], strlen(msgs[i]));
+        TEST_ASSERT(written == (int)strlen(msgs[i]));
+    }
+
+    // Read all data
+    char buf[32] = {0};
+    int total = sys_read(pipefd[0], buf, sizeof(buf) - 1);
+    TEST_ASSERT(total == 11); // "one" + "two" + "three" = 3+3+5=11
+    TEST_ASSERT(strncmp(buf, "onetwothree", 11) == 0);
+
+    TEST_ASSERT(sys_close(pipefd[0]) == 0);
+    TEST_ASSERT(sys_close(pipefd[1]) == 0);
+    return true;
+}
+
+TEST(test_syscall_pipe_null_arg)
+{
+    // NULL argument should fail
+    TEST_ASSERT(sys_pipe(nullptr) == -1);
+    return true;
+}
+
+// lseek and dup syscall declarations
+long sys_lseek(int fd, long offset, int whence);
+int sys_dup(int oldfd);
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+TEST(test_syscall_lseek_basic)
+{
+    // Create a test file
+    int fd = sys_open("/lseek_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    // Write some data
+    const char *data = "0123456789ABCDEF";
+    int written = sys_write(fd, data, 16);
+    TEST_ASSERT(written == 16);
+
+    // Seek to beginning
+    long pos = sys_lseek(fd, 0, SEEK_SET);
+    TEST_ASSERT(pos == 0);
+
+    // Read back
+    char buf[8] = {0};
+    int bytes_read = sys_read(fd, buf, 4);
+    TEST_ASSERT(bytes_read == 4);
+    TEST_ASSERT(strncmp(buf, "0123", 4) == 0);
+
+    // Seek relative from current position
+    pos = sys_lseek(fd, 4, SEEK_CUR);
+    TEST_ASSERT(pos == 8); // was at 4, moved 4 more
+
+    // Read from new position
+    memset(buf, 0, sizeof(buf));
+    bytes_read = sys_read(fd, buf, 4);
+    TEST_ASSERT(bytes_read == 4);
+    TEST_ASSERT(strncmp(buf, "89AB", 4) == 0);
+
+    // Seek from end
+    pos = sys_lseek(fd, -4, SEEK_END);
+    TEST_ASSERT(pos == 12);
+
+    memset(buf, 0, sizeof(buf));
+    bytes_read = sys_read(fd, buf, 4);
+    TEST_ASSERT(bytes_read == 4);
+    TEST_ASSERT(strncmp(buf, "CDEF", 4) == 0);
+
+    sys_close(fd);
+    sys_unlink("/lseek_test.txt");
+    return true;
+}
+
+TEST(test_syscall_lseek_invalid)
+{
+    // Invalid fd
+    TEST_ASSERT(sys_lseek(-1, 0, SEEK_SET) == -1);
+    TEST_ASSERT(sys_lseek(999, 0, SEEK_SET) == -1);
+
+    // Invalid whence
+    int fd = sys_open("/lseek_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    TEST_ASSERT(sys_lseek(fd, 0, 99) == -1);
+
+    // Seek before beginning should fail
+    TEST_ASSERT(sys_lseek(fd, -1, SEEK_SET) == -1);
+
+    sys_close(fd);
+    sys_unlink("/lseek_invalid.txt");
+    return true;
+}
+
+TEST(test_syscall_lseek_pipe_fails)
+{
+    // Pipes are not seekable
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+
+    TEST_ASSERT(sys_lseek(pipefd[0], 0, SEEK_SET) == -1);
+    TEST_ASSERT(sys_lseek(pipefd[1], 0, SEEK_SET) == -1);
+
+    sys_close(pipefd[0]);
+    sys_close(pipefd[1]);
+    return true;
+}
+
+TEST(test_syscall_dup_basic)
+{
+    // Create a test file
+    int fd1 = sys_open("/dup_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd1 >= 3);
+
+    // Write some data
+    const char *msg = "Hello, dup!";
+    sys_write(fd1, msg, strlen(msg));
+
+    // Seek back to start
+    sys_lseek(fd1, 0, SEEK_SET);
+
+    // Duplicate the fd
+    int fd2 = sys_dup(fd1);
+    TEST_ASSERT(fd2 >= 0); // dup returns lowest available fd
+    TEST_ASSERT(fd2 != fd1);
+
+    // Read from original fd
+    char buf1[16] = {0};
+    int read1 = sys_read(fd1, buf1, 6);
+    TEST_ASSERT(read1 == 6);
+    TEST_ASSERT(strncmp(buf1, "Hello,", 6) == 0);
+
+    // Read from duplicated fd should continue from same position
+    // (they share the same offset)
+    char buf2[16] = {0};
+    int read2 = sys_read(fd2, buf2, 5);
+    TEST_ASSERT(read2 == 5);
+    TEST_ASSERT(strncmp(buf2, " dup!", 5) == 0);
+
+    // Close both fds
+    TEST_ASSERT(sys_close(fd1) == 0);
+    TEST_ASSERT(sys_close(fd2) == 0);
+
+    sys_unlink("/dup_test.txt");
+    return true;
+}
+
+TEST(test_syscall_dup_invalid)
+{
+    // Invalid fd
+    TEST_ASSERT(sys_dup(-1) == -1);
+    TEST_ASSERT(sys_dup(999) == -1);
+
+    // Unopened fd
+    TEST_ASSERT(sys_dup(5) == -1); // Assuming fd 5 is not open
+
+    return true;
+}
+
+TEST(test_syscall_dup_ref_counting)
+{
+    // Test that closing one dup'd fd doesn't affect the other
+    int fd1 = sys_open("/dup_ref.txt", O_CREATE | O_RDWR | O_TRUNC);
+    if (fd1 < 3)
+        return false;
+
+    int written = sys_write(fd1, "test data", 9);
+    if (written != 9)
+    {
+        sys_close(fd1);
+        return false;
+    }
+
+    long pos = sys_lseek(fd1, 0, SEEK_SET);
+    if (pos != 0)
+    {
+        sys_close(fd1);
+        return false;
+    }
+
+    int fd2 = sys_dup(fd1);
+    if (fd2 < 0)
+    {
+        sys_close(fd1);
+        return false;
+    }
+
+    // Close original
+    if (sys_close(fd1) != 0)
+    {
+        sys_close(fd2);
+        return false;
+    }
+
+    // fd2 should still work
+    char buf[16] = {0};
+    int bytes = sys_read(fd2, buf, 9);
+    if (bytes != 9)
+    {
+        sys_close(fd2);
+        return false;
+    }
+    if (strncmp(buf, "test data", 9) != 0)
+    {
+        sys_close(fd2);
+        return false;
+    }
+
+    sys_close(fd2);
+    sys_unlink("/dup_ref.txt");
     return true;
 }

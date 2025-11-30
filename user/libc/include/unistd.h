@@ -37,3 +37,5 @@ int munmap(void *addr, size_t length);
 char *getcwd(char *buf, size_t size);
 long lseek(int fd, long offset, int whence);
 int isatty(int fd);
+int pipe(int pipefd[2]);
+int dup(int oldfd);

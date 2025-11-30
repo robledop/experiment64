@@ -36,6 +36,9 @@ struct syscall_regs
 #define SYS_GETCWD 24
 #define SYS_GETTIMEOFDAY 25
 #define SYS_USLEEP 26
+#define SYS_PIPE 27
+#define SYS_LSEEK 28
+#define SYS_DUP 29
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

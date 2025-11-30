@@ -48,6 +48,7 @@ typedef struct
     struct vfs_inode *inode;
     uint64_t offset;
     int flags;
+    uint32_t ref; // Reference count for dup()
 } file_descriptor_t;
 
 typedef struct vm_area

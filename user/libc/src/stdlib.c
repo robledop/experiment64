@@ -1,5 +1,7 @@
 #include <stdlib.h>
 
+#include "stdio.h"
+
 static void (*atexit_handlers[32])(void);
 static int atexit_count = 0;
 
@@ -160,4 +162,10 @@ double atof(const char *nptr)
         }
     }
     return result * sign;
+}
+
+void panic(const char *s)
+{
+    printf("panic: %s\n", s);
+    exit(1);
 }

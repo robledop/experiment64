@@ -71,6 +71,9 @@ void run_tests(void)
         g_current_test_name = t->name;
         g_test_failed = false;
         total++;
+#ifdef TEST_LOGGING
+        printk("[TEST %lu/%lu] Starting: %s (entering...)\n", (unsigned long)(i + 1), (unsigned long)count, t->name);
+#endif
         uint64_t test_start_ns = tsc_nanos();
         test_capture_begin();
         bool ok = t->func();
