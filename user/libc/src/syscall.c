@@ -237,3 +237,13 @@ int dup(int oldfd)
 {
     return clamp_signed_to_int(syscall1(SYS_DUP, oldfd));
 }
+
+void shutdown(void)
+{
+    syscall0(SYS_SHUTDOWN);
+}
+
+void reboot(void)
+{
+    syscall0(SYS_REBOOT);
+}

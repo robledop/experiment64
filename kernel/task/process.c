@@ -275,11 +275,24 @@ void process_copy_fds(process_t *dest, const process_t *src)
             {
                 new_desc->flags = old_desc->flags;
                 new_desc->offset = old_desc->offset;
+                new_desc->ref = 1; // Initialize ref count for new descriptor
+
                 if (old_desc->inode)
                 {
-                    if (old_desc->inode->iops && old_desc->inode->iops->clone)
+                    // For pipes and special files, share the inode
+                    // For regular files with a clone op, clone it
+                    // Otherwise copy the inode
+                    if (old_desc->inode->flags & VFS_PIPE)
+                    {
+                        // Pipes are shared across fork - just increment ref
+                        new_desc->inode = old_desc->inode;
+                        old_desc->inode->ref++;
+                    }
+                    else if (old_desc->inode->iops && old_desc->inode->iops->clone)
                     {
                         new_desc->inode = old_desc->inode->iops->clone(old_desc->inode);
+                        if (new_desc->inode)
+                            new_desc->inode->ref = 1;
                     }
                     else
                     {
@@ -287,6 +300,7 @@ void process_copy_fds(process_t *dest, const process_t *src)
                         if (new_desc->inode)
                         {
                             memcpy(new_desc->inode, old_desc->inode, sizeof(vfs_inode_t));
+                            new_desc->inode->ref = 1;
                         }
                     }
                 }
@@ -323,22 +337,53 @@ void process_destroy(process_t *proc)
         kfree(t);
     }
 
-    // Free file descriptors
+    // Free file descriptors (respecting reference counts)
+    // Note: Multiple fd entries can point to the same descriptor due to dup()
     for (int i = 0; i < MAX_FDS; i++)
     {
         if (proc->fd_table[i])
         {
             file_descriptor_t *desc = proc->fd_table[i];
-            if (desc->inode)
+
+            // Clear all fd table entries pointing to this descriptor first
+            // This prevents double-processing the same descriptor
+            for (int j = i; j < MAX_FDS; j++)
             {
-                vfs_close(desc->inode);
-                if (desc->inode != vfs_root)
+                if (proc->fd_table[j] == desc)
                 {
+                    proc->fd_table[j] = nullptr;
+                    if (j > i)
+                    {
+                        // Another fd points to same descriptor, decrement ref
+                        if (desc->ref > 0)
+                            desc->ref--;
+                    }
+                }
+            }
+
+            // Now handle this descriptor's cleanup
+            // Decrement file descriptor ref count (for cross-process sharing)
+            if (desc->ref > 1)
+            {
+                desc->ref--;
+                continue; // Other processes still reference this descriptor
+            }
+
+            // Last reference to this descriptor - close the inode
+            if (desc->inode && desc->inode != vfs_root)
+            {
+                // Only close and free inode when its ref count reaches 0
+                if (desc->inode->ref <= 1)
+                {
+                    vfs_close(desc->inode);
                     kfree(desc->inode);
+                }
+                else
+                {
+                    desc->inode->ref--;
                 }
             }
             kfree(desc);
-            proc->fd_table[i] = nullptr;
         }
     }
 

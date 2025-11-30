@@ -1,322 +1,632 @@
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <limits.h>
 #include <fcntl.h>
+#include <termcolors.h>
+#include <unistd.h>
+#include <string.h>
 #include <path.h>
 
-static char cwd[PATH_MAX_LEN] = "/";
+#define MAX_COMMAND_LENGTH 256
+#define COMMAND_HISTORY_SIZE 10
+#define COMMAND_HISTORY_ENTRY_SIZE 256
 
-static int path_exists(const char *path)
+// Parsed command representation
+#define EXEC 1
+#define REDIR 2
+#define PIPE 3
+#define LIST 4
+#define BACK 5
+
+#define MAXARGS 10
+
+struct cmd
 {
-    if (!path || !*path)
-        return 0;
+    int type;
+};
 
-    int fd = open(path, O_RDONLY);
-    if (fd < 0)
-        return 0;
-
-    close(fd);
-    return 1;
-}
-
-static int resolve_command_path(const char *command, char *resolved, size_t size)
+struct execcmd
 {
-    if (!command || !*command)
-        return -1;
+    int type;
+    char *argv[MAXARGS];
+    char *eargv[MAXARGS];
+};
 
-    if (command[0] == '/')
+struct redircmd
+{
+    int type;
+    struct cmd *cmd;
+    char *file;
+    char *efile;
+    int mode;
+    int fd;
+};
+
+struct pipecmd
+{
+    int type;
+    struct cmd *left;
+    struct cmd *right;
+};
+
+struct listcmd
+{
+    int type;
+    struct cmd *left;
+    struct cmd *right;
+};
+
+struct backcmd
+{
+    int type;
+    struct cmd *cmd;
+};
+
+static char command_history[COMMAND_HISTORY_SIZE][COMMAND_HISTORY_ENTRY_SIZE];
+static int history_count = 0;
+
+int fork1(void); // Fork but panics on failure.
+struct cmd *parsecmd(char *);
+
+// Execute cmd.  Never returns.
+[[noreturn]] void runcmd(struct cmd *cmd)
+{
+    int p[2];
+    struct backcmd *bcmd;
+    struct execcmd *ecmd;
+    struct listcmd *lcmd;
+    struct pipecmd *pcmd;
+    struct redircmd *rcmd;
+
+    if (cmd == nullptr)
     {
-        path_safe_copy(resolved, size, command);
-        return 0;
+        exit();
     }
 
-    char abs_path[PATH_MAX_LEN];
-    path_build_absolute(cwd, command, abs_path, sizeof(abs_path));
-    if (path_exists(abs_path))
+    switch (cmd->type)
     {
-        path_safe_copy(resolved, size, abs_path);
-        return 0;
-    }
+    default:
+        panic("runcmd");
 
-    if (!strchr(command, '/'))
-    {
-        size_t cmd_len = strlen(command);
-        if (cmd_len + 5 < PATH_MAX_LEN)
+    case EXEC:
+        ecmd = (struct execcmd *)cmd;
+        if (ecmd->argv[0] == nullptr)
+            exit();
+        // Try the command as given first
+        execve(ecmd->argv[0], ecmd->argv, nullptr);
+        // If that failed and it's not an absolute/relative path, try /bin/
+        if (ecmd->argv[0][0] != '/' && !strchr(ecmd->argv[0], '/'))
         {
-            char bin_path[PATH_MAX_LEN];
+            char bin_path[256];
             path_safe_copy(bin_path, sizeof(bin_path), "/bin/");
             size_t idx = strlen(bin_path);
-            for (size_t i = 0; command[i] && idx + 1 < PATH_MAX_LEN; i++)
-                bin_path[idx++] = command[i];
+            for (size_t i = 0; ecmd->argv[0][i] && idx + 1 < sizeof(bin_path); i++)
+                bin_path[idx++] = ecmd->argv[0][i];
             bin_path[idx] = '\0';
+            ecmd->argv[0] = bin_path;
+            execve(bin_path, ecmd->argv, nullptr);
+        }
+        printf("exec %s failed\n", ecmd->argv[0]);
+        break;
 
-            if (path_exists(bin_path))
+    case REDIR:
+        rcmd = (struct redircmd *)cmd;
+        close(rcmd->fd);
+        if (open(rcmd->file, rcmd->mode) < 0)
+        {
+            printf("open %s failed\n", rcmd->file);
+            exit();
+        }
+        runcmd(rcmd->cmd);
+        break;
+
+    case LIST:
+        lcmd = (struct listcmd *)cmd;
+        if (fork1() == 0)
+            runcmd(lcmd->left);
+        wait(nullptr);
+        runcmd(lcmd->right);
+        break;
+
+    case PIPE:
+        pcmd = (struct pipecmd *)cmd;
+        if (pipe(p) < 0)
+            panic("pipe");
+        if (fork1() == 0)
+        {
+            close(1);
+            dup(p[1]);
+            close(p[0]);
+            close(p[1]);
+            runcmd(pcmd->left);
+        }
+        if (fork1() == 0)
+        {
+            close(0);
+            dup(p[0]);
+            close(p[0]);
+            close(p[1]);
+            runcmd(pcmd->right);
+        }
+        close(p[0]);
+        close(p[1]);
+        wait(nullptr);
+        wait(nullptr);
+        break;
+
+    case BACK:
+        bcmd = (struct backcmd *)cmd;
+        if (fork1() == 0)
+            runcmd(bcmd->cmd);
+        break;
+    }
+    exit();
+}
+
+void shell_terminal_readline(char *out, const int max, const bool output_while_typing)
+{
+    int current_history_index = history_count;
+    int i = 0;
+    for (; i < max - 1; i++)
+    {
+        const unsigned char key = getchar_blocking();
+        if (key == 0)
+        {
+            continue;
+        }
+
+        // Up arrow
+        if (key == 226)
+        {
+            if (current_history_index == 0)
             {
-                path_safe_copy(resolved, size, bin_path);
-                return 0;
+                continue;
+            }
+
+            for (int j = 0; j < i - 1; j++)
+            {
+                printf("\b");
+            }
+            current_history_index--;
+            strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
+            i = (int)strnlen((char *)out, max);
+            printf((char *)out);
+            continue;
+        }
+
+        // TODO: This is still a little buggy
+        // Down arrow
+        if (key == 227)
+        {
+            if (current_history_index >= history_count - 1)
+            {
+                continue;
+            }
+
+            for (int j = 0; j < i - 1; j++)
+            {
+                printf("\b");
+            }
+            current_history_index++;
+            strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
+            i = (int)strlen((char *)out);
+            printf((char *)out);
+            continue;
+        }
+
+        // Left arrow key
+        if (key == 228)
+        {
+            if (i <= 0)
+            {
+                i = -1;
+                continue;
+            }
+            else
+            {
+                i -= 2;
             }
         }
-    }
 
-    return -1;
-}
-
-static void shell_print_prompt(void)
-{
-    printf("%s$ ", cwd);
-}
-
-static int shell_change_directory(const char *path)
-{
-    char resolved[PATH_MAX_LEN];
-    const char *target = (path && *path) ? path : "/";
-    path_build_absolute(cwd, target, resolved, sizeof(resolved));
-
-    if (chdir(resolved) != 0)
-        return -1;
-
-    path_safe_copy(cwd, sizeof(cwd), resolved);
-    return 0;
-}
-
-static int shell_run_command(const char *command_line)
-{
-    if (!command_line || !*command_line)
-        return -1;
-
-    char line[PATH_MAX_LEN];
-    path_safe_copy(line, sizeof(line), command_line);
-
-    // Tokenize
-    char *argv[16];
-    int argc = 0;
-    char *p = line;
-    while (*p && argc < (int)(sizeof(argv) / sizeof(argv[0])) - 1)
-    {
-        while (*p == ' ')
-            p++;
-        if (!*p)
+        if (key == '\n' || key == '\r')
+        {
+            putchar('\n'); // Echo the newline before executing command
             break;
-        argv[argc++] = p;
-        while (*p && *p != ' ')
-            p++;
-        if (*p)
-            *p++ = '\0';
-    }
-    argv[argc] = nullptr;
-    if (argc == 0)
-        return -1;
+        }
 
-    char resolved[PATH_MAX_LEN];
-    if (resolve_command_path(argv[0], resolved, sizeof(resolved)) != 0)
-        return -1;
+        if (key == '\b' && i <= 0)
+        {
+            i = -1;
+            continue;
+        }
 
-    argv[0] = resolved;
+        if (output_while_typing)
+        {
+            putchar((char)key);
+        }
 
-    int pid = fork();
-    if (pid < 0)
-        return -1;
-    if (pid == 0)
-    {
-        execve(resolved, argv, nullptr);
-        printf("Failed to exec %s\n", resolved);
-        exit(1);
+        if (key == '\b' && i > 0)
+        {
+            i -= 2;
+            continue;
+        }
+
+        out[i] = key;
     }
 
-    int status = 0;
-    if (wait(&status) < 0)
-        return -1;
-
-    return status;
+    out[i] = 0x00;
 }
 
 int main(void)
 {
-    char buf[128];
-    printf("User mode shell started\n");
+    int fd;
+    int child_pid = -1;
 
-    while (1)
+    // Ensure that three file descriptors are open.
+    while ((fd = open("/dev/console", O_RDWR)) >= 0)
     {
-        memset(buf, 0, sizeof(buf));
-        shell_print_prompt();
-
-        // Simple gets implementation since the one in stdio might be too basic
-        // or we want to handle backspace here if the kernel doesn't do canonical mode
-        int i = 0;
-        while (1)
+        if (fd >= 3)
         {
-            int c = getchar();
-            if (c == EOF)
-                return 0;
-            if (c == '\n')
-            {
-                putchar('\n');
-                buf[i] = '\0';
-                break;
-            }
-            if (c == '\b' || c == 127)
-            { // Backspace
-                if (i > 0)
-                {
-                    i--;
-                    printf("\b \b"); // Erase character on screen
-                }
-            }
-            else if (i < 127)
-            {
-                buf[i++] = (char)c;
-                putchar(c); // Echo
-            }
-        }
-
-        if (strlen(buf) == 0)
-            continue;
-
-        if (strcmp(buf, "exit") == 0)
-        {
+            close(fd);
             break;
         }
-        else if (strcmp(buf, "help") == 0)
-        {
-            printf("Commands: help, exit, clear, cd, sleep, colors, cursor, reset, test_ansi, test_sbrk, test_malloc\n");
-        }
-        else if (strncmp(buf, "cd", 2) == 0 && (buf[2] == '\0' || buf[2] == ' '))
-        {
-            const char *arg = buf + 2;
-            while (*arg == ' ')
-                arg++;
+    }
 
-            const char *target = (*arg == '\0') ? "/" : arg;
-            if (shell_change_directory(target) != 0)
+    printf(KWHT "User mode shell started\n");
+
+    // Read and run input commands.
+    while (true)
+    {
+        char cwd[256];
+        getcwd(cwd, sizeof(cwd));
+        printf("%s" KGRN "> " KWHT, cwd);
+
+        char buf[MAX_COMMAND_LENGTH] = {0};
+        shell_terminal_readline(buf, sizeof(buf), true);
+
+        if (strlen((char *)buf) != 0)
+        {
+            uint32_t copy_len = sizeof(command_history[0]);
+
+            if (history_count == COMMAND_HISTORY_SIZE)
             {
-                printf("cd: no such directory: %s\n", target);
+                memmove(command_history[0],
+                        command_history[1],
+                        (COMMAND_HISTORY_SIZE - 1) * sizeof(command_history[0]));
+                history_count = COMMAND_HISTORY_SIZE - 1;
             }
-        }
-        else if (strncmp(buf, "sleep", 5) == 0 && (buf[5] == '\0' || buf[5] == ' '))
-        {
-            const char *arg = buf + 5;
-            while (*arg == ' ')
-                arg++;
 
-            char *endptr = nullptr;
-            long parsed = (*arg) ? strtol(arg, &endptr, 10) : 0;
-            if (endptr == arg || parsed < 0)
-                parsed = 0;
-            int duration = (parsed > INT_MAX) ? INT_MAX : (int)parsed;
-            if (duration < 0)
-                duration = 0;
-            sleep(duration);
+            strncpy(command_history[history_count], (char *)buf, (int)copy_len);
+            command_history[history_count][copy_len - 1] = '\0';
+            history_count++;
         }
-        else if (strcmp(buf, "clear") == 0)
+
+        if (starts_with("cd ", buf))
         {
+            // Chdir must be called by the parent, not the child.
+            buf[strlen(buf)] = 0;
+            if (chdir(buf + 3) < 0)
+                printf("cannot cd %s\n", buf + 3);
+            continue;
+        }
+
+        const uint32_t input_len = strnlen(buf, 100);
+        if (strncmp("exit", buf, 4) == 0 && input_len == 4)
+        {
+            exit();
+        }
+
+        if (strncmp("cls", buf, 3) == 0 && input_len == 3)
+        {
+            // Clear the screen
             printf("\033[2J\033[H");
+            continue;
         }
-        else if (strcmp(buf, "colors") == 0)
-        {
-            for (int i = 30; i <= 37; i++)
-            {
-                printf("\033[%dmColor %d\033[0m\n", i, i);
-            }
-            printf("\nBold:\n");
-            for (int i = 30; i <= 37; i++)
-            {
-                printf("\033[1;%dmColor %d\033[0m\n", i, i);
-            }
-            printf("\nBackgrounds:\n");
-            for (int i = 40; i <= 47; i++)
-            {
-                printf("\033[%dmColor %d\033[0m\n", i, i);
-            }
-        }
-        else if (strcmp(buf, "cursor") == 0)
-        {
-            printf("\033[2J\033[H"); // Clear and home
-            printf("Top Left\n");
-            printf("\033[10B\033[10C"); // Down 10, Right 10
-            printf("Middle");
-            printf("\033[5A"); // Up 5
-            printf(" Up 5");
-            printf("\033[5D"); // Left 5
-            printf(" Left 5");
-            printf("\033[H"); // Home
-        }
-        else if (strcmp(buf, "test_ansi") == 0)
-        {
-            printf("Line 1\n");
-            printf("Line 2 to be cleared partially...");
-            printf("\033[10D"); // Move back 10
-            printf("\033[0K");  // Clear to end of line
-            printf("CLEARED\n");
 
-            printf("Line 3\n");
-            printf("Line 4\n");
-            printf("\033[2A"); // Up 2
-            printf("\033[0J"); // Clear below
-            printf("Cleared below this line.\n");
-        }
-        else if (strcmp(buf, "reset") == 0)
+        if (strncmp("reboot", buf, 6) == 0 && input_len == 6)
         {
-            printf("\033c");
+            reboot();
         }
-        else if (strcmp(buf, "test_sbrk") == 0)
-        {
-            void *p1 = sbrk(0);
-            printf("Current break: %p\n", p1);
-            void *p2 = sbrk(4096);
-            printf("Allocated 4096 bytes. Old break: %p\n", p2);
-            void *p3 = sbrk(0);
-            printf("New break: %p\n", p3);
-            if ((char *)p3 - (char *)p2 == 4096)
-                printf("Sbrk seems to work!\n");
-            else
-                printf("Sbrk failed!\n");
 
-            // Write to new memory
-            int *arr = (int *)p2;
-            arr[0] = 123;
-            printf("Wrote 123 to new memory: %d\n", arr[0]);
-        }
-        else if (strcmp(buf, "test_malloc") == 0)
+        if (strncmp("shutdown", buf, 8) == 0 && input_len == 8)
         {
-            printf("Testing malloc...\n");
-            int *ptr = (int *)malloc(sizeof(int) * 10);
-            if (!ptr)
-            {
-                printf("malloc failed\n");
-            }
-            else
-            {
-                printf("malloc succeeded: %p\n", ptr);
-                for (int i = 0; i < 10; i++)
-                    ptr[i] = i;
-                printf("Data written. Reading back:\n");
-                for (int i = 0; i < 10; i++)
-                    printf("%d ", ptr[i]);
-                printf("\n");
-
-                printf("Freeing memory...\n");
-                free(ptr);
-                printf("Memory freed.\n");
-
-                printf("Allocating again (should reuse block if implemented)...\n");
-                int *ptr2 = (int *)malloc(sizeof(int) * 10);
-                printf("malloc succeeded: %p\n", ptr2);
-                if (ptr == ptr2)
-                    printf("Block reused!\n");
-                else
-                    printf("Block not reused (new address).\n");
-                free(ptr2);
-            }
+            shutdown();
+            continue;
         }
-        else
+
+        bool return_immediately = false;
+        return_immediately = ends_with((char *)buf, " &");
+
+        if (return_immediately)
         {
-            if (shell_run_command(buf) < 0)
-            {
-                printf("Command not found or exec failed: %s\n", buf);
-            }
+            buf[strlen((char *)buf) - 2] = 0x00;
+        }
+
+        child_pid = fork1();
+        if (child_pid == 0)
+        {
+            runcmd(parsecmd(buf));
+        }
+        if (!return_immediately)
+        {
+            wait(nullptr);
         }
     }
-    return 0;
+}
+
+int fork1(void)
+{
+    int pid = fork();
+    if (pid == -1)
+        panic("fork");
+    return pid;
+}
+
+// Constructors
+
+struct cmd *execcmd(void)
+{
+    struct execcmd *cmd = malloc(sizeof(*cmd));
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = EXEC;
+    return (struct cmd *)cmd;
+}
+
+struct cmd *redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
+{
+    struct redircmd *cmd = malloc(sizeof(*cmd));
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = REDIR;
+    cmd->cmd = subcmd;
+    cmd->file = file;
+    cmd->efile = efile;
+    cmd->mode = mode;
+    cmd->fd = fd;
+    return (struct cmd *)cmd;
+}
+
+struct cmd *pipecmd(struct cmd *left, struct cmd *right)
+{
+    struct pipecmd *cmd = malloc(sizeof(*cmd));
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = PIPE;
+    cmd->left = left;
+    cmd->right = right;
+    return (struct cmd *)cmd;
+}
+
+struct cmd *listcmd(struct cmd *left, struct cmd *right)
+{
+    struct listcmd *cmd = malloc(sizeof(*cmd));
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = LIST;
+    cmd->left = left;
+    cmd->right = right;
+    return (struct cmd *)cmd;
+}
+
+struct cmd *backcmd(struct cmd *subcmd)
+{
+    struct backcmd *cmd = malloc(sizeof(*cmd));
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = BACK;
+    cmd->cmd = subcmd;
+    return (struct cmd *)cmd;
+}
+
+// Parsing
+
+char whitespace[] = " \t\r\n\v";
+char symbols[] = "<|>&;()";
+
+int gettoken(char **ps, char *es, char **q, char **eq)
+{
+    char *s = *ps;
+    while (s < es && strchr(whitespace, *s))
+        s++;
+    if (q)
+        *q = s;
+    int ret = *s;
+    switch (*s)
+    {
+    case 0:
+        break;
+    case '|':
+    case '(':
+    case ')':
+    case ';':
+    case '&':
+    case '<':
+        s++;
+        break;
+    case '>':
+        s++;
+        if (*s == '>')
+        {
+            ret = '+';
+            s++;
+        }
+        break;
+    default:
+        ret = 'a';
+        while (s < es && !strchr(whitespace, *s) && !strchr(symbols, *s))
+            s++;
+        break;
+    }
+    if (eq)
+        *eq = s;
+
+    while (s < es && strchr(whitespace, *s))
+        s++;
+    *ps = s;
+    return ret;
+}
+
+int peek(char **ps, char *es, char *toks)
+{
+    char *s = *ps;
+    while (s < es && strchr(whitespace, *s))
+        s++;
+    *ps = s;
+    return *s && strchr(toks, *s);
+}
+
+struct cmd *parseline(char **, char *);
+struct cmd *parsepipe(char **, char *);
+struct cmd *parseexec(char **, char *);
+struct cmd *nulterminate(struct cmd *);
+
+struct cmd *parsecmd(char *s)
+{
+    char *es = s + strlen(s);
+    struct cmd *cmd = parseline(&s, es);
+    peek(&s, es, "");
+    if (s != es)
+    {
+        printf("leftovers: %s\n", s);
+        panic("syntax");
+    }
+    nulterminate(cmd);
+    return cmd;
+}
+
+struct cmd *parseline(char **ps, char *es)
+{
+    struct cmd *cmd = parsepipe(ps, es);
+    while (peek(ps, es, "&"))
+    {
+        gettoken(ps, es, 0, 0);
+        cmd = backcmd(cmd);
+    }
+    if (peek(ps, es, ";"))
+    {
+        gettoken(ps, es, 0, 0);
+        cmd = listcmd(cmd, parseline(ps, es));
+    }
+    return cmd;
+}
+
+struct cmd *parsepipe(char **ps, char *es)
+{
+    struct cmd *cmd = parseexec(ps, es);
+    if (peek(ps, es, "|"))
+    {
+        gettoken(ps, es, 0, 0);
+        cmd = pipecmd(cmd, parsepipe(ps, es));
+    }
+    return cmd;
+}
+
+struct cmd *parseredirs(struct cmd *cmd, char **ps, char *es)
+{
+    char *q, *eq;
+
+    while (peek(ps, es, "<>"))
+    {
+        int tok = gettoken(ps, es, 0, 0);
+        if (gettoken(ps, es, &q, &eq) != 'a')
+            panic("missing file for redirection");
+        switch (tok)
+        {
+        case '<':
+            cmd = redircmd(cmd, q, eq, O_RDONLY, 0);
+            break;
+        case '>':
+            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREATE, 1);
+            break;
+        case '+': // >>
+            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREATE, 1);
+            break;
+        }
+    }
+    return cmd;
+}
+
+struct cmd *parseblock(char **ps, char *es)
+{
+    if (!peek(ps, es, "("))
+        panic("parseblock");
+    gettoken(ps, es, 0, 0);
+    struct cmd *cmd = parseline(ps, es);
+    if (!peek(ps, es, ")"))
+        panic("syntax - missing )");
+    gettoken(ps, es, 0, 0);
+    cmd = parseredirs(cmd, ps, es);
+    return cmd;
+}
+
+struct cmd *parseexec(char **ps, char *es)
+{
+    char *q, *eq;
+    int tok;
+
+    if (peek(ps, es, "("))
+        return parseblock(ps, es);
+
+    struct cmd *ret = execcmd();
+    struct execcmd *cmd = (struct execcmd *)ret;
+
+    int argc = 0;
+    ret = parseredirs(ret, ps, es);
+    while (!peek(ps, es, "|)&;"))
+    {
+        if ((tok = gettoken(ps, es, &q, &eq)) == 0)
+            break;
+        if (tok != 'a')
+            panic("syntax");
+        cmd->argv[argc] = q;
+        cmd->eargv[argc] = eq;
+        argc++;
+        if (argc >= MAXARGS)
+            panic("too many args");
+        ret = parseredirs(ret, ps, es);
+    }
+    cmd->argv[argc] = 0;
+    cmd->eargv[argc] = 0;
+    return ret;
+}
+
+// NUL-terminate all the counted strings.
+struct cmd *nulterminate(struct cmd *cmd)
+{
+    int i;
+    struct backcmd *bcmd;
+    struct execcmd *ecmd;
+    struct listcmd *lcmd;
+    struct pipecmd *pcmd;
+    struct redircmd *rcmd;
+
+    if (cmd == 0)
+        return 0;
+
+    switch (cmd->type)
+    {
+    case EXEC:
+        ecmd = (struct execcmd *)cmd;
+        for (i = 0; ecmd->argv[i]; i++)
+            *ecmd->eargv[i] = 0;
+        break;
+
+    case REDIR:
+        rcmd = (struct redircmd *)cmd;
+        nulterminate(rcmd->cmd);
+        *rcmd->efile = 0;
+        break;
+
+    case PIPE:
+        pcmd = (struct pipecmd *)cmd;
+        nulterminate(pcmd->left);
+        nulterminate(pcmd->right);
+        break;
+
+    case LIST:
+        lcmd = (struct listcmd *)cmd;
+        nulterminate(lcmd->left);
+        nulterminate(lcmd->right);
+        break;
+
+    case BACK:
+        bcmd = (struct backcmd *)cmd;
+        nulterminate(bcmd->cmd);
+        break;
+    }
+    return cmd;
 }

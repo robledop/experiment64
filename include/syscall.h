@@ -39,6 +39,8 @@ struct syscall_regs
 #define SYS_PIPE 27
 #define SYS_LSEEK 28
 #define SYS_DUP 29
+#define SYS_SHUTDOWN 30
+#define SYS_REBOOT 31
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

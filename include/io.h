@@ -127,3 +127,8 @@ static inline void outl(uint16_t portid, uint32_t value)
 {
     __asm__ volatile("out %1, %0" : : "a"(value), "d"(portid));
 }
+
+static inline void hlt(void)
+{
+    __asm__ volatile("hlt");
+}

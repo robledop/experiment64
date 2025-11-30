@@ -432,3 +432,14 @@ out:
     va_end(args);
     return assigned;
 }
+
+int getchar_blocking()
+{
+    int key = 0;
+    key     = getchar();
+    while (key == 0) {
+        key = getchar();
+    }
+
+    return key;
+}

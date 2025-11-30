@@ -18,6 +18,7 @@
 #include "mman.h"
 #include "util.h"
 #include "fcntl.h"
+#include "io.h"
 #include "vfs.h"
 #include "time.h"
 #include "tsc.h"
@@ -56,6 +57,8 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 int sys_pipe(int pipefd[2]);
 long sys_lseek(int fd, long offset, int whence);
 int sys_dup(int oldfd);
+void sys_shutdown();
+void sys_reboot();
 
 // ReSharper disable once CppDFAConstantFunctionResult
 static bool prepare_user_buffer(void *addr, const size_t size, const bool is_write)
@@ -292,15 +295,30 @@ void syscall_set_exit_hook(void (*hook)(int))
 
 int sys_write(int fd, const char *buf, size_t count)
 {
-    if (fd < 0)
+    if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
     if (!prepare_user_buffer((void *)buf, count, false))
         return -1;
 
-    if (fd == 1 || fd == 2) // stdout or stderr
+    file_descriptor_t *desc = current_process->fd_table[fd];
+
+    // Handle stdout/stderr (fd 1/2) specially - check if redirected to pipe/file
+    if (fd == 1 || fd == 2)
     {
-        file_descriptor_t *desc = current_process->fd_table[fd];
+        // If fd has a real descriptor with an inode, write to it (pipe or file redirection)
+        if (desc && desc->inode)
+        {
+            if (!fd_can_write(desc))
+                return -1;
+            if (desc->flags & O_APPEND)
+                desc->offset = desc->inode->size;
+            uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
+            desc->offset += written;
+            return clamp_to_int(written);
+        }
+
+        // No inode - write to terminal (console device)
         if (desc && !fd_can_write(desc))
             return -1;
 
@@ -308,10 +326,6 @@ int sys_write(int fd, const char *buf, size_t count)
         return clamp_to_int(count);
     }
 
-    if (fd < 3 || fd >= MAX_FDS)
-        return -1;
-
-    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode || !fd_can_write(desc))
         return -1;
 
@@ -878,6 +892,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_lseek((int)arg1, (long)arg2, (int)arg3);
     case SYS_DUP:
         return sys_dup((int)arg1);
+    case SYS_SHUTDOWN:
+        sys_shutdown();
+        return 0;
+    case SYS_REBOOT:
+        sys_reboot();
+        return 0;
     default:
         printk("Unknown syscall: %lu\n", syscall_number);
         return -1;
@@ -886,15 +906,28 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
 
 int sys_read(int fd, char *buf, size_t count)
 {
-    if (fd < 0)
+    if (fd < 0 || fd >= MAX_FDS)
         return 0;
 
     if (!prepare_user_buffer(buf, count, true))
         return -1;
 
-    if (fd == 0) // stdin
+    file_descriptor_t *desc = current_process->fd_table[fd];
+
+    // Handle stdin (fd 0) specially only if it's the console device or not set up
+    if (fd == 0)
     {
-        file_descriptor_t *desc = current_process->fd_table[0];
+        // If fd 0 has a real descriptor with an inode, use it
+        if (desc && desc->inode)
+        {
+            if (!fd_can_read(desc))
+                return -1;
+            uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
+            desc->offset += read;
+            return clamp_to_int(read);
+        }
+
+        // No descriptor or no inode - fall back to keyboard
         if (desc && !fd_can_read(desc))
             return -1;
 
@@ -917,10 +950,6 @@ int sys_read(int fd, char *buf, size_t count)
         return clamp_to_int(read);
     }
 
-    if (fd < 3 || fd >= MAX_FDS)
-        return 0;
-
-    file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return 0;
     if (!fd_can_read(desc))
@@ -1227,7 +1256,7 @@ int sys_pipe(int pipefd[2])
 
 int sys_close(int fd)
 {
-    if (fd < 3 || fd >= MAX_FDS)
+    if (fd < 0 || fd >= MAX_FDS)
         return -1;
     file_descriptor_t *desc = current_process->fd_table[fd];
     if (!desc)
@@ -1304,9 +1333,9 @@ int sys_dup(int oldfd)
     if (!old_desc)
         return -1;
 
-    // Find lowest available fd starting from 3 (skip stdin, stdout, stderr)
+    // Find lowest available fd (per POSIX, starts from 0)
     int newfd = -1;
-    for (int i = 3; i < MAX_FDS; i++)
+    for (int i = 0; i < MAX_FDS; i++)
     {
         if (current_process->fd_table[i] == nullptr)
         {
@@ -1344,4 +1373,22 @@ int sys_readdir(int fd, vfs_dirent_t *dent)
     kfree(d);
     desc->offset++;
     return 1; // Success
+}
+
+void sys_shutdown()
+{
+    outw(0x604, 0x2000);  // qemu
+    outw(0x4004, 0x3400); // VirtualBox
+    outw(0xB004, 0x2000); // Bochs
+    outw(0x600, 0x34);    // Cloud hypervisors
+
+    hlt();
+}
+
+void sys_reboot()
+{
+    uint8_t good = 0x02;
+    while (good & 0x02)
+        good = inb(0x64);
+    outb(0x64, 0xFE);
 }

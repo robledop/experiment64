@@ -614,6 +614,7 @@ void terminal_write(const char *data, size_t size)
     bool prev_batch = cursor_batch;
     cursor_batch = true;
 
+    cursor_restore(); // Erase cursor at old position before writing
     cursor_drawn = false;
 
     for (size_t i = 0; i < size; i++)

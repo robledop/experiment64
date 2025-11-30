@@ -117,7 +117,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     vfs_inode_t *node = vfs_resolve_path(path);
     if (!node)
     {
-        printk("ELF: Failed to resolve path %s\n", path);
+        // printk("ELF: Failed to resolve path %s\n", path);
         return false;
     }
 

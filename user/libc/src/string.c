@@ -10,6 +10,14 @@ size_t strlen(const char* s)
     return len;
 }
 
+size_t strnlen(const char *s, size_t maxlen) {
+    size_t n = 0;
+    while (n < maxlen && s[n] != '\0') {
+        n++;
+    }
+    return n;
+}
+
 int strcmp(const char* s1, const char* s2)
 {
     while (*s1 && (*s1 == *s2))
@@ -279,4 +287,20 @@ void reverse(char* s)
         s[i] = s[j];
         s[j] = c;
     }
+}
+
+bool ends_with(const char *str, const char *suffix)
+{
+    if (!str || !suffix) {
+        return false;
+    }
+
+    const size_t str_len    = strlen(str);
+    const size_t suffix_len = strlen(suffix);
+
+    if (suffix_len > str_len) {
+        return false;
+    }
+
+    return strncmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }

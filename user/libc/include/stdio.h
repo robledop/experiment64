@@ -1,6 +1,4 @@
-#ifndef _STDIO_H
-#define _STDIO_H
-
+#pragma once
 #include <stddef.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -61,5 +59,4 @@ long ftell(FILE *stream);
 int fflush(FILE *stream);
 int remove(const char *path);
 int rename(const char *oldpath, const char *newpath);
-
-#endif
+int getchar_blocking();
