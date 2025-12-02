@@ -240,7 +240,12 @@ void disableRawMode()
     {
         return;
     }
+    // Flush any pending input before restoring terminal
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+    // Drain any remaining buffered input
+    unsigned char discard;
+    while (read(STDIN_FILENO, &discard, 1) > 0)
+        ;
     // Clear screen on exit
     write(STDOUT_FILENO, "\x1b[2J", 4);
 }

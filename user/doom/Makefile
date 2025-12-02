@@ -21,11 +21,19 @@ AS = nasm
 LD = $(TOOLPREFIX)ld
 INCLUDE = -I../libc/include -I../include -I../../include
 
-CFLAGS = -O3 -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -masm=intel -mavx
+# Base flags for all code
+BASE_CFLAGS = -O3 -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx
+
+# CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
+CFLAGS = $(BASE_CFLAGS)
 CFLAGS += $(INCLUDE)
 ASFLAGS += $(INCLUDE)
 CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
           -D__bool_true_false_are_defined=1
+
+# CFLAGS for libc (needs -masm=intel for AVX inline assembly)
+LIBC_CFLAGS = $(BASE_CFLAGS) -masm=intel $(INCLUDE)
+
 LDFLAGS += -static -Ttext=0x400000 --build-id=none
 
 LIBC_DIR := ../libc
@@ -67,10 +75,10 @@ $(OBJDIR)/libc:
 	mkdir -p $(OBJDIR)/libc
 
 $(OBJDIR)/libc/%.o: $(LIBC_DIR)/src/%.c | $(OBJDIR)/libc
-	$(VB)$(CC) $(CFLAGS) -c -o $@ $<
+	$(VB)$(CC) $(LIBC_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/libc/%.o: $(LIBC_DIR)/src/%.S | $(OBJDIR)/libc
-	$(VB)$(CC) $(CFLAGS) -c -o $@ $<
+	$(VB)$(CC) $(LIBC_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/%.o:	%.c
 	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
