@@ -22,7 +22,7 @@ LD = $(TOOLPREFIX)ld
 INCLUDE = -I../libc/include -I../include -I../../include
 
 # Base flags for all code
-BASE_CFLAGS = -O3 -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx
+BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx
 
 # CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
 CFLAGS = $(BASE_CFLAGS)

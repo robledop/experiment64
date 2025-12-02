@@ -32,6 +32,7 @@
       <w>msyntax</w>
       <w>nbits</w>
       <w>ndev</w>
+      <w>newptr</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
       <w>outsl</w>

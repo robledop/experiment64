@@ -20,4 +20,4 @@ struct winsize
 #define FB_IOCTL_GET_PITCH 0x4603
 
 // Keyboard ioctls
-#define KDFLUSH 0x4B00  // Flush keyboard input buffers
+#define KDFLUSH 0x4B00 // Flush keyboard input buffers

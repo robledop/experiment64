@@ -1,147 +1,221 @@
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include <limits.h>
-#include <stdint.h>
+#include <stddef.h>
 
-typedef struct block_meta
+#include "string.h"
+#include "unistd.h"
+
+// Memory allocator by Kernighan and Ritchie,
+// The C programming Language, 2nd ed.  Section 8.7.
+//
+// This is a simple free-list allocator that maintains a circular linked list
+// of free memory block Each block has a header containing the size and
+// pointer to the next free block.
+
+// Each free block starts with a header that contains metadata
+
+typedef struct header
 {
-    size_t size;
-    struct block_meta *next;
-    int free;
-} block_meta;
+    struct header* ptr; // Pointer to the next free block in the circular list
+    size_t size; // Size of this block (in Header-sized units)
+} Header;
 
-#define META_SIZE sizeof(block_meta)
+// Base of the free list - initially forms a zero-size block
+static Header base;
 
-static block_meta *global_base = nullptr;
+// Pointer to the current position in the free list (where the last search ended)
+static Header* freep;
 
-static block_meta *find_free_block(block_meta **last, size_t size)
+// Free a previously allocated block of memory
+// ap: pointer to the memory block (not including the header)
+void free(void* ap)
 {
-    block_meta *current = global_base;
-    while (current && !(current->free && current->size >= size))
+    if (ap == nullptr)
     {
-        *last = current;
-        current = current->next;
+        return;
     }
-    return current;
+    Header* p;
+
+    // Get pointer to the header (one unit before the user data)
+    Header* bp = (Header*)ap - 1;
+
+    // Find the insertion point in the free list
+    // The list is kept sorted by address to enable coalescing
+    // Loop until we find where bp fits: between p and p->ptr
+    for (p = freep; !(bp > p && bp < p->ptr); p = p->ptr)
+    {
+        // Special case: if p >= p->ptr, we've wrapped around the circular list
+        // (p is the highest address block and p->ptr is the lowest)
+        // In this case, bp should be inserted if it's either:
+        // - Higher than p (at the end), or
+        // - Lower than p->ptr (at the beginning)
+        if (p >= p->ptr && (bp > p || bp < p->ptr))
+        {
+            break;
+        }
+    }
+
+    // Coalesce with the next block if they're adjacent in memory
+    if (bp + bp->size == p->ptr)
+    {
+        bp->size += p->ptr->size; // Merge sizes
+        bp->ptr = p->ptr->ptr; // Skip over the next block
+    }
+    else
+    {
+        // Not adjacent, just link to the next block
+        bp->ptr = p->ptr;
+    }
+
+    // Coalesce with the previous block if they're adjacent in memory
+    if (p + p->size == bp)
+    {
+        p->size += bp->size; // Merge sizes
+        p->ptr = bp->ptr; // Skip over bp
+    }
+    else
+    {
+        // Not adjacent, just link the previous block to bp
+        p->ptr = bp;
+    }
+
+    // Update freep to start the next search here
+    freep = p;
 }
 
-static block_meta *request_space(block_meta *last, size_t size)
+// Request more memory from the operating system
+// nu: number of Header-sized units needed
+// Returns: pointer to the free list, or nullptr on failure
+static Header* morecore(size_t nu)
 {
-    block_meta* block = sbrk(0);
-    if (size > (size_t)INTPTR_MAX - META_SIZE)
+    // Allocate at least 4096 units to reduce syscall overhead
+    if (nu < 4096)
+    {
+        nu = 4096;
+    }
+
+    // Request memory from OS via sbrk syscall
+    if (nu > (size_t)INT_MAX / sizeof(Header))
+    {
         return nullptr;
-    intptr_t increment = (intptr_t)size + (intptr_t)META_SIZE;
-    const void *request = sbrk(increment);
-    if (request == (void *)-1)
+    }
+    int bytes = (int)(nu * sizeof(Header));
+    char* p = sbrk(bytes);
+    if (p == (char*)-1)
     {
         return nullptr; // sbrk failed
     }
 
-    if (request != block)
-    {
-        // This should not happen if sbrk is thread-safe or we are single threaded
-    }
+    // Set up the header for the new memory block
+    Header* hp = (Header*)p;
+    hp->size = nu;
 
-    block->size = size;
-    block->next = nullptr;
-    block->free = 0;
+    // Add the new block to the free list by "freeing" it
+    // This also handles coalescing with adjacent free blocks
+    free((void*)(hp + 1));
 
-    if (last)
-    {
-        last->next = block;
-    }
-    return block;
+    return freep;
 }
 
-void *malloc(size_t size)
+// Allocate memory of at least nbytes size
+// nbytes: number of bytes requested
+// Returns: pointer to allocated memory, or nullptr if allocation fails
+void* malloc(size_t nbytes)
 {
-    if (size <= 0)
+    Header* prevp;
+
+    // Convert byte size to Header-sized units
+    // +1 for the header itself and round up for any remainder
+    const size_t nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
+
+    // Initialize the free list on the first call
+    if ((prevp = freep) == nullptr)
     {
+        base.ptr = freep = prevp = &base;
+        base.size = 0;
+    }
+
+    // Search the free list for a block that's big enough.
+    // Start at freep (where the last search ended) and scan circularly
+    for (Header* p = prevp->ptr; ; prevp = p, p = p->ptr)
+    {
+        // Found a block big enough
+        if (p->size >= nunits)
+        {
+            if (p->size == nunits)
+            {
+                // Exact fit: remove the entire block from the free list
+                prevp->ptr = p->ptr;
+            }
+            else
+            {
+                // Block is larger: split it
+                // Allocate from the tail end of the block
+                p->size -= nunits; // Reduce free block size
+                p += p->size; // Move to tail of remaining block
+                p->size = nunits; // Set size of allocated block
+            }
+            freep = prevp; // Update search start position
+            return (void*)(p + 1); // Return pointer past the header
+        }
+
+        // Wrapped around to where we started - no suitable block found
+        if (p == freep)
+        {
+            // Request more memory from OS
+            if ((p = morecore(nunits)) == nullptr)
+            {
+                return nullptr; // Out of memory
+            }
+        }
+    }
+}
+
+void* realloc(void* ptr, size_t size)
+{
+    if (ptr == nullptr)
+    {
+        return size ? malloc(size) : nullptr;
+    }
+    if (size == 0)
+    {
+        free(ptr);
         return nullptr;
     }
 
-    block_meta *block;
-
-    if (!global_base)
-    {
-        block = request_space(nullptr, size);
-        if (!block)
-        {
-            return nullptr;
-        }
-        global_base = block;
-    }
-    else
-    {
-        block_meta *last = global_base;
-        block = find_free_block(&last, size);
-        if (!block)
-        {
-            block = request_space(last, size);
-            if (!block)
-            {
-                return nullptr;
-            }
-        }
-        else
-        {
-            block->free = 0;
-        }
-    }
-
-    return (block + 1);
-}
-
-void free(void *ptr)
-{
-    if (!ptr)
-    {
-        return;
-    }
-
-    block_meta *block_ptr = (block_meta *)ptr - 1;
-    block_ptr->free = 1;
-
-    // Simple coalescing with next block
-    if (block_ptr->next && block_ptr->next->free)
-    {
-        block_ptr->size += META_SIZE + block_ptr->next->size;
-        block_ptr->next = block_ptr->next->next;
-    }
-}
-
-void *calloc(size_t nmemb, size_t size)
-{
-    size_t total_size = nmemb * size;
-    void *ptr = malloc(total_size);
-    if (ptr)
-    {
-        memset(ptr, 0, total_size);
-    }
-    return ptr;
-}
-
-void *realloc(void *ptr, size_t size)
-{
-    if (!ptr)
-    {
-        return malloc(size);
-    }
-
-    block_meta *block_ptr = (block_meta *)ptr - 1;
-    if (block_ptr->size >= size)
+    Header* bp = (Header*)ptr - 1;
+    size_t current_bytes = (bp->size - 1) * sizeof(Header);
+    if (size <= current_bytes)
     {
         return ptr;
     }
 
-    void *new_ptr = malloc(size);
-    if (!new_ptr)
+    void* newptr = malloc(size);
+    if (newptr == nullptr)
     {
         return nullptr;
     }
 
-    memcpy(new_ptr, ptr, block_ptr->size);
+    const size_t copy = current_bytes < size ? current_bytes : size;
+    memmove(newptr, ptr, copy);
     free(ptr);
-    return new_ptr;
+    return newptr;
+}
+
+void* calloc(size_t nmemb, size_t size)
+{
+    if (nmemb == 0 || size == 0)
+    {
+        return malloc(0);
+    }
+    if (nmemb > (size_t)INT_MAX / size)
+    {
+        return nullptr;
+    }
+    const size_t total = nmemb * size;
+    void* ptr = malloc(total);
+    if (ptr != nullptr)
+    {
+        memset(ptr, 0, total);
+    }
+    return ptr;
 }

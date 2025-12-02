@@ -266,7 +266,7 @@ void enableRawMode()
 {
     // Always register cleanup handler to flush keyboard buffers on exit
     atexit(disableRawMode);
-    
+
     if (!KeyboardUsesConsole)
     {
         return;

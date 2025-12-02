@@ -11,10 +11,14 @@ static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *
     bool r = false, w = false, a = false, plus = false;
     for (const char *p = mode; *p; p++)
     {
-        if (*p == 'r') r = true;
-        if (*p == 'w') w = true;
-        if (*p == 'a') a = true;
-        if (*p == '+') plus = true;
+        if (*p == 'r')
+            r = true;
+        if (*p == 'w')
+            w = true;
+        if (*p == 'a')
+            a = true;
+        if (*p == '+')
+            plus = true;
     }
     bool readable = r || (!w && !a) || plus;
     bool writable = w || a || plus;
