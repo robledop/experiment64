@@ -14,6 +14,9 @@ void *memcpy(void *dest, const void *src, size_t n);
 void *memmove(void *dst, const void *src, size_t n);
 void *memset(void *s, int c, size_t n);
 
+// Fast forward copy - use when you KNOW dst < src (no overlap issues)
+void *memcpy_forward(void *dst, const void *src, size_t n);
+
 // Non-temporal (streaming) versions for write-combining memory (e.g., framebuffer)
 void *memcpy_nt(void *dest, const void *src, size_t n);
 void *memset_nt(void *dest, int c, size_t n);

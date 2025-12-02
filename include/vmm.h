@@ -10,15 +10,7 @@
 #define PTE_PWT (1ull << 3) // Page Write-Through
 #define PTE_PCD (1ull << 4) // Page Cache Disable
 #define PTE_HUGE (1ull << 7)
-#define PTE_PAT (1ull << 7)       // PAT bit for 4KB pages (same bit as HUGE, but different meaning)
-#define PTE_PAT_HUGE (1ull << 12) // PAT bit for 2MB/1GB pages
 #define PTE_NX (1ull << 63)
-
-// Combined flags for Write-Combining memory (using PAT index 1 = WC)
-// PAT index is formed by: PAT bit (bit 7) | PCD (bit 4) | PWT (bit 3)
-// Default PAT: index 0=WB, 1=WT, 2=UC-, 3=UC, 4=WB, 5=WT, 6=UC-, 7=UC
-// We'll reprogram PAT so index 1 = WC: PAT=0, PCD=0, PWT=1
-#define PTE_WRITE_COMBINING PTE_PWT
 
 typedef uint64_t *pml4_t;
 
@@ -33,4 +25,3 @@ void vmm_destroy_pml4(pml4_t pml4);
 void vmm_switch_pml4(const uint64_t *pml4);
 void vmm_finalize(void);
 uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt);
-void vmm_remap_wc(uint64_t virt_start, uint64_t size);

@@ -304,7 +304,7 @@ char keyboard_get_char(void)
 {
     // Flush any pending terminal output before blocking
     terminal_force_flush();
-    
+
     while (1)
     {
         // Disable interrupts to check buffer and sleep atomically

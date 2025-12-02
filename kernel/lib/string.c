@@ -5,6 +5,9 @@
 #include <limits.h>
 #include "kasan.h"
 
+// Forward declaration for AVX-optimized copy
+static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n);
+
 #ifdef KASAN
 #define KASAN_ASSERT_RANGE(addr, size, is_write)                                        \
     do                                                                                  \
@@ -69,40 +72,105 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
     KASAN_ASSERT_RANGE(dest, n, true);
     KASAN_ASSERT_RANGE(src, n, false);
-
-    unsigned char *d = dest;
-    const unsigned char *s = src;
-
-    for (size_t i = 0; i < n; i++)
-    {
-        d[i] = s[i];
-    }
-    return dest;
+    return memcpy_forward_impl(dest, src, n);
 }
 
 void *memmove(void *dst, const void *src, size_t n)
 {
+    if (src < dst && (const char *)src + n > (char *)dst)
+    {
+        // Backward copy required: overlapping region where src < dst
+        unsigned char *d = (unsigned char *)dst + n;
+        const unsigned char *s = (const unsigned char *)src + n;
+
+        // Handle trailing bytes to get 8-byte aligned
+        while (n && ((uintptr_t)d & 7))
+        {
+            *--d = *--s;
+            n--;
+        }
+
+        // Copy 8 bytes at a time backwards if both pointers are aligned
+        if (((uintptr_t)s & 7) == 0)
+        {
+            uint64_t *d64 = (uint64_t *)d;
+            const uint64_t *s64 = (const uint64_t *)s;
+            while (n >= 8)
+            {
+                *--d64 = *--s64;
+                n -= 8;
+            }
+            d = (unsigned char *)d64;
+            s = (const unsigned char *)s64;
+        }
+
+        // Copy remaining bytes
+        while (n--)
+        {
+            *--d = *--s;
+        }
+        return dst;
+    }
+
+    // Safe to use fast AVX forward copy (no overlap or dst <= src)
+    return memcpy_forward_impl(dst, src, n);
+}
+
+// Fast forward memory copy using AVX
+static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n)
+{
     unsigned char *d = dst;
     const unsigned char *s = src;
 
-    if (s < d && s + n > d)
+    // Handle unaligned head
+    while (n && ((uintptr_t)d & 31))
     {
-        // Backward copy for overlapping regions
-        for (size_t i = n; i > 0; i--)
+        *d++ = *s++;
+        n--;
+    }
+
+    // Copy 32 bytes at a time using AVX if source is also aligned
+    if (((uintptr_t)s & 31) == 0)
+    {
+        while (n >= 32)
         {
-            d[i - 1] = s[i - 1];
+            __asm__ volatile(
+                "vmovdqa ymm0, [%1]\n\t"
+                "vmovdqa [%0], ymm0\n\t"
+                : : "r"(d), "r"(s) : "ymm0", "memory");
+            d += 32;
+            s += 32;
+            n -= 32;
         }
     }
     else
     {
-        // Forward copy
-        for (size_t i = 0; i < n; i++)
+        // Unaligned source - use unaligned loads
+        while (n >= 32)
         {
-            d[i] = s[i];
+            __asm__ volatile(
+                "vmovdqu ymm0, [%1]\n\t"
+                "vmovdqa [%0], ymm0\n\t"
+                : : "r"(d), "r"(s) : "ymm0", "memory");
+            d += 32;
+            s += 32;
+            n -= 32;
         }
     }
 
+    // Handle remaining bytes
+    while (n--)
+    {
+        *d++ = *s++;
+    }
+
     return dst;
+}
+
+// Public wrapper for external callers (e.g., terminal scrolling)
+void *memcpy_forward(void *restrict dst, const void *restrict src, size_t n)
+{
+    return memcpy_forward_impl(dst, src, n);
 }
 
 void *memset(void *s, int c, size_t n)
@@ -111,10 +179,34 @@ void *memset(void *s, int c, size_t n)
     unsigned char *p = s;
     unsigned char byte = (unsigned char)c;
 
-    for (size_t i = 0; i < n; i++)
+    // Build 64-bit pattern
+    uint64_t val = byte;
+    val |= val << 8;
+    val |= val << 16;
+    val |= val << 32;
+
+    // Use rep stosq for 8-byte aligned bulk fills
+    if (((uintptr_t)p & 7) == 0 && n >= 8)
     {
-        p[i] = byte;
+        size_t qwords = n / 8;
+        __asm__ volatile(
+            "rep stosq"
+            : "+D"(p), "+c"(qwords)
+            : "a"(val)
+            : "memory");
+        n &= 7; // remaining bytes
     }
+
+    // Handle remaining bytes with rep stosb
+    if (n > 0)
+    {
+        __asm__ volatile(
+            "rep stosb"
+            : "+D"(p), "+c"(n)
+            : "a"(byte)
+            : "memory");
+    }
+
     return s;
 }
 

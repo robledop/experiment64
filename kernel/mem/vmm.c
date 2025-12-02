@@ -3,45 +3,12 @@
 #include "string.h"
 #include <stdint.h>
 #include "terminal.h"
-#include "cpu.h"
 
 uint64_t g_hhdm_offset = 0;
-
-// IA32_PAT MSR
-#define IA32_PAT 0x277
-
-// PAT memory types
-#define PAT_UC 0  // Uncacheable
-#define PAT_WC 1  // Write Combining
-#define PAT_WT 4  // Write Through
-#define PAT_WP 5  // Write Protect
-#define PAT_WB 6  // Write Back
-#define PAT_UCM 7 // Uncacheable (UC-)
-
-void vmm_setup_pat(void)
-{
-    // Set up PAT so we can use Write-Combining for framebuffer
-    // Default PAT layout: PA0=WB, PA1=WT, PA2=UC-, PA3=UC, PA4=WB, PA5=WT, PA6=UC-, PA7=UC
-    // We want: PA0=WB, PA1=WC, PA2=UC-, PA3=UC, PA4=WB, PA5=WT, PA6=UC-, PA7=UC
-    // This puts WC at index 1 (accessed via PWT=1, PCD=0, PAT=0)
-
-    uint64_t pat =
-        ((uint64_t)PAT_WB << 0) |   // PA0: Write Back (default)
-        ((uint64_t)PAT_WC << 8) |   // PA1: Write Combining (was WT)
-        ((uint64_t)PAT_UCM << 16) | // PA2: UC- (default)
-        ((uint64_t)PAT_UC << 24) |  // PA3: UC (default)
-        ((uint64_t)PAT_WB << 32) |  // PA4: Write Back (default)
-        ((uint64_t)PAT_WT << 40) |  // PA5: Write Through (default)
-        ((uint64_t)PAT_UCM << 48) | // PA6: UC- (default)
-        ((uint64_t)PAT_UC << 56);   // PA7: UC (default)
-
-    wrmsr(IA32_PAT, pat);
-}
 
 void vmm_init(uint64_t hhdm_offset)
 {
     g_hhdm_offset = hhdm_offset;
-    vmm_setup_pat();
 }
 
 static uint64_t *get_next_level(uint64_t *current_level, size_t index, bool allocate)
@@ -322,86 +289,4 @@ void vmm_finalize(void)
         while (1)
             __asm__("hlt");
     }
-}
-
-void vmm_remap_wc(uint64_t virt_start, uint64_t size)
-{
-    // Remap a range of virtual addresses with Write-Combining attribute
-    // This is used for framebuffer to improve performance
-    // Handles both 4KB pages and 2MB huge pages
-
-    uint64_t addr = virt_start & ~0xFFFULL; // Page align
-    uint64_t end = (virt_start + size + 0xFFF) & ~0xFFFULL;
-
-    // Get current PML4
-    uint64_t cr3;
-    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
-    pml4_t pml4 = (pml4_t)(cr3 & ~0xFFFULL);
-
-    int pages_remapped = 0;
-    int huge_pages = 0;
-    int small_pages = 0;
-
-    while (addr < end)
-    {
-        size_t pml4_idx = (addr >> 39) & 0x1FF;
-        size_t pdpt_idx = (addr >> 30) & 0x1FF;
-        size_t pd_idx = (addr >> 21) & 0x1FF;
-        size_t pt_idx = (addr >> 12) & 0x1FF;
-
-        uint64_t *pml4_virt = (uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
-
-        uint64_t *pdpt_virt = get_next_level(pml4_virt, pml4_idx, false);
-        if (!pdpt_virt)
-        {
-            addr += PAGE_SIZE;
-            continue;
-        }
-
-        uint64_t *pd_virt = get_next_level(pdpt_virt, pdpt_idx, false);
-        if (!pd_virt)
-        {
-            addr += PAGE_SIZE;
-            continue;
-        }
-
-        // Check if this is a 2MB huge page (PS bit set in PD entry)
-        if (pd_virt[pd_idx] & PTE_HUGE)
-        {
-            // 2MB huge page - set PWT for WC (PAT index 1)
-            uint64_t old = pd_virt[pd_idx];
-            pd_virt[pd_idx] |= PTE_PWT;
-            if (pages_remapped == 0)
-                boot_message(INFO, "  First huge page: old=0x%lx new=0x%lx", old, pd_virt[pd_idx]);
-            __asm__ volatile("invlpg [%0]" : : "r"(addr) : "memory");
-            addr += 0x200000; // Skip 2MB
-            huge_pages++;
-            pages_remapped++;
-            continue;
-        }
-
-        uint64_t *pt_virt = get_next_level(pd_virt, pd_idx, false);
-        if (!pt_virt)
-        {
-            addr += PAGE_SIZE;
-            continue;
-        }
-
-        if (pt_virt[pt_idx] & PTE_PRESENT)
-        {
-            // 4KB page - set PWT for WC (PAT index 1)
-            uint64_t old = pt_virt[pt_idx];
-            pt_virt[pt_idx] |= PTE_WRITE_COMBINING;
-            if (pages_remapped == 0)
-                boot_message(INFO, "  First 4KB page: old=0x%lx new=0x%lx", old, pt_virt[pt_idx]);
-            __asm__ volatile("invlpg [%0]" : : "r"(addr) : "memory");
-            small_pages++;
-            pages_remapped++;
-        }
-
-        addr += PAGE_SIZE;
-    }
-
-    boot_message(INFO, "vmm_remap_wc: remapped %d pages (%d huge, %d small)",
-                 pages_remapped, huge_pages, small_pages);
 }

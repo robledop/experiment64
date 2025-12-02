@@ -144,23 +144,6 @@ void _start(void) // NOLINT(*-reserved-identifier)
     devfs_init();
     console_init();
 
-    // Set up framebuffer with Write-Combining for better performance
-    struct limine_framebuffer *fb = framebuffer_current();
-    if (fb)
-    {
-        uint64_t fb_size = fb->pitch * fb->height;
-        uint64_t fb_phys = (uint64_t)fb->address - hhdm_offset;
-
-        // Set MTRR to WC (this overrides the UC setting)
-        cpu_set_mtrr_wc(fb_phys, fb_size);
-
-        // Also update page tables with WC attribute
-        vmm_remap_wc((uint64_t)fb->address, fb_size);
-
-        printk("Framebuffer: virt=0x%lx phys=0x%lx size=%lu bytes (WC)\n",
-               (uint64_t)fb->address, fb_phys, fb_size);
-    }
-
     vfs_mount_root();
 
 #ifdef TEST_MODE

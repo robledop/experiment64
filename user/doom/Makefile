@@ -21,7 +21,7 @@ AS = nasm
 LD = $(TOOLPREFIX)ld
 INCLUDE = -I../libc/include -I../include -I../../include
 
-CFLAGS = -O3 -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin
+CFLAGS = -O3 -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -masm=intel -mavx
 CFLAGS += $(INCLUDE)
 ASFLAGS += $(INCLUDE)
 CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \

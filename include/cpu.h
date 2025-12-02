@@ -54,8 +54,6 @@ void restore_fpu_state(fpu_state_t *state);
 bool cpu_has_avx(void);
 uint32_t cpu_fpu_save_size(void);
 bool cpu_is_hypervisor(void);
-void cpu_dump_mtrr_for_address(uint64_t phys_addr);
-bool cpu_set_mtrr_wc(uint64_t phys_base, uint64_t size);
 
 static inline uint64_t rdtsc(void)
 {
