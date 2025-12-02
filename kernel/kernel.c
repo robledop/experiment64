@@ -47,8 +47,8 @@ void shutdown()
     outw(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
     outd(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
 
-    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD); // qemu
-    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD); // VirtualBox
+    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD);   // qemu
+    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD);   // VirtualBox
     outw(BOCHS_SHUTDOWN_PORT, BOCHS_SHUTDOWN_CMD); // Bochs
     outw(CLOUD_SHUTDOWN_PORT, CLOUD_SHUTDOWN_CMD); // Cloud hypervisors
 }
@@ -68,7 +68,7 @@ static void kernel_splash_ascii(void)
 
 void kernel_splash(void)
 {
-    struct limine_framebuffer* fb = framebuffer_current();
+    struct limine_framebuffer *fb = framebuffer_current();
     if (!fb)
     {
         kernel_splash_ascii();
@@ -77,7 +77,7 @@ void kernel_splash(void)
 
     terminal_clear(0x00000000);
 
-    uint32_t* pixels = nullptr;
+    uint32_t *pixels = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
     if (bitmap_load_argb("/var/logo.bmp", &pixels, &width, &height) != 0 || !pixels)
@@ -143,6 +143,23 @@ void _start(void) // NOLINT(*-reserved-identifier)
     vfs_init();
     devfs_init();
     console_init();
+
+    // Set up framebuffer with Write-Combining for better performance
+    struct limine_framebuffer *fb = framebuffer_current();
+    if (fb)
+    {
+        uint64_t fb_size = fb->pitch * fb->height;
+        uint64_t fb_phys = (uint64_t)fb->address - hhdm_offset;
+
+        // Set MTRR to WC (this overrides the UC setting)
+        cpu_set_mtrr_wc(fb_phys, fb_size);
+
+        // Also update page tables with WC attribute
+        vmm_remap_wc((uint64_t)fb->address, fb_size);
+
+        printk("Framebuffer: virt=0x%lx phys=0x%lx size=%lu bytes (WC)\n",
+               (uint64_t)fb->address, fb_phys, fb_size);
+    }
 
     vfs_mount_root();
 

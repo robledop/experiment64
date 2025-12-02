@@ -6,6 +6,7 @@
 #include "vfs.h"
 #include "heap.h"
 #include "string.h"
+#include "terminal.h"
 
 // US QWERTY Scancode Set 1
 static const char scancode_to_char[SCANCODE_TABLE_SIZE] = {
@@ -301,6 +302,9 @@ bool keyboard_has_char(void)
 
 char keyboard_get_char(void)
 {
+    // Flush any pending terminal output before blocking
+    terminal_force_flush();
+    
     while (1)
     {
         // Disable interrupts to check buffer and sleep atomically

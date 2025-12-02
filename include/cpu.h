@@ -33,27 +33,29 @@ struct Thread;
 
 typedef struct cpu
 {
-    struct cpu* self;
+    struct cpu *self;
     uint64_t user_rsp;
     uint64_t kernel_rsp;
-    struct Thread* active_thread;
+    struct Thread *active_thread;
     int lapic_id;
     struct gdt_desc gdt[7];
     struct tss_entry tss;
 } cpu_t;
 
-cpu_t* get_cpu(void);
+cpu_t *get_cpu(void);
 
 [[noreturn]] void hcf(void);
 void wrmsr(uint32_t msr, uint64_t value);
 uint64_t rdmsr(uint32_t msr);
 void enable_simd(void);
-void init_fpu_state(fpu_state_t* state);
-void save_fpu_state(fpu_state_t* state);
-void restore_fpu_state(fpu_state_t* state);
+void init_fpu_state(fpu_state_t *state);
+void save_fpu_state(fpu_state_t *state);
+void restore_fpu_state(fpu_state_t *state);
 bool cpu_has_avx(void);
 uint32_t cpu_fpu_save_size(void);
 bool cpu_is_hypervisor(void);
+void cpu_dump_mtrr_for_address(uint64_t phys_addr);
+bool cpu_set_mtrr_wc(uint64_t phys_base, uint64_t size);
 
 static inline uint64_t rdtsc(void)
 {

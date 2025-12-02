@@ -161,59 +161,101 @@ struct cmd *parsecmd(char *);
     exit();
 }
 
+// Special key codes for internal use
+#define KEY_UP 256
+#define KEY_DOWN 257
+#define KEY_RIGHT 258
+#define KEY_LEFT 259
+
+// Read a key, handling ANSI escape sequences for arrow keys
+static int read_key(void)
+{
+    int c = getchar_blocking();
+    if (c == '\x1b')
+    {
+        // Escape sequence - try to read more
+        int c2 = getchar_blocking();
+        if (c2 == '[')
+        {
+            int c3 = getchar_blocking();
+            switch (c3)
+            {
+            case 'A':
+                return KEY_UP;
+            case 'B':
+                return KEY_DOWN;
+            case 'C':
+                return KEY_RIGHT;
+            case 'D':
+                return KEY_LEFT;
+            }
+        }
+        // Not a recognized sequence, return ESC
+        return '\x1b';
+    }
+    return c;
+}
+
 void shell_terminal_readline(char *out, const int max, const bool output_while_typing)
 {
     int current_history_index = history_count;
     int i = 0;
     for (; i < max - 1; i++)
     {
-        const unsigned char key = getchar_blocking();
+        const int key = read_key();
         if (key == 0)
         {
             continue;
         }
 
         // Up arrow
-        if (key == 226)
+        if (key == KEY_UP)
         {
             if (current_history_index == 0)
             {
+                i--;
                 continue;
             }
 
-            for (int j = 0; j < i - 1; j++)
+            // Clear current line
+            for (int j = 0; j < i; j++)
             {
-                printf("\b");
+                printf("\b \b");
             }
             current_history_index--;
             strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
-            i = (int)strnlen((char *)out, max);
-            printf((char *)out);
+            i = (int)strnlen((char *)out, max) - 1;
+            printf("%s", (char *)out);
             continue;
         }
 
-        // TODO: This is still a little buggy
         // Down arrow
-        if (key == 227)
+        if (key == KEY_DOWN)
         {
+            // Clear current line
+            for (int j = 0; j < i; j++)
+            {
+                printf("\b \b");
+            }
+
             if (current_history_index >= history_count - 1)
             {
+                // At the end of history, show empty line
+                current_history_index = history_count;
+                out[0] = '\0';
+                i = -1;
                 continue;
             }
 
-            for (int j = 0; j < i - 1; j++)
-            {
-                printf("\b");
-            }
             current_history_index++;
             strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
-            i = (int)strlen((char *)out);
-            printf((char *)out);
+            i = (int)strlen((char *)out) - 1;
+            printf("%s", (char *)out);
             continue;
         }
 
         // Left arrow key
-        if (key == 228)
+        if (key == KEY_LEFT)
         {
             if (i <= 0)
             {
@@ -222,8 +264,18 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
             }
             else
             {
+                printf("\x1b[D"); // Move cursor left
                 i -= 2;
+                continue;
             }
+        }
+
+        // Right arrow key
+        if (key == KEY_RIGHT)
+        {
+            // For now, just decrement to counteract the loop increment
+            i--;
+            continue;
         }
 
         if (key == '\n' || key == '\r')
@@ -249,7 +301,7 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
             continue;
         }
 
-        out[i] = key;
+        out[i] = (char)key;
     }
 
     out[i] = 0x00;

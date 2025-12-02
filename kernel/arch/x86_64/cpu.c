@@ -1,5 +1,6 @@
 #include "string.h"
 #include "cpu.h"
+#include "terminal.h"
 
 static bool g_use_xsave = false;
 static bool g_use_xsaveopt = false;
@@ -16,6 +17,7 @@ static inline void cpuid(uint32_t leaf, uint32_t subleaf,
                      : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
                      : "a"(leaf), "c"(subleaf));
 }
+
 // NOLINTEND(readability-non-const-parameter)
 
 static inline void xsetbv(uint32_t index, uint64_t value)
@@ -191,4 +193,116 @@ bool cpu_has_avx(void)
 uint32_t cpu_fpu_save_size(void)
 {
     return g_fpu_save_size;
+}
+
+// MTRR Memory Type definitions
+#define MTRR_TYPE_UC 0 // Uncacheable
+#define MTRR_TYPE_WC 1 // Write Combining
+#define MTRR_TYPE_WT 4 // Write Through
+#define MTRR_TYPE_WP 5 // Write Protect
+#define MTRR_TYPE_WB 6 // Write Back
+
+#define IA32_MTRRCAP 0xFE
+#define IA32_MTRR_DEF_TYPE 0x2FF
+#define IA32_MTRR_PHYSBASE0 0x200
+#define IA32_MTRR_PHYSMASK0 0x201
+
+const char *mtrr_type_name(uint8_t type)
+{
+    switch (type)
+    {
+    case MTRR_TYPE_UC:
+        return "UC (Uncacheable)";
+    case MTRR_TYPE_WC:
+        return "WC (Write Combining)";
+    case MTRR_TYPE_WT:
+        return "WT (Write Through)";
+    case MTRR_TYPE_WP:
+        return "WP (Write Protect)";
+    case MTRR_TYPE_WB:
+        return "WB (Write Back)";
+    default:
+        return "Unknown";
+    }
+}
+
+void cpu_dump_mtrr_for_address(uint64_t phys_addr)
+{
+    uint64_t mtrrcap = rdmsr(IA32_MTRRCAP);
+    uint8_t vcnt = mtrrcap & 0xFF; // Number of variable MTRRs
+
+    uint64_t def_type = rdmsr(IA32_MTRR_DEF_TYPE);
+    uint8_t default_type = def_type & 0xFF;
+    bool mtrr_enabled = (def_type & (1 << 11)) != 0;
+
+    boot_message(INFO, "MTRR: enabled=%d, default_type=%s, variable_count=%d",
+                 mtrr_enabled, mtrr_type_name(default_type), vcnt);
+    boot_message(INFO, "Checking address 0x%lx:", phys_addr);
+
+    uint8_t effective_type = default_type;
+    bool found_match = false;
+
+    for (uint8_t i = 0; i < vcnt && i < 10; i++)
+    {
+        uint64_t base = rdmsr(IA32_MTRR_PHYSBASE0 + i * 2);
+        uint64_t mask = rdmsr(IA32_MTRR_PHYSMASK0 + i * 2);
+
+        bool valid = (mask & (1 << 11)) != 0;
+        if (!valid)
+            continue;
+
+        uint64_t base_addr = base & 0xFFFFFFFFF000ULL;
+        uint64_t mask_addr = mask & 0xFFFFFFFFF000ULL;
+        uint8_t type = base & 0xFF;
+
+        // Check if address matches this MTRR
+        if ((phys_addr & mask_addr) == (base_addr & mask_addr))
+        {
+            boot_message(INFO, "  MTRR[%d]: base=0x%lx mask=0x%lx type=%s << MATCH",
+                         i, base_addr, mask_addr, mtrr_type_name(type));
+            effective_type = type;
+            found_match = true;
+        }
+        else
+        {
+            boot_message(INFO, "  MTRR[%d]: base=0x%lx mask=0x%lx type=%s",
+                         i, base_addr, mask_addr, mtrr_type_name(type));
+        }
+    }
+
+    if (!found_match)
+        boot_message(INFO, "  No variable MTRR match, using default type");
+
+    boot_message(INFO, "Effective memory type for 0x%lx: %s", phys_addr, mtrr_type_name(effective_type));
+}
+
+// Set up an MTRR to mark a physical range as Write-Combining
+// NOTE: MTRR modification is disabled because:
+// 1. Hypervisors don't allow it (GP fault)
+// 2. Real hardware often has MTRRs locked by firmware (GP fault)
+// 3. All MTRR slots are typically used by firmware for RAM
+// The framebuffer with UC memory type is the reality we have to work with.
+bool cpu_set_mtrr_wc(uint64_t phys_base, uint64_t size)
+{
+    (void)phys_base;
+    (void)size;
+
+    if (cpu_is_hypervisor())
+    {
+        boot_message(INFO, "MTRR: Skipping (hypervisor)");
+        return false;
+    }
+
+    // Check MTRR capabilities for diagnostics
+    uint64_t mtrrcap = rdmsr(IA32_MTRRCAP);
+    uint8_t vcnt = mtrrcap & 0xFF;
+    bool has_wc = (mtrrcap & (1 << 10)) != 0;
+
+    uint64_t def_type = rdmsr(IA32_MTRR_DEF_TYPE);
+    uint8_t default_type = def_type & 0xFF;
+
+    boot_message(INFO, "MTRR: %d slots, WC=%s, default=%s - not modifying (firmware lock risk)",
+                 vcnt, has_wc ? "yes" : "no", mtrr_type_name(default_type));
+
+    return false;
 }

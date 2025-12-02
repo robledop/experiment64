@@ -50,6 +50,8 @@ override CFLAGS += \
     -fPIE \
     -ggdb \
     -mavx \
+    -msse2 \
+    -mfpmath=sse \
     -m64 \
     -march=x86-64 \
     -masm=intel \

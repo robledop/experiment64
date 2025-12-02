@@ -6,10 +6,10 @@
 #include "kasan.h"
 
 #ifdef KASAN
-#define KASAN_ASSERT_RANGE(addr, size, is_write)                          \
-    do                                                                    \
-    {                                                                     \
-        if (kasan_is_ready())                                             \
+#define KASAN_ASSERT_RANGE(addr, size, is_write)                                        \
+    do                                                                                  \
+    {                                                                                   \
+        if (kasan_is_ready())                                                           \
             kasan_check_range((addr), (size), (is_write), __builtin_return_address(0)); \
     } while (0)
 #else
@@ -65,33 +65,40 @@ int strcmp(const char *s1, const char *s2)
     return *(const unsigned char *)s1 - *(const unsigned char *)s2;
 }
 
-void *memcpy(void *dest, const void *src, size_t n)
+void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
     KASAN_ASSERT_RANGE(dest, n, true);
     KASAN_ASSERT_RANGE(src, n, false);
-    char *d = dest;
-    const char *s = src;
-    while (n--)
+
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+
+    for (size_t i = 0; i < n; i++)
     {
-        *d++ = *s++;
+        d[i] = s[i];
     }
     return dest;
 }
 
-
 void *memmove(void *dst, const void *src, size_t n)
 {
-    const char *s = src;
-    char *d       = dst;
-    if (s < d && s + n > d) {
-        s += n;
-        d += n;
-        while (n-- > 0) {
-            *--d = *--s;
+    unsigned char *d = dst;
+    const unsigned char *s = src;
+
+    if (s < d && s + n > d)
+    {
+        // Backward copy for overlapping regions
+        for (size_t i = n; i > 0; i--)
+        {
+            d[i - 1] = s[i - 1];
         }
-    } else {
-        while (n-- > 0) {
-            *d++ = *s++;
+    }
+    else
+    {
+        // Forward copy
+        for (size_t i = 0; i < n; i++)
+        {
+            d[i] = s[i];
         }
     }
 
@@ -102,11 +109,104 @@ void *memset(void *s, int c, size_t n)
 {
     KASAN_ASSERT_RANGE(s, n, true);
     unsigned char *p = s;
-    while (n--)
+    unsigned char byte = (unsigned char)c;
+
+    for (size_t i = 0; i < n; i++)
     {
-        *p++ = (unsigned char)c;
+        p[i] = byte;
     }
     return s;
+}
+
+// Non-temporal memcpy - bypasses cache, ideal for write-combining memory (framebuffer)
+void *memcpy_nt(void *dest, const void *src, size_t n)
+{
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+
+    // Use non-temporal stores for 16-byte aligned chunks
+    while (n >= 16 && ((uintptr_t)d & 15) == 0 && ((uintptr_t)s & 15) == 0)
+    {
+        __asm__ volatile(
+            "movdqa xmm0, [%1]\n\t"
+            "movntdq [%0], xmm0\n\t"
+            : : "r"(d), "r"(s) : "xmm0", "memory");
+        d += 16;
+        s += 16;
+        n -= 16;
+    }
+
+    // Handle remaining bytes
+    while (n--)
+    {
+        *d++ = *s++;
+    }
+
+    // Ensure all stores are visible
+    __asm__ volatile("sfence" ::: "memory");
+
+    return dest;
+}
+
+// Non-temporal memset - bypasses cache, ideal for write-combining memory
+void *memset_nt(void *dest, int c, size_t n)
+{
+    unsigned char *d = dest;
+    unsigned char byte = (unsigned char)c;
+
+    // Create 16-byte pattern
+    __attribute__((aligned(16))) unsigned char pattern[16];
+    for (int i = 0; i < 16; i++)
+        pattern[i] = byte;
+
+    // Use non-temporal stores for 16-byte aligned chunks
+    while (n >= 16 && ((uintptr_t)d & 15) == 0)
+    {
+        __asm__ volatile(
+            "movdqa xmm0, [%1]\n\t"
+            "movntdq [%0], xmm0\n\t"
+            : : "r"(d), "r"(pattern) : "xmm0", "memory");
+        d += 16;
+        n -= 16;
+    }
+
+    // Handle remaining bytes
+    while (n--)
+    {
+        *d++ = byte;
+    }
+
+    __asm__ volatile("sfence" ::: "memory");
+
+    return dest;
+}
+
+// Non-temporal 32-bit fill - perfect for framebuffer pixel fills
+void memset32_nt(void *dest, uint32_t value, size_t count)
+{
+    uint32_t *d = dest;
+
+    // Create 16-byte pattern (4 pixels)
+    __attribute__((aligned(16))) uint32_t pattern[4] = {value, value, value, value};
+
+    // Use non-temporal stores for 4-pixel aligned chunks
+    while (count >= 4 && ((uintptr_t)d & 15) == 0)
+    {
+        __asm__ volatile(
+            "movdqa xmm0, [%1]\n\t"
+            "movntdq [%0], xmm0\n\t"
+            : : "r"(d), "r"(pattern) : "xmm0", "memory");
+        d += 4;
+        count -= 4;
+    }
+
+    // Handle remaining pixels
+    while (count--)
+    {
+        *d++ = value;
+    }
+
+    __asm__ volatile("sfence" ::: "memory");
 }
 
 int memcmp(const void *s1, const void *s2, size_t n)
@@ -276,11 +376,19 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             content_len = (len > (size_t)INT_MAX) ? INT_MAX : (int)len;
             int pad = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             cb_emit_string(s, arg, callback);
             total += content_len;
             if (left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             break;
         }
         case 'c':
@@ -289,11 +397,19 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             content_len = 1;
             int pad = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             callback(c, arg);
             total++;
             if (left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             break;
         }
         case 'd':
@@ -318,12 +434,20 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             content_len = idx;
             int pad = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             while (idx-- > 0)
                 callback(numbuf[idx], arg);
             total += content_len;
             if (left_align)
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             break;
         }
         case 'u':
@@ -368,7 +492,11 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             {
                 int pad = width - content_len;
                 total += content_len;
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             }
             else
             {
@@ -401,7 +529,11 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
 
             if (!left_align)
             {
-                while (pad-- > 0) { callback(' ', arg); total++; }
+                while (pad-- > 0)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             }
 
             if (is_pointer)
@@ -415,7 +547,11 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
 
             if (left_align)
             {
-                while (pad-- > 0) { callback(' ', arg); total++; }
+                while (pad-- > 0)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             }
 
             total += content_len;
@@ -429,7 +565,11 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             int pad = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
             {
-                for (int i = 0; i < pad; i++) { callback(' ', arg); total++; }
+                for (int i = 0; i < pad; i++)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
                 // digits already emitted; nothing to rewind cleanly, so re-emit
                 int idx = 0;
                 unsigned long long tmp = value;
@@ -446,7 +586,11 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             else
             {
                 total += content_len;
-                while (pad--) { callback(' ', arg); total++; }
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
                 break;
             }
             total += content_len;

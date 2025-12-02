@@ -17,6 +17,8 @@
 #define KWHT "\033[37m"
 
 static struct limine_framebuffer *terminal_fb = nullptr;
+static uint8_t *back_buffer = nullptr; // Double buffer in regular RAM
+static size_t back_buffer_size = 0;
 static int terminal_x = 0;
 static int terminal_y = 0;
 static uint32_t terminal_color = 0xFFAAAAAA;
@@ -31,6 +33,115 @@ static bool cursor_batch = false;
 static char boot_log_buffer[8192];
 static size_t boot_log_len = 0;
 static bool boot_log_ready = false;
+
+// Dirty rectangle tracking - only flush changed regions
+static int dirty_x1 = 0, dirty_y1 = 0, dirty_x2 = 0, dirty_y2 = 0;
+static bool has_dirty_rect = false;
+
+// Flush coalescing - don't flush on every write
+static int pending_flushes = 0;
+#define FLUSH_THRESHOLD 5  // Flush after this many write calls
+
+// Get the active drawing surface (back buffer if available, else framebuffer)
+static inline uint8_t *get_draw_surface(void)
+{
+    return back_buffer ? back_buffer : (uint8_t *)terminal_fb->address;
+}
+
+// Mark a rectangular region as dirty
+static inline void mark_dirty(int x, int y, int w, int h)
+{
+    if (!back_buffer)
+        return;
+
+    int x2 = x + w;
+    int y2 = y + h;
+
+    if (!has_dirty_rect)
+    {
+        dirty_x1 = x;
+        dirty_y1 = y;
+        dirty_x2 = x2;
+        dirty_y2 = y2;
+        has_dirty_rect = true;
+    }
+    else
+    {
+        if (x < dirty_x1)
+            dirty_x1 = x;
+        if (y < dirty_y1)
+            dirty_y1 = y;
+        if (x2 > dirty_x2)
+            dirty_x2 = x2;
+        if (y2 > dirty_y2)
+            dirty_y2 = y2;
+    }
+}
+
+// Mark full screen dirty (for scrolling)
+static inline void mark_full_dirty(void)
+{
+    if (!back_buffer || !terminal_fb)
+        return;
+    dirty_x1 = 0;
+    dirty_y1 = 0;
+    dirty_x2 = (int)terminal_fb->width;
+    dirty_y2 = (int)terminal_fb->height;
+    has_dirty_rect = true;
+}
+
+// Flush only the dirty region of back buffer to framebuffer
+static void terminal_flush(void)
+{
+    if (!back_buffer || !terminal_fb || !has_dirty_rect)
+        return;
+
+    // Clamp dirty rect to screen bounds
+    if (dirty_x1 < 0)
+        dirty_x1 = 0;
+    if (dirty_y1 < 0)
+        dirty_y1 = 0;
+    if (dirty_x2 > (int)terminal_fb->width)
+        dirty_x2 = (int)terminal_fb->width;
+    if (dirty_y2 > (int)terminal_fb->height)
+        dirty_y2 = (int)terminal_fb->height;
+
+    size_t pitch = terminal_fb->pitch;
+    uint8_t *src = back_buffer;
+    uint8_t *dst = (uint8_t *)terminal_fb->address;
+
+    // For each row in dirty region, copy only if row actually changed
+    // This helps with UC memory by skipping identical rows
+    int bytes_per_row = (dirty_x2 - dirty_x1) * 4;
+    for (int y = dirty_y1; y < dirty_y2; y++)
+    {
+        size_t offset = y * pitch + dirty_x1 * 4;
+        // Quick check: compare first and last pixel of row
+        // If both match, skip the row (heuristic to avoid full memcmp)
+        uint32_t *src_row = (uint32_t *)(src + offset);
+        uint32_t *dst_row = (uint32_t *)(dst + offset);
+        int pixels = bytes_per_row / 4;
+        if (pixels > 0 && src_row[0] == dst_row[0] && src_row[pixels-1] == dst_row[pixels-1])
+        {
+            // First and last match - likely unchanged, do full compare
+            if (memcmp(src + offset, dst + offset, bytes_per_row) == 0)
+                continue;  // Skip this row
+        }
+        memcpy(dst + offset, src + offset, bytes_per_row);
+    }
+
+    has_dirty_rect = false;
+    pending_flushes = 0;
+}
+
+// Force an immediate flush - call before blocking for input
+void terminal_force_flush(void)
+{
+    if (back_buffer && terminal_fb && has_dirty_rect)
+    {
+        terminal_flush();
+    }
+}
 
 static void cleanup_vfs_inode(void *ptr)
 {
@@ -71,15 +182,17 @@ static void cursor_restore(void)
     if (!cursor_drawn || !terminal_fb)
         return;
 
+    uint8_t *surface = get_draw_surface();
     for (int row = 0; row < 8 + LINE_SPACING; row++)
     {
         for (int col = 0; col < 8; col++)
         {
             uint64_t offset = (cursor_last_y + row) * terminal_fb->pitch + (cursor_last_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
-                memcpy((uint8_t *)terminal_fb->address + offset, &cursor_backing[row][col], sizeof(uint32_t));
+                memcpy(surface + offset, &cursor_backing[row][col], sizeof(uint32_t));
         }
     }
+    mark_dirty(cursor_last_x, cursor_last_y, 8, 8 + LINE_SPACING);
     cursor_drawn = false;
 }
 
@@ -90,13 +203,14 @@ static void cursor_save_and_draw(void)
     if (!terminal_fb || !terminal_cursor_visible)
         return;
 
+    uint8_t *surface = get_draw_surface();
     for (int row = 0; row < 8 + LINE_SPACING; row++)
     {
         for (int col = 0; col < 8; col++)
         {
             uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
-                memcpy(&cursor_backing[row][col], (uint8_t *)terminal_fb->address + offset, sizeof(uint32_t));
+                memcpy(&cursor_backing[row][col], surface + offset, sizeof(uint32_t));
         }
     }
 
@@ -107,11 +221,12 @@ static void cursor_save_and_draw(void)
             uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
             {
-                uint32_t *pixel = (uint32_t *)((uint8_t *)terminal_fb->address + offset);
+                uint32_t *pixel = (uint32_t *)(surface + offset);
                 *pixel = terminal_color;
             }
         }
     }
+    mark_dirty(terminal_x, terminal_y, 8, 8 + LINE_SPACING);
     cursor_last_x = terminal_x;
     cursor_last_y = terminal_y;
     cursor_drawn = true;
@@ -128,6 +243,16 @@ void terminal_init(struct limine_framebuffer *fb)
     cursor_drawn = false;
     cursor_last_x = terminal_x;
     cursor_last_y = terminal_y;
+
+    // Allocate back buffer for double buffering (faster than direct framebuffer writes)
+    back_buffer_size = fb->pitch * fb->height;
+    back_buffer = kmalloc(back_buffer_size);
+    if (back_buffer)
+    {
+        // Copy current framebuffer content to back buffer
+        memcpy(back_buffer, (void *)fb->address, back_buffer_size);
+    }
+    has_dirty_rect = false;
 }
 
 void terminal_set_cursor(int x, int y)
@@ -183,9 +308,10 @@ void terminal_clear(uint32_t color)
     cursor_restore();
     if (!terminal_fb)
         return;
+    uint8_t *surface = get_draw_surface();
     for (size_t y = 0; y < terminal_fb->height; y++)
     {
-        uint32_t *fb_ptr = (uint32_t *)((uint8_t *)terminal_fb->address + y * terminal_fb->pitch);
+        uint32_t *fb_ptr = (uint32_t *)(surface + y * terminal_fb->pitch);
         for (size_t x = 0; x < terminal_fb->width; x++)
         {
             fb_ptr[x] = color;
@@ -193,7 +319,9 @@ void terminal_clear(uint32_t color)
     }
     terminal_x = terminal_left();
     terminal_y = terminal_top();
+    mark_full_dirty();
     cursor_drawn = false;
+    terminal_flush();
 }
 
 enum AnsiState
@@ -255,14 +383,36 @@ static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
     if (y + h > max_h)
         h = max_h - y;
 
+    uint8_t *surface = get_draw_surface();
+
+    // Create 64-bit pattern (two pixels)
+    uint64_t pattern64 = ((uint64_t)color << 32) | color;
+
     for (int row = 0; row < h; row++)
     {
-        uint32_t *fb_ptr = (uint32_t *)((uint8_t *)terminal_fb->address + (y + row) * terminal_fb->pitch);
-        for (int col = 0; col < w; col++)
+        uint32_t *fb_ptr = (uint32_t *)(surface + (y + row) * terminal_fb->pitch);
+        uint32_t *start = fb_ptr + x;
+        int cols = w;
+
+        // Use 64-bit writes when aligned
+        if (((uintptr_t)start & 7) == 0 && cols >= 2)
         {
-            fb_ptr[x + col] = color;
+            uint64_t *p64 = (uint64_t *)start;
+            while (cols >= 2)
+            {
+                *p64++ = pattern64;
+                cols -= 2;
+            }
+            start = (uint32_t *)p64;
+        }
+
+        // Handle remaining pixels
+        while (cols-- > 0)
+        {
+            *start++ = color;
         }
     }
+    mark_dirty(x, y, w, h);
 }
 
 void terminal_scroll(int rows)
@@ -281,10 +431,11 @@ void terminal_scroll(int rows)
         scroll_px = fb_height;
 
     const size_t move_bytes = (size_t)(fb_height - scroll_px) * terminal_fb->pitch;
-    auto const fb_base = (uint8_t *)terminal_fb->address;
-    memmove(fb_base, fb_base + (size_t)scroll_px * terminal_fb->pitch, move_bytes);
+    uint8_t *surface = get_draw_surface();
+    memmove(surface, surface + (size_t)scroll_px * terminal_fb->pitch, move_bytes);
 
     terminal_rect_fill(0, fb_height - scroll_px, (int)terminal_fb->width, scroll_px, terminal_bg_color);
+    mark_full_dirty(); // Scroll affects entire screen
     cursor_drawn = false;
 }
 
@@ -476,11 +627,29 @@ static void terminal_draw_char(char c)
         return;
     }
 
-    if (c == '\b')
+    if (c == '\b' || c == 0x7F)
     {
         terminal_x -= 8;
         if (terminal_x < terminal_left())
+        {
             terminal_x = terminal_left();
+            return;
+        }
+        // Erase the character at the new cursor position by drawing a space
+        uint8_t *surface = get_draw_surface();
+        for (int row = 0; row < 8 + LINE_SPACING; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
+                uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
+                if (offset < terminal_fb->pitch * terminal_fb->height)
+                {
+                    uint32_t *pixel = (uint32_t *)(surface + offset);
+                    *pixel = terminal_bg_color;
+                }
+            }
+        }
+        mark_dirty(terminal_x, terminal_y, 8, 8 + LINE_SPACING);
         return;
     }
 
@@ -488,6 +657,7 @@ static void terminal_draw_char(char c)
         c = '?';
 
     const uint8_t *glyph = font8x8_basic[c - 32];
+    uint8_t *surface = get_draw_surface();
 
     for (int row = 0; row < 8 + LINE_SPACING; row++)
     {
@@ -496,7 +666,7 @@ static void terminal_draw_char(char c)
             uint64_t offset = (terminal_y + row) * terminal_fb->pitch + (terminal_x + col) * 4;
             if (offset < terminal_fb->pitch * terminal_fb->height)
             {
-                uint32_t *pixel = (uint32_t *)((uint8_t *)terminal_fb->address + offset);
+                uint32_t *pixel = (uint32_t *)(surface + offset);
 
                 bool is_fg = false;
                 if (row < 8)
@@ -509,6 +679,7 @@ static void terminal_draw_char(char c)
             }
         }
     }
+    mark_dirty(terminal_x, terminal_y, 8, 8 + LINE_SPACING);
     terminal_x += 8;
     int right_limit = terminal_right();
     if (terminal_x + 8 > right_limit)
@@ -602,10 +773,11 @@ void terminal_putc(char c)
 
     if (!cursor_batch)
     {
-        if (terminal_cursor_visible)
+        if (terminal_cursor_visible && !cursor_drawn)
             cursor_save_and_draw();
-        else
+        else if (!terminal_cursor_visible)
             cursor_drawn = false;
+        terminal_flush();
     }
 }
 
@@ -624,17 +796,43 @@ void terminal_write(const char *data, size_t size)
 
     if (cursor_overlay_enabled)
     {
-        if (terminal_cursor_visible)
+        if (terminal_cursor_visible && !cursor_drawn)
             cursor_save_and_draw();
-        else
+        else if (!terminal_cursor_visible)
             cursor_drawn = false;
+    }
+    
+    // Coalesce flushes - only flush every FLUSH_THRESHOLD writes
+    // This significantly reduces framebuffer writes for rapid output
+    pending_flushes++;
+    if (pending_flushes >= FLUSH_THRESHOLD || size < 10)  // Small writes (like prompts) flush immediately
+    {
+        terminal_flush();
+        pending_flushes = 0;
     }
 }
 
 void terminal_write_string(const char *data)
 {
+    bool prev_batch = cursor_batch;
+    cursor_batch = true;
+
+    cursor_restore(); // Erase cursor at old position before writing
+    cursor_drawn = false;
+
     while (*data)
         terminal_putc(*data++);
+
+    cursor_batch = prev_batch;
+
+    if (cursor_overlay_enabled)
+    {
+        if (terminal_cursor_visible && !cursor_drawn)
+            cursor_save_and_draw();
+        else if (!terminal_cursor_visible)
+            cursor_drawn = false;
+    }
+    terminal_flush();
 }
 
 static void terminal_putc_callback(char c, void *arg)
@@ -699,10 +897,21 @@ void vprintk(const char *format, va_list args)
         return;
     }
 #endif
+    // Batch all output to avoid per-character flush
+    bool prev_batch = cursor_batch;
+    cursor_batch = true;
+    cursor_restore();
+    cursor_drawn = false;
+
     va_list args_copy;
     va_copy(args_copy, args); // NOLINT(clang-analyzer-security.VAList)
     vcbprintf(nullptr, terminal_putc_callback, format, &args_copy);
     va_end(args_copy);
+
+    cursor_batch = prev_batch;
+    if (cursor_overlay_enabled && terminal_cursor_visible && !cursor_drawn)
+        cursor_save_and_draw();
+    terminal_flush();
 }
 
 void printk(const char *format, ...)

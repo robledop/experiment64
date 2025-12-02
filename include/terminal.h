@@ -21,6 +21,7 @@ void terminal_init(struct limine_framebuffer *fb);
 void terminal_putc(char c);
 void terminal_write(const char *data, size_t size);
 void terminal_write_string(const char *data);
+void terminal_force_flush(void);  // Force flush pending output
 void vprintk(const char *format, va_list args);
 void printk(const char *format, ...);
 void terminal_set_cursor(int x, int y);
