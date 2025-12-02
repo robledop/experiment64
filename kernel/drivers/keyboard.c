@@ -357,8 +357,16 @@ static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t *node, uint
     return keyboard_read_raw(buffer, size);
 }
 
-static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] int request, [[maybe_unused]] void *arg)
+static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, int request, [[maybe_unused]] void *arg)
 {
+    if (request == 0x4B00) // KDFLUSH - flush both buffers
+    {
+        write_ptr = 0;
+        read_ptr = 0;
+        raw_write_ptr = 0;
+        raw_read_ptr = 0;
+        return 0;
+    }
     // No special configuration supported yet; accept requests for compatibility.
     return 0;
 }

@@ -34,47 +34,36 @@ FILE *__stdin_file = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
 
-static int reopen_and_seek(FILE *f, size_t target, bool for_write)
+static int seek_to_position(FILE *f, size_t target, bool for_write)
 {
     if (!f)
         return -1;
     if (f->path[0] == '\0')
         return f->fd >= 0 ? 0 : -1;
 
-    if (f->fd >= 0)
-        close(f->fd);
-
-    int flags = f->open_flags;
-    if (for_write && f->append)
-        flags |= O_APPEND;
-
-    int fd = open(f->path, flags);
-    if (fd < 0)
+    // Reopen file if fd is closed
+    if (f->fd < 0)
     {
-        f->fd = -1;
-        return -1;
-    }
+        int flags = f->open_flags;
+        if (for_write && f->append)
+            flags |= O_APPEND;
 
-    size_t skip_target = (for_write && f->append) ? f->size : target;
-    size_t skipped = 0;
-    char buf[256];
-    while (skipped < skip_target)
-    {
-        size_t to_read = skip_target - skipped;
-        if (to_read > sizeof buf)
-            to_read = sizeof buf;
-        ssize_t r = read(fd, buf, to_read);
-        if (r <= 0)
+        int fd = open(f->path, flags);
+        if (fd < 0)
         {
-            close(fd);
             f->fd = -1;
             return -1;
         }
-        skipped += (size_t)r;
+        f->fd = fd;
     }
 
-    f->fd = fd;
-    f->pos = skip_target;
+    // Use lseek for positioning
+    size_t seek_target = (for_write && f->append) ? f->size : target;
+    long result = lseek(f->fd, (long)seek_target, SEEK_SET);
+    if (result < 0)
+        return -1;
+
+    f->pos = seek_target;
     return 0;
 }
 
@@ -100,7 +89,7 @@ static int ensure_position(FILE *f, size_t target, bool for_write)
     if (!f->need_seek && f->fd >= 0 && f->pos == target)
         return 0;
 
-    int res = reopen_and_seek(f, target, for_write);
+    int res = seek_to_position(f, target, for_write);
     if (res == 0)
     {
         f->pos = target;
@@ -155,34 +144,7 @@ FILE *fopen(const char *path, const char *mode)
     else
         f->size = 0;
 
-    // Small/medium read-only files are buffered fully to make seeking efficient.
-    const size_t BUFFER_LIMIT = 32 * 1024 * 1024; // 32 MB
-    if (f->readable && !f->writable && f->size > 0 && f->size <= BUFFER_LIMIT)
-    {
-        f->data = malloc(f->size);
-        if (f->data)
-        {
-            size_t read_total = 0;
-            while (read_total < f->size)
-            {
-                ssize_t r = read(f->fd, f->data + read_total, f->size - read_total);
-                if (r <= 0)
-                    break;
-                read_total += (size_t)r;
-            }
-            if (read_total == f->size)
-            {
-                close(f->fd);
-                f->fd = -1;
-                f->need_seek = false;
-            }
-            else
-            {
-                free(f->data);
-                f->data = nullptr;
-            }
-        }
-    }
+    // We use lseek() for seeking, so no need to buffer the entire file
 
     if (ap)
     {

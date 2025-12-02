@@ -238,7 +238,19 @@ void disableRawMode()
 {
     if (!KeyboardUsesConsole)
     {
+        // Flush keyboard buffers before closing
+        if (KeyboardFd >= 0)
+        {
+            ioctl(KeyboardFd, KDFLUSH, NULL);
+        }
         return;
+    }
+    // Flush keyboard buffers to prevent leftover keys from reaching the shell
+    int kb = open("/dev/keyboard", O_RDONLY);
+    if (kb >= 0)
+    {
+        ioctl(kb, KDFLUSH, NULL);
+        close(kb);
     }
     // Flush any pending input before restoring terminal
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
@@ -252,12 +264,14 @@ void disableRawMode()
 
 void enableRawMode()
 {
+    // Always register cleanup handler to flush keyboard buffers on exit
+    atexit(disableRawMode);
+    
     if (!KeyboardUsesConsole)
     {
         return;
     }
     tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(disableRawMode);
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
     raw.c_iflag &= ~(IXON | ICRNL);
