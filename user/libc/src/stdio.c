@@ -28,7 +28,7 @@ char *gets(char *s)
         *p++ = (char)c;
     *p = '\0';
     if (c == EOF && p == s)
-        return NULL;
+        return nullptr;
     return s;
 }
 
@@ -320,7 +320,7 @@ int snprintf(char *buf, size_t size, const char *format, ...)
 int printf(const char *format, ...)
 {
     struct out_ctx ctx = {
-        .buf = NULL,
+        .buf = nullptr,
         .size = 0,
         .pos = 0,
         .count = 0,
@@ -406,7 +406,7 @@ int sscanf(const char *str, const char *format, ...)
         if (*s == '\0')
             break;
 
-        char *endptr = NULL;
+        char *endptr = nullptr;
         long val = strtol(s, &endptr, base);
         if (endptr == s)
             break;

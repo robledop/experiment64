@@ -20,15 +20,15 @@ void unix_timestamp_to_tm(uint32_t timestamp, struct tm *out)
         return;
 
     uint32_t seconds = timestamp;
-    out->tm_sec = seconds % 60;
+    out->tm_sec = (int)(seconds % 60);
     seconds /= 60;
-    out->tm_min = seconds % 60;
+    out->tm_min = (int)(seconds % 60);
     seconds /= 60;
-    out->tm_hour = seconds % 24;
+    out->tm_hour = (int)(seconds % 24);
     uint32_t days = seconds / 24;
 
     // 1970-01-01 was a Thursday (4)
-    out->tm_wday = (days + 4) % 7;
+    out->tm_wday = (int)((days + 4) % 7);
 
     int year = 1970;
     while (true)
@@ -133,11 +133,19 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
             append_int_padded(&p, &remaining, tm->tm_sec, 2);
             break;
         case 'B':
-            append_str(&p, &remaining, month_names[tm->tm_mon % 12]);
+        {
+            int mon_idx = tm->tm_mon % 12;
+            if (mon_idx < 0) mon_idx += 12;
+            append_str(&p, &remaining, month_names[mon_idx]);
             break;
+        }
         case 'b':
-            append_str(&p, &remaining, month_names_short[tm->tm_mon % 12]);
+        {
+            int mon_idx = tm->tm_mon % 12;
+            if (mon_idx < 0) mon_idx += 12;
+            append_str(&p, &remaining, month_names_short[mon_idx]);
             break;
+        }
         case '%':
             *p++ = '%';
             remaining--;
@@ -166,7 +174,7 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
 time_t time(long long int *time)
 {
     struct timeval tv = {0};
-    if (gettimeofday(&tv, NULL) < 0)
+    if (gettimeofday(&tv, nullptr) < 0)
         return -1;
 
     if (time)

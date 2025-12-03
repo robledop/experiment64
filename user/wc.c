@@ -5,7 +5,7 @@ char buf[512];
 
 void wc(int fd, char* name)
 {
-    int n;
+    ssize_t n;
     int w, c;
 
     int l = w = c = 0;

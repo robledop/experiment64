@@ -111,7 +111,10 @@ static Header* morecore(size_t nu)
 
     // Add the new block to the free list by "freeing" it
     // This also handles coalescing with adjacent free blocks
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
     free((void*)(hp + 1));
+#pragma GCC diagnostic pop
 
     return freep;
 }
@@ -205,7 +208,7 @@ void* calloc(size_t nmemb, size_t size)
 {
     if (nmemb == 0 || size == 0)
     {
-        return malloc(0);
+        return malloc(0); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
     }
     if (nmemb > (size_t)INT_MAX / size)
     {

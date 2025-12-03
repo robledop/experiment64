@@ -11,8 +11,8 @@ void _assert(char* snippet, char* file, int line, char* message, ...)
     {
         va_list arg;
         va_start(arg, message);
-        char* data = va_arg(arg, char *);
-        printk(data, arg);
+        vprintk(message, arg);
+        va_end(arg); // NOLINT(clang-analyzer-security.VAList) - va_start is called above
         panic(message);
     }
     panic("Assertion failed\n");

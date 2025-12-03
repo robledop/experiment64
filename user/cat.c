@@ -4,10 +4,10 @@ char buf[512];
 
 void cat(int fd)
 {
-    int n;
+    ssize_t n;
 
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        if (write(1, buf, n) != n) {
+        if (write(1, buf, (size_t)n) != n) {
             printf("cat: write error\n");
             exit();
         }

@@ -8,22 +8,22 @@ int match(char*, char*);
 
 void grep(char* pattern, int fd)
 {
-    int n;
+    ssize_t n;
     char* q;
 
     int m = 0;
-    while ((n = read(fd, buf + m, sizeof(buf) - m - 1)) > 0)
+    while ((n = read(fd, buf + m, sizeof(buf) - (size_t)m - 1)) > 0)
     {
-        m += n;
+        m += (int)n;
         buf[m] = '\0';
         char* p = buf;
-        while ((q = strchr(p, '\n')) != 0)
+        while ((q = strchr(p, '\n')) != nullptr)
         {
             *q = 0;
             if (match(pattern, p))
             {
                 *q = '\n';
-                write(1, p, q + 1 - p);
+                write(1, p, (size_t)(q + 1 - p));
             }
             p = q + 1;
         }
@@ -31,8 +31,8 @@ void grep(char* pattern, int fd)
             m = 0;
         if (m > 0)
         {
-            m -= p - buf;
-            memmove(buf, p, m);
+            m -= (int)(p - buf);
+            memmove(buf, p, (size_t)m);
         }
     }
 }

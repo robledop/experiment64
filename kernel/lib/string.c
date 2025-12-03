@@ -130,6 +130,7 @@ static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, s
     }
 
     // Copy 32 bytes at a time using AVX if source is also aligned
+    // NOLINTNEXTLINE(bugprone-branch-clone) - vmovdqa vs vmovdqu are different instructions
     if (((uintptr_t)s & 31) == 0)
     {
         while (n >= 32)

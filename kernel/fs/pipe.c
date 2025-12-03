@@ -13,6 +13,7 @@
 
 // Pipe inode operations
 static uint64_t pipe_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
+// NOLINTNEXTLINE(readability-non-const-parameter) - Must match inode_operations signature
 static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 static void pipe_inode_close(vfs_inode_t *node);
 
@@ -141,6 +142,7 @@ static uint64_t pipe_inode_read(const vfs_inode_t *node, uint64_t offset, uint64
     return bytes_read;
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter) - Must match inode_operations signature
 static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
 {
     (void)offset; // Pipes ignore offset

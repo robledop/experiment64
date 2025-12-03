@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int main(int argc, char** argv)
 {
@@ -8,6 +9,6 @@ int main(int argc, char** argv)
         exit();
     }
     for (int i = 1; i < argc; i++) {
-        kill(atoi(argv[i]), 0);
+        kill((int)strtol(argv[i], nullptr, 10), 0);
     }
 }

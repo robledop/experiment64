@@ -22,7 +22,7 @@ LD = $(TOOLPREFIX)ld
 INCLUDE = -I../libc/include -I../include -I../../include
 
 # Base flags for all code
-BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx
+BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx -Wa,--noexecstack
 
 # CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
 CFLAGS = $(BASE_CFLAGS)
@@ -31,18 +31,10 @@ ASFLAGS += $(INCLUDE)
 CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
           -D__bool_true_false_are_defined=1
 
-# CFLAGS for libc (needs -masm=intel for AVX inline assembly)
-LIBC_CFLAGS = $(BASE_CFLAGS) -masm=intel $(INCLUDE)
-
 LDFLAGS += -static -Ttext=0x400000 --build-id=none
 
-LIBC_DIR := ../libc
-LIBC_C_SRCS = $(wildcard $(LIBC_DIR)/src/*.c)
-LIBC_ASM_SRCS = $(wildcard $(LIBC_DIR)/src/*.S)
-LIBC_C_OBJS = $(patsubst $(LIBC_DIR)/src/%.c,$(OBJDIR)/libc/%.o,$(LIBC_C_SRCS))
-LIBC_ASM_OBJS = $(patsubst $(LIBC_DIR)/src/%.S,$(OBJDIR)/libc/%.o,$(LIBC_ASM_SRCS))
-LIBC = $(LIBC_C_OBJS) $(LIBC_ASM_OBJS)
-LIBS += $(LIBC)
+# Use prebuilt libc.a from main user build
+LIBC_A = ../build/libc/libc.a
 
 # subdirectory for objects
 OBJDIR=build
@@ -59,10 +51,10 @@ clean:
 	rm -f $(OUTPUT).gdb
 	rm -f $(OUTPUT).map
 
-$(OUTPUT):	$(OBJS) $(LIBS)
+$(OUTPUT):	$(OBJS) $(LIBC_A)
 	@echo [Linking $@]
 	@mkdir -p $(dir $(OUTPUT))
-	$(LD) $(LDFLAGS) -o $(OUTPUT) $(OBJS) $(LIBS)
+	$(LD) $(LDFLAGS) -o $(OUTPUT) $(OBJS) $(LIBC_A)
 	@echo [Size]
 	-$(CROSS_COMPILE)size $(OUTPUT)
 
@@ -70,15 +62,6 @@ $(OBJS): | $(OBJDIR)
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
-
-$(OBJDIR)/libc:
-	mkdir -p $(OBJDIR)/libc
-
-$(OBJDIR)/libc/%.o: $(LIBC_DIR)/src/%.c | $(OBJDIR)/libc
-	$(VB)$(CC) $(LIBC_CFLAGS) -c -o $@ $<
-
-$(OBJDIR)/libc/%.o: $(LIBC_DIR)/src/%.S | $(OBJDIR)/libc
-	$(VB)$(CC) $(LIBC_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/%.o:	%.c
 	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@

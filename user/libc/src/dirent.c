@@ -11,13 +11,13 @@ DIR *opendir(const char *name)
 {
     const int fd = open(name, O_RDONLY);
     if (fd < 0)
-        return NULL;
+        return nullptr;
 
     DIR *dir = malloc(sizeof(DIR));
     if (!dir)
     {
         close(fd);
-        return NULL;
+        return nullptr;
     }
     dir->fd = fd;
     return dir;
@@ -26,10 +26,10 @@ DIR *opendir(const char *name)
 struct dirent *readdir(DIR *dirp)
 {
     if (!dirp)
-        return NULL;
+        return nullptr;
     const int res = sys_readdir(dirp->fd, &dirp->cur_entry);
     if (res != 1)
-        return NULL; // 0 = EOF, -1 = Error
+        return nullptr; // 0 = EOF, -1 = Error
     return &dirp->cur_entry;
 }
 

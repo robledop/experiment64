@@ -51,7 +51,7 @@ static uint32_t parse_color(const char *arg)
         }
         return value;
     }
-    return (uint32_t)atoi(arg);
+    return (uint32_t)strtol(arg, nullptr, 10);
 }
 
 int main(int argc, char **argv)
@@ -61,10 +61,10 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    int x1    = atoi(argv[1]);
-    int y1    = atoi(argv[2]);
-    int x2    = atoi(argv[3]);
-    int y2    = atoi(argv[4]);
+    int x1    = (int)strtol(argv[1], nullptr, 10);
+    int y1    = (int)strtol(argv[2], nullptr, 10);
+    int x2    = (int)strtol(argv[3], nullptr, 10);
+    int y2    = (int)strtol(argv[4], nullptr, 10);
     uint32_t color = parse_color(argv[5]);
 
     int fd = open("/dev/fb0", O_RDWR);
@@ -89,8 +89,9 @@ int main(int argc, char **argv)
         close(fd);
         exit(0);
     }
-    volatile uint32_t *fb = map;
     close(fd);
+
+    volatile uint32_t *fb = map;
 
     int dx  = abs(x2 - x1);
     int sx  = x1 < x2 ? 1 : -1;

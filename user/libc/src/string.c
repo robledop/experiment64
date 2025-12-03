@@ -120,6 +120,7 @@ static void *memcpy_impl(void *restrict dst, const void *restrict src, size_t n)
     }
 
     // Copy 32 bytes at a time using AVX if source is also aligned
+    // NOLINTNEXTLINE(bugprone-branch-clone) - vmovdqa vs vmovdqu are different instructions
     if (((uintptr_t)s & 31) == 0)
     {
         while (n >= 32)
@@ -256,7 +257,7 @@ char *strtok(char *str, const char *delim)
     return start;
 }
 
-bool starts_with(const char pre[static 1], const char str[static 1])
+bool starts_with(const char *pre, const char *str)
 {
     return strncmp(pre, str, strlen(pre)) == 0;
 }

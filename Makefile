@@ -109,15 +109,21 @@ limine:
 
 # Userland
 USER_BUILD_DIR = user/build
+LIBC_A = user/build/libc/libc.a
 
 .PHONY: userland
 userland:
 	$(MAKE) -C user
 
+# Build libc.a (needed by doom)
+$(LIBC_A): userland
+
 .PHONY: doom
 doom: $(DOOM_BIN)
 
-$(DOOM_BIN):
+# Only build doom if the binary doesn't exist
+# Depends on libc.a being built first
+$(DOOM_BIN): $(LIBC_A)
 	$(MAKE) -C user/doom
 
 image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
