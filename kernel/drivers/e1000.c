@@ -367,12 +367,27 @@ void e1000_init(struct pci_device device)
  */
 void e1000_receive(void)
 {
+    static uint8_t reassembly_buffer[E1000_RX_RING_SIZE * PAGE_SIZE];
+    static uint32_t reassembly_len;
+    static bool dropping_fragments;
+
     while ((rx_descs[rx_cur]->status & E1000_RXD_STAT_DD)) {
         uint8_t *buf = rx_buffers[rx_cur];
         const uint16_t len = rx_descs[rx_cur]->length;
+        const bool end_of_packet = (rx_descs[rx_cur]->status & E1000_RXD_STAT_EOP) != 0;
 
-        if (!(rx_descs[rx_cur]->status & E1000_RXD_STAT_EOP)) {
-            // TODO: Handle incomplete packets
+        if (!end_of_packet) {
+            if (!dropping_fragments) {
+                const uint32_t remaining = (uint32_t)sizeof(reassembly_buffer) - reassembly_len;
+                if (len <= remaining) {
+                    memcpy(reassembly_buffer + reassembly_len, buf, len);
+                    reassembly_len += len;
+                } else {
+                    dropping_fragments = true;
+                    reassembly_len = 0;
+                }
+            }
+
             rx_descs[rx_cur]->status = 0;
             const uint16_t old_cur = rx_cur;
             rx_cur = (rx_cur + 1) % E1000_RX_RING_SIZE;
@@ -380,7 +395,19 @@ void e1000_receive(void)
             continue;
         }
 
-        network_receive(buf, len);
+        if (dropping_fragments) {
+            dropping_fragments = false;
+            reassembly_len = 0;
+        } else if (reassembly_len > 0) {
+            const uint32_t total_len = reassembly_len + len;
+            if (total_len <= sizeof(reassembly_buffer)) {
+                memcpy(reassembly_buffer + reassembly_len, buf, len);
+                network_receive(reassembly_buffer, (uint16_t)total_len);
+            }
+            reassembly_len = 0;
+        } else {
+            network_receive(buf, len);
+        }
 
         rx_descs[rx_cur]->status = 0;
         const uint16_t old_cur = rx_cur;
