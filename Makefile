@@ -1,6 +1,9 @@
 PATH := $(HOME)/opt/cross/bin:$(PATH)
 export PATH
 
+# Force MAKE to be the real make, not whatever Cursor sets it to
+override MAKE := $(shell which make)
+
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
