@@ -3,7 +3,7 @@
 #include <terminal.h>
 #include <debug.h>
 
-void _assert(char *snippet, char *file, int line, char *message, ...)
+void _assert(char* snippet, char* file, int line, char* message, ...)
 {
     printk("\nassert failed %s:%d %s\n", file, line, snippet);
 
