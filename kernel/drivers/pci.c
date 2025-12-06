@@ -2,6 +2,7 @@
 #include "io.h"
 #include "terminal.h"
 #include "ahci.h"
+#include "e1000.h"
 #include "ide.h"
 #include <stddef.h>
 
@@ -149,6 +150,8 @@ static void pci_ide_init(struct pci_device device)
 struct pci_driver pci_drivers[] = {
     {.class = 0x01, .subclass = 0x06, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &ahci_init},
     {.class = 0x01, .subclass = 0x01, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &pci_ide_init},
+    // Intel e1000 network controller (QEMU, Bochs, VirtualBox)
+    {.class = 0x02, .subclass = 0x00, .vendor_id = INTEL_VEND, .device_id = E1000_DEV, .init = &e1000_init},
 };
 
 /**

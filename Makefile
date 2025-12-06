@@ -43,6 +43,13 @@ QEMU_DRIVES :=  \
 	-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
 	-drive if=ide,file=$(IDE_DISK),format=raw,index=1
 
+# User-mode networking (has built-in DHCP server)
+QEMU_NETWORK_USER=-netdev user,id=net0 -device e1000,netdev=net0
+# TAP networking (requires DHCP server on host, e.g., dnsmasq)
+QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0
+# Default to user-mode networking
+QEMU_NETWORK=$(QEMU_NETWORK_USER)
+
 override CFLAGS += \
     -I. \
     -Iinclude \
@@ -145,7 +152,13 @@ qemu-nobuild:
 .PHONY: run
 run: clean
 	$(MAKE) image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+
+.PHONY: run-tap
+run-tap: clean
+	$(MAKE) image.hdd
+	./scripts/create_tap.sh
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox
 vbox: clean
@@ -155,7 +168,7 @@ vbox: clean
 .PHONY: run-gdb
 run-gdb: clean
 	$(MAKE) KASAN=1 image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) -display gtk,zoom-to-fit=on ${QEMUGDB}
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
 tests: clean
