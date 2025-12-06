@@ -1,7 +1,7 @@
 #include "framebuffer.h"
 #include <stddef.h>
 #include <stdbool.h>
-#include <string.h>
+#include "string.h"
 
 #include "assert.h"
 #include "test.h"

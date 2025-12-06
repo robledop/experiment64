@@ -1,7 +1,7 @@
 #include <ide.h>
 #include <io.h>
 #include <stddef.h>
-#include <string.h>
+#include "string.h"
 #include "apic.h"
 #include "terminal.h"
 

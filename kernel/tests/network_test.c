@@ -7,6 +7,7 @@
 #include "net/ipv4.h"
 #include "net/udp.h"
 #include "string.h"
+#include <arpa/inet.h>
 
 // ============================================================================
 // Byte order conversion tests
@@ -181,23 +182,23 @@ TEST(test_get_mac_address_string_broadcast)
 // IP string conversion tests
 // ============================================================================
 
-TEST(test_ip_to_int)
+TEST(test_inet_addr)
 {
-    TEST_ASSERT(ip_to_int("0.0.0.0") == 0);
-    TEST_ASSERT(ip_to_int("0.0.0.1") == 1);
-    TEST_ASSERT(ip_to_int("0.0.1.0") == 256);
-    TEST_ASSERT(ip_to_int("192.168.1.1") == 0xC0A80101);
-    TEST_ASSERT(ip_to_int("255.255.255.255") == 0xFFFFFFFF);
+    TEST_ASSERT(inet_addr("0.0.0.0") == 0);
+    TEST_ASSERT(inet_addr("0.0.0.1") == 1);
+    TEST_ASSERT(inet_addr("0.0.1.0") == 256);
+    TEST_ASSERT(inet_addr("192.168.1.1") == 0xC0A80101);
+    TEST_ASSERT(inet_addr("255.255.255.255") == 0xFFFFFFFF);
     return true;
 }
 
-TEST(test_ip_to_int_invalid)
+TEST(test_inet_addr_invalid)
 {
     // Values >= 256 should return 0
-    TEST_ASSERT(ip_to_int("256.0.0.0") == 0);
-    TEST_ASSERT(ip_to_int("0.256.0.0") == 0);
+    TEST_ASSERT(inet_addr("256.0.0.0") == 0);
+    TEST_ASSERT(inet_addr("0.256.0.0") == 0);
     // Invalid characters in middle octets should return 0
-    TEST_ASSERT(ip_to_int("1.a.3.4") == 0);
+    TEST_ASSERT(inet_addr("1.a.3.4") == 0);
     return true;
 }
 

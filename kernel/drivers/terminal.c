@@ -8,7 +8,6 @@
 #include "util.h"
 #include <stdarg.h>
 #include <limits.h>
-#include <string.h>
 
 #define KRESET "\033[0m"
 #define KRED "\033[31m"

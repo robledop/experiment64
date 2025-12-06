@@ -3,6 +3,7 @@
 #include "net/network.h"
 #include "string.h"
 #include "terminal.h"
+#include <arpa/inet.h>
 
 // TODO: This does not implement things that require the client to store state (like lease time)
 

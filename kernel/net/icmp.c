@@ -4,6 +4,7 @@
 #include "net/network.h"
 #include "heap.h"
 #include "string.h"
+#include <arpa/inet.h>
 
 const char *icmp_request_payload = "osdev icmp request payload";
 

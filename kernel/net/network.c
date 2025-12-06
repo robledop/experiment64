@@ -3,12 +3,12 @@
 #include "net/arp.h"
 #include "net/dhcp.h"
 #include "net/ethernet.h"
-#include "net/helpers.h"
 #include "net/icmp.h"
 #include "net/ipv4.h"
 #include "net/network.h"
 #include "net/udp.h"
 #include "string.h"
+#include <arpa/inet.h>
 #include <stddef.h>
 
 bool network_ready = false;

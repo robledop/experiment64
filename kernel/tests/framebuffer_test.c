@@ -8,7 +8,7 @@
 #include "process.h"
 #include "fcntl.h"
 #include <stdint.h>
-#include <string.h>
+#include "string.h"
 
 // Kernel syscall entry points (not exposed in headers)
 extern int sys_open(const char *path, int flags);
