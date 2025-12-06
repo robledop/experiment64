@@ -51,6 +51,7 @@ struct inode_operations
     int (*mknod)(const struct vfs_inode *node, const char *name, int mode, int dev);
     int (*link)(struct vfs_inode *parent, const char *name, struct vfs_inode *target);
     int (*unlink)(struct vfs_inode *parent, const char *name);
+    int (*stat)(const struct vfs_inode *node, struct stat *st);
 };
 
 typedef struct vfs_inode

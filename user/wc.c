@@ -3,7 +3,7 @@
 #include <string.h>
 char buf[512];
 
-void wc(int fd, char* name)
+void wc(int fd, char *name)
 {
     ssize_t n;
     int w, c;
@@ -28,13 +28,13 @@ void wc(int fd, char* name)
     }
     if (n < 0)
     {
-        printf( "wc: read error\n");
+        printf("wc: read error\n");
         exit();
     }
-    printf( "%d %d %d %s\n", l, w, c, name);
+    printf("%d %d %d %s\n", l, w, c, name);
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     int fd;
 
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     {
         if ((fd = open(argv[i], 0)) < 0)
         {
-            printf( "wc: cannot open %s\n", argv[i]);
+            printf("wc: cannot open %s\n", argv[i]);
             exit();
         }
         wc(fd, argv[i]);

@@ -436,8 +436,9 @@ out:
 int getchar_blocking()
 {
     int key = 0;
-    key     = getchar();
-    while (key == 0) {
+    key = getchar();
+    while (key == 0)
+    {
         key = getchar();
     }
 

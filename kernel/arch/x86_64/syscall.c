@@ -125,6 +125,15 @@ static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
 {
     if (!inode || !st)
         return;
+
+    // Try to use filesystem-specific stat if available
+    if (inode->iops && inode->iops->stat)
+    {
+        if (inode->iops->stat(inode, st) == 0)
+            return;
+    }
+
+    // Fallback to generic stat
     st->dev = 0;
     st->ino = (int)inode->inode;
     st->type = (int)(inode->flags & 0x07);

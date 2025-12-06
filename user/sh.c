@@ -585,7 +585,7 @@ struct cmd *parseredirs(struct cmd *cmd, char **ps, char *es)
         case '<':
             cmd = redircmd(cmd, q, eq, O_RDONLY, 0);
             break;
-        case '>':  // NOLINT(bugprone-branch-clone) - intentional fallthrough for > and >>
+        case '>': // NOLINT(bugprone-branch-clone) - intentional fallthrough for > and >>
         case '+': // >>
             cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREATE, 1);
             break;

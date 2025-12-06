@@ -6,13 +6,16 @@ void cat(int fd)
 {
     ssize_t n;
 
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        if (write(1, buf, (size_t)n) != n) {
+    while ((n = read(fd, buf, sizeof(buf))) > 0)
+    {
+        if (write(1, buf, (size_t)n) != n)
+        {
             printf("cat: write error\n");
             exit();
         }
     }
-    if (n < 0) {
+    if (n < 0)
+    {
         printf("cat: read error\n");
         exit();
     }
@@ -22,13 +25,16 @@ int main(int argc, char *argv[])
 {
     int fd;
 
-    if (argc <= 1) {
+    if (argc <= 1)
+    {
         cat(0);
         exit();
     }
 
-    for (int i = 1; i < argc; i++) {
-        if ((fd = open(argv[i], 0)) < 0) {
+    for (int i = 1; i < argc; i++)
+    {
+        if ((fd = open(argv[i], 0)) < 0)
+        {
             printf("cat: cannot open %s\n", argv[i]);
             exit();
         }

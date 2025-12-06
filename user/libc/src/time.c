@@ -135,14 +135,16 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
         case 'B':
         {
             int mon_idx = tm->tm_mon % 12;
-            if (mon_idx < 0) mon_idx += 12;
+            if (mon_idx < 0)
+                mon_idx += 12;
             append_str(&p, &remaining, month_names[mon_idx]);
             break;
         }
         case 'b':
         {
             int mon_idx = tm->tm_mon % 12;
-            if (mon_idx < 0) mon_idx += 12;
+            if (mon_idx < 0)
+                mon_idx += 12;
             append_str(&p, &remaining, month_names_short[mon_idx]);
             break;
         }
@@ -169,7 +171,6 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
     *p = '\0';
     return (size_t)(p - out);
 }
-
 
 time_t time(long long int *time)
 {

@@ -1423,6 +1423,24 @@ static vfs_inode_t *ext2_vfs_clone(const vfs_inode_t *node)
     return new_node;
 }
 
+static int ext2_vfs_stat(const vfs_inode_t *node, struct stat *st)
+{
+    if (!node || !st)
+        return -1;
+
+    struct ext2_inode *ip = (struct ext2_inode *)node->device;
+    if (!ip)
+        return -1;
+
+    if (ext2fs_ilock(ip) != 0)
+        return -1;
+
+    ext2_stat_inode(ip, st);
+
+    ext2fs_iunlock(ip);
+    return 0;
+}
+
 static struct inode_operations ext2_vfs_ops = {
     .read = ext2_vfs_read,
     .write = ext2_vfs_write,
@@ -1435,6 +1453,7 @@ static struct inode_operations ext2_vfs_ops = {
     .clone = ext2_vfs_clone,
     .link = ext2_vfs_link,
     .unlink = ext2_vfs_unlink,
+    .stat = ext2_vfs_stat,
 };
 
 vfs_inode_t *ext2_mount(uint8_t drive_index, uint32_t partition_lba)

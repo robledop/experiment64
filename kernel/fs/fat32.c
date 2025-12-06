@@ -15,11 +15,49 @@ typedef struct
     fat32_fs_t* fs;
     uint32_t dir_cluster; // Cluster of the directory containing the entry
     uint32_t dir_offset; // Offset of the entry in that directory
+    uint32_t crt_time;   // Creation time (Unix timestamp)
+    uint32_t mod_time;   // Modification time (Unix timestamp)
+    uint32_t acc_time;   // Last access time (Unix timestamp)
 } fat32_inode_data_t;
 
 static uint32_t cluster_to_lba(fat32_fs_t* fs, uint32_t cluster)
 {
     return fs->first_data_sector + ((cluster - 2) * fs->sectors_per_cluster);
+}
+
+// Convert FAT32 date/time to Unix timestamp
+static uint32_t fat32_datetime_to_unix(uint16_t date, uint16_t time)
+{
+    // FAT32 date format: bits 0-4 = day (1-31), bits 5-8 = month (1-12), bits 9-15 = year from 1980
+    // FAT32 time format: bits 0-4 = seconds/2, bits 5-10 = minutes, bits 11-15 = hours
+    int day = date & 0x1F;
+    int month = (date >> 5) & 0x0F;
+    int year = ((date >> 9) & 0x7F) + 1980;
+
+    int seconds = (time & 0x1F) * 2;
+    int minutes = (time >> 5) & 0x3F;
+    int hours = (time >> 11) & 0x1F;
+
+    // Days from year 1970 to given year
+    uint32_t days = 0;
+    for (int y = 1970; y < year; y++)
+    {
+        int leap = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+        days += leap ? 366 : 365;
+    }
+
+    // Days in each month
+    static const int month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int leap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+    for (int m = 1; m < month; m++)
+    {
+        days += month_days[m];
+        if (m == 2 && leap)
+            days++;
+    }
+    days += day - 1;
+
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds;
 }
 
 
@@ -732,6 +770,9 @@ static vfs_inode_t* fat32_vfs_finddir(const vfs_inode_t* node, const char* name)
     new_data->fs = fs;
     new_data->dir_cluster = found_cluster;
     new_data->dir_offset = found_offset;
+    new_data->crt_time = fat32_datetime_to_unix(entry.crt_date, entry.crt_time);
+    new_data->mod_time = fat32_datetime_to_unix(entry.wrt_date, entry.wrt_time);
+    new_data->acc_time = fat32_datetime_to_unix(entry.lst_acc_date, 0);
     new_node->device = new_data;
 
     new_node->iops = &fat32_iops;
@@ -911,6 +952,32 @@ static int fat32_vfs_truncate(vfs_inode_t* node)
     return 0;
 }
 
+static int fat32_vfs_stat(const vfs_inode_t* node, struct stat* st)
+{
+    if (!node || !st)
+        return -1;
+
+    fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
+    if (!data)
+        return -1;
+
+    st->dev = 0;
+    st->ino = (int)node->inode;
+    st->type = (int)(node->flags & 0x07);
+    st->nlink = 1;
+    st->size = node->size;
+    st->ref = 0;
+    st->i_atime = data->acc_time;
+    st->i_ctime = data->crt_time;
+    st->i_mtime = data->mod_time;
+    st->i_dtime = 0;
+    st->i_uid = 0;
+    st->i_gid = 0;
+    st->i_flags = 0;
+
+    return 0;
+}
+
 static struct inode_operations fat32_iops = {
     .read = fat32_vfs_read,
     .write = fat32_vfs_write,
@@ -922,6 +989,7 @@ static struct inode_operations fat32_iops = {
     .clone = fat32_vfs_clone,
     .mknod = fat32_vfs_mknod,
     .unlink = fat32_vfs_unlink,
+    .stat = fat32_vfs_stat,
 };
 
 vfs_inode_t* fat32_mount(uint8_t drive_index, uint32_t partition_lba)
