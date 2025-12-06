@@ -1,6 +1,6 @@
 # experiment 64
 
-An x86_64 hobby kernel with a tiny userland, a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
+An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
 ![Kernel splash](https://pazotto.com/img/experiment64/Screenshot2.png)
 
