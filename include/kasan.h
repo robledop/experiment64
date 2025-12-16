@@ -27,6 +27,7 @@ void kasan_early_init(uint64_t hhdm_offset, uint64_t phys_limit);
 // Poison/unpoison helpers for arbitrary ranges.
 void kasan_poison_range(const void* addr, size_t size, uint8_t value);
 void kasan_unpoison_range(const void* addr, size_t size);
+void kasan_unpoison_object(const void* addr, size_t size);
 
 // Validate a range and optionally panic on failure.
 bool kasan_check_range(const void* addr, size_t size, bool is_write, const void* ip);

@@ -9,6 +9,8 @@
 #include "apic.h"
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
+static constexpr size_t KSTACK_SIZE = 65536;
+static constexpr size_t KSTACK_SYSCALL_HEADROOM = 512;
 
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t *kernel_process = nullptr;
@@ -327,8 +329,7 @@ void process_destroy(process_t *proc)
         list_del(&t->list);
 
         // Free kernel stack
-        // Stack size is hardcoded 16384 in thread_create
-        void *stack_base = (void *)(t->kstack_top - 16384);
+        void *stack_base = (void *)(t->kstack_top - KSTACK_SIZE);
         kfree(stack_base);
 
         kfree(t);
@@ -418,15 +419,17 @@ thread_t *thread_create(process_t *process, void (*entry)(void), [[maybe_unused]
 
     init_fpu_state(&thread->fpu_state);
 
-    void *stack = kmalloc(16384); // 16KB stack
+    void *stack = kmalloc(KSTACK_SIZE);
     if (!stack)
     {
         kfree(thread);
         return nullptr;
     }
-    thread->kstack_top = (uint64_t)stack + 16384;
+    thread->kstack_top = (uint64_t)stack + KSTACK_SIZE;
 
-    uint64_t *stack_ptr = (uint64_t *)thread->kstack_top;
+    // Reserve the very top of the stack for syscall entry pushes so they don't
+    // clobber the context-switch frame we place near the top.
+    uint64_t *stack_ptr = (uint64_t *)(thread->kstack_top - KSTACK_SYSCALL_HEADROOM);
 
     extern void thread_trampoline(void);
 

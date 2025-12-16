@@ -88,7 +88,7 @@ static size_t get_cache_size(int index)
 #ifdef KASAN
 static inline void kasan_unpoison_obj(void *ptr, size_t size)
 {
-    kasan_unpoison_range(ptr, size);
+    kasan_unpoison_object(ptr, size);
 }
 
 static inline void kasan_poison_obj(void *ptr, size_t size)
@@ -130,11 +130,14 @@ static inline void kasan_adjust_allocation(void *user, size_t requested)
     if (requested > user_size)
         requested = user_size;
 
-    kasan_unpoison_range(user, requested);
-    if (kasan_shadow_value(user) != KASAN_POISON_ACCESSIBLE)
-        kasan_unpoison_range(user, requested);
-    if (user_size > requested)
-        kasan_poison_range((uint8_t *)user + requested, user_size - requested, KASAN_POISON_REDZONE);
+    kasan_unpoison_object(user, requested);
+
+    // Keep redzone poisoning aligned to shadow granularity (8 bytes). For sub-8-byte
+    // tail, kasan_unpoison_object() encodes the partial block (shadow=1..7).
+    size_t rounded = (requested + ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u)) &
+                     ~((size_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+    if (user_size > rounded)
+        kasan_poison_range((uint8_t *)user + rounded, user_size - rounded, KASAN_POISON_REDZONE);
 }
 #else
 #define kasan_unpoison_obj(ptr, size) \

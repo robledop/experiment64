@@ -12,7 +12,6 @@
 #include "vmm.h"
 #include "heap.h"
 #include "bio.h"
-#include "ide.h"
 #include "keyboard.h"
 #include "vfs.h"
 #include "syscall.h"

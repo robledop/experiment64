@@ -98,6 +98,47 @@ TEST_PRIO(test_kasan_trap_use_after_free_panics, 10)
     panic_trap_disable();
     return bad && hit;
 }
+
+TEST_PRIO(test_kasan_unpoison_range_is_block_granular, 11)
+{
+    TEST_ASSERT(kasan_is_ready());
+    uint8_t *p = kmalloc(32);
+    TEST_ASSERT(p != nullptr);
+
+    kasan_poison_range(p, 32, KASAN_POISON_FREE);
+    kasan_unpoison_range(p + 1, 3);
+
+    // unpoison_range() must not leave partial-shadow state behind.
+    uint8_t shadow = kasan_shadow_value(p);
+    TEST_ASSERT(shadow == KASAN_POISON_ACCESSIBLE);
+    TEST_ASSERT(kasan_check_range(p, 8, true, __builtin_return_address(0)));
+
+    kfree(p);
+    return true;
+}
+
+TEST_PRIO(test_kasan_unpoison_object_supports_partial, 12)
+{
+    TEST_ASSERT(kasan_is_ready());
+    uint8_t *p = kmalloc(32);
+    TEST_ASSERT(p != nullptr);
+
+    kasan_poison_range(p, 8, KASAN_POISON_REDZONE);
+    kasan_unpoison_object(p, 6);
+
+    // Shadow should encode the number of accessible bytes in the last 8-byte block.
+    TEST_ASSERT(kasan_shadow_value(p) == 6);
+    TEST_ASSERT(kasan_check_range(p, 6, true, __builtin_return_address(0)));
+
+    panic_trap_setjmp();
+    panic_trap_expect();
+    bool bad = !kasan_check_range(p + 6, 1, true, __builtin_return_address(0));
+    bool hit = panic_trap_triggered();
+    panic_trap_disable();
+
+    kfree(p);
+    return bad && hit;
+}
 #else
 typedef int kasan_test_dummy;
 #endif

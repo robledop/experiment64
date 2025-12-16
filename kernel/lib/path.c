@@ -6,12 +6,12 @@ void path_safe_copy(char *dst, size_t dst_size, const char *src)
 {
     if (!dst || dst_size == 0)
         return;
-#ifdef KASAN
-    if (kasan_is_ready())
-        kasan_check_range(dst, dst_size, true, __builtin_return_address(0));
-#endif
     if (!src)
     {
+#ifdef KASAN
+        if (kasan_is_ready())
+            kasan_check_range(dst, 1, true, __builtin_return_address(0));
+#endif
         dst[0] = '\0';
         return;
     }
@@ -19,9 +19,20 @@ void path_safe_copy(char *dst, size_t dst_size, const char *src)
     size_t i = 0;
     while (i + 1 < dst_size && src[i])
     {
+#ifdef KASAN
+        if (kasan_is_ready())
+        {
+            kasan_check_range(dst + i, 1, true, __builtin_return_address(0));
+            kasan_check_range(src + i, 1, false, __builtin_return_address(0));
+        }
+#endif
         dst[i] = src[i];
         i++;
     }
+#ifdef KASAN
+    if (kasan_is_ready())
+        kasan_check_range(dst + i, 1, true, __builtin_return_address(0));
+#endif
     dst[i] = '\0';
 }
 

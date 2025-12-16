@@ -199,3 +199,21 @@ void pmm_free_pages(void *ptr, size_t count)
         kasan_poison_range((void *)(addr + pmm_hhdm_offset), count * PAGE_SIZE, KASAN_POISON_FREE);
 #endif
 }
+
+#ifdef KASAN
+void pmm_kasan_sync(void)
+{
+    for (size_t i = 0; i < highest_page; i++)
+    {
+        void *virt = (void *)((i * PAGE_SIZE) + pmm_hhdm_offset);
+        if (bitmap_test(i))
+        {
+            kasan_unpoison_range(virt, PAGE_SIZE);
+        }
+        else
+        {
+            kasan_poison_range(virt, PAGE_SIZE, KASAN_POISON_FREE);
+        }
+    }
+}
+#endif

@@ -1056,7 +1056,6 @@ int ext2fs_dirlink(struct ext2_inode *dp, const char *name, uint32_t inum)
 
                 // Write new entry after the existing one
                 off += actual;
-                memset(&de, 0, sizeof(de));
                 de.inode = inum;
                 de.rec_len = old_rec_len - actual;
                 de.name_len = (uint8_t)name_len;
@@ -1119,7 +1118,6 @@ int ext2fs_dirlink(struct ext2_inode *dp, const char *name, uint32_t inum)
     }
 
     // Now add new entry at the start of a new block
-    memset(&de, 0, sizeof(de));
     de.inode = inum;
     de.rec_len = EXT2_BSIZE; // Takes the whole block (last entry in block)
     de.name_len = (uint8_t)name_len;

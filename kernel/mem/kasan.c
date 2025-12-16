@@ -63,6 +63,11 @@ void kasan_early_init(uint64_t hhdm_offset, uint64_t phys_limit)
         boot_message(INFO, "KASAN: shadow mapped base=0x%lx size=0x%lx covering 0x%lx bytes",
                      kasan_shadow_base, kasan_shadow_size, cover_bytes);
     }
+
+    // Bring shadow state in sync with the PMM bitmap: pages already marked "used"
+    // before KASAN came online must be accessible, otherwise later memcpy/memset
+    // into those regions will trip KASAN immediately.
+    pmm_kasan_sync();
     kasan_ready = true;
 }
 
@@ -74,8 +79,15 @@ void kasan_poison_range(const void *addr, size_t size, uint8_t value)
     if (start < kasan_covered_start || end > kasan_covered_end)
         return;
 
-    uint8_t *shadow_start = (uint8_t *)(((start - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
-    uint8_t *shadow_end = (uint8_t *)(((end - kasan_covered_start + ((1 << KASAN_SHADOW_SCALE_SHIFT) - 1)) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+    // For poison values, we operate at shadow granularity (8-byte blocks).
+    // If callers pass unaligned ranges, we conservatively round outwards.
+    uintptr_t aligned_start = start & ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+    uintptr_t aligned_end = (end + ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u)) & ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+
+    uint8_t *shadow_start =
+        (uint8_t *)(((aligned_start - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+    uint8_t *shadow_end =
+        (uint8_t *)(((aligned_end - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
     size_t shadow_size = (size_t)(shadow_end - shadow_start);
 
     memset(shadow_start, value, shadow_size);
@@ -83,7 +95,58 @@ void kasan_poison_range(const void *addr, size_t size, uint8_t value)
 
 void kasan_unpoison_range(const void *addr, size_t size)
 {
-    kasan_poison_range(addr, size, KASAN_POISON_ACCESSIBLE);
+    uintptr_t start = (uintptr_t)addr;
+    uintptr_t end = start + size;
+
+    if (start < kasan_covered_start || end > kasan_covered_end)
+        return;
+
+    // Unpoisoning an arbitrary range must not introduce "partial block" state,
+    // otherwise stack/temporary buffers can become permanently partially poisoned
+    // when reused across calls. So we round to shadow granularity and mark all
+    // covered shadow bytes accessible.
+    uintptr_t aligned_start = start & ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+    uintptr_t aligned_end = (end + ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u)) &
+                            ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+
+    uint8_t *shadow_start =
+        (uint8_t *)(((aligned_start - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+    uint8_t *shadow_end =
+        (uint8_t *)(((aligned_end - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+
+    if (shadow_end > shadow_start)
+        memset(shadow_start, KASAN_POISON_ACCESSIBLE, (size_t)(shadow_end - shadow_start));
+}
+
+void kasan_unpoison_object(const void *addr, size_t size)
+{
+    uintptr_t start = (uintptr_t)addr;
+    uintptr_t end = start + size;
+
+    if (start < kasan_covered_start || end > kasan_covered_end)
+        return;
+
+    // Mark fully-covered 8-byte blocks as accessible (shadow=0).
+    uintptr_t aligned_start = start & ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+    uintptr_t aligned_end = end & ~((uintptr_t)((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+    uint8_t tail = (uint8_t)(end & ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u));
+
+    uint8_t *shadow_start =
+        (uint8_t *)(((aligned_start - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+    uint8_t *shadow_end =
+        (uint8_t *)(((aligned_end - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+
+    if (shadow_end > shadow_start)
+        memset(shadow_start, KASAN_POISON_ACCESSIBLE, (size_t)(shadow_end - shadow_start));
+
+    // If the object ends mid-block, encode the number of accessible bytes (1..7)
+    // for the last block.
+    if (tail != 0)
+    {
+        uint8_t *shadow_tail =
+            (uint8_t *)(((aligned_end - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
+        *shadow_tail = tail;
+    }
 }
 
 bool kasan_check_range(const void *addr, size_t size, bool is_write, const void *ip)
@@ -98,7 +161,22 @@ bool kasan_check_range(const void *addr, size_t size, bool is_write, const void 
     {
         uintptr_t cur = start + i;
         uint8_t *shadow = (uint8_t *)(((cur - kasan_covered_start) >> KASAN_SHADOW_SCALE_SHIFT) + kasan_shadow_base);
-        if (*shadow != KASAN_POISON_ACCESSIBLE)
+        uint8_t sv = *shadow;
+        if (sv == KASAN_POISON_ACCESSIBLE)
+        {
+            continue;
+        }
+
+        // Partial block: shadow value 1..7 means first N bytes of the 8-byte block are accessible.
+        if (sv <= ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u))
+        {
+            uintptr_t off = (cur - kasan_covered_start) & ((1u << KASAN_SHADOW_SCALE_SHIFT) - 1u);
+            if (off < sv)
+            {
+                continue;
+            }
+        }
+
         {
             kasan_report((const void *)cur, 1, is_write, ip);
             return false;
