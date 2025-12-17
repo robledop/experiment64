@@ -137,3 +137,16 @@ TEST(test_snprintk_llong_min)
     TEST_ASSERT(strcmp(buf, "-9223372036854775808") == 0);
     return true;
 }
+
+TEST(test_snprintk_left_align_flag)
+{
+    char buf[32];
+    int written = snprintk(buf, sizeof(buf), "%-10s", "hi");
+    TEST_ASSERT(written == (int)strlen("hi        "));
+    TEST_ASSERT(strcmp(buf, "hi        ") == 0);
+
+    written = snprintk(buf, sizeof(buf), "%10s", "hi");
+    TEST_ASSERT(written == (int)strlen("        hi"));
+    TEST_ASSERT(strcmp(buf, "        hi") == 0);
+    return true;
+}

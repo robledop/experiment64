@@ -160,9 +160,15 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             continue;
         }
         p++;
+        bool left_align = false;
         int width = 0;
         int precision = -1;
         bool long_mod = false;
+        if (*p == '-')
+        {
+            left_align = true;
+            p++;
+        }
         while (*p >= '0' && *p <= '9')
         {
             width = width * 10 + (*p - '0');
@@ -196,13 +202,16 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             len = format_uint(numbuf, sizeof numbuf, abs, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
             int total_len = len + pad_zero + (val < 0 ? 1 : 0);
-            out_padding(ctx, width, total_len, ' ');
+            if (!left_align)
+                out_padding(ctx, width, total_len, ' ');
             if (val < 0)
                 out_char(ctx, '-');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
+            if (left_align)
+                out_padding(ctx, width, total_len, ' ');
             break;
         }
         case 'u':
@@ -211,11 +220,14 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
-            out_padding(ctx, width, len + pad_zero, ' ');
+            if (!left_align)
+                out_padding(ctx, width, len + pad_zero, ' ');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
+            if (left_align)
+                out_padding(ctx, width, len + pad_zero, ' ');
             break;
         }
         case 'x':
@@ -224,22 +236,30 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
-            out_padding(ctx, width, len + pad_zero, ' ');
+            if (!left_align)
+                out_padding(ctx, width, len + pad_zero, ' ');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
             for (int i = 0; i < len; i++)
                 out_char(ctx, numbuf[i]);
+            if (left_align)
+                out_padding(ctx, width, len + pad_zero, ' ');
             break;
         }
         case 'p':
         {
             unsigned long val = va_arg(args, unsigned long);
+            char numbuf[32];
+            int hexlen = format_uint(numbuf, sizeof numbuf, val, 16, true);
+            int total_len = 2 + hexlen;
+            if (!left_align)
+                out_padding(ctx, width, total_len, ' ');
             out_char(ctx, '0');
             out_char(ctx, 'x');
-            char numbuf[32];
-            int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
-            for (int i = 0; i < len; i++)
+            for (int i = 0; i < hexlen; i++)
                 out_char(ctx, numbuf[i]);
+            if (left_align)
+                out_padding(ctx, width, total_len, ' ');
             break;
         }
         case 's':
@@ -250,15 +270,22 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             int len = strnlen_s(s, 1024);
             if (precision >= 0 && precision < len)
                 len = precision;
-            out_padding(ctx, width, len, ' ');
+            if (!left_align)
+                out_padding(ctx, width, len, ' ');
             for (int i = 0; i < len; i++)
                 out_char(ctx, s[i]);
+            if (left_align)
+                out_padding(ctx, width, len, ' ');
             break;
         }
         case 'c':
         {
             int c = va_arg(args, int);
+            if (!left_align)
+                out_padding(ctx, width, 1, ' ');
             out_char(ctx, (char)c);
+            if (left_align)
+                out_padding(ctx, width, 1, ' ');
             break;
         }
         case 'f':
@@ -269,9 +296,12 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             char buf[64] = {0};
             format_double(buf, sizeof buf, val, precision);
             int len = strnlen_s(buf, 64);
-            out_padding(ctx, width, len, ' ');
+            if (!left_align)
+                out_padding(ctx, width, len, ' ');
             for (int i = 0; i < len; i++)
                 out_char(ctx, buf[i]);
+            if (left_align)
+                out_padding(ctx, width, len, ' ');
             break;
         }
         case '%':

@@ -71,7 +71,7 @@ static void print_entry(char *name, struct stat *st)
     char modify_time_str[25]     = {0};
 
     strftime(date_time_format, &modify_time, modify_time_str, sizeof(modify_time_str));
-    printf(" %s ", modify_time_str);
+    printf(" %-25s ", modify_time_str);
 
     switch (st->type) {
     case T_DIR:
