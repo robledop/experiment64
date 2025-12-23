@@ -35,7 +35,7 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
         temp_rect = rect_new(subject_copy.top, subject_copy.left, subject_copy.bottom, cutting_rect->left - 1);
         if (!temp_rect) {
             free(output_rects);
-            return NULL;
+            return nullptr;
         }
         list_add(output_rects, temp_rect);
         subject_copy.left = cutting_rect->left;
@@ -43,11 +43,13 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
 
     if (cutting_rect->top > subject_copy.top && cutting_rect->top <= subject_copy.bottom) {
         temp_rect = rect_new(subject_copy.top, subject_copy.left, cutting_rect->top - 1, subject_copy.right);
-        if (!temp_rect) {
+        if (temp_rect == nullptr) {
             for (; output_rects->count; temp_rect = list_remove_at(output_rects, 0))
+            {
                 free(temp_rect);
+            }
             free(output_rects);
-            return NULL;
+            return nullptr;
         }
         list_add(output_rects, temp_rect);
         subject_copy.top = cutting_rect->top;
@@ -55,11 +57,11 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
 
     if (cutting_rect->right >= subject_copy.left && cutting_rect->right < subject_copy.right) {
         temp_rect = rect_new(subject_copy.top, cutting_rect->right + 1, subject_copy.bottom, subject_copy.right);
-        if (!temp_rect) {
+        if (temp_rect == nullptr) {
             for (; output_rects->count; temp_rect = list_remove_at(output_rects, 0))
                 free(temp_rect);
             free(output_rects);
-            return NULL;
+            return nullptr;
         }
         list_add(output_rects, temp_rect);
         subject_copy.right = cutting_rect->right;
@@ -67,11 +69,11 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
 
     if (cutting_rect->bottom >= subject_copy.top && cutting_rect->bottom < subject_copy.bottom) {
         temp_rect = rect_new(cutting_rect->bottom + 1, subject_copy.left, subject_copy.bottom, subject_copy.right);
-        if (!temp_rect) {
+        if (temp_rect == nullptr) {
             for (; output_rects->count; temp_rect = list_remove_at(output_rects, 0))
                 free(temp_rect);
             free(output_rects);
-            return NULL;
+            return nullptr;
         }
         list_add(output_rects, temp_rect);
         subject_copy.bottom = cutting_rect->bottom;
@@ -84,12 +86,12 @@ rect_t *rect_intersect(rect_t *rect_a, rect_t *rect_b)
 {
     if (!(rect_a->left <= rect_b->right && rect_a->right >= rect_b->left && rect_a->top <= rect_b->bottom &&
           rect_a->bottom >= rect_b->top)) {
-        return NULL;
+        return nullptr;
     }
 
     rect_t *result_rect = rect_new(rect_a->top, rect_a->left, rect_a->bottom, rect_a->right);
     if (!result_rect) {
-        return NULL;
+        return nullptr;
     }
 
     if (rect_b->left > result_rect->left && rect_b->left <= result_rect->right) {

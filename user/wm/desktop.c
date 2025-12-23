@@ -36,7 +36,7 @@ desktop_t *desktop_new(video_context_t *context, uint32_t *wallpaper, uint16_t w
 
     if (!window_init((window_t *)desktop, 0, 0, context->width, context->height, WIN_NODECORATION, context)) {
         free(desktop);
-        return NULL;
+        return nullptr;
     }
 
     desktop->window.paint_function = desktop_paint_handler;

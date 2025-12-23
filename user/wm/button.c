@@ -10,16 +10,16 @@ button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
         return button;
     }
 
-    if (!window_init((window_t *)button, x, y, w, h, WIN_NODECORATION, NULL)) {
+    if (!window_init((window_t *)button, x, y, w, h, WIN_NODECORATION, nullptr)) {
 
         free(button);
-        return NULL;
+        return nullptr;
     }
 
     button->window.paint_function = button_paint;
     button->window.mousedown_function = button_mousedown_handler;
 
-    button->onmousedown = NULL;
+    button->onmousedown = nullptr;
 
     button->color_toggle = 0;
 

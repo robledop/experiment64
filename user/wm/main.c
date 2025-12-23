@@ -86,10 +86,10 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    uint32_t *pixels = NULL;
+    uint32_t *pixels = nullptr;
     uint32_t wp_w = 0, wp_h = 0;
     if (bitmap_load_argb("/var/wpaper.bmp", &pixels, &wp_w, &wp_h) != 0) {
-        pixels = NULL;
+        pixels = nullptr;
         wp_w = wp_h = 0;
     }
     context = context_new(fb, (uint16_t)fb_width, (uint16_t)fb_height, fb_pitch);
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     window_set_title((window_t *)exit_button, "Exit");
     window_insert_child((window_t *)desktop, (window_t *)exit_button);
 
-    window_paint((window_t *)desktop, NULL, 1);
+    window_paint((window_t *)desktop, nullptr, 1);
 
     while (!wm_should_exit) {
         wm_process_events();

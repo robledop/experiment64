@@ -13,7 +13,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     if (!out_pixels) {
         return -1;
     }
-    *out_pixels = NULL;
+    *out_pixels = nullptr;
     if (out_width) {
         *out_width = 0;
     }

@@ -114,13 +114,13 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
 {
     video_context_t *context = (video_context_t *)malloc(sizeof(video_context_t));
     if (!context) {
-        return NULL;
+        return nullptr;
     }
 
     context->clip_rects = list_new();
     if (!context->clip_rects) {
         free(context);
-        return NULL;
+        return nullptr;
     }
 
     context->buffer = fb;

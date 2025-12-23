@@ -13,7 +13,7 @@ window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint
 
     if (!window_init(window, x, y, width, height, flags, context)) {
         free(window);
-        return NULL;
+        return nullptr;
     }
 
     return window;
@@ -33,15 +33,15 @@ int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t
     window->height = height;
     window->context = context;
     window->flags = flags;
-    window->parent = NULL;
-    window->drag_child = NULL;
+    window->parent = nullptr;
+    window->drag_child = nullptr;
     window->drag_off_x = 0;
     window->drag_off_y = 0;
     window->last_button_state = 0;
     window->paint_function = window_paint_handler;
     window->mousedown_function = window_mousedown_handler;
-    window->active_child = NULL;
-    window->title = NULL;
+    window->active_child = nullptr;
+    window->title = nullptr;
 
     return 1;
 }
@@ -175,7 +175,7 @@ void window_update_title(window_t *window)
         return;
     }
 
-    window_apply_bound_clipping(window, 0, NULL);
+    window_apply_bound_clipping(window, 0, nullptr);
 
     window_draw_border(window);
 
@@ -379,7 +379,7 @@ void window_raise(window_t *window, uint8_t do_draw)
         return;
     }
 
-    window_paint(window, NULL, 1);
+    window_paint(window, nullptr, 1);
 
     if (last_active) {
         window_update_title(last_active);
@@ -394,7 +394,7 @@ void window_move(window_t *window, int new_x, int new_y)
 
     window_raise(window, 0);
 
-    window_apply_bound_clipping(window, 0, NULL);
+    window_apply_bound_clipping(window, 0, nullptr);
 
     window->x = new_x;
     window->y = new_y;
@@ -434,7 +434,7 @@ void window_move(window_t *window, int new_x, int new_y)
     free(dirty_list);
     free(dirty_windows);
 
-    window_paint(window, NULL, 1);
+    window_paint(window, nullptr, 1);
 }
 
 void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons)
@@ -470,7 +470,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
     }
 
     if (!left_click) {
-        window->drag_child = NULL;
+        window->drag_child = nullptr;
     }
 
     if (window->drag_child) {
@@ -519,7 +519,7 @@ window_t *window_create_window(window_t *window, int16_t x, int16_t y, uint16_t 
     if (!list_add(window->children, new_window)) {
 
         free(new_window);
-        return NULL;
+        return nullptr;
     }
 
     new_window->parent = window;
