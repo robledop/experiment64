@@ -2,6 +2,12 @@
 
 #include <stdint.h>
 
+#define IRQ_BASE 32
+#define IRQ_KEYBOARD 1
+#define IRQ_MOUSE 12
+#define IRQ_IDE_PRIMARY 14
+#define IRQ_IDE_SECONDARY 15
+
 struct interrupt_frame
 {
     uint64_t r15, r14, r13, r12, r11, r10, r9, r8;

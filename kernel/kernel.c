@@ -13,6 +13,7 @@
 #include "heap.h"
 #include "bio.h"
 #include "keyboard.h"
+#include "mouse.h"
 #include "vfs.h"
 #include "syscall.h"
 #include "process.h"
@@ -135,6 +136,7 @@ void _start(void) // NOLINT(*-reserved-identifier)
 #endif
     heap_init(hhdm_offset);
     keyboard_init();
+    mouse_init();
     process_init();
     pci_scan();
     storage_init();
