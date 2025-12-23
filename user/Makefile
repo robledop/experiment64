@@ -46,7 +46,7 @@ $(BUILD_DIR)/%.o: %.c
 
 $(BUILD_DIR)/user_prog: user_prog.S
 	mkdir -p $(dir $@)
-	$(CC) -nostdlib -static -fPIE -m64 -march=x86-64 -Wa,-msyntax=intel -Wl,-Ttext=0x400000 -o $@ $<
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
