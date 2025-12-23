@@ -19,7 +19,11 @@ PROGRAM_SOURCES = $(wildcard *.c)
 PROGRAMS = $(basename $(PROGRAM_SOURCES))
 PROGRAM_OBJS = $(PROGRAMS:%=$(BUILD_DIR)/%.o)
 
-TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%)
+WM_SRC = $(wildcard wm/*.c)
+WM_OBJ = $(WM_SRC:wm/%.c=$(BUILD_DIR)/wm/%.o)
+WM_TARGET = $(BUILD_DIR)/wm/main
+
+TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
 
 .PHONY: all
 all: $(TARGETS)
@@ -46,6 +50,14 @@ $(BUILD_DIR)/user_prog: user_prog.S
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
+
+$(BUILD_DIR)/wm/%.o: wm/%.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(WM_TARGET): $(WM_OBJ) $(LIBC_A)
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(WM_OBJ) $(LIBC_A)
 
 .PHONY: clean
 clean:

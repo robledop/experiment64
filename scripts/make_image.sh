@@ -81,6 +81,9 @@ cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI build/rootfs_esp/EFI/BOOT/
 # Populate RootFS (Ext2)
 mkdir -p build/rootfs_ext2/var
 cp -v assets/logo.bmp build/rootfs_ext2/var/logo.bmp
+if [ -f assets/wpaper.bmp ]; then
+    cp -v assets/wpaper.bmp build/rootfs_ext2/var/wpaper.bmp
+fi
 if [ -f assets/doom.wad ]; then
     cp -v assets/doom.wad build/rootfs_ext2/doom.wad
 fi
@@ -101,6 +104,10 @@ for bin in "$USER_BUILD_DIR"/*; do
     fi
     cp -v "$bin" "build/rootfs_ext2/bin/$dest"
 done
+# Copy window manager binary
+if [ -f "$USER_BUILD_DIR/wm/main" ]; then
+    cp -v "$USER_BUILD_DIR/wm/main" "build/rootfs_ext2/bin/wm"
+fi
 echo "Hello Ext2" > build/rootfs_ext2/test.txt
 echo "Hello Ext2 Upper" > build/rootfs_ext2/TEST.TXT
 
