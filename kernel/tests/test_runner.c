@@ -117,10 +117,7 @@ void run_tests(void)
 
     shutdown();
 
-    // If that fails (not in QEMU or device not present), hang.
-    printk("Failed to exit QEMU via isa-debug-exit.\n");
-    while (1)
-        __asm__("hlt");
+    panic("Failed to exit QEMU via isa-debug-exit");
 }
 #else
 // In non-TEST_MODE builds provide stubs so test macros link.

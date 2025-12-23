@@ -5,6 +5,8 @@
 #include "kasan.h"
 #include <stdint.h>
 
+#include "debug.h"
+
 __attribute__((used, section(".requests"))) static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0};
@@ -34,9 +36,7 @@ void pmm_init(uint64_t hhdm_offset)
 {
     if (memmap_request.response == nullptr)
     {
-        boot_message(ERROR, "Error: Limine memmap request failed");
-        for (;;)
-            __asm__("hlt");
+        panic("Error: Limine memmap request failed");
     }
 
     struct limine_memmap_response *memmap = memmap_request.response;
@@ -76,9 +76,7 @@ void pmm_init(uint64_t hhdm_offset)
 
     if (bitmap == nullptr)
     {
-        boot_message(ERROR, "Error: Could not find memory for PMM bitmap");
-        for (;;)
-            __asm__("hlt");
+        panic("Error: Could not find memory for PMM bitmap");
     }
 
     // Mark usable regions as free (0) in the bitmap

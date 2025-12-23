@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     if (argc < 2)
     {
@@ -12,4 +12,6 @@ int main(int argc, char **argv)
     {
         kill((int)strtol(argv[i], nullptr, 10), 0);
     }
+
+    return 0;
 }

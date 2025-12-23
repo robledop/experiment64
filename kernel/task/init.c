@@ -1,3 +1,4 @@
+#include "debug.h"
 #include "process.h"
 #include "elf.h"
 #include "pmm.h"
@@ -14,9 +15,7 @@ void init_process_entry(void)
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     if (!elf_load("/bin/init", &entry_point, &max_vaddr, (pml4_t)cr3))
     {
-        boot_message(ERROR, "Failed to load /bin/init");
-        while (1)
-            __asm__("hlt");
+        panic("Failed to load /bin/init");
     }
     current_process->heap_end = max_vaddr;
 

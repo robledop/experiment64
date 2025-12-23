@@ -1,5 +1,4 @@
-#ifndef _DIRENT_H
-#define _DIRENT_H
+#pragma once
 
 #include <stdint.h>
 
@@ -18,5 +17,3 @@ typedef struct
 DIR *opendir(const char *name);
 struct dirent *readdir(DIR *dirp);
 int closedir(DIR *dirp);
-
-#endif

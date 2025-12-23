@@ -2,6 +2,8 @@
 #include "pmm.h"
 #include "string.h"
 #include <stdint.h>
+
+#include "debug.h"
 #include "terminal.h"
 
 uint64_t g_hhdm_offset = 0;
@@ -285,8 +287,6 @@ void vmm_finalize(void)
     }
     else
     {
-        boot_message(ERROR, "VMM Initialization Failed.");
-        while (1)
-            __asm__("hlt");
+        panic("VMM Initialization Failed.");
     }
 }

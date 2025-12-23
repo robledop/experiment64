@@ -49,10 +49,13 @@ static uint8_t ide_buf[2048] = {0};
 
 static void ide_delay(uint8_t channel)
 {
-    // Reading the Alternate Status port 4 times introduces a 400ns delay
+    // Reading the Alternate Status port 15 times introduces a 400ns delay
     // which is suggested by the ATA spec after changing drive selection.
-    for (int i = 0; i < 4; i++)
+    // https://wiki.osdev.org/ATA_PIO_Mode#400ns_delays
+    for (int i = 0; i < 15; i++)
+    {
         inb(ide_channels[channel] + 7);
+    }
 }
 
 static void ide_swap_and_trim_model(char *dst, const uint8_t *src)
@@ -87,11 +90,10 @@ static void ide_log_devices(void)
 // Consolidated wait function - waits for BSY to clear and specified flag to set
 static uint8_t ide_wait_flag(uint8_t channel, uint8_t flag)
 {
-    uint8_t status;
     uint64_t timeout = 1000000;
     while (timeout > 0)
     {
-        status = inb(ide_channels[channel] + 7);
+        uint8_t status = inb(ide_channels[channel] + 7);
         if (status & IDE_ERR)
             return 1; // Error
         if (!(status & IDE_BSY) && (status & flag))
@@ -141,7 +143,6 @@ void ide_init(void)
 
             if (err)
             {
-                // Try ATAPI (not implemented fully here, just skipping)
                 continue;
             }
 

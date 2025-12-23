@@ -37,11 +37,6 @@ static inline uint8_t *get_draw_surface(void)
     return (uint8_t *)terminal_fb->address;
 }
 
-// No-op since we removed double buffering
-void terminal_force_flush(void)
-{
-}
-
 static void cleanup_vfs_inode(void *ptr)
 {
     if (!ptr)

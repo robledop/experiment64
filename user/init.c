@@ -2,14 +2,14 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-int main(void)
+[[noreturn]] int main(void)
 {
     printf("Init process started (PID %d)\n", getpid());
 
     while (1)
     {
         printf("Starting shell...\n");
-        int pid = fork();
+        const int pid = fork();
         if (pid == 0)
         {
             exec("/bin/sh");
@@ -25,10 +25,6 @@ int main(void)
         else
         {
             printf("Failed to fork\n");
-            // Avoid busy loop if fork fails repeatedly
-            for (volatile int i = 0; i < 10000000; i++)
-                ;
         }
     }
-    return 0;
 }

@@ -9,21 +9,23 @@
 #include "terminal.h"
 
 // US QWERTY Scancode Set 1
-static const char scancode_to_char[SCANCODE_TABLE_SIZE] = {
+static constexpr char scancode_to_char[SCANCODE_TABLE_SIZE] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
     '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
     0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,
     '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*',
     0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
-    0, 0, 0, '+'};
+    0, 0, 0, '+'
+};
 
-static const char scancode_to_char_shifted[SCANCODE_TABLE_SIZE] = {
+static constexpr char scancode_to_char_shifted[SCANCODE_TABLE_SIZE] = {
     0, 27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
     '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
     0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,
     '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*',
     0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
-    0, 0, 0, '+'};
+    0, 0, 0, '+'
+};
 
 char keyboard_scancode_to_char(uint8_t scancode)
 {
@@ -69,7 +71,7 @@ static volatile int raw_read_ptr = 0;
 
 static struct inode_operations keyboard_dev_ops;
 
-static thread_t *keyboard_waiter = nullptr;
+static thread_t* keyboard_waiter = nullptr;
 
 static bool shift_pressed = false;
 static bool ctrl_pressed = false;
@@ -109,7 +111,7 @@ static void keyboard_enqueue_char(char c)
     }
 }
 
-static void keyboard_enqueue_sequence(const char *seq, size_t len)
+static void keyboard_enqueue_sequence(const char* seq, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         keyboard_enqueue_char(seq[i]);
@@ -119,7 +121,7 @@ void keyboard_init(void)
 {
     keyboard_reset_state_for_test();
 
-    vfs_inode_t *node = kmalloc(sizeof(vfs_inode_t));
+    vfs_inode_t* node = kmalloc(sizeof(vfs_inode_t));
     if (!node)
         return;
 
@@ -302,9 +304,6 @@ bool keyboard_has_char(void)
 
 char keyboard_get_char(void)
 {
-    // Flush any pending terminal output before blocking
-    terminal_force_flush();
-
     while (1)
     {
         // Disable interrupts to check buffer and sleep atomically
@@ -322,7 +321,7 @@ char keyboard_get_char(void)
         }
 
         // Buffer empty, sleep
-        thread_t *cur = get_current_thread();
+        thread_t* cur = get_current_thread();
         if (cur)
         {
             keyboard_waiter = cur;
@@ -330,14 +329,10 @@ char keyboard_get_char(void)
         }
 
         schedule();
-
-        // Restore interrupts if they were enabled before (schedule restores flags, but just in case)
-        // Actually schedule restores flags, so if we entered with cli, we return with cli.
-        // We loop back to check buffer.
     }
 }
 
-uint64_t keyboard_read_raw(uint8_t *out, uint64_t max)
+uint64_t keyboard_read_raw(uint8_t* out, uint64_t max)
 {
     if (!out || max == 0)
         return 0;
@@ -351,13 +346,14 @@ uint64_t keyboard_read_raw(uint8_t *out, uint64_t max)
     return read;
 }
 
-static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t* node, uint64_t offset, uint64_t size,
+                                  uint8_t* buffer)
 {
     (void)offset;
     return keyboard_read_raw(buffer, size);
 }
 
-static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, int request, [[maybe_unused]] void *arg)
+static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t* node, int request, [[maybe_unused]] void* arg)
 {
     if (request == 0x4B00) // KDFLUSH - flush both buffers
     {

@@ -6,16 +6,15 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
-static int plot(volatile uint32_t *fb, int x, int y, uint32_t color, int width, int height, int pitch_bytes)
+static void plot(volatile uint32_t* fb, int x, int y, uint32_t color, int width, int height, int pitch_bytes)
 {
     if (x < 0 || x >= width || y < 0 || y >= height)
     {
-        return 0;
+        return;
     }
 
     const int stride = pitch_bytes / (int)sizeof(uint32_t);
     fb[y * stride + x] = color;
-    return 0;
 }
 
 static void usage(void)
@@ -40,16 +39,15 @@ static int hex_value(char c)
     return -1;
 }
 
-static uint32_t parse_color(const char *arg)
+static uint32_t parse_color(const char* arg)
 {
     if (arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X'))
     {
         arg += 2;
         uint32_t value = 0;
-        int digit;
         while (*arg)
         {
-            digit = hex_value(*arg++);
+            int digit = hex_value(*arg++);
             if (digit < 0)
             {
                 break;
@@ -61,7 +59,7 @@ static uint32_t parse_color(const char *arg)
     return (uint32_t)strtol(arg, nullptr, 10);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     if (argc != 6)
     {
@@ -71,11 +69,11 @@ int main(int argc, char **argv)
 
     int x1 = (int)strtol(argv[1], nullptr, 10);
     int y1 = (int)strtol(argv[2], nullptr, 10);
-    int x2 = (int)strtol(argv[3], nullptr, 10);
-    int y2 = (int)strtol(argv[4], nullptr, 10);
-    uint32_t color = parse_color(argv[5]);
+    const int x2 = (int)strtol(argv[3], nullptr, 10);
+    const int y2 = (int)strtol(argv[4], nullptr, 10);
+    const uint32_t color = parse_color(argv[5]);
 
-    int fd = open("/dev/fb0", O_RDWR);
+    const int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0)
     {
         printf("fbline: unable to open /dev/fb0\n");
@@ -92,8 +90,8 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    size_t fb_size = (size_t)fb_pitch * fb_height;
-    void *map = mmap(nullptr, fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    const size_t fb_size = (size_t)fb_pitch * fb_height;
+    void* map = mmap(nullptr, fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED)
     {
         printf("fbline: mmap failed\n");
@@ -102,12 +100,12 @@ int main(int argc, char **argv)
     }
     close(fd);
 
-    volatile uint32_t *fb = map;
+    volatile uint32_t* fb = map;
 
-    int dx = abs(x2 - x1);
-    int sx = x1 < x2 ? 1 : -1;
-    int dy = -abs(y2 - y1);
-    int sy = y1 < y2 ? 1 : -1;
+    const int dx = abs(x2 - x1);
+    const int sx = x1 < x2 ? 1 : -1;
+    const int dy = -abs(y2 - y1);
+    const int sy = y1 < y2 ? 1 : -1;
     int err = dx + dy;
 
     for (;;)
@@ -117,7 +115,7 @@ int main(int argc, char **argv)
         {
             break;
         }
-        int e2 = 2 * err;
+        const int e2 = 2 * err;
         if (e2 >= dy)
         {
             err += dy;
@@ -130,6 +128,8 @@ int main(int argc, char **argv)
         }
     }
 
-    munmap((void *)fb, fb_size);
+    munmap((void*)fb, fb_size);
     exit(0);
+
+    return 0;
 }

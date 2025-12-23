@@ -14,6 +14,7 @@
       <w>dtime</w>
       <w>envp</w>
       <w>execve</w>
+      <w>fbline</w>
       <w>finddir</w>
       <w>fsize</w>
       <w>hhdm</w>
@@ -35,8 +36,10 @@
       <w>newptr</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
+      <w>oldfd</w>
       <w>outsl</w>
       <w>pathlib</w>
+      <w>pipefd</w>
       <w>poff</w>
       <w>printk</w>
       <w>prio</w>

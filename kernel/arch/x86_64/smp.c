@@ -16,10 +16,10 @@
 static atomic_int cpus_started = 0;
 static cpu_t cpus[MAX_CPUS];
 
-static void ap_main(struct limine_smp_info *info)
+static void ap_main(struct limine_smp_info* info)
 {
     enable_simd();
-    cpu_t *cpu = (cpu_t *)info->extra_argument;
+    cpu_t* cpu = (cpu_t*)info->extra_argument;
     wrmsr(MSR_GS_BASE, (uint64_t)cpu);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
 
@@ -40,11 +40,10 @@ static void ap_main(struct limine_smp_info *info)
 
 void smp_init_cpu0(void)
 {
-    struct limine_smp_response *smp_response = boot_get_smp_response();
+    struct limine_smp_response* smp_response = boot_get_smp_response();
     if (smp_response == nullptr)
     {
-        // If SMP response is missing, we can't set up GS_BASE, so gdt_init will crash.
-        // Hang here to indicate failure.
+        // If the SMP response is missing, we can't set up GS_BASE, so gdt_init will crash.
         hcf();
         return;
     }
@@ -55,7 +54,7 @@ void smp_init_cpu0(void)
         if (i >= MAX_CPUS)
             break;
 
-        struct limine_smp_info *cpu_info = smp_response->cpus[i];
+        struct limine_smp_info* cpu_info = smp_response->cpus[i];
 
         if (cpu_info->lapic_id == smp_response->bsp_lapic_id)
         {
@@ -82,7 +81,7 @@ void smp_init_cpu0(void)
 
 void smp_boot_aps(void)
 {
-    struct limine_smp_response *smp_response = boot_get_smp_response();
+    struct limine_smp_response* smp_response = boot_get_smp_response();
     if (smp_response == nullptr)
     {
         boot_message(WARNING, "SMP: No response found");
@@ -101,7 +100,7 @@ void smp_boot_aps(void)
         if (i >= MAX_CPUS)
             break;
 
-        struct limine_smp_info *cpu_info = smp_response->cpus[i];
+        struct limine_smp_info* cpu_info = smp_response->cpus[i];
 
         if (cpu_info->lapic_id != smp_response->bsp_lapic_id)
         {
@@ -116,9 +115,8 @@ void smp_boot_aps(void)
 
     boot_message(INFO, "SMP: Waiting for APs...");
 
-    // Wait a bit for APs to start (very crude)
-    for (volatile int i = 0; i < 10000000; i++)
-        ;
+    // Wait a bit for APs to start
+    for (volatile int i = 0; i < 10000000; i++);
 
     boot_message(INFO, "SMP: Started %d/%ld CPUs", atomic_load(&cpus_started), smp_response->cpu_count);
 }

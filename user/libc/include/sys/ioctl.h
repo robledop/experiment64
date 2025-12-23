@@ -1,5 +1,4 @@
-#ifndef _SYS_IOCTL_H
-#define _SYS_IOCTL_H
+#pragma once
 
 #include <stdint.h>
 
@@ -22,5 +21,3 @@ struct winsize
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers
 
 int ioctl(int fd, unsigned long request, void *arg);
-
-#endif
