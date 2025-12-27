@@ -14,6 +14,7 @@ static void plot(volatile uint32_t* fb, int x, int y, uint32_t color, int width,
     }
 
     const int stride = pitch_bytes / (int)sizeof(uint32_t);
+    // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference): fb is valid when called from main after mmap check
     fb[y * stride + x] = color;
 }
 

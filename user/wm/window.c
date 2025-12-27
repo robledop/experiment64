@@ -396,16 +396,16 @@ void window_move(window_t *window, int new_x, int new_y)
 
     window_apply_bound_clipping(window, 0, nullptr);
 
-    window->x = new_x;
-    window->y = new_y;
+    window->x = (int16_t)new_x;
+    window->y = (int16_t)new_y;
 
     new_window_rect.top = window_screen_y(window);
     new_window_rect.left = window_screen_x(window);
     new_window_rect.bottom = new_window_rect.top + window->height - 1;
     new_window_rect.right = new_window_rect.left + window->width - 1;
 
-    window->x = old_x;
-    window->y = old_y;
+    window->x = (int16_t)old_x;
+    window->y = (int16_t)old_y;
 
     context_subtract_clip_rect(window->context, &new_window_rect);
 
@@ -420,8 +420,8 @@ void window_move(window_t *window, int new_x, int new_y)
 
     list_t *dirty_windows = window_get_windows_below(window->parent, window);
 
-    window->x = new_x;
-    window->y = new_y;
+    window->x = (int16_t)new_x;
+    window->y = (int16_t)new_y;
 
     while (dirty_windows->count)
         window_paint(list_remove_at(dirty_windows, 0), dirty_list, 1);
@@ -478,7 +478,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
     }
 
     if (window->mousedown_function && left_click && !was_left_click) {
-        window->mousedown_function(window, mouse_x, mouse_y);
+        window->mousedown_function(window, (int16_t)mouse_x, (int16_t)mouse_y);
     }
 
     window->last_button_state = mouse_buttons;

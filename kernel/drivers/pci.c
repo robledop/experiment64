@@ -276,7 +276,7 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
                      pci.device_id);
     }
 
-    for (uint16_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++) {
+    for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++) {
         const struct pci_driver *driver = &pci_drivers[i];
 
         const bool class_match    = driver->class == pci.class;

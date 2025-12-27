@@ -12,7 +12,6 @@ static inline uint8_t reverse_bits8(uint8_t v)
     return v;
 }
 
-__attribute__((target("sse2,avx")))
 static inline void framebuffer_fill_span32(uint8_t *dst, uint32_t pixel_count, uint32_t color)
 {
     while (pixel_count--) {
@@ -21,7 +20,6 @@ static inline void framebuffer_fill_span32(uint8_t *dst, uint32_t pixel_count, u
     }
 }
 
-__attribute__((target("sse2,avx")))
 static inline void framebuffer_copy_span32(uint8_t *dst, const uint32_t *src, uint32_t pixel_count)
 {
     while (pixel_count--) {
@@ -30,7 +28,6 @@ static inline void framebuffer_copy_span32(uint8_t *dst, const uint32_t *src, ui
     }
 }
 
-__attribute__((target("sse2,avx")))
 static void framebuffer_fill_rect32(video_context_t *context, int x, int y, int width, int height, uint32_t color)
 {
     if (width <= 0 || height <= 0) {
@@ -72,7 +69,6 @@ static void framebuffer_fill_rect32(video_context_t *context, int x, int y, int 
     }
 }
 
-__attribute__((target("sse2,avx")))
 static void framebuffer_blit_span32(video_context_t *context, int x, int y, const uint32_t *src, uint32_t pixel_count)
 {
     if (!src || pixel_count == 0) {
@@ -134,7 +130,6 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
     return context;
 }
 
-__attribute__((target("sse2,avx")))
 static void context_clipped_rect_bitmap(video_context_t *context, int x, int y, unsigned int draw_width,
                                  unsigned int draw_height, rect_t *clip_area, const uint32_t *pixels,
                                  unsigned int stride, int src_origin_x, int src_origin_y)
@@ -220,7 +215,6 @@ static void context_clipped_rect(video_context_t *context, int x, int y, unsigne
     framebuffer_fill_rect32(context, x, y, width_span, height_span, color);
 }
 
-__attribute__((target("sse2,avx")))
 void context_draw_bitmap(video_context_t *context, int x, int y, unsigned int width, unsigned int height,
                          uint32_t *pixels)
 {
@@ -369,7 +363,6 @@ void context_draw_rect(video_context_t *context, int x, int y, unsigned int widt
     context_vertical_line(context, x + (int)width - 1, y + 1, height - 2, color);
 }
 
-__attribute__((target("sse2,avx")))
 void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 {
     context->clipping_on = 1;
@@ -398,7 +391,6 @@ void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
     free(rect);
 }
 
-__attribute__((target("sse2,avx")))
 void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rect)
 {
     context->clipping_on = 1;
@@ -443,7 +435,6 @@ void context_clear_clip_rects(video_context_t *context)
     }
 }
 
-__attribute__((target("sse2,avx")))
 static void context_draw_char_clipped(video_context_t *context, char character, int x, int y, uint32_t color,
                                rect_t *bound_rect)
 {

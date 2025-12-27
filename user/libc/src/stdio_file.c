@@ -31,9 +31,11 @@ static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *
         *out_create = w || a;
 }
 
+// NOLINTBEGIN(misc-non-copyable-objects): Intentional FILE objects for standard streams
 FILE __stdin_file_obj = {.fd = 0, .readable = true, .writable = false, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_RDONLY, .path = ""};
 FILE __stdout_file_obj = {.fd = 1, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
 FILE __stderr_file_obj = {.fd = 2, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
+// NOLINTEND(misc-non-copyable-objects)
 FILE *__stdin_file = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
@@ -251,7 +253,7 @@ int fseek(FILE *stream, long offset, int whence)
 {
     if (!stream)
         return -1;
-    size_t newpos = stream->pos;
+    size_t newpos = 0;
     switch (whence)
     {
     case SEEK_SET:

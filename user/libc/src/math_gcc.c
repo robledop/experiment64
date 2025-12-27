@@ -53,8 +53,8 @@ typedef union
 } arith64_word;
 
 // extract hi and lo 32-bit words from 64-bit value
-#define arith64_hi(n) (arith64_word){.u64 = n}.u32.hi
-#define arith64_lo(n) (arith64_word){.u64 = n}.u32.lo
+#define arith64_hi(n) (arith64_word){.u64 = (n)}.u32.hi
+#define arith64_lo(n) (arith64_word){.u64 = (n)}.u32.lo
 
 // Negate a if b is negative, via invert and increment.
 #define arith64_neg(a, b) (((a) ^ ((((arith64_s64)(b)) >= 0) - 1)) + (((arith64_s64)(b)) < 0))
@@ -201,7 +201,7 @@ arith64_u64 __divmoddi4(arith64_u64 a, arith64_u64 b, arith64_u64 *c)
         if (b == 0) // divide by 0
         {
             volatile char x = 0;
-            x               = 1 / x; // force an exception
+            x               = (char)(1 / x); // NOLINT(clang-analyzer-core.DivideZero): force an exception
         }
         if (b == 1) // divide by 1
         {
@@ -221,8 +221,9 @@ arith64_u64 __divmoddi4(arith64_u64 a, arith64_u64 b, arith64_u64 *c)
     }
 
     // let's do long division
-    char bits       = __clzdi2(b) - __clzdi2(a) + 1; // number of bits to iterate (a and b are non-zero)
-    arith64_u64 rem = a >> bits;                     // init remainder
+    int bits            = __clzdi2(b) - __clzdi2(a) + 1; // number of bits to iterate (a and b are non-zero)
+    // NOLINTNEXTLINE(clang-analyzer-core.BitwiseShift): bits is always valid here since a >= b and both non-zero
+    arith64_u64 rem     = a >> bits;                     // init remainder
     a <<= 64 - bits;                                 // shift numerator to the high bit
     arith64_u64 wrap = 0;                            // start with wrap = 0
     while (bits-- > 0)                               // for each bit
@@ -241,7 +242,7 @@ arith64_u64 __divmoddi4(arith64_u64 a, arith64_u64 b, arith64_u64 *c)
 // Return the quotient of the signed division of a by b.
 arith64_s64 __divdi3(arith64_s64 a, arith64_s64 b)
 {
-    arith64_u64 q = __divmoddi4(arith64_abs(a), arith64_abs(b), (void *)0);
+    arith64_u64 q = __divmoddi4(arith64_abs(a), arith64_abs(b), nullptr);
     return arith64_neg(q, a ^ b); // negate q if a and b signs are different
 }
 
@@ -286,7 +287,7 @@ int __popcountsi2(arith64_u32 a)
     a = (a + (a >> 4)) & 0x0F0F0F0F;
     a = (a + (a >> 16));
     // add the bytes, return bottom 6 bits
-    return (a + (a >> 8)) & 63;
+    return (int)((a + (a >> 8)) & 63);
 }
 
 // Return the number of bits set in a.
@@ -299,13 +300,13 @@ int __popcountdi2(arith64_u64 a)
     a = (a + (a >> 32));
     a = (a + (a >> 16));
     // add the bytes, return bottom 7 bits
-    return (a + (a >> 8)) & 127;
+    return (int)((a + (a >> 8)) & 127);
 }
 
 // Return the quotient of the unsigned division of a by b.
 arith64_u64 __udivdi3(arith64_u64 a, arith64_u64 b) // NOLINT(*-reserved-identifier)
 {
-    return __divmoddi4(a, b, (void *)0);
+    return __divmoddi4(a, b, nullptr);
 }
 
 // Return the remainder of the unsigned division of a by b.
@@ -321,6 +322,7 @@ uint64_t __udivmoddi4(uint64_t num, uint64_t den, uint64_t *rem_p) // NOLINT(*-r
     uint64_t quot = 0, qbit = 1;
 
     if (den == 0) {
+        // NOLINTNEXTLINE(clang-analyzer-core.DivideZero): Intentional divide by zero to force exception
         return 1 / ((unsigned)den); /* Intentional divide by zero, without
                                        triggering a compiler warning which
                                        would abort the build */

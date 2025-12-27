@@ -97,10 +97,6 @@ void apic_timer_calibrate(void)
 
     lapic_write(LAPIC_TDCR, LAPIC_TDCR_DIV_16);
 
-    // Set to One-Shot mode (0x00000) or Periodic, doesn't matter if we just read count
-    // Vector 32, One-Shot (masked to avoid interrupt during calibration?)
-    // Actually, we can just mask it or use a vector that does nothing.
-    // But we need it to count.
     lapic_write(LAPIC_LVT_TIMER, APIC_TIMER_VECTOR | LAPIC_LVT_MASK);
 
     lapic_write(LAPIC_TICR, LAPIC_TIMER_INIT_COUNT);

@@ -1129,7 +1129,7 @@ TEST(test_syscall_pipe_multiple_writes)
 
 TEST(test_syscall_pipe_null_arg)
 {
-    // NULL argument should fail
+    // nullptr argument should fail
     TEST_ASSERT(sys_pipe(nullptr) == -1);
     return true;
 }
@@ -1512,7 +1512,7 @@ TEST(test_syscall_mmap_anonymous)
     // Note: Current mmap implementation only supports shared framebuffer mappings.
     // Anonymous mappings are not yet implemented.
     // Map anonymous memory
-    void *addr = sys_mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+    void *addr = sys_mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     // Anonymous mmap is not supported - expect failure
     if (addr == MAP_FAILED)
@@ -1535,7 +1535,7 @@ TEST(test_syscall_mmap_anonymous)
 
 TEST(test_syscall_mmap_invalid_length)
 {
-    void *addr = sys_mmap(NULL, 0, PROT_READ | PROT_WRITE,
+    void *addr = sys_mmap(nullptr, 0, PROT_READ | PROT_WRITE,
                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     TEST_ASSERT(addr == MAP_FAILED);
     return true;
@@ -1543,8 +1543,8 @@ TEST(test_syscall_mmap_invalid_length)
 
 TEST(test_syscall_munmap_invalid)
 {
-    // munmap with NULL should fail
-    TEST_ASSERT(sys_munmap(NULL, 4096) == -1);
+    // munmap with nullptr should fail
+    TEST_ASSERT(sys_munmap(nullptr, 4096) == -1);
     return true;
 }
 
@@ -1583,7 +1583,7 @@ TEST(test_syscall_mknod_basic)
 
 TEST(test_syscall_mknod_invalid_path)
 {
-    TEST_ASSERT(sys_mknod(NULL, VFS_CHARDEVICE, 0) == -1);
+    TEST_ASSERT(sys_mknod(nullptr, VFS_CHARDEVICE, 0) == -1);
     TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -1);
     return true;
 }

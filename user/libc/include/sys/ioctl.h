@@ -19,5 +19,3 @@ struct winsize
 
 // Keyboard ioctls
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers
-
-int ioctl(int fd, unsigned long request, void *arg);

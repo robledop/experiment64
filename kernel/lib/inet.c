@@ -52,29 +52,35 @@ uint32_t inet_addr(const char *cp)
     return v;
 }
 
+static inline void write_digit(char **p, uint8_t digit)
+{
+    **p = (char)((unsigned char)('0' + digit));
+    (*p)++;
+}
+
 void inet_ntoa_r(uint32_t addr, char *buf)
 {
     const uint32_t ip = ntohl(addr);
     uint8_t octets[4] = {
-        (ip >> 24) & 0xFF,
-        (ip >> 16) & 0xFF,
-        (ip >> 8) & 0xFF,
-        ip & 0xFF
+        (uint8_t)(ip >> 24) & 0xFF,
+        (uint8_t)(ip >> 16) & 0xFF,
+        (uint8_t)(ip >> 8) & 0xFF,
+        (uint8_t)ip & 0xFF
     };
 
     char *p = buf;
     for (int i = 0; i < 4; i++) {
         uint8_t octet = octets[i];
         if (octet >= 100) {
-            *p++ = '0' + octet / 100;
-            octet %= 100;
-            *p++ = '0' + octet / 10;
-            *p++ = '0' + octet % 10;
+            write_digit(&p, (uint8_t)(octet / 100));
+            octet = (uint8_t)(octet % 100);
+            write_digit(&p, (uint8_t)(octet / 10));
+            write_digit(&p, (uint8_t)(octet % 10));
         } else if (octet >= 10) {
-            *p++ = '0' + octet / 10;
-            *p++ = '0' + octet % 10;
+            write_digit(&p, (uint8_t)(octet / 10));
+            write_digit(&p, (uint8_t)(octet % 10));
         } else {
-            *p++ = '0' + octet;
+            write_digit(&p, octet);
         }
         if (i < 3)
             *p++ = '.';

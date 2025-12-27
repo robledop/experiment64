@@ -22,7 +22,7 @@ uint16_t checksum(void *addr, int count, const int start_sum)
     return ~sum;
 }
 
-char *get_mac_address_string(uint8_t mac[6])
+char *get_mac_address_string(const uint8_t mac[6])
 {
     static char result[18] = "00:00:00:00:00:00";
     for (int i = 0; i < 6; i++) {

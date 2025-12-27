@@ -40,7 +40,7 @@ static struct termios *get_entry(int fd)
 {
     int idx = map_fd(fd);
     if (idx < 0 || idx >= (int)(sizeof(termios_table) / sizeof(termios_table[0])))
-        return NULL;
+        return nullptr;
     init_defaults();
     return &termios_table[idx];
 }

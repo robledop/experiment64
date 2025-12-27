@@ -110,7 +110,7 @@ void arp_send_request(const uint8_t dest_ip[static 4])
     kfree(packet);
 }
 
-void arp_send_reply(uint8_t *packet)
+void arp_send_reply(const uint8_t *packet)
 {
     const struct ether_header *ether_header = (struct ether_header *)packet;
     const struct arp_header *arp_header = (struct arp_header *)(packet + sizeof(struct ether_header));

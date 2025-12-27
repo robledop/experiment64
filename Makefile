@@ -35,7 +35,6 @@ override SMP ?= 8
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
 
-# Common QEMU pieces
 QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP)
 QEMU_DRIVES :=  \
 	-drive if=none,file=image.hdd,format=raw,id=ahcibase \
@@ -45,7 +44,7 @@ QEMU_DRIVES :=  \
 
 # User-mode networking (has built-in DHCP server)
 QEMU_NETWORK_USER=-netdev user,id=net0 -device e1000,netdev=net0
-# TAP networking (requires DHCP server on host, e.g., dnsmasq)
+# TAP networking (requires DHCP server on the network)
 QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0
 # Default to user-mode networking
 QEMU_NETWORK=$(QEMU_NETWORK_USER)
@@ -109,10 +108,6 @@ clean:
 	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide $(DOOM_BIN)
 	$(MAKE) -C user clean
 
-.PHONY: distclean
-distclean: clean
-	rm -rf limine $(ROOTFS) image.iso image.hdd
-
 limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v8.x-binary --depth=1
 	make -C limine
@@ -125,14 +120,11 @@ LIBC_A = user/build/libc/libc.a
 userland:
 	$(MAKE) -C user
 
-# Build libc.a (needed by doom)
 $(LIBC_A): userland
 
 .PHONY: doom
 doom: $(DOOM_BIN)
 
-# Only build doom if the binary doesn't exist
-# Depends on libc.a being built first
 $(DOOM_BIN): $(LIBC_A)
 	$(MAKE) -C user/doom
 

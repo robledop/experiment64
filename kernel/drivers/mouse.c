@@ -64,11 +64,6 @@ static inline bool mouse_buffer_empty(void)
     return mouse_buf_head == mouse_buf_tail;
 }
 
-static inline bool mouse_buffer_full(void)
-{
-    return ((mouse_buf_head + 1) % MOUSE_BUFFER_SIZE) == mouse_buf_tail;
-}
-
 static void mouse_buffer_push(struct ps2_mouse_packet pkt)
 {
     int next = (mouse_buf_head + 1) % MOUSE_BUFFER_SIZE;
@@ -140,17 +135,17 @@ static void mouse_handler(struct interrupt_frame *frame)
             mouse_device.cycle = 1;
             break;
         case 1:
-            mouse_device.packet.x = byte;
+            mouse_device.packet.x = (int16_t)(int8_t)(uint8_t)byte;
             mouse_device.cycle = 2;
             break;
         case 2: {
-            mouse_device.packet.y = byte;
+            mouse_device.packet.y = (int16_t)(int8_t)(uint8_t)byte;
 
             mouse_device.prev_x = mouse_device.x;
             mouse_device.prev_y = mouse_device.y;
 
-            mouse_device.x += mouse_device.packet.x;
-            mouse_device.y -= mouse_device.packet.y;
+            mouse_device.x = (int16_t)(mouse_device.x + mouse_device.packet.x);
+            mouse_device.y = (int16_t)(mouse_device.y - mouse_device.packet.y);
 
             mouse_device.prev_flags = mouse_device.flags;
             mouse_device.flags = mouse_device.packet.flags & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
@@ -166,10 +161,10 @@ static void mouse_handler(struct interrupt_frame *frame)
             struct limine_framebuffer *fb = framebuffer_current();
             if (fb) {
                 if (mouse_device.x >= (int16_t)fb->width) {
-                    mouse_device.x = (int16_t)fb->width - 1;
+                    mouse_device.x = (int16_t)((int16_t)fb->width - 1);
                 }
                 if (mouse_device.y >= (int16_t)fb->height) {
-                    mouse_device.y = (int16_t)fb->height - 1;
+                    mouse_device.y = (int16_t)((int16_t)fb->height - 1);
                 }
             }
 

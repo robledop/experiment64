@@ -7,7 +7,7 @@
 
 // TODO: This does not implement things that require the client to store state (like lease time)
 
-void set_request_dhcp_options(uint8_t *options, uint8_t ip[4], uint8_t server_ip[4])
+void set_request_dhcp_options(uint8_t *options, const uint8_t ip[4], const uint8_t server_ip[4])
 {
     int offset = 0;
 

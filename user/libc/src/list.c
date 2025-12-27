@@ -9,7 +9,7 @@ list_t *list_new(void)
     }
 
     list->count = 0;
-    list->root_node = NULL;
+    list->root_node = nullptr;
 
     return list;
 }
@@ -41,7 +41,7 @@ int list_add(list_t *list, void *payload)
 void *list_get_at(list_t *list, unsigned int index)
 {
     if (list->count == 0 || index >= list->count) {
-        return NULL;
+        return nullptr;
     }
 
     list_node_t *current_node = list->root_node;
@@ -49,7 +49,7 @@ void *list_get_at(list_t *list, unsigned int index)
     for (unsigned int current_index = 0; (current_index < index) && current_node; current_index++)
         current_node = current_node->next;
 
-    return current_node ? current_node->payload : NULL;
+    return current_node ? current_node->payload : nullptr;
 }
 
 int list_find(list_t *list, void *payload)
@@ -83,18 +83,21 @@ void list_free(list_t *list)
 void *list_remove_at(list_t *list, unsigned int index)
 {
     if (list->count == 0 || index >= list->count) {
-        return NULL;
+        return nullptr;
     }
 
     list_node_t *current_node = list->root_node;
 
     for (unsigned int current_index = 0; (current_index < index) && current_node; current_index++)
+    {
         current_node = current_node->next;
-
-    if (!current_node) {
-        return NULL;
     }
 
+    if (!current_node) {
+        return nullptr;
+    }
+
+    // NOLINTNEXTLINE(clang-analyzer-unix.Malloc): False positive - current_node is valid here
     if (current_node->prev) {
         current_node->prev->next = current_node->next;
     } else {
@@ -117,12 +120,12 @@ list_node_t *list_node_new(void *payload)
 {
     list_node_t *node = (list_node_t *)malloc(sizeof(list_node_t));
     if (!node) {
-        return NULL;
+        return nullptr;
     }
 
     node->payload = payload;
-    node->prev = NULL;
-    node->next = NULL;
+    node->prev = nullptr;
+    node->next = nullptr;
 
     return node;
 }
