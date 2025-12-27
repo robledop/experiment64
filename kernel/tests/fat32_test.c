@@ -1,6 +1,5 @@
 #include "test.h"
 #include "fat32.h"
-#include "ide.h"
 #include "string.h"
 #include "terminal.h"
 
@@ -34,7 +33,7 @@ TEST(test_fat32_read_file)
     uint8_t buffer[512] = {0};
 
     // We added test.txt with "Hello FAT32" in the Makefile
-    int res = fat32_read_file(&test_fs, "TEST.TXT", buffer, 512);
+    const int res = fat32_read_file(&test_fs, "TEST.TXT", buffer, 512);
 
     if (res != 0)
     {
@@ -70,9 +69,8 @@ TEST(test_fat32_write_delete)
         return false;
     }
 
-    // 2. Read back
-    uint8_t buffer[512];
-    memset(buffer, 0, 512);
+    // Read back
+    uint8_t buffer[512] = {0};
     if (fat32_read_file(&test_fs, filename, buffer, 512) != 0)
     {
         printk("Failed to read back NEW.TXT\n");
@@ -85,14 +83,14 @@ TEST(test_fat32_write_delete)
         return false;
     }
 
-    // 3. Delete
+    // Delete
     if (fat32_delete_file(&test_fs, filename) != 0)
     {
         printk("Failed to delete NEW.TXT\n");
         return false;
     }
 
-    // 4. Verify deletion
+    // Verify deletion
     fat32_file_info_t info;
     if (fat32_stat(&test_fs, filename, &info) == 0)
     {

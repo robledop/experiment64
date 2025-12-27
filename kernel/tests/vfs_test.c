@@ -36,9 +36,9 @@ TEST(test_vfs_generic_write)
         return false;
 
     const char *new_data = "GenWrite";
-    uint64_t written = vfs_write(file, 0, strlen(new_data), (uint8_t *)new_data);
+    const uint64_t written = vfs_write(file, 0, strlen(new_data), (uint8_t *)new_data);
 
-    bool passed = (written == strlen(new_data));
+    const bool passed = (written == strlen(new_data));
     if (!passed)
     {
         printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
@@ -57,9 +57,8 @@ TEST(test_vfs_generic_read)
     if (!file)
         return false;
 
-    char buffer[32];
-    memset(buffer, 0, 32);
-    uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    char buffer[32] = {0};
+    const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
     // "GenWrite" might have overwritten start of file if write ran first
     // Or "WriteTest" from ext2 test
@@ -67,7 +66,7 @@ TEST(test_vfs_generic_read)
 
     printk("VFS Generic Read: Got '%s'\n", buffer);
 
-    bool passed = (bytes > 0);
+    const bool passed = (bytes > 0);
 
     kfree(file);
     return passed;
@@ -109,9 +108,8 @@ TEST(test_vfs_generic_basic)
     vfs_open(file);
 
     // Test read
-    char buffer[32];
-    memset(buffer, 0, 32);
-    uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    char buffer[32] = {0};
+    const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
     if (bytes == 0)
     {

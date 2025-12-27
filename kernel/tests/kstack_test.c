@@ -1,19 +1,22 @@
 #include "test.h"
 #include "process.h"
 
+[[noreturn]]
 static void dummy_entry(void)
 {
     // Never scheduled in this test.
     while (1)
+    {
         __asm__ volatile("hlt");
+    }
 }
 
 TEST_PRIO(test_kstack_has_syscall_headroom, 50)
 {
-    process_t *p = process_create("kstack_test");
+    process_t* p = process_create("kstack_test");
     TEST_ASSERT(p != nullptr);
 
-    thread_t *t = thread_create(p, dummy_entry, false);
+    thread_t* t = thread_create(p, dummy_entry, false);
     TEST_ASSERT(t != nullptr);
 
     const uintptr_t top = (uintptr_t)t->kstack_top;
@@ -27,5 +30,3 @@ TEST_PRIO(test_kstack_has_syscall_headroom, 50)
     process_destroy(p);
     return true;
 }
-
-

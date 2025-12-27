@@ -1,6 +1,5 @@
 #include "bio.h"
 #include "terminal.h"
-#include "string.h"
 #include "test.h"
 
 TEST(bio_test)
@@ -53,8 +52,8 @@ TEST(bio_test)
 
     // Stress Test: Read/Write more blocks than cache size (128)
     // We use 200 blocks starting at sector 2000 to avoid FS structures
-    int stress_count = 200;
-    int start_sector = 2000;
+    constexpr int stress_count = 200;
+    constexpr int start_sector = 2000;
 
     // 1. Write patterns
     for (int i = 0; i < stress_count; i++)

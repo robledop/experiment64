@@ -6,6 +6,7 @@
 static void test_thread_entry(void)
 {
     printk("Test thread running!\n");
+    // ReSharper disable once CppDFAEndlessLoop
     while (1)
         yield();
 }

@@ -21,7 +21,7 @@ endef
 
 $(eval $(call DEFAULT_VAR,CC,x86_64-elf-gcc))
 $(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
-$(eval $(call DEFAULT_VAR,CFLAGS,-O2 -g -Wall -Wextra -pipe -pedantic))
+$(eval $(call DEFAULT_VAR,CFLAGS,-O0 -g -Wall -Wextra -pipe -pedantic))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
 ifdef KASAN
@@ -105,7 +105,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide $(DOOM_BIN)
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.vdi $(DOOM_BIN)
 	$(MAKE) -C user clean
 
 limine:

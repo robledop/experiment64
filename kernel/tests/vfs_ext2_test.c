@@ -57,8 +57,7 @@ TEST_PRIO(test_vfs_ext2_read, 30)
     if (!file)
         return false;
 
-    char buffer[32];
-    memset(buffer, 0, 32);
+    char buffer[32] = {0};
     uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
     // "WriteTest" overwrote start of file
@@ -108,9 +107,8 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     vfs_open(file);
 
     // Test read
-    char buffer[32];
-    memset(buffer, 0, 32);
-    uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    char buffer[32] = {0};
+    const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
     if (bytes == 0)
     {

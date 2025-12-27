@@ -23,7 +23,7 @@ TEST(test_fat32_stress)
     if (vfs_mknod(dirname, VFS_DIRECTORY, 0) != 0)
     {
         // If it fails, it might already exist, which is fine for stress test re-runs
-        // But for clean test, we assume it succeeds or we check if it exists.
+        // But for clean test, we assume it succeeds, or we check if it exists.
         // For now, let's assume failure is bad unless we can check existence.
         vfs_inode_t *dir = vfs_resolve_path(dirname);
         if (!dir)
@@ -42,7 +42,7 @@ TEST(test_fat32_stress)
         return false;
     }
 
-    // 1. Create and Write Phase
+    // Create and Write Phase
     printk("Phase 1: Creating and Writing %d files...\n", STRESS_FILE_COUNT);
     for (int i = 0; i < STRESS_FILE_COUNT; i++)
     {
@@ -83,7 +83,7 @@ TEST(test_fat32_stress)
     }
     printk("\n");
 
-    // 2. Read and Verify Phase
+    // Read and Verify Phase
     printk("Phase 2: Reading and Verifying...\n");
     for (int i = 0; i < STRESS_FILE_COUNT; i++)
     {

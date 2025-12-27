@@ -93,12 +93,11 @@ TEST_PRIO(test_vfs_fat32_read, 30)
         return false;
     }
 
-    char buffer[32];
-    memset(buffer, 0, 32);
-    uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    char buffer[32] = {0};
+    const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
     // Accept either original "Hello Data..." content or an updated "FAT32Write..." prefix
-    bool passed = (bytes > 0 &&
+    const bool passed = (bytes > 0 &&
                    (strncmp(buffer, "Hello Data", 10) == 0 ||
                     strncmp(buffer, "FAT32Write", 10) == 0));
     if (!passed)
@@ -218,8 +217,8 @@ TEST_PRIO(test_vfs_fat32_zero_length_read, 45)
     }
 
     char buffer[4] = {0};
-    uint64_t bytes = vfs_read(file, 0, 0, (uint8_t *)buffer);
-    bool passed = (bytes == 0);
+    const uint64_t bytes = vfs_read(file, 0, 0, (uint8_t *)buffer);
+    const bool passed = (bytes == 0);
 
     kfree(file);
     kfree(mnt);
@@ -231,13 +230,13 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
     vfs_inode_t *mnt = vfs_resolve_path("/mnt");
     if (!mnt)
         return false;
-    fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
+    const fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
     TEST_ASSERT(mnt_data != nullptr);
     fat32_fs_t *fs = mnt_data->fs;
     TEST_ASSERT(fs != nullptr);
 
     const char *fname = "LONG.BIN";
-    const size_t data_size = 256 * 1024; // 256 KiB to cross many clusters
+    constexpr size_t data_size = 256 * 1024; // 256 KiB to cross many clusters
     uint8_t *data = kmalloc(data_size);
     TEST_ASSERT(data != nullptr);
     for (size_t i = 0; i < data_size; i++)

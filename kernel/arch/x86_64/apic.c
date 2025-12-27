@@ -2,10 +2,10 @@
 #include "acpi.h"
 #include "pic.h"
 #include "terminal.h"
-#include "cpu.h"
 #include "limine.h"
 #include "pit.h"
-#include <stddef.h>
+
+// https://wiki.osdev.org/IOAPIC
 
 extern volatile struct limine_hhdm_request hhdm_request;
 
@@ -42,42 +42,48 @@ static uint32_t lapic_timer_ticks = 100000; // Default fallback
 static struct madt_iso isos[MAX_ISOS];
 static int iso_count = 0;
 
-static uint32_t apic_get_gsi(uint8_t irq, uint16_t *flags)
+/**
+ * apic_get_gsi - Get the GSI for a given IRQ
+ * @irq: The IRQ number
+ * @flags: Pointer to store flags (can be NULL)
+ *
+ * Returns the GSI corresponding to the given IRQ.
+ * If no ISO is found, returns the IRQ itself (1:1 mapping).
+ */
+static uint32_t apic_get_gsi(uint8_t irq, uint16_t* flags)
 {
     for (int i = 0; i < iso_count; i++)
     {
         if (isos[i].irq_source == irq && isos[i].bus_source == 0) // ISA bus is usually 0
         {
-            if (flags)
-                *flags = isos[i].flags;
+            if (flags) *flags = isos[i].flags;
             return isos[i].gsi;
         }
     }
-    if (flags)
-        *flags = 0;
+    if (flags) *flags = 0;
     return irq; // Default 1:1 mapping
 }
 
 uint32_t apic_lapic_read(uint32_t reg)
 {
-    return *((volatile uint32_t *)(lapic_base + reg));
+    return *((volatile uint32_t*)(lapic_base + reg));
 }
 
 static void lapic_write(uint32_t reg, uint32_t value)
 {
-    *((volatile uint32_t *)(lapic_base + reg)) = value;
+    *((volatile uint32_t*)(lapic_base + reg)) = value;
 }
 
 uint32_t ioapic_read(uint32_t reg)
 {
-    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
-    return *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN));
+    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    return *((volatile uint32_t*)(ioapic_base + IOAPIC_IOWIN));
 }
 
 static void ioapic_write(uint32_t reg, uint32_t value)
 {
-    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
-    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN)) = value;
+    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOWIN)) = value;
 }
 
 void apic_send_eoi(void)
@@ -118,6 +124,7 @@ void apic_timer_calibrate(void)
 
     boot_message(INFO, "APIC: LAPIC timer calibrated. Ticks per %dHz: %d", TIMER_FREQUENCY_HZ, lapic_timer_ticks);
 }
+
 void apic_local_init(void)
 {
     // Enable LAPIC
@@ -140,10 +147,9 @@ void apic_local_init(void)
 
 void apic_init(void)
 {
-    // Disable legacy PIC
     pic_disable();
 
-    struct madt *madt = acpi_find_table("APIC");
+    struct madt* madt = acpi_find_table("APIC");
     if (madt == nullptr)
     {
         boot_message(ERROR, "APIC: MADT not found!");
@@ -161,22 +167,23 @@ void apic_init(void)
     boot_message(INFO, "APIC: LAPIC base: %lx", lapic_base);
 
     // Parse MADT entries to find IOAPIC and ISOs
-    uint8_t *entry = (uint8_t *)(madt + 1);
-    uint8_t *end = (uint8_t *)madt + madt->header.length;
+    uint8_t* entry = (uint8_t*)(madt + 1);
+    uint8_t* end = (uint8_t*)madt + madt->header.length;
 
     while (entry < end)
     {
-        struct madt_entry_header *header = (struct madt_entry_header *)entry;
+        struct madt_entry_header* header = (struct madt_entry_header*)entry;
         if (header->type == 1) // IOAPIC
         {
-            struct madt_ioapic *ioapic = (struct madt_ioapic *)entry;
+            struct madt_ioapic* ioapic = (struct madt_ioapic*)entry;
             ioapic_base = ioapic->ioapic_address + hhdm_offset;
             boot_message(INFO, "APIC: IOAPIC base: %lx", ioapic_base);
         }
         else if (header->type == 2) // ISO
         {
-            struct madt_iso *iso = (struct madt_iso *)entry;
-            boot_message(INFO, "APIC: ISO bus=%d irq=%d gsi=%d flags=%x", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
+            struct madt_iso* iso = (struct madt_iso*)entry;
+            boot_message(INFO, "APIC: ISO bus=%d irq=%d gsi=%d flags=%x", iso->bus_source, iso->irq_source, iso->gsi,
+                         iso->flags);
             if (iso_count < MAX_ISOS)
             {
                 isos[iso_count++] = *iso;

@@ -23,7 +23,7 @@
 #include "heap.h"
 
 // Helper to generate unique file paths
-static void make_test_path(char *buf, size_t size, const char *base, int index)
+static void make_test_path(char* buf, size_t size, const char* base, int index)
 {
     snprintk(buf, size, "%s_%d", base, index);
 }
@@ -40,24 +40,24 @@ TEST(test_ext2_multi_device_isolation)
         return false;
 
     // Create a file on the root EXT2 partition
-    const char *root_file = "/isolation_test_root.txt";
-    const char *root_data = "root_partition_data";
+    const char* root_file = "/isolation_test_root.txt";
+    const char* root_data = "root_partition_data";
 
-    vfs_unlink((char *)root_file);
+    vfs_unlink((char*)root_file);
     TEST_ASSERT(vfs_mknod((char *)root_file, VFS_FILE, 0) == 0);
 
-    vfs_inode_t *rf = vfs_resolve_path(root_file);
+    vfs_inode_t* rf = vfs_resolve_path(root_file);
     TEST_ASSERT(rf != nullptr);
     TEST_ASSERT(vfs_write(rf, 0, strlen(root_data), (uint8_t *)root_data) == strlen(root_data));
 
     // Create a file on disk1 (second EXT2 partition)
-    const char *disk1_file = "/disk1/isolation_test_disk1.txt";
-    const char *disk1_data = "disk1_partition_data";
+    const char* disk1_file = "/disk1/isolation_test_disk1.txt";
+    const char* disk1_data = "disk1_partition_data";
 
-    vfs_unlink((char *)disk1_file);
+    vfs_unlink((char*)disk1_file);
     TEST_ASSERT(vfs_mknod((char *)disk1_file, VFS_FILE, 0) == 0);
 
-    vfs_inode_t *d1f = vfs_resolve_path(disk1_file);
+    vfs_inode_t* d1f = vfs_resolve_path(disk1_file);
     TEST_ASSERT(d1f != nullptr);
     TEST_ASSERT(vfs_write(d1f, 0, strlen(disk1_data), (uint8_t *)disk1_data) == strlen(disk1_data));
 
@@ -66,13 +66,13 @@ TEST(test_ext2_multi_device_isolation)
     char buf2[64] = {0};
 
     // Re-read from root partition - this should still work correctly
-    vfs_inode_t *rf2 = vfs_resolve_path(root_file);
+    vfs_inode_t* rf2 = vfs_resolve_path(root_file);
     TEST_ASSERT(rf2 != nullptr);
     TEST_ASSERT(vfs_read(rf2, 0, strlen(root_data), (uint8_t *)buf1) == strlen(root_data));
     TEST_ASSERT(strncmp(buf1, root_data, strlen(root_data)) == 0);
 
     // Re-read from disk1 partition
-    vfs_inode_t *d1f2 = vfs_resolve_path(disk1_file);
+    vfs_inode_t* d1f2 = vfs_resolve_path(disk1_file);
     TEST_ASSERT(d1f2 != nullptr);
     TEST_ASSERT(vfs_read(d1f2, 0, strlen(disk1_data), (uint8_t *)buf2) == strlen(disk1_data));
     TEST_ASSERT(strncmp(buf2, disk1_data, strlen(disk1_data)) == 0);
@@ -82,8 +82,8 @@ TEST(test_ext2_multi_device_isolation)
     kfree(d1f);
     kfree(rf2);
     kfree(d1f2);
-    vfs_unlink((char *)root_file);
-    vfs_unlink((char *)disk1_file);
+    vfs_unlink((char*)root_file);
+    vfs_unlink((char*)disk1_file);
 
     return true;
 }
@@ -102,15 +102,15 @@ TEST(test_ext2_many_file_allocations)
     if (!vfs_root)
         return false;
 
-    const char *base_path = "/disk1/alloc_test";
-    const int num_files = 8;    // Reduced to fit in test disk
-    const int data_size = 1024; // 1KB per file to use actual blocks
+    const char* base_path = "/disk1/alloc_test";
+    constexpr int num_files = 8; // Reduced to fit in test disk
+    constexpr uint64_t data_size = 1024; // 1KB per file to use actual blocks
     char path[128];
     char data[1024];
     char readback[1024];
 
     // Fill data buffer with a pattern
-    for (int i = 0; i < data_size; i++)
+    for (uint64_t i = 0; i < data_size; i++)
     {
         data[i] = (char)('A' + (i % 26));
     }
@@ -123,7 +123,7 @@ TEST(test_ext2_many_file_allocations)
 
         TEST_ASSERT(vfs_mknod(path, VFS_FILE, 0) == 0);
 
-        vfs_inode_t *file = vfs_resolve_path(path);
+        vfs_inode_t* file = vfs_resolve_path(path);
         TEST_ASSERT(file != nullptr);
 
         // Write unique data (modify first byte to identify file)
@@ -138,7 +138,7 @@ TEST(test_ext2_many_file_allocations)
     {
         make_test_path(path, sizeof(path), base_path, i);
 
-        vfs_inode_t *file = vfs_resolve_path(path);
+        vfs_inode_t* file = vfs_resolve_path(path);
         TEST_ASSERT(file != nullptr);
 
         memset(readback, 0, sizeof(readback));
@@ -148,7 +148,7 @@ TEST(test_ext2_many_file_allocations)
         TEST_ASSERT(readback[0] == (char)('0' + (i % 10)));
 
         // Verify the rest of the pattern
-        for (int j = 1; j < data_size; j++)
+        for (uint64_t j = 1; j < data_size; j++)
         {
             TEST_ASSERT(readback[j] == (char)('A' + (j % 26)));
         }
@@ -177,16 +177,16 @@ TEST(test_ext2_interleaved_device_ops)
     if (!vfs_root)
         return false;
 
-    const char *root_files[] = {"/interleave_a.txt", "/interleave_b.txt"};
-    const char *disk1_files[] = {"/disk1/interleave_a.txt", "/disk1/interleave_b.txt"};
-    const char *root_data[] = {"ROOT_DATA_A", "ROOT_DATA_B"};
-    const char *disk1_data[] = {"DISK1_DATA_A", "DISK1_DATA_B"};
+    const char* root_files[] = {"/interleave_a.txt", "/interleave_b.txt"};
+    const char* disk1_files[] = {"/disk1/interleave_a.txt", "/disk1/interleave_b.txt"};
+    const char* root_data[] = {"ROOT_DATA_A", "ROOT_DATA_B"};
+    const char* disk1_data[] = {"DISK1_DATA_A", "DISK1_DATA_B"};
 
     // Clean up
     for (int i = 0; i < 2; i++)
     {
-        vfs_unlink((char *)root_files[i]);
-        vfs_unlink((char *)disk1_files[i]);
+        vfs_unlink((char*)root_files[i]);
+        vfs_unlink((char*)disk1_files[i]);
     }
 
     // Interleaved creation and writing
@@ -194,14 +194,14 @@ TEST(test_ext2_interleaved_device_ops)
     {
         // Create on root
         TEST_ASSERT(vfs_mknod((char *)root_files[i], VFS_FILE, 0) == 0);
-        vfs_inode_t *rf = vfs_resolve_path(root_files[i]);
+        vfs_inode_t* rf = vfs_resolve_path(root_files[i]);
         TEST_ASSERT(rf != nullptr);
         TEST_ASSERT(vfs_write(rf, 0, strlen(root_data[i]), (uint8_t *)root_data[i]) == strlen(root_data[i]));
         kfree(rf);
 
         // Create on disk1
         TEST_ASSERT(vfs_mknod((char *)disk1_files[i], VFS_FILE, 0) == 0);
-        vfs_inode_t *d1f = vfs_resolve_path(disk1_files[i]);
+        vfs_inode_t* d1f = vfs_resolve_path(disk1_files[i]);
         TEST_ASSERT(d1f != nullptr);
         TEST_ASSERT(vfs_write(d1f, 0, strlen(disk1_data[i]), (uint8_t *)disk1_data[i]) == strlen(disk1_data[i]));
         kfree(d1f);
@@ -213,7 +213,7 @@ TEST(test_ext2_interleaved_device_ops)
         char buf[32] = {0};
 
         // Read from disk1 first (reverse order)
-        vfs_inode_t *d1f = vfs_resolve_path(disk1_files[i]);
+        vfs_inode_t* d1f = vfs_resolve_path(disk1_files[i]);
         TEST_ASSERT(d1f != nullptr);
         TEST_ASSERT(vfs_read(d1f, 0, strlen(disk1_data[i]), (uint8_t *)buf) == strlen(disk1_data[i]));
         TEST_ASSERT(strncmp(buf, disk1_data[i], strlen(disk1_data[i])) == 0);
@@ -222,7 +222,7 @@ TEST(test_ext2_interleaved_device_ops)
         memset(buf, 0, sizeof(buf));
 
         // Read from root
-        vfs_inode_t *rf = vfs_resolve_path(root_files[i]);
+        vfs_inode_t* rf = vfs_resolve_path(root_files[i]);
         TEST_ASSERT(rf != nullptr);
         TEST_ASSERT(vfs_read(rf, 0, strlen(root_data[i]), (uint8_t *)buf) == strlen(root_data[i]));
         TEST_ASSERT(strncmp(buf, root_data[i], strlen(root_data[i])) == 0);
@@ -232,8 +232,8 @@ TEST(test_ext2_interleaved_device_ops)
     // Cleanup
     for (int i = 0; i < 2; i++)
     {
-        vfs_unlink((char *)root_files[i]);
-        vfs_unlink((char *)disk1_files[i]);
+        vfs_unlink((char*)root_files[i]);
+        vfs_unlink((char*)disk1_files[i]);
     }
 
     return true;
@@ -250,30 +250,29 @@ TEST(test_ext2_rapid_lifecycle)
     if (!vfs_root)
         return false;
 
-    const char *path = "/disk1/rapid_lifecycle.txt";
-    const char *payloads[] = {
-        "Short",
-        "Medium length payload for testing",
-        "A somewhat longer payload that spans more bytes in the file system",
-        "X" // Very short
-    };
-
     for (int cycle = 0; cycle < 10; cycle++)
     {
-        const char *payload = payloads[cycle % 4];
+        const char* payloads[] = {
+            "Short",
+            "Medium length payload for testing",
+            "A somewhat longer payload that spans more bytes in the file system",
+            "X" // Very short
+        };
+        const char* path = "/disk1/rapid_lifecycle.txt";
+        const char* payload = payloads[cycle % 4];
 
         // Create
-        vfs_unlink((char *)path);
+        vfs_unlink((char*)path);
         TEST_ASSERT(vfs_mknod((char *)path, VFS_FILE, 0) == 0);
 
         // Write
-        vfs_inode_t *file = vfs_resolve_path(path);
+        vfs_inode_t* file = vfs_resolve_path(path);
         TEST_ASSERT(file != nullptr);
         TEST_ASSERT(vfs_write(file, 0, strlen(payload), (uint8_t *)payload) == strlen(payload));
 
         // Read back immediately
         char buf[128] = {0};
-        vfs_inode_t *file2 = vfs_resolve_path(path);
+        vfs_inode_t* file2 = vfs_resolve_path(path);
         TEST_ASSERT(file2 != nullptr);
         TEST_ASSERT(vfs_read(file2, 0, strlen(payload), (uint8_t *)buf) == strlen(payload));
         TEST_ASSERT(strncmp(buf, payload, strlen(payload)) == 0);
@@ -303,14 +302,14 @@ TEST(test_ext2_large_file)
     if (!vfs_root)
         return false;
 
-    const char *path = "/disk1/large_file_test.bin";
-    const int block_size = 1024;
-    const int num_blocks = 8; // 8KB file
+    const char* path = "/disk1/large_file_test.bin";
+    constexpr uint64_t block_size = 1024;
+    constexpr int num_blocks = 8; // 8KB file
 
-    vfs_unlink((char *)path);
+    vfs_unlink((char*)path);
     TEST_ASSERT(vfs_mknod((char *)path, VFS_FILE, 0) == 0);
 
-    vfs_inode_t *file = vfs_resolve_path(path);
+    vfs_inode_t* file = vfs_resolve_path(path);
     TEST_ASSERT(file != nullptr);
 
     // Write data in block-sized chunks with unique patterns
@@ -318,7 +317,7 @@ TEST(test_ext2_large_file)
     for (int b = 0; b < num_blocks; b++)
     {
         // Fill block with a pattern based on block number
-        for (int i = 0; i < block_size; i++)
+        for (uint64_t i = 0; i < block_size; i++)
         {
             write_buf[i] = (char)((b * 7 + i) & 0xFF);
         }
@@ -338,9 +337,9 @@ TEST(test_ext2_large_file)
         TEST_ASSERT(vfs_read(file, b * block_size, block_size, (uint8_t *)read_buf) == block_size);
 
         // Verify pattern
-        for (int i = 0; i < block_size; i++)
+        for (uint64_t i = 0; i < block_size; i++)
         {
-            char expected = (char)((b * 7 + i) & 0xFF);
+            const char expected = (char)((b * 7 + i) & 0xFF);
             if (read_buf[i] != expected)
             {
                 printk("Mismatch at block %d, offset %d: got 0x%02x, expected 0x%02x\n",
@@ -352,7 +351,7 @@ TEST(test_ext2_large_file)
     }
 
     kfree(file);
-    vfs_unlink((char *)path);
+    vfs_unlink((char*)path);
 
     return true;
 }
@@ -368,16 +367,16 @@ TEST(test_ext2_directory_isolation)
     if (!vfs_root)
         return false;
 
-    const char *root_dir = "/dir_iso_test";
-    const char *disk1_dir = "/disk1/dir_iso_test";
-    const char *root_file = "/dir_iso_test/file.txt";
-    const char *disk1_file = "/disk1/dir_iso_test/file.txt";
+    const char* root_dir = "/dir_iso_test";
+    const char* disk1_dir = "/disk1/dir_iso_test";
+    const char* root_file = "/dir_iso_test/file.txt";
+    const char* disk1_file = "/disk1/dir_iso_test/file.txt";
 
     // Cleanup
-    vfs_unlink((char *)root_file);
-    vfs_unlink((char *)disk1_file);
-    vfs_unlink((char *)root_dir);
-    vfs_unlink((char *)disk1_dir);
+    vfs_unlink((char*)root_file);
+    vfs_unlink((char*)disk1_file);
+    vfs_unlink((char*)root_dir);
+    vfs_unlink((char*)disk1_dir);
 
     // Create directories
     TEST_ASSERT(vfs_mknod((char *)root_dir, VFS_DIRECTORY, 0) == 0);
@@ -388,15 +387,15 @@ TEST(test_ext2_directory_isolation)
     TEST_ASSERT(vfs_mknod((char *)disk1_file, VFS_FILE, 0) == 0);
 
     // Write different data
-    const char *root_data = "ROOT_DIR_FILE";
-    const char *disk1_data = "DISK1_DIR_FILE";
+    const char* root_data = "ROOT_DIR_FILE";
+    const char* disk1_data = "DISK1_DIR_FILE";
 
-    vfs_inode_t *rf = vfs_resolve_path(root_file);
+    vfs_inode_t* rf = vfs_resolve_path(root_file);
     TEST_ASSERT(rf != nullptr);
     TEST_ASSERT(vfs_write(rf, 0, strlen(root_data), (uint8_t *)root_data) == strlen(root_data));
     kfree(rf);
 
-    vfs_inode_t *d1f = vfs_resolve_path(disk1_file);
+    vfs_inode_t* d1f = vfs_resolve_path(disk1_file);
     TEST_ASSERT(d1f != nullptr);
     TEST_ASSERT(vfs_write(d1f, 0, strlen(disk1_data), (uint8_t *)disk1_data) == strlen(disk1_data));
     kfree(d1f);
@@ -419,10 +418,10 @@ TEST(test_ext2_directory_isolation)
     kfree(d1f);
 
     // Cleanup
-    vfs_unlink((char *)root_file);
-    vfs_unlink((char *)disk1_file);
-    vfs_unlink((char *)root_dir);
-    vfs_unlink((char *)disk1_dir);
+    vfs_unlink((char*)root_file);
+    vfs_unlink((char*)disk1_file);
+    vfs_unlink((char*)root_dir);
+    vfs_unlink((char*)disk1_dir);
 
     return true;
 }

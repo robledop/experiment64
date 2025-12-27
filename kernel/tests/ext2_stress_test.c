@@ -43,12 +43,12 @@ TEST(test_ext2_stress)
         printk("Directory %s already exists, continuing...\n", dirname);
     }
 
-    int num_subdirs = 2;
-    int files_per_subdir = 2;
+    constexpr int num_subdirs = 2;
+    constexpr int files_per_subdir = 2;
     char path[128];
     char content[64];
 
-    // 1. Create Subdirectories and Files
+    // Create Subdirectories and Files
     for (int i = 0; i < num_subdirs; i++)
     {
         make_path(path, dirname, "dir", i);
@@ -94,7 +94,6 @@ TEST(test_ext2_stress)
                 return false;
             }
 
-            // Open? vfs_write doesn't strictly require open in this implementation but good practice
             vfs_open(file);
             if (vfs_write(file, 0, strlen(content), (uint8_t *)content) != strlen(content))
             {
@@ -110,7 +109,7 @@ TEST(test_ext2_stress)
 
     printk("EXT2 Stress: Created %d directories and %d files.\n", num_subdirs, num_subdirs * files_per_subdir);
 
-    // 2. Verify Content
+    // Verify Content
     for (int i = 0; i < num_subdirs; i++)
     {
         make_path(path, dirname, "dir", i);
@@ -128,8 +127,7 @@ TEST(test_ext2_stress)
                 return false;
             }
 
-            char buffer[64];
-            memset(buffer, 0, sizeof(buffer));
+            char buffer[64] = {0};
 
             vfs_open(file);
             vfs_read(file, 0, sizeof(buffer), (uint8_t *)buffer);

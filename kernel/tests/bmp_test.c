@@ -9,8 +9,7 @@ TEST(test_bmp_load_valid)
 {
     // Create a 2x2 BMP
     // File Header (14) + Info Header (40) + Pixel Data (8 * 2 = 16) = 70 bytes
-    uint8_t bmp_data[70];
-    memset(bmp_data, 0, sizeof(bmp_data));
+    uint8_t bmp_data[70] = {0};
 
     BITMAPFILEHEADER *fh = (BITMAPFILEHEADER *)bmp_data;
     fh->bfType = 0x4D42; // 'BM'
@@ -62,7 +61,7 @@ TEST(test_bmp_load_valid)
     // Load it back
     uint32_t *out_pixels = nullptr;
     uint32_t w = 0, h = 0;
-    int result = bitmap_load_argb(filename, &out_pixels, &w, &h);
+    const int result = bitmap_load_argb(filename, &out_pixels, &w, &h);
 
     TEST_ASSERT(result == 0);
     TEST_ASSERT(out_pixels != nullptr);
@@ -103,8 +102,7 @@ TEST(test_bmp_bad_header)
 {
     // Write a BMP-like file with an invalid signature and ensure loader rejects it.
     const char *filename = "/mnt/bad_header.bmp";
-    uint8_t buf[64];
-    memset(buf, 0, sizeof(buf));
+    uint8_t buf[64] = {0};
 
     BITMAPFILEHEADER *fh = (BITMAPFILEHEADER *)buf;
     fh->bfType = 0x5858; // 'XX' invalid magic

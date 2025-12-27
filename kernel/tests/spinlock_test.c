@@ -34,6 +34,7 @@ static void contention_thread(void)
     printk("Thread: Done.\n");
 
     // Just spin/yield until killed
+    // ReSharper disable once CppDFAEndlessLoop
     while (1)
         yield();
 }

@@ -16,9 +16,9 @@ TEST(test_fat32_directories)
     const char *content = "Nested File Content";
     uint32_t len = strlen(content);
 
-    // 1. Create Directory
+    // Create Directory
     printk("Creating directory %s...\n", dirname);
-    int dir_res = fat32_create_dir(&test_fs, dirname);
+    const int dir_res = fat32_create_dir(&test_fs, dirname);
     if (dir_res != 0)
     {
         // Treat EEXIST-equivalent as success so the test is idempotent
@@ -30,7 +30,7 @@ TEST(test_fat32_directories)
         }
     }
 
-    // 2. Create File in Directory
+    // Create File in Directory
     printk("Writing file %s...\n", filename);
     if (fat32_write_file(&test_fs, filename, (uint8_t *)content, len) != 0)
     {
@@ -38,10 +38,9 @@ TEST(test_fat32_directories)
         return false;
     }
 
-    // 3. Read File from Directory
+    // Read File from Directory
     printk("Reading file %s...\n", filename);
-    uint8_t buffer[512];
-    memset(buffer, 0, 512);
+    uint8_t buffer[512] = {0};
     if (fat32_read_file(&test_fs, filename, buffer, 512) != 0)
     {
         printk("Failed to read file %s\n", filename);
@@ -54,11 +53,11 @@ TEST(test_fat32_directories)
         return false;
     }
 
-    // 4. List Directory
+    // List Directory
     printk("Listing directory %s...\n", dirname);
     fat32_list_dir(&test_fs, dirname);
 
-    // 5. Delete File
+    // Delete File
     printk("Deleting file %s...\n", filename);
     if (fat32_delete_file(&test_fs, filename) != 0)
     {
@@ -66,7 +65,7 @@ TEST(test_fat32_directories)
         return false;
     }
 
-    // 6. Verify File Deletion
+    // Verify File Deletion
     fat32_file_info_t info;
     if (fat32_stat(&test_fs, filename, &info) == 0)
     {
@@ -87,7 +86,7 @@ TEST(test_fat32_directory_cluster_spill_and_delete)
     fat32_create_dir(&test_fs, dirname);
 
     char filename[32];
-    const int file_count = 24; // >16 entries to spill into next cluster
+    constexpr int file_count = 24; // >16 entries to spill into next cluster
     // Clean directory from previous runs
     for (int i = 0; i < file_count; i++)
     {
@@ -130,7 +129,7 @@ TEST(test_fat32_long_name_rejected)
         return false;
 
     const char *longname = "VERY_LONG_FILE_NAME_THAT_SHOULD_FAIL.TXT";
-    int res = fat32_write_file(&test_fs, longname, (uint8_t *)"x", 1);
+    const int res = fat32_write_file(&test_fs, longname, (uint8_t *)"x", 1);
     TEST_ASSERT(res != 0); // Short-name implementation should reject long names.
     return true;
 }

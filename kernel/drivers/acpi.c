@@ -1,66 +1,64 @@
-#include "acpi.h"
-#include "limine.h"
+#include <acpi.h>
+#include <limine.h>
 #include <stddef.h>
-#include "string.h"
+#include <string.h>
 #include <limits.h>
 
 extern volatile struct limine_hhdm_request hhdm_request;
 
 __attribute__((used, section(".requests"))) static volatile struct limine_rsdp_request rsdp_request = {
     .id = LIMINE_RSDP_REQUEST,
-    .revision = 0};
+    .revision = 0
+};
 
-void *acpi_find_table(const char *signature)
+void* acpi_find_table(const char* signature)
 {
-    if (rsdp_request.response == nullptr || rsdp_request.response->address == nullptr || hhdm_request.response == nullptr)
+    if (rsdp_request.response == nullptr || rsdp_request.response->address == nullptr || hhdm_request.response ==
+        nullptr)
     {
         return nullptr;
     }
 
-    uint64_t hhdm_offset = hhdm_request.response->offset;
-    struct rsdp *rsdp = (struct rsdp *)rsdp_request.response->address;
-    struct sdt_header *xsdt = nullptr;
-    struct sdt_header *rsdt = nullptr;
+    const uint64_t hhdm_offset = hhdm_request.response->offset;
+    auto rsdp = (struct rsdp*)rsdp_request.response->address;
 
-    if (rsdp->revision >= 2 && ((struct xsdp *)rsdp)->xsdt_address != 0)
+    if (rsdp->revision >= 2 && ((struct xsdp*)rsdp)->xsdt_address != 0)
     {
-        xsdt = (struct sdt_header *)(((struct xsdp *)rsdp)->xsdt_address + hhdm_offset);
-    }
-    else
-    {
-        rsdt = (struct sdt_header *)((uint64_t)rsdp->rsdt_address + hhdm_offset);
-    }
-
-    if (xsdt != nullptr)
-    {
+        struct sdt_header* xsdt = (struct sdt_header*)(((struct xsdp*)rsdp)->xsdt_address + hhdm_offset);
         size_t entries = (xsdt->length - sizeof(struct sdt_header)) / 8;
         if (entries > (size_t)INT_MAX)
+        {
             entries = INT_MAX;
-        uint8_t *tables_ptr = (uint8_t *)xsdt + sizeof(struct sdt_header);
+        }
+        const uint8_t* tables_ptr = (uint8_t*)xsdt + sizeof(struct sdt_header);
 
         for (int i = 0; i < (int)entries; i++)
         {
             uint64_t table_addr;
             memcpy(&table_addr, tables_ptr + i * 8, 8);
-            struct sdt_header *table = (struct sdt_header *)(table_addr + hhdm_offset);
+            auto table = (struct sdt_header*)(table_addr + hhdm_offset);
             if (strncmp(table->signature, signature, 4) == 0)
             {
                 return table;
             }
         }
     }
-    else if (rsdt != nullptr)
+    else
     {
+        struct sdt_header* rsdt = (struct sdt_header*)((uint64_t)rsdp->rsdt_address + hhdm_offset);
+
         size_t entries = (rsdt->length - sizeof(struct sdt_header)) / 4;
         if (entries > (size_t)INT_MAX)
+        {
             entries = INT_MAX;
-        uint8_t *tables_ptr = (uint8_t *)rsdt + sizeof(struct sdt_header);
+        }
+        const uint8_t* tables_ptr = (uint8_t*)rsdt + sizeof(struct sdt_header);
 
         for (int i = 0; i < (int)entries; i++)
         {
             uint32_t table_addr;
             memcpy(&table_addr, tables_ptr + i * 4, 4);
-            struct sdt_header *table = (struct sdt_header *)((uint64_t)table_addr + hhdm_offset);
+            auto table = (struct sdt_header*)((uint64_t)table_addr + hhdm_offset);
             if (strncmp(table->signature, signature, 4) == 0)
             {
                 return table;

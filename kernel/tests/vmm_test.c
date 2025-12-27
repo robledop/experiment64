@@ -1,6 +1,5 @@
 #include "test.h"
 #include "vmm.h"
-#include "limine.h"
 #include "string.h"
 #include "pmm.h"
 
@@ -9,8 +8,8 @@ TEST(test_vmm_map)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t virt = 0x200000000; // 8GB
-    void *phys = pmm_alloc_page();
+    constexpr uint64_t virt = 0x200000000; // 8GB
+    void* phys = pmm_alloc_page();
 
     vmm_map_page(pml4, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE);
 
@@ -22,24 +21,24 @@ TEST(test_vmm_copy_preserves_user_mapping)
     pml4_t original = vmm_new_pml4();
     TEST_ASSERT(original != nullptr);
 
-    uint64_t virt = 0x400000000; // 16GB
-    void *phys = pmm_alloc_page();
+    constexpr uint64_t virt = 0x400000000; // 16GB
+    void* phys = pmm_alloc_page();
     TEST_ASSERT(phys != nullptr);
 
     // Fill source page so we can verify the clone gets a deep copy.
-    memset((void *)((uint64_t)phys + g_hhdm_offset), 0xA5, PAGE_SIZE);
+    memset((void*)((uint64_t)phys + g_hhdm_offset), 0xA5, PAGE_SIZE);
 
     vmm_map_page(original, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE);
 
     pml4_t clone = vmm_copy_pml4(original);
     TEST_ASSERT(clone != nullptr);
 
-    uint64_t resolved_clone = vmm_virt_to_phys(clone, virt);
+    const uint64_t resolved_clone = vmm_virt_to_phys(clone, virt);
     TEST_ASSERT(resolved_clone != 0);
     TEST_ASSERT(resolved_clone != (uint64_t)phys); // deep copy uses a new page
 
-    uint8_t *orig_ptr = (uint8_t *)((uint64_t)phys + g_hhdm_offset);
-    uint8_t *clone_ptr = (uint8_t *)(resolved_clone + g_hhdm_offset);
+    const uint8_t* orig_ptr = (uint8_t*)((uint64_t)phys + g_hhdm_offset);
+    uint8_t* clone_ptr = (uint8_t*)(resolved_clone + g_hhdm_offset);
     for (int i = 0; i < 16; i++)
     {
         TEST_ASSERT(clone_ptr[i] == 0xA5);
@@ -64,8 +63,8 @@ TEST(test_vmm_unmap_clears_translation)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t virt = 0x300000000; // 12GB
-    void *phys = pmm_alloc_page();
+    constexpr uint64_t virt = 0x300000000; // 12GB
+    void* phys = pmm_alloc_page();
     TEST_ASSERT(phys != nullptr);
 
     vmm_map_page(pml4, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE);
@@ -83,9 +82,9 @@ TEST(test_vmm_remap_overwrites_translation)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t virt = 0x500000000; // 20GB
-    void *phys1 = pmm_alloc_page();
-    void *phys2 = pmm_alloc_page();
+    constexpr uint64_t virt = 0x500000000; // 20GB
+    void* phys1 = pmm_alloc_page();
+    void* phys2 = pmm_alloc_page();
     TEST_ASSERT(phys1 != nullptr && phys2 != nullptr && phys1 != phys2);
 
     vmm_map_page(pml4, virt, (uint64_t)phys1, PTE_PRESENT | PTE_WRITABLE);

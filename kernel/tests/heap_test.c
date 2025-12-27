@@ -1,7 +1,6 @@
 #include "test.h"
 #include "heap.h"
 #include "string.h"
-#include "pmm.h"
 
 TEST(test_kmalloc_small)
 {
@@ -89,7 +88,7 @@ TEST(test_krealloc_to_zero_frees)
     TEST_ASSERT(ptr != nullptr);
     memset(ptr, 0xAB, 64);
 
-    void *res = krealloc(ptr, 0);
+    const void *res = krealloc(ptr, 0);
     TEST_ASSERT(res == nullptr); // should free and return nullptr
     return true;
 }
