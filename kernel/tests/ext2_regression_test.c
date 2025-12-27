@@ -22,12 +22,6 @@
 #include "string.h"
 #include "heap.h"
 
-// Helper to generate unique file paths
-static void make_test_path(char* buf, size_t size, const char* base, int index)
-{
-    snprintk(buf, size, "%s_%d", base, index);
-}
-
 /**
  * Test: Multi-device superblock isolation
  *
@@ -118,7 +112,7 @@ TEST(test_ext2_many_file_allocations)
     // Create many files and write data
     for (int i = 0; i < num_files; i++)
     {
-        make_test_path(path, sizeof(path), base_path, i);
+        snprintk(path, sizeof(path), "%s_%d", base_path, i);
         vfs_unlink(path); // Clean up any previous run
 
         TEST_ASSERT(vfs_mknod(path, VFS_FILE, 0) == 0);
@@ -136,7 +130,7 @@ TEST(test_ext2_many_file_allocations)
     // Read back all files and verify data integrity
     for (int i = 0; i < num_files; i++)
     {
-        make_test_path(path, sizeof(path), base_path, i);
+        snprintk(path, sizeof(path), "%s_%d", base_path, i);
 
         vfs_inode_t* file = vfs_resolve_path(path);
         TEST_ASSERT(file != nullptr);
@@ -159,7 +153,7 @@ TEST(test_ext2_many_file_allocations)
     // Delete all files (tests bfree across bitmap sectors)
     for (int i = 0; i < num_files; i++)
     {
-        make_test_path(path, sizeof(path), base_path, i);
+        snprintk(path, sizeof(path), "%s_%d", base_path, i);
         TEST_ASSERT(vfs_unlink(path) == 0);
     }
 
