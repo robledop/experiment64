@@ -17,7 +17,7 @@ static unsigned int mouse_img[MOUSE_BUFSZ] = {
     CD, CD, CA, CB, CB, CA, CD, CD, CD, CD, CD, CD, CD, CD, CA, CB, CB, CA, CD, CD, CD, CD, CD, CD, CD, CA, CB, CB, CA,
     CD, CD, CD, CD, CD, CD, CD, CD, CA, CB, CA, CD, CD, CD, CD, CD, CD, CD, CD, CD, CA, CA, CD, CD};
 
-static void framebuffer_putpixel(video_context_t *context, int x, int y, uint32_t rgb)
+static void framebuffer_putpixel(const video_context_t *context, int x, int y, uint32_t rgb)
 {
     if (x < 0 || x >= (int)context->width || y < 0 || y >= (int)context->height) {
         return;
@@ -52,7 +52,7 @@ desktop_t *desktop_new(video_context_t *context, uint32_t *wallpaper, uint16_t w
     return desktop;
 }
 
-static void desktop_draw_wallpaper(desktop_t *desktop)
+static void desktop_draw_wallpaper(const desktop_t *desktop)
 {
     if (!desktop->wallpaper || desktop->wallpaper_width == 0 || desktop->wallpaper_height == 0) {
         context_fill_rect(desktop->window.context,
@@ -82,7 +82,7 @@ static void desktop_draw_wallpaper(desktop_t *desktop)
                         desktop->wallpaper);
 }
 
-static void draw_mouse_cursor(desktop_t *desktop)
+static void draw_mouse_cursor(const desktop_t *desktop)
 {
     for (int y = 0; y < MOUSE_HEIGHT; y++) {
         if ((y + desktop->mouse_y) >= desktop->window.context->height) {
@@ -99,7 +99,7 @@ static void draw_mouse_cursor(desktop_t *desktop)
     }
 }
 
-void desktop_paint_handler(window_t *desktop_window)
+void desktop_paint_handler(const window_t *desktop_window)
 {
     desktop_t *desktop = (desktop_t *)desktop_window;
     desktop_draw_wallpaper(desktop);

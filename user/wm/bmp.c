@@ -92,7 +92,6 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     }
 
     const uint64_t pixel_count = (uint64_t)width * (uint64_t)height;
-    // Avoid relying on SIZE_MAX (not guaranteed in this libc); use a portable upper bound instead.
     if (pixel_count > (uint64_t)((size_t)-1) / sizeof(uint32_t)) {
         free(buffer);
         return -1;

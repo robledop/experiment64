@@ -2,7 +2,6 @@
 #include <wm/rect.h>
 #include <wm/font.h>
 #include <stdlib.h>
-#include <string.h>
 
 static inline uint8_t reverse_bits8(uint8_t v)
 {
@@ -28,7 +27,7 @@ static inline void framebuffer_copy_span32(uint8_t *dst, const uint32_t *src, ui
     }
 }
 
-static void framebuffer_fill_rect32(video_context_t *context, int x, int y, int width, int height, uint32_t color)
+static void framebuffer_fill_rect32(const video_context_t *context, int x, int y, int width, int height, uint32_t color)
 {
     if (width <= 0 || height <= 0) {
         return;
@@ -69,7 +68,7 @@ static void framebuffer_fill_rect32(video_context_t *context, int x, int y, int 
     }
 }
 
-static void framebuffer_blit_span32(video_context_t *context, int x, int y, const uint32_t *src, uint32_t pixel_count)
+static void framebuffer_blit_span32(const video_context_t *context, int x, int y, const uint32_t *src, uint32_t pixel_count)
 {
     if (!src || pixel_count == 0) {
         return;
@@ -130,8 +129,8 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
     return context;
 }
 
-static void context_clipped_rect_bitmap(video_context_t *context, int x, int y, unsigned int draw_width,
-                                 unsigned int draw_height, rect_t *clip_area, const uint32_t *pixels,
+static void context_clipped_rect_bitmap(const video_context_t *context, int x, int y, unsigned int draw_width,
+                                 unsigned int draw_height, const rect_t *clip_area, const uint32_t *pixels,
                                  unsigned int stride, int src_origin_x, int src_origin_y)
 {
     int max_x = x + (int)draw_width;
@@ -179,8 +178,8 @@ static void context_clipped_rect_bitmap(video_context_t *context, int x, int y, 
     }
 }
 
-static void context_clipped_rect(video_context_t *context, int x, int y, unsigned int width, unsigned int height,
-                          rect_t *clip_area, uint32_t color)
+static void context_clipped_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
+                          const rect_t *clip_area, uint32_t color)
 {
     int max_x = x + (int)width;
     int max_y = y + (int)height;
@@ -215,7 +214,7 @@ static void context_clipped_rect(video_context_t *context, int x, int y, unsigne
     framebuffer_fill_rect32(context, x, y, width_span, height_span, color);
 }
 
-void context_draw_bitmap(video_context_t *context, int x, int y, unsigned int width, unsigned int height,
+void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
                          uint32_t *pixels)
 {
     if (!pixels || width == 0 || height == 0) {
@@ -304,7 +303,7 @@ void context_draw_bitmap(video_context_t *context, int x, int y, unsigned int wi
     }
 }
 
-void context_fill_rect(video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
+void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
 {
     int max_x = x + (int)width;
     int max_y = y + (int)height;
@@ -345,17 +344,17 @@ void context_fill_rect(video_context_t *context, int x, int y, unsigned int widt
     }
 }
 
-void context_horizontal_line(video_context_t *context, int x, int y, unsigned int length, uint32_t color)
+void context_horizontal_line(const video_context_t *context, int x, int y, unsigned int length, uint32_t color)
 {
     context_fill_rect(context, x, y, length, 1, color);
 }
 
-void context_vertical_line(video_context_t *context, int x, int y, unsigned int length, uint32_t color)
+void context_vertical_line(const video_context_t *context, int x, int y, unsigned int length, uint32_t color)
 {
     context_fill_rect(context, x, y, 1, length, color);
 }
 
-void context_draw_rect(video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
+void context_draw_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
 {
     context_horizontal_line(context, x, y, width, color);
     context_vertical_line(context, x, y + 1, height - 2, color);
@@ -435,8 +434,8 @@ void context_clear_clip_rects(video_context_t *context)
     }
 }
 
-static void context_draw_char_clipped(video_context_t *context, char character, int x, int y, uint32_t color,
-                               rect_t *bound_rect)
+static void context_draw_char_clipped(const video_context_t *context, char character, int x, int y, uint32_t color,
+                               const rect_t *bound_rect)
 {
     int off_x = 0;
     int off_y = 0;
@@ -492,7 +491,7 @@ static void context_draw_char_clipped(video_context_t *context, char character, 
     }
 }
 
-void context_draw_char(video_context_t *context, char character, int x, int y, uint32_t color)
+void context_draw_char(const video_context_t *context, char character, int x, int y, uint32_t color)
 {
     if (context->clip_rects->count) {
         for (unsigned int i = 0; i < context->clip_rects->count; i++) {
@@ -512,7 +511,7 @@ void context_draw_char(video_context_t *context, char character, int x, int y, u
     }
 }
 
-void context_draw_text(video_context_t *context, char *string, int x, int y, uint32_t color)
+void context_draw_text(const video_context_t *context, const char *string, int x, int y, uint32_t color)
 {
     for (; *string; x += VESA_CHAR_WIDTH)
         context_draw_char(context, *(string++), x, y, color);

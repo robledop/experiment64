@@ -4,14 +4,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, video_context_t *context)
+window_t* window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, video_context_t* context)
 {
-    window_t *window = malloc(sizeof(window_t));
-    if (!window) {
+    window_t* window = malloc(sizeof(window_t));
+    if (!window)
+    {
         return window;
     }
 
-    if (!window_init(window, x, y, width, height, flags, context)) {
+    if (!window_init(window, x, y, width, height, flags, context))
+    {
         free(window);
         return nullptr;
     }
@@ -19,11 +21,12 @@ window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint
     return window;
 }
 
-int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags,
-                video_context_t *context)
+int window_init(window_t* window, int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags,
+                video_context_t* context)
 {
     window->children = list_new();
-    if (!window->children) {
+    if (!window->children)
+    {
         return 0;
     }
 
@@ -46,30 +49,39 @@ int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t
     return 1;
 }
 
-int window_screen_x(window_t *window)
+int window_screen_x(const window_t* window)
 {
-    if (window->parent) {
+    if (window->parent)
+    {
         return window->x + window_screen_x(window->parent);
     }
 
     return window->x;
 }
 
-int window_screen_y(window_t *window)
+int window_screen_y(const window_t* window)
 {
-    if (window->parent) {
+    if (window->parent)
+    {
         return window->y + window_screen_y(window->parent);
     }
 
     return window->y;
 }
 
-static void window_draw_border(window_t *window)
+static void window_draw_border(window_t* window)
 {
-    int screen_x = window_screen_x(window);
-    int screen_y = window_screen_y(window);
+    const int screen_x = window_screen_x(window);
+    const int screen_y = window_screen_y(window);
 
-    for (int i = 0; i < WIN_BORDER_WIDTH; i++) {
+    if (!window)
+    {
+        panic("window is null");
+        return;
+    }
+
+    for (int i = 0; i < WIN_BORDER_WIDTH; i++)
+    {
         context_draw_rect(window->context,
                           screen_x + i,
                           screen_y + i,
@@ -78,7 +90,8 @@ static void window_draw_border(window_t *window)
                           WIN_BORDER_COLOR);
     }
 
-    for (int i = 1; i <= WIN_BORDER_WIDTH; i++) {
+    for (int i = 1; i <= WIN_BORDER_WIDTH; i++)
+    {
         context_horizontal_line(window->context,
                                 screen_x + WIN_BORDER_WIDTH,
                                 screen_y + (WIN_TITLE_HEIGHT - i),
@@ -93,41 +106,51 @@ static void window_draw_border(window_t *window)
                       (WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH)),
                       window->parent->active_child == window ? WIN_TITLE_COLOR : WIN_TITLE_COLOR_INACTIVE);
 
-    if (window->title) {
+    if (window->title)
+    {
         context_draw_text(window->context,
                           window->title,
                           screen_x + WIN_TITLE_MARGIN,
                           screen_y + WIN_TITLE_MARGIN,
-                          window->parent->active_child == window ? WIN_TITLE_TEXT_COLOR : WIN_TITLE_TEXT_COLOR_INACTIVE);
+                          window->parent->active_child == window
+                              ? WIN_TITLE_TEXT_COLOR
+                              : WIN_TITLE_TEXT_COLOR_INACTIVE);
     }
 }
 
-static void window_apply_bound_clipping(window_t *window, int in_recursion, list_t *dirty_regions)
+static void window_apply_bound_clipping(window_t* window, int in_recursion, list_t* dirty_regions)
 {
-    if (!window->context) {
+    if (!window->context)
+    {
         return;
     }
 
     int screen_x = window_screen_x(window);
     int screen_y = window_screen_y(window);
 
-    rect_t *temp_rect;
-    if ((!(window->flags & WIN_NODECORATION)) && in_recursion) {
+    rect_t* temp_rect;
+    if ((!(window->flags & WIN_NODECORATION)) && in_recursion)
+    {
         screen_x += WIN_BORDER_WIDTH;
         screen_y += WIN_TITLE_HEIGHT;
         temp_rect = rect_new(screen_y,
                              screen_x,
                              screen_y + window->height - WIN_TITLE_HEIGHT - WIN_BORDER_WIDTH - 1,
                              screen_x + window->width - (2 * WIN_BORDER_WIDTH) - 1);
-    } else {
+    }
+    else
+    {
         temp_rect = rect_new(screen_y, screen_x, screen_y + window->height - 1, screen_x + window->width - 1);
     }
 
-    if (!window->parent) {
-        if (dirty_regions) {
-            for (unsigned int i = 0; i < dirty_regions->count; i++) {
-                rect_t *current_dirty_rect = list_get_at(dirty_regions, i);
-                rect_t *clone_dirty_rect = rect_new(current_dirty_rect->top,
+    if (!window->parent)
+    {
+        if (dirty_regions)
+        {
+            for (unsigned int i = 0; i < dirty_regions->count; i++)
+            {
+                rect_t* current_dirty_rect = list_get_at(dirty_regions, i);
+                rect_t* clone_dirty_rect = rect_new(current_dirty_rect->top,
                                                     current_dirty_rect->left,
                                                     current_dirty_rect->bottom,
                                                     current_dirty_rect->right);
@@ -136,8 +159,9 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, list
             }
 
             context_intersect_clip_rect(window->context, temp_rect);
-
-        } else {
+        }
+        else
+        {
             context_add_clip_rect(window->context, temp_rect);
         }
 
@@ -148,10 +172,11 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, list
 
     context_intersect_clip_rect(window->context, temp_rect);
 
-    list_t *clip_windows = window_get_windows_above(window->parent, window);
+    list_t* clip_windows = window_get_windows_above(window->parent, window);
 
-    while (clip_windows->count) {
-        window_t *clipping_window = list_remove_at(clip_windows, 0);
+    while (clip_windows->count)
+    {
+        window_t* clipping_window = list_remove_at(clip_windows, 0);
 
         screen_x = window_screen_x(clipping_window);
         screen_y = window_screen_y(clipping_window);
@@ -165,13 +190,15 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, list
     free(clip_windows);
 }
 
-void window_update_title(window_t *window)
+void window_update_title(window_t* window)
 {
-    if (!window->context) {
+    if (!window->context)
+    {
         return;
     }
 
-    if (window->flags & WIN_NODECORATION) {
+    if (window->flags & WIN_NODECORATION)
+    {
         return;
     }
 
@@ -182,7 +209,7 @@ void window_update_title(window_t *window)
     context_clear_clip_rects(window->context);
 }
 
-void window_invalidate(window_t *window, int top, int left, int bottom, int right)
+void window_invalidate(window_t* window, int top, int left, int bottom, int right)
 {
     int origin_x = window_screen_x(window);
     int origin_y = window_screen_y(window);
@@ -191,18 +218,21 @@ void window_invalidate(window_t *window, int top, int left, int bottom, int righ
     left += origin_x;
     right += origin_x;
 
-    list_t *dirty_regions = list_new();
-    if (!dirty_regions) {
+    list_t* dirty_regions = list_new();
+    if (!dirty_regions)
+    {
         return;
     }
 
-    rect_t *dirty_rect = rect_new(top, left, bottom, right);
-    if (!dirty_rect) {
+    rect_t* dirty_rect = rect_new(top, left, bottom, right);
+    if (!dirty_rect)
+    {
         free(dirty_regions);
         return;
     }
 
-    if (!list_add(dirty_regions, dirty_rect)) {
+    if (!list_add(dirty_regions, dirty_rect))
+    {
         free(dirty_regions);
         free(dirty_rect);
         return;
@@ -215,12 +245,13 @@ void window_invalidate(window_t *window, int top, int left, int bottom, int righ
     free(dirty_rect);
 }
 
-void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_children)
+void window_paint(window_t* window, list_t* dirty_regions, uint8_t paint_children)
 {
-    window_t *current_child;
-    rect_t *temp_rect;
+    window_t* current_child;
+    rect_t* temp_rect;
 
-    if (!window->context) {
+    if (!window->context)
+    {
         return;
     }
 
@@ -229,7 +260,8 @@ void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_childre
     int screen_x = window_screen_x(window);
     int screen_y = window_screen_y(window);
 
-    if (!(window->flags & WIN_NODECORATION)) {
+    if (!(window->flags & WIN_NODECORATION))
+    {
         window_draw_border(window);
 
         screen_x += WIN_BORDER_WIDTH;
@@ -241,8 +273,9 @@ void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_childre
         context_intersect_clip_rect(window->context, temp_rect);
     }
 
-    for (unsigned int i = 0; i < window->children->count; i++) {
-        current_child = (window_t *)list_get_at(window->children, i);
+    for (unsigned int i = 0; i < window->children->count; i++)
+    {
+        current_child = (window_t*)list_get_at(window->children, i);
 
         int child_screen_x = window_screen_x(current_child);
         int child_screen_y = window_screen_y(current_child);
@@ -263,29 +296,34 @@ void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_childre
     window->context->translate_x = 0;
     window->context->translate_y = 0;
 
-    if (!paint_children) {
+    if (!paint_children)
+    {
         return;
     }
 
-    for (unsigned int i = 0; i < window->children->count; i++) {
+    for (unsigned int i = 0; i < window->children->count; i++)
+    {
+        current_child = (window_t*)list_get_at(window->children, i);
 
-        current_child = (window_t *)list_get_at(window->children, i);
-
-        if (dirty_regions) {
+        if (dirty_regions)
+        {
             unsigned int j;
-            for (j = 0; j < dirty_regions->count; j++) {
-                temp_rect = (rect_t *)list_get_at(dirty_regions, j);
+            for (j = 0; j < dirty_regions->count; j++)
+            {
+                temp_rect = (rect_t*)list_get_at(dirty_regions, j);
 
                 screen_x = window_screen_x(current_child);
                 screen_y = window_screen_y(current_child);
 
                 if (temp_rect->left <= (screen_x + current_child->width - 1) && temp_rect->right >= screen_x &&
-                    temp_rect->top <= (screen_y + current_child->height - 1) && temp_rect->bottom >= screen_y) {
+                    temp_rect->top <= (screen_y + current_child->height - 1) && temp_rect->bottom >= screen_y)
+                {
                     break;
                 }
             }
 
-            if (j == dirty_regions->count) {
+            if (j == dirty_regions->count)
+            {
                 continue;
             }
         }
@@ -294,30 +332,34 @@ void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_childre
     }
 }
 
-void window_paint_handler(window_t *window)
+void window_paint_handler(const window_t* window)
 {
     context_fill_rect(window->context, 0, 0, window->width, window->height, WIN_BGCOLOR);
 }
 
-list_t *window_get_windows_above(window_t *parent, window_t *child)
+list_t* window_get_windows_above(const window_t* parent, window_t* child)
 {
-    list_t *return_list = list_new();
-    if (!return_list) {
+    list_t* return_list = list_new();
+    if (!return_list)
+    {
         return return_list;
     }
 
     int i = list_find(parent->children, child);
-    if (i == -1) {
+    if (i == -1)
+    {
         return return_list;
     }
 
-    for (i++; i < (int)parent->children->count; i++) {
-        window_t *current_window = list_get_at(parent->children, i);
+    for (i++; i < (int)parent->children->count; i++)
+    {
+        window_t* current_window = list_get_at(parent->children, i);
 
         if (current_window->x <= (child->x + child->width - 1) &&
             (current_window->x + current_window->width - 1) >= child->x &&
             current_window->y <= (child->y + child->height - 1) &&
-            (current_window->y + current_window->height - 1) >= child->y) {
+            (current_window->y + current_window->height - 1) >= child->y)
+        {
             list_add(return_list, current_window);
         }
     }
@@ -325,25 +367,29 @@ list_t *window_get_windows_above(window_t *parent, window_t *child)
     return return_list;
 }
 
-list_t *window_get_windows_below(window_t *parent, window_t *child)
+list_t* window_get_windows_below(const window_t* parent, window_t* child)
 {
-    list_t *return_list = list_new();
-    if (!return_list) {
+    list_t* return_list = list_new();
+    if (!return_list)
+    {
         return return_list;
     }
 
     int i = list_find(parent->children, child);
-    if (i == -1) {
+    if (i == -1)
+    {
         return return_list;
     }
 
-    for (i--; i > -1; i--) {
-        window_t *current_window = list_get_at(parent->children, i);
+    for (i--; i > -1; i--)
+    {
+        window_t* current_window = list_get_at(parent->children, i);
 
         if (current_window->x <= (child->x + child->width - 1) &&
             (current_window->x + current_window->width - 1) >= child->x &&
             current_window->y <= (child->y + child->height - 1) &&
-            (current_window->y + current_window->height - 1) >= child->y) {
+            (current_window->y + current_window->height - 1) >= child->y)
+        {
             list_add(return_list, current_window);
         }
     }
@@ -351,22 +397,25 @@ list_t *window_get_windows_below(window_t *parent, window_t *child)
     return return_list;
 }
 
-void window_raise(window_t *window, uint8_t do_draw)
+void window_raise(window_t* window, uint8_t do_draw)
 {
-    if (!window->parent) {
+    if (!window->parent)
+    {
         return;
     }
 
-    window_t *parent = window->parent;
+    window_t* parent = window->parent;
 
-    if (parent->active_child == window) {
+    if (parent->active_child == window)
+    {
         return;
     }
 
-    window_t *last_active = parent->active_child;
+    window_t* last_active = parent->active_child;
 
     int i = list_find(parent->children, window);
-    if (i == -1) {
+    if (i == -1)
+    {
         return;
     }
 
@@ -375,18 +424,20 @@ void window_raise(window_t *window, uint8_t do_draw)
 
     parent->active_child = window;
 
-    if (!do_draw) {
+    if (!do_draw)
+    {
         return;
     }
 
     window_paint(window, nullptr, 1);
 
-    if (last_active) {
+    if (last_active)
+    {
         window_update_title(last_active);
     }
 }
 
-void window_move(window_t *window, int new_x, int new_y)
+void window_move(window_t* window, int new_x, int new_y)
 {
     int old_x = window->x;
     int old_y = window->y;
@@ -409,16 +460,17 @@ void window_move(window_t *window, int new_x, int new_y)
 
     context_subtract_clip_rect(window->context, &new_window_rect);
 
-    list_t *replacement_list = list_new();
-    if (!replacement_list) {
+    list_t* replacement_list = list_new();
+    if (!replacement_list)
+    {
         context_clear_clip_rects(window->context);
         return;
     }
 
-    list_t *dirty_list = window->context->clip_rects;
+    list_t* dirty_list = window->context->clip_rects;
     window->context->clip_rects = replacement_list;
 
-    list_t *dirty_windows = window_get_windows_below(window->parent, window);
+    list_t* dirty_windows = window_get_windows_below(window->parent, window);
 
     window->x = (int16_t)new_x;
     window->y = (int16_t)new_y;
@@ -437,26 +489,27 @@ void window_move(window_t *window, int new_x, int new_y)
     window_paint(window, nullptr, 1);
 }
 
-void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons)
+void window_process_mouse(window_t* window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons)
 {
     uint8_t left_click = mouse_buttons;
     uint8_t was_left_click = window->last_button_state;
 
-    for (int i = (int)window->children->count - 1; i >= 0; i--) {
-
-        window_t *child = list_get_at(window->children, i);
+    for (int i = (int)window->children->count - 1; i >= 0; i--)
+    {
+        window_t* child = list_get_at(window->children, i);
 
         if (!(mouse_x >= child->x && mouse_x < (child->x + child->width) && mouse_y >= child->y &&
-            mouse_y < (child->y + child->height))) {
+            mouse_y < (child->y + child->height)))
+        {
             continue;
         }
 
-        if (left_click && !was_left_click) {
-
+        if (left_click && !was_left_click)
+        {
             window_raise(child, 1);
 
-            if (!(child->flags & WIN_NODECORATION) && mouse_y >= child->y && mouse_y < (child->y + 31)) {
-
+            if (!(child->flags & WIN_NODECORATION) && mouse_y >= child->y && mouse_y < (child->y + 31))
+            {
                 window->drag_off_x = mouse_x - child->x;
                 window->drag_off_y = mouse_y - child->y;
                 window->drag_child = child;
@@ -469,29 +522,30 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
         break;
     }
 
-    if (!left_click) {
+    if (!left_click)
+    {
         window->drag_child = nullptr;
     }
 
-    if (window->drag_child) {
+    if (window->drag_child)
+    {
         window_move(window->drag_child, mouse_x - window->drag_off_x, mouse_y - window->drag_off_y);
     }
 
-    if (window->mousedown_function && left_click && !was_left_click) {
+    if (window->mousedown_function && left_click && !was_left_click)
+    {
         window->mousedown_function(window, (int16_t)mouse_x, (int16_t)mouse_y);
     }
 
     window->last_button_state = mouse_buttons;
 }
 
-void window_mousedown_handler(window_t *window, int16_t x, int16_t y)
+void window_mousedown_handler([[maybe_unused]] const window_t* window, [[maybe_unused]] int16_t x,
+                              [[maybe_unused]] int16_t y)
 {
-    (void)window;
-    (void)x;
-    (void)y;
 }
 
-static void window_update_context(window_t *window, video_context_t *context)
+static void window_update_context(window_t* window, video_context_t* context)
 {
     window->context = context;
 
@@ -499,9 +553,8 @@ static void window_update_context(window_t *window, video_context_t *context)
         window_update_context(list_get_at(window->children, i), context);
 }
 
-void window_insert_child(window_t *window, window_t *child)
+void window_insert_child(window_t* window, window_t* child)
 {
-
     child->parent = window;
     list_add(window->children, child);
     child->parent->active_child = child;
@@ -509,15 +562,16 @@ void window_insert_child(window_t *window, window_t *child)
     window_update_context(child, window->context);
 }
 
-window_t *window_create_window(window_t *window, int16_t x, int16_t y, uint16_t width, int16_t height, uint16_t flags)
+window_t* window_create_window(window_t* window, int16_t x, int16_t y, uint16_t width, int16_t height, uint16_t flags)
 {
-    window_t *new_window = window_new(x, y, width, height, flags, window->context);
-    if (!new_window) {
+    window_t* new_window = window_new(x, y, width, height, flags, window->context);
+    if (!new_window)
+    {
         return new_window;
     }
 
-    if (!list_add(window->children, new_window)) {
-
+    if (!list_add(window->children, new_window))
+    {
         free(new_window);
         return nullptr;
     }
@@ -528,31 +582,37 @@ window_t *window_create_window(window_t *window, int16_t x, int16_t y, uint16_t 
     return new_window;
 }
 
-void window_set_title(window_t *window, char *new_title)
+void window_set_title(window_t* window, const char* new_title)
 {
-    if (window->title) {
+    if (window->title)
+    {
         free(window->title);
     }
 
     int len = (int)strlen(new_title);
 
-    window->title = (char *)malloc((len + 1) * sizeof(char));
-    if (!window->title) {
+    window->title = (char*)malloc((len + 1) * sizeof(char));
+    if (!window->title)
+    {
         return;
     }
 
     memcpy(window->title, new_title, len + 1);
 
-    if (window->flags & WIN_NODECORATION) {
+    if (window->flags & WIN_NODECORATION)
+    {
         window_invalidate(window, 0, 0, window->height - 1, window->width - 1);
-    } else {
+    }
+    else
+    {
         window_update_title(window);
     }
 }
 
-void window_append_title(window_t *window, char *additional_chars)
+void window_append_title(window_t* window, const char* additional_chars)
 {
-    if (!window->title) {
+    if (!window->title)
+    {
         window_set_title(window, additional_chars);
         return;
     }
@@ -560,8 +620,9 @@ void window_append_title(window_t *window, char *additional_chars)
     int original_length = (int)strlen(window->title);
     int additional_length = (int)strlen(additional_chars);
 
-    char *new_string = malloc(sizeof(char) * (original_length + additional_length + 1));
-    if (!new_string) {
+    char* new_string = malloc(sizeof(char) * (original_length + additional_length + 1));
+    if (!new_string)
+    {
         return;
     }
 
@@ -577,10 +638,12 @@ void window_append_title(window_t *window, char *additional_chars)
     free(window->title);
     window->title = new_string;
 
-    if (window->flags & WIN_NODECORATION) {
+    if (window->flags & WIN_NODECORATION)
+    {
         window_invalidate(window, 0, 0, window->height - 1, window->width - 1);
-    } else {
+    }
+    else
+    {
         window_update_title(window);
     }
 }
-

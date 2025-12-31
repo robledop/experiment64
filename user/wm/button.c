@@ -26,7 +26,7 @@ button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
     return button;
 }
 
-void button_paint(window_t *button_window)
+void button_paint(const window_t *button_window)
 {
     button_t *button = (button_t *)button_window;
 
@@ -55,7 +55,7 @@ void button_paint(window_t *button_window)
     }
 }
 
-void button_mousedown_handler(window_t *button_window, int16_t x, int16_t y)
+void button_mousedown_handler(const window_t *button_window, int16_t x, int16_t y)
 {
     button_t *button = (button_t *)button_window;
 
