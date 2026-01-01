@@ -329,7 +329,7 @@ static bool e1000_start(void)
 void e1000_init(struct pci_device device)
 {
 #ifdef TEST_MODE
-    // Skip e1000 initialization in test mode - KASAN doesn't know about MMIO regions
+    // Skip e1000 initialization in test mode
     (void)device;
     boot_message(INFO, "[E1000] Skipping initialization in test mode");
     return;

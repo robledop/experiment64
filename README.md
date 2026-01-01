@@ -9,7 +9,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny she
 - `kernel/` core kernel code, arch bring-up, drivers, mm, fs, scheduler, syscalls, tests
 - `user/` simple libc (`user/libc`) and sample programs (`init`, `shell`, `ls`, etc.)
 - `include/` shared headers
-- `docs/` design notes (e.g., `docs/kasan.md`)
+- `docs/` design notes
 - `scripts/` build helpers (disk image generation, etc.)
 
 ## Toolchain and build requirements
@@ -22,7 +22,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny she
 
 - `make image.hdd` – build kernel + userland and assemble disk images
 - `make run` – boot the kernel in QEMU with the generated image
-- `make tests` – build a test image and run the in-kernel test suite (KASAN and UBSan enabled)
+- `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
 - `make check` – formatting/lint/static-analysis wrapper (clangd + clang-tidy)
 - `make clangd-check` / `make clang-tidy` – language server / lint helpers (no .S files)
 
@@ -48,7 +48,6 @@ Always add new tests for every new feature/bug fix, if possible.
 - Tests live under `kernel/tests/` and are discovered via a linker section (`.test_array`)
 - The runner prints `[PASS]/[FAIL]` with per-test timing and a compact summary
 - Output is captured and only flushed on failure to keep logs short
-- In KASAN mode, redzones and poisoned frees are enforced; trap helpers let specific tests assert a panic
 
 ![Testing framework output](https://pazotto.com/img/experiment64/Screenshot1.png)
 
@@ -74,17 +73,11 @@ make run
 ## Kernel overview
 
 - **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, APIC + IOAPIC, IDT/GDT, syscall entry
-- **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), optional KASAN shadow (1 byte / 8 bytes) and redzones, stack protector, UBSan, VMA tracking for mmap
+- **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap
 - **Timing**: PIT for ticks, TSC calibration for timing
 - **Drivers**: serial/uart, framebuffer console, keyboard, IDE/ATA via PCI scan, GPT parsing, framebuffer device `/dev/fb0`
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/`, FAT32 mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`
 - **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), simple user programs (`init`, `shell`, `ls`)
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up
-- **Debug**: symbolized stack traces, panic trapping in tests, test output capture, `docs/kasan.md` for shadow-memory details
-
-### KASAN (shadow memory) mode
-
-A lightweight KASAN-style shadow is available for debugging memory bugs. Enabled during tests.
-
-See `docs/kasan.md` for how it works, coverage, and limitations.
+- **Debug**: symbolized stack traces, panic trapping in tests, test output capture

@@ -24,7 +24,6 @@
       <w>insl</w>
       <w>iobase</w>
       <w>iupdate</w>
-      <w>kasan</w>
       <w>lalt</w>
       <w>lctrl</w>
       <w>limine</w>
@@ -44,8 +43,6 @@
       <w>printk</w>
       <w>prio</w>
       <w>readi</w>
-      <w>redzone</w>
-      <w>redzones</w>
       <w>resched</w>
       <w>returncode</w>
       <w>rflags</w>

@@ -25,10 +25,6 @@
 
 #include "debug.h"
 
-#ifdef KASAN
-#include "kasan.h"
-#endif
-
 int sys_close(int fd);
 int sys_readdir(int fd, vfs_dirent_t* dent);
 int64_t sys_sbrk(int64_t increment);
@@ -67,19 +63,6 @@ static bool prepare_user_buffer(void* addr, const size_t size, const bool is_wri
     (void)is_write;
     if (!addr || size == 0)
         return true;
-#ifdef KASAN
-    if (kasan_is_ready())
-    {
-        if (is_write)
-        {
-            kasan_unpoison_range(addr, size);
-        }
-        else if (!kasan_check_range(addr, size, false, __builtin_return_address(0)))
-        {
-            return false;
-        }
-    }
-#endif
     return true;
 }
 
@@ -1423,10 +1406,6 @@ int sys_readdir(int fd, vfs_dirent_t* dent)
     if (!d)
         return 0; // End of directory
 
-    // Ensure the kernel buffer is marked accessible and copy out.
-#ifdef KASAN
-    kasan_unpoison_range(d, sizeof(vfs_dirent_t));
-#endif
     copy_to_user(dent, d, sizeof(vfs_dirent_t));
     kfree(d);
     desc->offset++;

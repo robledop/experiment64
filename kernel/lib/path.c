@@ -1,6 +1,5 @@
 #include "path.h"
 #include "string.h"
-#include "kasan.h"
 
 void path_safe_copy(char *dst, size_t dst_size, const char *src)
 {
@@ -8,10 +7,6 @@ void path_safe_copy(char *dst, size_t dst_size, const char *src)
         return;
     if (!src)
     {
-#ifdef KASAN
-        if (kasan_is_ready())
-            kasan_check_range(dst, 1, true, __builtin_return_address(0));
-#endif
         dst[0] = '\0';
         return;
     }
@@ -19,20 +14,9 @@ void path_safe_copy(char *dst, size_t dst_size, const char *src)
     size_t i = 0;
     while (i + 1 < dst_size && src[i])
     {
-#ifdef KASAN
-        if (kasan_is_ready())
-        {
-            kasan_check_range(dst + i, 1, true, __builtin_return_address(0));
-            kasan_check_range(src + i, 1, false, __builtin_return_address(0));
-        }
-#endif
         dst[i] = src[i];
         i++;
     }
-#ifdef KASAN
-    if (kasan_is_ready())
-        kasan_check_range(dst + i, 1, true, __builtin_return_address(0));
-#endif
     dst[i] = '\0';
 }
 

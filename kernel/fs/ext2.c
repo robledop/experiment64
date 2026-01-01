@@ -11,9 +11,6 @@
 #include <limits.h>
 #include "util.h"
 #include "assert.h"
-#ifdef KASAN
-#include "kasan.h"
-#endif
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -889,10 +886,6 @@ int ext2_read_inode(const struct ext2_inode *ip, char *dst, uint32_t off, uint32
         const uint32_t offset_in_sector = offset_in_block % 512;
         const uint32_t bytes_to_copy = min(n - tot, 512 - offset_in_sector);
 
-#ifdef KASAN
-        if (kasan_is_ready())
-            kasan_unpoison_range(dst, bytes_to_copy);
-#endif
         memcpy(dst, bp->data + offset_in_sector, bytes_to_copy);
         brelse(bp);
 

@@ -29,9 +29,6 @@
 #ifdef TEST_MODE
 #include <test.h>
 #endif
-#ifdef KASAN
-#include <kasan.h>
-#endif
 
 void shutdown()
 {
@@ -130,9 +127,6 @@ void _start(void) // NOLINT(*-reserved-identifier)
     uint64_t hhdm_offset = boot_get_hhdm_offset();
     pmm_init(hhdm_offset);
     vmm_init(hhdm_offset);
-#ifdef KASAN
-    kasan_early_init(hhdm_offset, pmm_get_highest_addr());
-#endif
     heap_init(hhdm_offset);
     keyboard_init();
     mouse_init();

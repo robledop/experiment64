@@ -2,7 +2,6 @@
 #include "limine.h"
 #include "string.h"
 #include "terminal.h"
-#include "kasan.h"
 #include <stdint.h>
 
 #include "debug.h"
@@ -122,10 +121,6 @@ void *pmm_alloc_page(void)
                 bitmap_set(i);
                 uintptr_t phys = i * PAGE_SIZE;
                 void *addr = (void *)phys;
-#ifdef KASAN
-                if (kasan_is_ready())
-                    kasan_unpoison_range((void *)(phys + pmm_hhdm_offset), PAGE_SIZE);
-#endif
                 return addr;
             }
         }
@@ -137,10 +132,6 @@ void pmm_free_page(void *ptr)
     uint64_t addr = (uint64_t)ptr;
     size_t page = addr / PAGE_SIZE;
     bitmap_unset(page);
-#ifdef KASAN
-    if (kasan_is_ready())
-        kasan_poison_range((void *)(addr + pmm_hhdm_offset), PAGE_SIZE, KASAN_POISON_FREE);
-#endif
 }
 
 void *pmm_alloc_pages(size_t count)
@@ -169,10 +160,6 @@ void *pmm_alloc_pages(size_t count)
                 {
                     bitmap_set(i + j);
                 }
-#ifdef KASAN
-                if (kasan_is_ready())
-                    kasan_unpoison_range((void *)((i * PAGE_SIZE) + pmm_hhdm_offset), count * PAGE_SIZE);
-#endif
                 return (void *)(i * PAGE_SIZE);
             }
             else
@@ -192,26 +179,4 @@ void pmm_free_pages(void *ptr, size_t count)
     {
         bitmap_unset(page + i);
     }
-#ifdef KASAN
-    if (kasan_is_ready())
-        kasan_poison_range((void *)(addr + pmm_hhdm_offset), count * PAGE_SIZE, KASAN_POISON_FREE);
-#endif
 }
-
-#ifdef KASAN
-void pmm_kasan_sync(void)
-{
-    for (size_t i = 0; i < highest_page; i++)
-    {
-        void *virt = (void *)((i * PAGE_SIZE) + pmm_hhdm_offset);
-        if (bitmap_test(i))
-        {
-            kasan_unpoison_range(virt, PAGE_SIZE);
-        }
-        else
-        {
-            kasan_poison_range(virt, PAGE_SIZE, KASAN_POISON_FREE);
-        }
-    }
-}
-#endif

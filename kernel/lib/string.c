@@ -3,27 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <limits.h>
-#include "kasan.h"
 
 // Forward declaration for AVX-optimized copy
 static void* memcpy_forward_impl(void* restrict dst, const void* restrict src, size_t n);
-
-#ifdef KASAN
-#define KASAN_ASSERT_RANGE(addr, size, is_write)                                        \
-    do                                                                                  \
-    {                                                                                   \
-        if (kasan_is_ready())                                                           \
-            kasan_check_range((addr), (size), (is_write), __builtin_return_address(0)); \
-    } while (0)
-#else
-#define KASAN_ASSERT_RANGE(addr, size, is_write) \
-    do                                           \
-    {                                            \
-        (void)(addr);                            \
-        (void)(size);                            \
-        (void)(is_write);                        \
-    } while (0)
-#endif
 
 static long long read_signed_arg(va_list* args, int length_mod)
 {
@@ -70,8 +52,6 @@ int strcmp(const char* s1, const char* s2)
 
 void* memcpy(void* restrict dest, const void* restrict src, size_t n)
 {
-    KASAN_ASSERT_RANGE(dest, n, true);
-    KASAN_ASSERT_RANGE(src, n, false);
     return memcpy_forward_impl(dest, src, n);
 }
 
@@ -176,7 +156,6 @@ void* memcpy_forward(void* restrict dst, const void* restrict src, size_t n)
 
 void* memset(void* s, int c, size_t n)
 {
-    KASAN_ASSERT_RANGE(s, n, true);
     unsigned char* p = s;
     unsigned char byte = (unsigned char)c;
 
@@ -304,8 +283,6 @@ void memset32_nt(void* dest, uint32_t value, size_t count)
 
 int memcmp(const void* s1, const void* s2, size_t n)
 {
-    KASAN_ASSERT_RANGE(s1, n, false);
-    KASAN_ASSERT_RANGE(s2, n, false);
     const unsigned char *p1 = s1, *p2 = s2;
     while (n--)
     {

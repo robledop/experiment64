@@ -24,10 +24,6 @@ $(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
 $(eval $(call DEFAULT_VAR,CFLAGS,-O0 -g -Wall -Wextra -pipe -pedantic))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
-ifdef KASAN
-override CFLAGS += -DKASAN
-endif
-
 ROOTFS=rootfs
 
 override MEM ?= 64M
@@ -133,7 +129,6 @@ image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 
 .PHONY: disk
 disk: clean
-	#$(MAKE) image.hdd CFLAGS+=" -DDEBUG -DKASAN"
 	$(MAKE) image.hdd
 	./scripts/install-on-disk.sh
 
@@ -154,24 +149,24 @@ run-tap: clean
 
 .PHONY: vbox
 vbox: clean
-	$(MAKE) KASAN=1 image.hdd
+	$(MAKE) image.hdd
 	./scripts/start_vbox.sh
 
 .PHONY: run-gdb
 run-gdb: clean
-	$(MAKE) KASAN=1 image.hdd
+	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
 tests: clean
-	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
 	timeout 120s $(QEMU_BASE) $(QEMU_DRIVES) -display none -serial file:test.log -device isa-debug-exit,iobase=0x501,iosize=0x04  -cpu host -enable-kvm || true
 	cat test.log
 	@grep -q "ALL TESTS PASSED" test.log || (echo "Tests did not complete successfully"; exit 1)
 
 .PHONY: tests-gdb
 tests-gdb: clean
-	$(MAKE) KASAN=1 image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DTEST_MODE"
 	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} -cpu max | tee test.log
 
 .PHONY: bear
