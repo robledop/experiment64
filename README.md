@@ -7,7 +7,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny she
 ## Layout (high level)
 
 - `kernel/` core kernel code, arch bring-up, drivers, mm, fs, scheduler, syscalls, tests
-- `user/` simple libc (`user/libc`) and sample programs (`init`, `shell`, `ls`, etc.)
+- `user/` simple libc (`user/libc`) and sample programs (`init`, `sh`, `ls`, etc.)
 - `include/` shared headers
 - `docs/` design notes
 - `scripts/` build helpers (disk image generation, etc.)
@@ -37,7 +37,7 @@ make tests
 
 `make tests` will automatically clean up any previous test artifacts and build the necessary components before executing
 the tests.
-The tests run with a timeout of 10 seconds to prevent hanging. If you see that a timeout has occurred, it means the last
+The tests run with a timeout of 120 seconds to prevent hanging. If you see that a timeout has occurred, it means the last
 test did not complete successfully within the allotted time.
 To know the tests completed, you need to see either "ALL TESTS PASSED" or "SOME TESTS FAILED" messages at the end.
 
@@ -75,9 +75,10 @@ make run
 - **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, APIC + IOAPIC, IDT/GDT, syscall entry
 - **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap
 - **Timing**: PIT for ticks, TSC calibration for timing
-- **Drivers**: serial/uart, framebuffer console, keyboard, IDE/ATA via PCI scan, GPT parsing, framebuffer device `/dev/fb0`
+- **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, e1000 NIC, framebuffer device `/dev/fb0`
+- **Networking**: e1000 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/`, FAT32 mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`
-- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), simple user programs (`init`, `shell`, `ls`)
+- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture
