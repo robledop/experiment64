@@ -8,7 +8,6 @@
 #include <process.h>
 #include <keyboard.h>
 #include <stdint.h>
-#include <ioctl.h>
 #include <string.h>
 #include <heap.h>
 #include <framebuffer.h>
@@ -22,8 +21,23 @@
 #include <tsc.h>
 #include <path.h>
 #include <pipe.h>
+#include <debug.h>
 
-#include "debug.h"
+extern void syscall_entry(void);
+extern void fork_return(void);
+extern void fork_child_trampoline(void);
+
+#define TIMER_TICK_MS 10
+#define EXEC_MAX_ARGS 16
+#define EXEC_MAX_ARG_LEN 128
+
+#ifdef TEST_MODE
+volatile uint64_t test_syscall_count = 0;
+volatile uint64_t test_syscall_last_num = 0;
+volatile uint64_t test_syscall_last_arg1 = 0;
+#endif
+
+uint8_t bootstrap_stack[4096];
 
 int sys_close(int fd);
 int sys_readdir(int fd, vfs_dirent_t* dent);
@@ -57,32 +71,9 @@ int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
 
-// ReSharper disable once CppDFAConstantFunctionResult
-static bool prepare_user_buffer(void* addr, const size_t size, const bool is_write)
-{
-    (void)is_write;
-    if (!addr || size == 0)
-        return true;
-    return true;
-}
-
 static bool copy_to_user(void* dst, const void* src, size_t size)
 {
     if (!dst || !src)
-        return false;
-    // ReSharper disable once CppDFAConstantConditions
-    if (!prepare_user_buffer(dst, size, true))
-        return false;
-    memcpy(dst, src, size);
-    return true;
-}
-
-static bool copy_from_user(void* dst, const void* src, size_t size)
-{
-    if (!dst || !src)
-        return false;
-    // ReSharper disable once CppDFAConstantConditions
-    if (!prepare_user_buffer((void*)src, size, false))
         return false;
     memcpy(dst, src, size);
     return true;
@@ -132,26 +123,12 @@ static void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st)
     st->i_flags = 0;
 }
 
-#ifdef TEST_MODE
-volatile uint64_t test_syscall_count = 0;
-volatile uint64_t test_syscall_last_num = 0;
-volatile uint64_t test_syscall_last_arg1 = 0;
-#endif
-
-uint8_t bootstrap_stack[4096];
-
 void syscall_set_stack(uint64_t stack)
 {
     cpu_t* cpu = get_cpu();
     cpu->kernel_rsp = stack;
     tss_set_stack(stack);
 }
-
-extern void syscall_entry(void);
-extern void fork_return(void);
-extern void fork_child_trampoline(void);
-
-#define TIMER_TICK_MS 10
 
 static void set_process_name_from_path(process_t* proc, const char* path)
 {
@@ -166,8 +143,6 @@ static void set_process_name_from_path(process_t* proc, const char* path)
     path_safe_copy(proc->name, sizeof(proc->name), name);
 }
 
-#define EXEC_MAX_ARGS 16
-#define EXEC_MAX_ARG_LEN 128
 
 static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN])
 {
@@ -180,9 +155,6 @@ static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_
         const char* user_arg = argv[count];
         if (!user_arg)
             break;
-
-        if (!prepare_user_buffer((void*)user_arg, 1, false))
-            return -1;
 
         size_t len = 0;
         while (len + 1 < EXEC_MAX_ARG_LEN && user_arg[len])
@@ -197,6 +169,7 @@ static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_
     return count;
 }
 
+// ReSharper disable once CppDFAConstantParameter
 static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
                             const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
 {
@@ -234,9 +207,12 @@ static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
     return 0;
 }
 
+// ReSharper disable once CppDFAConstantFunctionResult
+// ReSharper disable once CppDFAConstantParameter
 static int resolve_user_path(const char* path, char* resolved, size_t size)
 {
     if (!resolved || size == 0)
+        // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
     const char* base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
@@ -289,9 +265,6 @@ void syscall_set_exit_hook(void (*hook)(int))
 int sys_write(int fd, const char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return -1;
-
-    if (!prepare_user_buffer((void*)buf, count, false))
         return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
@@ -435,6 +408,7 @@ int sys_spawn(const char* path)
         return -1;
     char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
     pml4_t new_pml4 = vmm_new_pml4();
@@ -522,15 +496,6 @@ int sys_fork(struct syscall_regs* regs)
     memset(child_ctx, 0, context_size);
 
     child_ctx->rip = (uint64_t)fork_child_trampoline;
-    // Other registers in context can be 0, they are kernel registers restored by switch_to.
-    // The stack pointer (rsp) will be set to child_ctx by switch_to logic (it loads rsp from thread->context).
-    // Wait, switch_to does: mov [prev->context], rsp; mov rsp, [next->context]; pop ... ret
-    // So when we switch to child, rsp becomes child_ctx.
-    // Then it pops r15..rbx, rbp, r12, r13, r14.
-    // Then ret.
-    // The ret will pop rip (which is fork_return).
-    // At that point rsp will be child_ctx + sizeof(context) == child_regs.
-    // fork_return expects rsp to point to child_regs.
 
     child_thread->context = child_ctx;
     cpu_t* cpu = get_cpu();
@@ -593,6 +558,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
 
     char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
     char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN];
@@ -631,6 +597,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
 
     uint64_t user_rsp = stack_top;
     if (setup_user_stack(new_pml4, stack_top, args, argc, &user_rsp) != 0)
+        // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
     current_process->heap_end = max_vaddr;
@@ -678,19 +645,12 @@ int sys_getcwd(char* buf, size_t size)
     const size_t len = strlen(cwd);
     if (len + 1 > size)
         return -1;
-    if (!prepare_user_buffer(buf, len + 1, true))
-        return -1;
     memcpy(buf, cwd, len + 1);
     return 0;
 }
 
 int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
 {
-    if (tv && !prepare_user_buffer(tv, sizeof(*tv), true))
-        return -1;
-    if (tz && !prepare_user_buffer(tz, sizeof(*tz), true))
-        return -1;
-
     uint64_t ns = tsc_nanos();
     if (ns == 0)
         ns = scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
@@ -722,12 +682,13 @@ int sys_sleep(uint64_t milliseconds)
     return 0;
 }
 
+// ReSharper disable once CppDFAConstantFunctionResult
 int sys_usleep(uint64_t usec)
 {
     if (usec == 0)
         return 0;
 
-    const uint64_t tick_us = 1000000ull / TIMER_FREQUENCY_HZ;
+    constexpr uint64_t tick_us = 1000000ull / TIMER_FREQUENCY_HZ;
     if (usec >= tick_us)
     {
         uint64_t ms = usec / 1000;
@@ -756,8 +717,6 @@ int sys_mknod(const char* path, int mode, int dev)
 int sys_stat(const char* path, struct stat* st)
 {
     if (!path || !st)
-        return -1;
-    if (!prepare_user_buffer(st, sizeof(struct stat), true))
         return -1;
 
     char abs_path[VFS_MAX_PATH];
@@ -807,8 +766,6 @@ int sys_unlink(const char* path)
 int sys_fstat(int fd, struct stat* st)
 {
     if (!st || fd < 0 || fd >= MAX_FDS)
-        return -1;
-    if (!prepare_user_buffer(st, sizeof(struct stat), true))
         return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
@@ -942,6 +899,8 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return sys_kill((int)arg1, (int)arg2);
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
+        // ReSharper disable once CppDFAUnreachableCode
+        __builtin_unreachable();
     }
 }
 
@@ -949,9 +908,6 @@ int sys_read(int fd, char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return 0;
-
-    if (!prepare_user_buffer(buf, count, true))
-        return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
 
@@ -1074,27 +1030,6 @@ int sys_open(const char* path, int flags)
 
 int sys_ioctl(int fd, int request, void* arg)
 {
-    size_t arg_size = 0;
-    switch (request)
-    {
-    case TIOCGWINSZ:
-        arg_size = sizeof(struct winsize);
-        break;
-    case FB_IOCTL_GET_WIDTH:
-    case FB_IOCTL_GET_HEIGHT:
-    case FB_IOCTL_GET_PITCH:
-        arg_size = sizeof(uint32_t);
-        break;
-    case FB_IOCTL_GET_FBADDR:
-        arg_size = sizeof(uint64_t);
-        break;
-    default:
-        break;
-    }
-
-    if (arg_size > 0 && !prepare_user_buffer(arg, arg_size, true))
-        return -1;
-
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
@@ -1229,8 +1164,6 @@ int sys_pipe(int pipefd[2])
 {
     if (!pipefd)
         return -1;
-    if (!prepare_user_buffer(pipefd, 2 * sizeof(int), true))
-        return -1;
 
     // Find two free file descriptors
     int read_fd = -1, write_fd = -1;
@@ -1248,13 +1181,11 @@ int sys_pipe(int pipefd[2])
     if (read_fd == -1 || write_fd == -1)
         return -1; // No free file descriptors
 
-    // Create the pipe
     vfs_inode_t* read_inode = nullptr;
     vfs_inode_t* write_inode = nullptr;
     if (pipe_alloc(&read_inode, &write_inode) != 0)
         return -1;
 
-    // Allocate file descriptors
     file_descriptor_t* read_desc = kmalloc(sizeof(file_descriptor_t));
     if (!read_desc)
     {
@@ -1272,23 +1203,19 @@ int sys_pipe(int pipefd[2])
         return -1;
     }
 
-    // Set up read descriptor
     read_desc->inode = read_inode;
     read_desc->offset = 0;
     read_desc->flags = O_RDONLY;
     read_desc->ref = 1;
 
-    // Set up write descriptor
     write_desc->inode = write_inode;
     write_desc->offset = 0;
     write_desc->flags = O_WRONLY;
     write_desc->ref = 1;
 
-    // Install in process fd table
     current_process->fd_table[read_fd] = read_desc;
     current_process->fd_table[write_fd] = write_desc;
 
-    // Return fds to user
     pipefd[0] = read_fd;
     pipefd[1] = write_fd;
 
@@ -1303,10 +1230,8 @@ int sys_close(int fd)
     if (!desc)
         return -1;
 
-    // Clear this fd slot first
     current_process->fd_table[fd] = nullptr;
 
-    // Decrement file descriptor ref count
     if (desc->ref > 1)
     {
         desc->ref--;
@@ -1374,7 +1299,7 @@ int sys_dup(int oldfd)
     if (!old_desc)
         return -1;
 
-    // Find lowest available fd (per POSIX, starts from 0)
+    // Find the lowest available fd (per POSIX, starts from 0)
     int newfd = -1;
     for (int i = 0; i < MAX_FDS; i++)
     {
