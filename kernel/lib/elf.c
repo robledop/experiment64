@@ -1,15 +1,14 @@
-#include "elf.h"
-#include "vfs.h"
-#include "vmm.h"
-#include "pmm.h"
-#include "heap.h"
-#include "string.h"
-#include "terminal.h"
-#include "uart.h"
+#include <elf.h>
+#include <vfs.h>
+#include <vmm.h>
+#include <pmm.h>
+#include <heap.h>
+#include <string.h>
+#include <terminal.h>
 
-static bool elf_validate_header(Elf64_Ehdr *header)
+static bool elf_validate_header(const elf64_ehdr* header)
 {
-    if (*(uint32_t *)header->e_ident != ELF_MAGIC)
+    if (*(uint32_t*)header->e_ident != ELF_MAGIC)
     {
         printk("ELF: Invalid magic\n");
         return false;
@@ -17,17 +16,17 @@ static bool elf_validate_header(Elf64_Ehdr *header)
     return true;
 }
 
-static Elf64_Phdr *elf_read_program_headers(vfs_inode_t *node, Elf64_Ehdr *header)
+static Elf64_Phdr* elf_read_program_headers(vfs_inode_t* node, const elf64_ehdr* header)
 {
     uint64_t ph_size = header->e_phnum * header->e_phentsize;
-    Elf64_Phdr *phdrs = kmalloc(ph_size);
+    Elf64_Phdr* phdrs = kmalloc(ph_size);
     if (!phdrs)
     {
         printk("ELF: Failed to allocate memory for program headers\n");
         return nullptr;
     }
 
-    if (vfs_read(node, header->e_phoff, ph_size, (uint8_t *)phdrs) != ph_size)
+    if (vfs_read(node, header->e_phoff, ph_size, (uint8_t*)phdrs) != ph_size)
     {
         printk("ELF: Failed to read program headers\n");
         kfree(phdrs);
@@ -36,7 +35,7 @@ static Elf64_Phdr *elf_read_program_headers(vfs_inode_t *node, Elf64_Ehdr *heade
     return phdrs;
 }
 
-static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uint64_t *max_vaddr)
+static bool elf_load_segment(vfs_inode_t* node, const Elf64_Phdr* ph, pml4_t pml4, uint64_t* max_vaddr)
 {
     // Align start and end to page boundaries
     uint64_t start_addr = ph->p_vaddr;
@@ -51,7 +50,7 @@ static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uin
     }
 
     // Read segment data into a temporary buffer first
-    uint8_t *temp_buf = nullptr;
+    uint8_t* temp_buf = nullptr;
     if (ph->p_filesz > 0)
     {
         temp_buf = kmalloc(ph->p_filesz);
@@ -73,7 +72,7 @@ static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uin
     {
         // Check if already mapped?
         // For now, just allocate new page.
-        void *phys = pmm_alloc_page();
+        void* phys = pmm_alloc_page();
         if (!phys)
         {
             if (temp_buf)
@@ -84,7 +83,7 @@ static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uin
         vmm_map_page(pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
         // Copy data using HHDM
-        uint8_t *dest_ptr = (uint8_t *)((uint64_t)phys + g_hhdm_offset);
+        uint8_t* dest_ptr = (uint8_t*)((uint64_t)phys + g_hhdm_offset);
         memset(dest_ptr, 0, PAGE_SIZE);
 
         if (temp_buf)
@@ -112,9 +111,9 @@ static bool elf_load_segment(vfs_inode_t *node, Elf64_Phdr *ph, pml4_t pml4, uin
     return true;
 }
 
-bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4_t pml4)
+bool elf_load(const char* path, uint64_t* entry_point, uint64_t* max_vaddr, pml4_t pml4)
 {
-    vfs_inode_t *node = vfs_resolve_path(path);
+    vfs_inode_t* node = vfs_resolve_path(path);
     if (!node)
     {
         // printk("ELF: Failed to resolve path %s\n", path);
@@ -124,8 +123,8 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
     if (max_vaddr)
         *max_vaddr = 0;
 
-    Elf64_Ehdr header;
-    if (vfs_read(node, 0, sizeof(header), (uint8_t *)&header) != sizeof(header))
+    elf64_ehdr header;
+    if (vfs_read(node, 0, sizeof(header), (uint8_t*)&header) != sizeof(header))
     {
         printk("ELF: Failed to read header\n");
         if (node != vfs_root)
@@ -146,7 +145,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
         return false;
     }
 
-    Elf64_Phdr *phdrs = elf_read_program_headers(node, &header);
+    Elf64_Phdr* phdrs = elf_read_program_headers(node, &header);
     if (!phdrs)
     {
         if (node != vfs_root)
@@ -159,7 +158,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
     for (int i = 0; i < header.e_phnum; i++)
     {
-        Elf64_Phdr *ph = &phdrs[i];
+        Elf64_Phdr* ph = &phdrs[i];
         if (ph->p_type == PT_LOAD)
         {
             if (!elf_load_segment(node, ph, pml4, max_vaddr))

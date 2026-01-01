@@ -19,7 +19,7 @@ __attribute__((used, section(".requests"))) static volatile struct limine_kernel
 static Elf64_Shdr* elf_section_headers = nullptr;
 static char* strtab = nullptr;
 static uint64_t strtab_size = 0;
-static Elf64_Sym* symtab = nullptr;
+static elf64_sym* symtab = nullptr;
 static uint64_t symtab_size = 0;
 
 #ifdef TEST_MODE
@@ -104,7 +104,7 @@ void debug_init(void)
     }
     boot_message(INFO, "DEBUG: Kernel file at %p, size %lx", kernel_file->address, kernel_file->size);
 
-    Elf64_Ehdr* ehdr = (Elf64_Ehdr*)kernel_file->address;
+    elf64_ehdr* ehdr = (elf64_ehdr*)kernel_file->address;
 
     if (ehdr->e_ident[0] != 0x7F || ehdr->e_ident[1] != 'E' || ehdr->e_ident[2] != 'L' || ehdr->e_ident[3] != 'F')
     {
@@ -142,8 +142,8 @@ void debug_init(void)
             return;
         }
 
-        symtab = (Elf64_Sym*)((uint8_t*)ehdr + symtab_shdr->sh_offset);
-        symtab_size = symtab_shdr->sh_size / sizeof(Elf64_Sym);
+        symtab = (elf64_sym*)((uint8_t*)ehdr + symtab_shdr->sh_offset);
+        symtab_size = symtab_shdr->sh_size / sizeof(elf64_sym);
         boot_message(INFO, "DEBUG: Symtab at %p, size %ld", symtab, symtab_size);
 
         if (symtab_shdr->sh_link < ehdr->e_shnum)
@@ -177,7 +177,7 @@ static const char* get_symbol_name(uint64_t address, uint64_t* offset)
 
     for (uint64_t i = 0; i < symtab_size; i++)
     {
-        Elf64_Sym* sym = &symtab[i];
+        elf64_sym* sym = &symtab[i];
         if (address >= sym->st_value && address < sym->st_value + sym->st_size)
         {
             *offset = address - sym->st_value;
