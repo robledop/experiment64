@@ -1,6 +1,5 @@
-#include "string.h"
-#include "cpu.h"
-#include "terminal.h"
+#include <string.h>
+#include <cpu.h>
 
 static bool g_use_xsave = false;
 static bool g_use_xsaveopt = false;
@@ -10,12 +9,12 @@ static uint32_t g_fpu_save_size = 512;
 
 // NOLINTBEGIN(readability-non-const-parameter)
 static inline void cpuid(uint32_t leaf, uint32_t subleaf,
-                         uint32_t *const eax, uint32_t *const ebx,
-                         uint32_t *const ecx, uint32_t *const edx)
+                         uint32_t* const eax, uint32_t* const ebx,
+                         uint32_t* const ecx, uint32_t* const edx)
 {
     __asm__ volatile("cpuid"
-                     : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
-                     : "a"(leaf), "c"(subleaf));
+        : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
+        : "a"(leaf), "c"(subleaf));
 }
 
 // NOLINTEND(readability-non-const-parameter)
@@ -34,12 +33,12 @@ void enable_simd(void)
 
     __asm__ volatile("mov %0, cr0" : "=r"(cr0));
     cr0 &= ~(1 << 2); // Clear EM (Emulation)
-    cr0 |= (1 << 1);  // Set MP (Monitor Co-processor)
+    cr0 |= (1 << 1); // Set MP (Monitor Co-processor)
     cr0 &= ~(1 << 3); // Clear TS (Task Switched)
     __asm__ volatile("mov cr0, %0" ::"r"(cr0));
 
     __asm__ volatile("mov %0, cr4" : "=r"(cr4));
-    cr4 |= (1 << 9);  // Set OSFXSR (OS Support for FXSAVE/FXRSTOR)
+    cr4 |= (1 << 9); // Set OSFXSR (OS Support for FXSAVE/FXRSTOR)
     cr4 |= (1 << 10); // Set OSXMMEXCPT (OS Support for Unmasked SIMD Floating-Point Exceptions)
 
     uint32_t eax, ebx, ecx, edx;
@@ -91,7 +90,7 @@ void enable_simd(void)
     __asm__ volatile("ldmxcsr %0" ::"m"(mxcsr));
 }
 
-void save_fpu_state(fpu_state_t *state)
+void save_fpu_state(fpu_state_t* state)
 {
     if (g_use_xsave)
     {
@@ -108,7 +107,7 @@ void save_fpu_state(fpu_state_t *state)
     }
 }
 
-void restore_fpu_state(fpu_state_t *state)
+void restore_fpu_state(fpu_state_t* state)
 {
     if (g_use_xsave)
     {
@@ -143,9 +142,9 @@ uint64_t rdmsr(uint32_t msr)
     return ((uint64_t)high << 32) | low;
 }
 
-cpu_t *get_cpu(void)
+cpu_t* get_cpu(void)
 {
-    cpu_t *cpu;
+    cpu_t* cpu;
     __asm__ volatile("mov %0, gs:[0]" : "=r"(cpu));
     return cpu;
 }
@@ -159,7 +158,7 @@ void hcf(void)
     }
 }
 
-void init_fpu_state(fpu_state_t *state)
+void init_fpu_state(fpu_state_t* state)
 {
     uint32_t size = g_fpu_save_size;
     if (size == 0 || size > FPU_STATE_SIZE)
@@ -168,18 +167,18 @@ void init_fpu_state(fpu_state_t *state)
 
     // Set MXCSR to default (0x1F80) - All exceptions masked
     // MXCSR is at offset 24
-    uint32_t *mxcsr = (uint32_t *)&state->data[24];
+    uint32_t* mxcsr = (uint32_t*)&state->data[24];
     *mxcsr = 0x1F80;
 
     // Set FCW to default (0x037F) - Extended precision, all exceptions masked
-    uint16_t *fcw = (uint16_t *)&state->data[0];
+    uint16_t* fcw = (uint16_t*)&state->data[0];
     *fcw = 0x037F;
 
     if (g_use_xsave)
     {
         // XSAVE header starts at offset 512
-        uint64_t *xstate_bv = (uint64_t *)&state->data[512];
-        uint64_t *xcomp_bv = (uint64_t *)&state->data[520];
+        uint64_t* xstate_bv = (uint64_t*)&state->data[512];
+        uint64_t* xcomp_bv = (uint64_t*)&state->data[520];
         *xstate_bv = g_xsave_mask;
         *xcomp_bv = 0;
     }

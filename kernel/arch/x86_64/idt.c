@@ -1,14 +1,12 @@
-#include "idt.h"
-#include "limine.h"
-#include <stddef.h>
-#include "terminal.h"
-#include "keyboard.h"
-#include "pic.h"
-#include "apic.h"
-#include "ide.h"
-#include "process.h"
-#include "kernel.h"
-#include "debug.h"
+#include <idt.h>
+#include <limine.h>
+#include <terminal.h>
+#include <keyboard.h>
+#include <apic.h>
+#include <ide.h>
+#include <process.h>
+#include <kernel.h>
+#include <debug.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -46,7 +44,7 @@ __attribute__((aligned(0x10))) static struct idt_entry idt[256];
 static struct idt_ptr idtr;
 static isr_handler_t isr_handlers[256];
 
-extern void *isr_stub_table[];
+extern void* isr_stub_table[];
 
 void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
 {
@@ -70,7 +68,7 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
 }
 
-static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     bool need_resched = scheduler_tick();
     apic_send_eoi();
@@ -78,25 +76,25 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
         schedule();
 }
 
-static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void keyboard_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     keyboard_handler_main();
     apic_send_eoi();
 }
 
-static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void ide_primary_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     ide_irq_handler(0);
     apic_send_eoi();
 }
 
-static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     ide_irq_handler(1);
     apic_send_eoi();
 }
 
-void interrupt_handler(struct interrupt_frame *frame)
+void interrupt_handler(struct interrupt_frame* frame)
 {
     if (isr_handlers[frame->int_no])
     {
@@ -124,11 +122,7 @@ void interrupt_handler(struct interrupt_frame *frame)
 #ifdef TEST_MODE
         shutdown();
 #endif
-
-        for (;;)
-        {
-            __asm__("hlt");
-        }
+        panic("End of interrupt handler");
     }
 
     if (frame->int_no >= 32)
@@ -147,7 +141,7 @@ void idt_init(void)
         // Use Interrupt Gates (0x0E) for all entries to automatically disable interrupts
         // upon entry. This avoids the need for manual 'cli' instructions in handlers.
         // If we wanted to allow nested interrupts (e.g. for system calls or non-critical exceptions),
-        // we would use Trap Gates (0x0F) here.
+        // we would use Trap Gates (0x0F) instead, but our syscalls use the 'syscall' instruction.
         idt_set_gate(i, (uint64_t)isr_stub_table[i], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING0 | IDT_FLAG_INTGATE);
         isr_handlers[i] = nullptr;
     }

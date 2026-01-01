@@ -4,7 +4,7 @@
 .extern syscall_handler
 
 syscall_entry:
-    swapgs
+    swapgs               # Switch to Kernel GS
 
     mov [gs:8], rsp      # Save User RSP to cpu->user_rsp
     mov rsp, [gs:16]     # Load Kernel RSP from cpu->kernel_rsp

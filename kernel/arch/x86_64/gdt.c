@@ -18,15 +18,15 @@
 
 void tss_set_stack(uint64_t stack)
 {
-    cpu_t *cpu = get_cpu();
+    cpu_t* cpu = get_cpu();
     cpu->tss.rsp0 = stack;
 }
 
 void gdt_init(void)
 {
-    cpu_t *cpu = get_cpu();
-    struct gdt_desc *gdt = cpu->gdt;
-    struct tss_entry *tss = &cpu->tss;
+    cpu_t* cpu = get_cpu();
+    struct gdt_desc* gdt = cpu->gdt;
+    struct tss_entry* tss = &cpu->tss;
     struct gdt_ptr gdtp;
 
     gdtp.limit = sizeof(struct gdt_desc) * 7 - 1;
@@ -37,32 +37,40 @@ void gdt_init(void)
     // 1: Kernel Code (0x08)
     // Access: Present | Ring0 | Code/Data | Exec | RW
     // Flags: Long Mode
-    gdt[1] = (struct gdt_desc){0, 0, 0,
-                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_EXEC | GDT_ACCESS_RW,
-                               GDT_FLAG_LONG,
-                               0};
+    gdt[1] = (struct gdt_desc){
+        0, 0, 0,
+        GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_EXEC | GDT_ACCESS_RW,
+        GDT_FLAG_LONG,
+        0
+    };
 
     // 2: Kernel Data (0x10)
     // Access: Present | Ring0 | Code/Data | RW
-    gdt[2] = (struct gdt_desc){0, 0, 0,
-                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_RW,
-                               0x00,
-                               0};
+    gdt[2] = (struct gdt_desc){
+        0, 0, 0,
+        GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_S | GDT_ACCESS_RW,
+        0x00,
+        0
+    };
 
     // 3: User Data (0x18)
     // Access: Present | Ring3 | Code/Data | RW
-    gdt[3] = (struct gdt_desc){0, 0, 0,
-                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_S | GDT_ACCESS_RW,
-                               0x00,
-                               0};
+    gdt[3] = (struct gdt_desc){
+        0, 0, 0,
+        GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_S | GDT_ACCESS_RW,
+        0x00,
+        0
+    };
 
     // 4: User Code (0x20)
     // Access: Present | Ring3 | Code/Data | Exec | RW
     // Flags: Long Mode
-    gdt[4] = (struct gdt_desc){0, 0, 0,
-                               GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_S | GDT_ACCESS_EXEC | GDT_ACCESS_RW,
-                               GDT_FLAG_LONG,
-                               0};
+    gdt[4] = (struct gdt_desc){
+        0, 0, 0,
+        GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_S | GDT_ACCESS_EXEC | GDT_ACCESS_RW,
+        GDT_FLAG_LONG,
+        0
+    };
 
     // 5 & 6: TSS (0x28)
     memset(tss, 0, sizeof(struct tss_entry));
@@ -71,7 +79,7 @@ void gdt_init(void)
     uint64_t tss_base = (uint64_t)tss;
     uint64_t tss_limit = sizeof(struct tss_entry) - 1;
 
-    struct gdt_system_desc *tss_desc = (struct gdt_system_desc *)&gdt[5];
+    auto tss_desc = (struct gdt_system_desc*)&gdt[5];
     tss_desc->limit = tss_limit & 0xFFFF;
     tss_desc->base_low = tss_base & 0xFFFF;
     tss_desc->base_mid = (tss_base >> 16) & 0xFF;

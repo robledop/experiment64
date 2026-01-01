@@ -1,9 +1,9 @@
-#include "apic.h"
-#include "acpi.h"
-#include "pic.h"
-#include "terminal.h"
-#include "limine.h"
-#include "pit.h"
+#include <apic.h>
+#include <acpi.h>
+#include <pic.h>
+#include <terminal.h>
+#include <limine.h>
+#include <pit.h>
 
 // https://wiki.osdev.org/IOAPIC
 
