@@ -1,21 +1,18 @@
-#include "smp.h"
-#include "boot.h"
-#include "terminal.h"
-#include "cpu.h"
-#include "gdt.h"
-#include "idt.h"
-#include "apic.h"
-#include "vmm.h"
-#include "syscall.h"
-#include "spinlock.h"
-#include <stdatomic.h>
-#include "uart.h"
+#include <smp.h>
+#include <boot.h>
+#include <terminal.h>
+#include <cpu.h>
+#include <gdt.h>
+#include <idt.h>
+#include <apic.h>
+#include <syscall.h>
 
 #define MAX_CPUS 32
 
-static atomic_int cpus_started = 0;
+static volatile int cpus_started = 0;
 static cpu_t cpus[MAX_CPUS];
 
+[[noreturn]]
 static void ap_main(struct limine_smp_info* info)
 {
     enable_simd();
@@ -28,7 +25,7 @@ static void ap_main(struct limine_smp_info* info)
     apic_local_init();
     syscall_init();
 
-    atomic_fetch_add(&cpus_started, 1);
+    __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
 
     __asm__ volatile("sti");
 
@@ -45,7 +42,6 @@ void smp_init_cpu0(void)
     {
         // If the SMP response is missing, we can't set up GS_BASE, so gdt_init will crash.
         hcf();
-        return;
     }
 
     bool bsp_found = false;
@@ -76,7 +72,7 @@ void smp_init_cpu0(void)
     {
         hcf();
     }
-    atomic_fetch_add(&cpus_started, 1);
+    __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
 }
 
 void smp_boot_aps(void)
@@ -116,7 +112,10 @@ void smp_boot_aps(void)
     boot_message(INFO, "SMP: Waiting for APs...");
 
     // Wait a bit for APs to start
-    for (volatile int i = 0; i < 10000000; i++);
+    for (volatile int i = 0; i < 10000000; i++)
+    {
+    }
 
-    boot_message(INFO, "SMP: Started %d/%ld CPUs", atomic_load(&cpus_started), smp_response->cpu_count);
+    boot_message(INFO, "SMP: Started %d/%ld CPUs", __atomic_load_n(&cpus_started, __ATOMIC_SEQ_CST),
+                 smp_response->cpu_count);
 }

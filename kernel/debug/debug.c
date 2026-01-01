@@ -5,7 +5,6 @@
 #include "cpu.h"
 #include <kernel.h>
 #include <stdarg.h>
-#include <stdbool.h>
 
 #ifdef TEST_MODE
 #include "test.h"
@@ -226,6 +225,7 @@ void panic(const char* fmt, ...)
 #endif
 
     hcf();
+    // ReSharper disable once CppDFAUnreachableCode
     __builtin_unreachable();
 }
 

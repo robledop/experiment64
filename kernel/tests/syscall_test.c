@@ -1,5 +1,4 @@
 #include "test.h"
-#include <stdbool.h>
 #include "syscall.h"
 #include "string.h"
 #include "vmm.h"

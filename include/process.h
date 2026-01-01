@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <stdbool.h>
 #include "vmm.h"
 #include "cpu.h"
 

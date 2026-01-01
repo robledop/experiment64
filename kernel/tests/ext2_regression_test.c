@@ -21,6 +21,7 @@
 #include "vfs.h"
 #include "string.h"
 #include "heap.h"
+#include "terminal.h"
 
 /**
  * Test: Multi-device superblock isolation

@@ -5,7 +5,6 @@
 #include "ext2.h"
 #include <stddef.h>
 #include "gpt.h"
-#include <stdbool.h>
 #include "heap.h"
 
 vfs_inode_t *vfs_root = nullptr;

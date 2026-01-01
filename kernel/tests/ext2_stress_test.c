@@ -2,6 +2,7 @@
 #include "vfs.h"
 #include "string.h"
 #include "heap.h"
+#include "terminal.h"
 
 // Helper to construct paths
 static void make_path(char *buffer, const char *base, const char *sub, int index)

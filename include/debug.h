@@ -1,8 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdarg.h>
-#include <stdbool.h>
 
 // ANSI Color Codes
 #define KNRM "\x1B[0m"

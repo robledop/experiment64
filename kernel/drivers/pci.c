@@ -5,6 +5,7 @@
 #include "e1000.h"
 #include "ide.h"
 #include <stddef.h>
+#include <string.h>
 
 // https://wiki.osdev.org/PCI
 
@@ -165,10 +166,10 @@ struct pci_driver pci_drivers[] = {
  */
 uint16_t pci_config_read_word(const uint8_t bus, const uint8_t slot, const uint8_t func, const uint8_t offset)
 {
-    const uint32_t lbus  = bus;
+    const uint32_t lbus = bus;
     const uint32_t lslot = slot;
     const uint32_t lfunc = func;
-    uint16_t tmp         = 0;
+    uint16_t tmp = 0;
 
     // Create configuration address
     // Bit 31     | Bits 30-24 | Bits 23-16 | Bits 15-11    | Bits 10-8       | Bits 7-0
@@ -190,7 +191,7 @@ uint16_t pci_config_read_word(const uint8_t bus, const uint8_t slot, const uint8
 void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t func, const uint8_t offset,
                            const uint16_t data)
 {
-    const uint32_t lbus  = bus;
+    const uint32_t lbus = bus;
     const uint32_t lslot = slot;
     const uint32_t lfunc = func;
 
@@ -200,9 +201,12 @@ void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t 
 
     uint32_t tmp = inl(PCI_CONFIG_DATA);
 
-    if (offset & 2) {
+    if (offset & 2)
+    {
         tmp = (tmp & 0x0000FFFF) | (data << 16); // Modify the upper 16 bits
-    } else {
+    }
+    else
+    {
         tmp = (tmp & 0xFFFF0000) | data; // Modify the lower 16 bits
     }
 
@@ -213,10 +217,12 @@ void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t 
 /**
  * @brief Resolve a PCI class/subclass pair to a descriptive name.
  */
-const char *pci_find_name(const uint8_t class, const uint8_t subclass)
+const char* pci_find_name(const uint8_t class, const uint8_t subclass)
 {
-    for (size_t i = 0; i < sizeof(classes) / sizeof(struct pci_class); i++) {
-        if (classes[i].class == class && classes[i].subclass == subclass) {
+    for (size_t i = 0; i < sizeof(classes) / sizeof(struct pci_class); i++)
+    {
+        if (classes[i].class == class && classes[i].subclass == subclass)
+        {
             return classes[i].name;
         }
     }
@@ -226,10 +232,12 @@ const char *pci_find_name(const uint8_t class, const uint8_t subclass)
 /**
  * @brief Resolve a vendor ID to a descriptive name.
  */
-const char *pci_find_vendor(const uint16_t vendor_id)
+const char* pci_find_vendor(const uint16_t vendor_id)
 {
-    for (size_t i = 0; i < sizeof(vendors) / sizeof(struct pci_vendor); i++) {
-        if (vendors[i].id == vendor_id) {
+    for (size_t i = 0; i < sizeof(vendors) / sizeof(struct pci_vendor); i++)
+    {
+        if (vendors[i].id == vendor_id)
+        {
             return vendors[i].name;
         }
     }
@@ -259,7 +267,8 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
     boot_message(INFO, "%s", pci_find_name(pci.class, pci.subclass));
 
     // {0x02, 0x00, "Ethernet Controller"},
-    if (pci.class == 0x02 && pci.subclass == 0x00) {
+    if (pci.class == 0x02 && pci.subclass == 0x00)
+    {
         boot_message(INFO,
                      "Ethernet controller Vendor: %s (0x%04X), Device: 0x%04X",
                      pci_find_vendor(pci.vendor_id),
@@ -268,7 +277,8 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
     }
 
     // {0x04, 0x03, "Audio Device"},
-    if (pci.class == 0x04 && pci.subclass == 0x03) {
+    if (pci.class == 0x04 && pci.subclass == 0x03)
+    {
         boot_message(INFO,
                      "Audio device Vendor: %s (0x%04X), Device: 0x%04X",
                      pci_find_vendor(pci.vendor_id),
@@ -276,16 +286,17 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
                      pci.device_id);
     }
 
-    for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++) {
-        const struct pci_driver *driver = &pci_drivers[i];
+    for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++)
+    {
+        const struct pci_driver* driver = &pci_drivers[i];
 
-        const bool class_match    = driver->class == pci.class;
+        const bool class_match = driver->class == pci.class;
         const bool subclass_match = driver->subclass == pci.subclass;
-        const bool vendor_match   = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == pci.vendor_id;
-        const bool device_match   = driver->device_id == PCI_ANY_ID || driver->device_id == pci.device_id;
+        const bool vendor_match = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == pci.vendor_id;
+        const bool device_match = driver->device_id == PCI_ANY_ID || driver->device_id == pci.device_id;
 
-        if (class_match && subclass_match && vendor_match && device_match) {
-
+        if (class_match && subclass_match && vendor_match && device_match)
+        {
             boot_message(INFO, "Loading driver for %s", pci_find_name(pci.class, pci.subclass));
 
             pci_drivers[i].init((struct pci_device){
@@ -305,9 +316,10 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
 struct pci_header get_pci_data(const uint8_t bus, const uint8_t num, const uint8_t function)
 {
     struct pci_header pci_data;
-    auto const p = (uint16_t *)&pci_data;
-    for (uint8_t i = 0; i < 32; i++) {
-        p[i] = pci_config_read_word(bus, num, function, i * 2);
+    for (uint8_t i = 0; i < 32; i++)
+    {
+        uint16_t word = pci_config_read_word(bus, num, function, i * 2);
+        memcpy((char *)&pci_data + i * 2, &word, sizeof(word));
     }
     return pci_data;
 }
@@ -320,17 +332,23 @@ void pci_scan()
     boot_message(INFO, "Scanning PCI devices...");
 
     struct pci_header pci_data;
-    for (uint16_t i = 0; i < 256; i++) {
+    for (uint16_t i = 0; i < 256; i++)
+    {
         pci_data = get_pci_data(i, 0, 0);
-        if (pci_data.vendor_id != 0xFFFF) {
-            for (uint8_t j = 0; j < 32; j++) {
+        if (pci_data.vendor_id != 0xFFFF)
+        {
+            for (uint8_t j = 0; j < 32; j++)
+            {
                 pci_data = get_pci_data(i, j, 0);
-                if (pci_data.vendor_id != 0xFFFF) {
+                if (pci_data.vendor_id != 0xFFFF)
+                {
                     load_driver(pci_data, i, j, 0);
 
-                    for (uint8_t k = 1; k < 8; k++) {
+                    for (uint8_t k = 1; k < 8; k++)
+                    {
                         struct pci_header pci = get_pci_data(i, j, k);
-                        if (pci.vendor_id != 0xFFFF) {
+                        if (pci.vendor_id != 0xFFFF)
+                        {
                             load_driver(pci, i, j, k);
                         }
                     }
@@ -358,9 +376,11 @@ void pci_enable_bus_mastering(const struct pci_device device)
 uint32_t pci_get_bar(const struct pci_device dev, const uint8_t type)
 {
     uint32_t bar = 0;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++)
+    {
         bar = dev.header.bars[i];
-        if ((bar & 0x1) == type) {
+        if ((bar & 0x1) == type)
+        {
             return bar;
         }
     }

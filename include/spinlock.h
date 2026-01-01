@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
 #include "cpu.h" // For RFLAGS_IF
 

@@ -1,7 +1,7 @@
-#include "tsc.h"
-#include "cpu.h"
-#include "pit.h"
-#include "terminal.h"
+#include <tsc.h>
+#include <cpu.h>
+#include <pit.h>
+#include <terminal.h>
 
 static uint64_t tsc_frequency = 0;
 
@@ -11,11 +11,11 @@ void tsc_init(void)
 
     // Calibrate TSC using PIT
     // Sleep for 50ms
-    uint64_t start = rdtsc();
+    const uint64_t start = rdtsc();
     pit_sleep(50);
-    uint64_t end = rdtsc();
+    const uint64_t end = rdtsc();
 
-    uint64_t diff = end - start;
+    const uint64_t diff = end - start;
 
     // diff ticks in 50ms -> freq = diff * 20
     tsc_frequency = diff * 20;
@@ -38,7 +38,7 @@ uint64_t tsc_nanos(void)
     if (tsc_frequency == 0)
         return 0;
     // Use MHz to avoid 64-bit overflow. Valid for ~70 days of uptime.
-    uint64_t freq_mhz = tsc_frequency / 1000000;
+    const uint64_t freq_mhz = tsc_frequency / 1000000;
     if (freq_mhz == 0)
         return 0;
     return (rdtsc() * 1000) / freq_mhz;
@@ -56,7 +56,7 @@ void tsc_sleep_ns(uint64_t ns)
     }
 }
 
-void tsc_sleep_ms(uint64_t ms)
+void tsc_sleep_ms(const uint64_t ms)
 {
     tsc_sleep_ns(ms * 1000000);
 }

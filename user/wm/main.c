@@ -10,7 +10,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <wm/calculator.h>
 
 static uint32_t* fb;

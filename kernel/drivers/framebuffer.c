@@ -1,10 +1,6 @@
 #include "framebuffer.h"
-#include <stddef.h>
-#include <stdbool.h>
 #include "string.h"
-
 #include "assert.h"
-#include "test.h"
 #include "devfs.h"
 #include "vfs.h"
 #include "ioctl.h"

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 
 #define MOUSE_LEFT (1 << 0)
 #define MOUSE_RIGHT (1 << 1)

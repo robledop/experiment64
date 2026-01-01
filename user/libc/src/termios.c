@@ -1,6 +1,5 @@
 #include <termios.h>
 #include <string.h>
-#include <stdbool.h>
 
 static struct termios termios_table[16];
 static bool termios_initialized = false;

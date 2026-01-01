@@ -1,6 +1,7 @@
 #include "test.h"
 #include "spinlock.h"
 #include "process.h"
+#include "terminal.h"
 
 TEST(test_spinlock_basic)
 {

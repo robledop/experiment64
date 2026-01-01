@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-#include "terminal.h"
 
 #define TEST_ASSERT(condition)                                                                            \
     do                                                                                                    \

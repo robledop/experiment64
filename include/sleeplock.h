@@ -1,7 +1,6 @@
 #pragma once
 
 #include "spinlock.h"
-#include <stdbool.h>
 
 typedef struct
 {

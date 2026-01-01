@@ -5,7 +5,6 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <util.h>
-#include <stdbool.h>
 #include <termios.h>
 
 #undef exit

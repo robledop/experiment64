@@ -1,6 +1,5 @@
-#include "string.h"
+#include <string.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <limits.h>
 
@@ -96,50 +95,12 @@ void* memmove(void* dst, const void* src, size_t n)
     return memcpy_forward_impl(dst, src, n);
 }
 
-// Fast forward memory copy using AVX
+// Forward memory copy - compiler will auto-vectorize due to restrict qualifiers
 static void* memcpy_forward_impl(void* restrict dst, const void* restrict src, size_t n)
 {
     unsigned char* d = dst;
     const unsigned char* s = src;
 
-    // Handle unaligned head
-    while (n && ((uintptr_t)d & 31))
-    {
-        *d++ = *s++;
-        n--;
-    }
-
-    // Copy 32 bytes at a time using AVX if source is also aligned
-    // NOLINTNEXTLINE(bugprone-branch-clone) - vmovdqa vs vmovdqu are different instructions
-    if (((uintptr_t)s & 31) == 0)
-    {
-        while (n >= 32)
-        {
-            __asm__ volatile(
-                "vmovdqa ymm0, [%1]\n\t"
-                "vmovdqa [%0], ymm0\n\t"
-                : : "r"(d), "r"(s) : "ymm0", "memory");
-            d += 32;
-            s += 32;
-            n -= 32;
-        }
-    }
-    else
-    {
-        // Unaligned source - use unaligned loads
-        while (n >= 32)
-        {
-            __asm__ volatile(
-                "vmovdqu ymm0, [%1]\n\t"
-                "vmovdqa [%0], ymm0\n\t"
-                : : "r"(d), "r"(s) : "ymm0", "memory");
-            d += 32;
-            s += 32;
-            n -= 32;
-        }
-    }
-
-    // Handle remaining bytes
     while (n--)
     {
         *d++ = *s++;
@@ -148,7 +109,6 @@ static void* memcpy_forward_impl(void* restrict dst, const void* restrict src, s
     return dst;
 }
 
-// Public wrapper for external callers (e.g., terminal scrolling)
 void* memcpy_forward(void* restrict dst, const void* restrict src, size_t n)
 {
     return memcpy_forward_impl(dst, src, n);
@@ -188,97 +148,6 @@ void* memset(void* s, int c, size_t n)
     }
 
     return s;
-}
-
-// Non-temporal memcpy - bypasses cache, ideal for write-combining memory (framebuffer)
-void* memcpy_nt(void* dest, const void* src, size_t n)
-{
-    unsigned char* d = dest;
-    const unsigned char* s = src;
-
-    // Use non-temporal stores for 16-byte aligned chunks
-    while (n >= 16 && ((uintptr_t)d & 15) == 0 && ((uintptr_t)s & 15) == 0)
-    {
-        __asm__ volatile(
-            "movdqa xmm0, [%1]\n\t"
-            "movntdq [%0], xmm0\n\t"
-            : : "r"(d), "r"(s) : "xmm0", "memory");
-        d += 16;
-        s += 16;
-        n -= 16;
-    }
-
-    // Handle remaining bytes
-    while (n--)
-    {
-        *d++ = *s++;
-    }
-
-    // Ensure all stores are visible
-    __asm__ volatile("sfence" ::: "memory");
-
-    return dest;
-}
-
-// Non-temporal memset - bypasses cache, ideal for write-combining memory
-void* memset_nt(void* dest, int c, size_t n)
-{
-    unsigned char* d = dest;
-    unsigned char byte = (unsigned char)c;
-
-    // Create 16-byte pattern
-    __attribute__((aligned(16))) unsigned char pattern[16];
-    for (int i = 0; i < 16; i++)
-        pattern[i] = byte;
-
-    // Use non-temporal stores for 16-byte aligned chunks
-    while (n >= 16 && ((uintptr_t)d & 15) == 0)
-    {
-        __asm__ volatile(
-            "movdqa xmm0, [%1]\n\t"
-            "movntdq [%0], xmm0\n\t"
-            : : "r"(d), "r"(pattern) : "xmm0", "memory");
-        d += 16;
-        n -= 16;
-    }
-
-    // Handle remaining bytes
-    while (n--)
-    {
-        *d++ = byte;
-    }
-
-    __asm__ volatile("sfence" ::: "memory");
-
-    return dest;
-}
-
-// Non-temporal 32-bit fill - perfect for framebuffer pixel fills
-void memset32_nt(void* dest, uint32_t value, size_t count)
-{
-    uint32_t* d = dest;
-
-    // Create 16-byte pattern (4 pixels)
-    __attribute__((aligned(16))) uint32_t pattern[4] = {value, value, value, value};
-
-    // Use non-temporal stores for 4-pixel aligned chunks
-    while (count >= 4 && ((uintptr_t)d & 15) == 0)
-    {
-        __asm__ volatile(
-            "movdqa xmm0, [%1]\n\t"
-            "movntdq [%0], xmm0\n\t"
-            : : "r"(d), "r"(pattern) : "xmm0", "memory");
-        d += 4;
-        count -= 4;
-    }
-
-    // Handle remaining pixels
-    while (count--)
-    {
-        *d++ = value;
-    }
-
-    __asm__ volatile("sfence" ::: "memory");
 }
 
 int memcmp(const void* s1, const void* s2, size_t n)

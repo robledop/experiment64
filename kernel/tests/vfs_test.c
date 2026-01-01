@@ -2,6 +2,7 @@
 #include "vfs.h"
 #include "string.h"
 #include "heap.h"
+#include "terminal.h"
 
 // Generic VFS tests (operating on vfs_root)
 

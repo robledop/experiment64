@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 
 void network_receive(uint8_t *packet, uint16_t len);
 int network_send_packet(const void *data, uint16_t len);

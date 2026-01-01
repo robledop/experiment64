@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 
 #define MOUSE_PORT 0x60
 #define MOUSE_STATUS 0x64

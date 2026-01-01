@@ -2,7 +2,6 @@
 
 #include <pci.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 // AHCI register layout definitions based on the AHCI specification, section 3.3.
 struct ahci_port

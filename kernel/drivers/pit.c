@@ -8,11 +8,6 @@
 #define PIT_MODE0_ACCESS_LOHI 0x30
 #define PIT_CMD_LATCH 0x00
 
-void pit_init(void)
-{
-    // We don't really need to do much init if we only use it for sleep
-}
-
 void pit_sleep(uint32_t ms)
 {
     uint16_t count = (uint16_t)((PIT_FREQ * ms) / 1000);

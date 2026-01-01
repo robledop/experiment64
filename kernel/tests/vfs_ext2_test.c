@@ -2,6 +2,7 @@
 #include "vfs.h"
 #include "string.h"
 #include "heap.h"
+#include "terminal.h"
 
 // Tests for EXT2 Root Filesystem
 

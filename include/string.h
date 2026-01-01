@@ -17,11 +17,6 @@ void *memset(void *s, int c, size_t n);
 // Fast forward copy - use when you KNOW dst < src (no overlap issues)
 void *memcpy_forward(void *dst, const void *src, size_t n);
 
-// Non-temporal (streaming) versions for write-combining memory (e.g., framebuffer)
-void *memcpy_nt(void *dest, const void *src, size_t n);
-void *memset_nt(void *dest, int c, size_t n);
-void memset32_nt(void *dest, uint32_t value, size_t count);
-
 int memcmp(const void *s1, const void *s2, size_t n);
 size_t strlen(const char *s);
 size_t strnlen(const char *s, size_t maxlen);

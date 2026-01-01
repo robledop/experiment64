@@ -1,8 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 
 // Scancode table size (US QWERTY Scancode Set 1)
 #define SCANCODE_TABLE_SIZE 84

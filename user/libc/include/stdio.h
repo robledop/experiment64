@@ -9,7 +9,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <stdbool.h>
 
 #define EOF (-1)
 #define SEEK_SET 0

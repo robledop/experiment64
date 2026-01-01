@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 #include "vfs.h"
 #include "spinlock.h"
 

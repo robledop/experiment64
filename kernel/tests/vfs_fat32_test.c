@@ -3,6 +3,7 @@
 #include "fat32.h"
 #include "string.h"
 #include "heap.h"
+#include "terminal.h"
 
 // Mirror of the private struct in fat32.c so we can grab the mounted fs pointer
 typedef struct
