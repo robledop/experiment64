@@ -330,6 +330,9 @@ int sys_kill(int pid, int sig)
 {
     (void)sig; // For now, any signal terminates the process
 
+    uint64_t rflags;
+    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+
     // Find the target process
     process_t* target = nullptr;
     list_head_t* pos;
@@ -344,11 +347,17 @@ int sys_kill(int pid, int sig)
     }
 
     if (!target)
+    {
+        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
         return -1; // Process not found
+    }
 
     // Don't allow killing the kernel process or init
     if (target->pid <= 1)
+    {
+        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
         return -1;
+    }
 
     // Mark the process as terminated
     target->exit_code = 128 + sig; // Convention: exit code = 128 + signal number
@@ -366,8 +375,11 @@ int sys_kill(int pid, int sig)
     if (target->parent)
         thread_wakeup(target->parent);
 
+    bool need_resched = (target == current_process);
+    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+
     // If we killed ourselves, reschedule
-    if (target == current_process)
+    if (need_resched)
         schedule();
 
     return 0;
@@ -514,27 +526,41 @@ int sys_wait(int* status)
     while (1)
     {
         bool has_children = false;
-        process_t *p, *next_p;
-        list_for_each_entry_safe(p, next_p, &process_list, list)
+        process_t *found_terminated = nullptr;
+
+        uint64_t rflags;
+        SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+
+        process_t *p;
+        list_for_each_entry(p, &process_list, list)
         {
             if (p->parent == current_process)
             {
                 has_children = true;
                 if (p->terminated)
                 {
-                    if (status && (uint64_t)status < 0x800000000000)
-                    {
-                        int code = p->exit_code;
-                        copy_to_user(status, &code, sizeof(int));
-                    }
-                    int pid = p->pid;
-
-                    process_destroy(p);
-
-                    return pid;
+                    found_terminated = p;
+                    break;
                 }
             }
         }
+
+        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+
+        if (found_terminated)
+        {
+            if (status && (uint64_t)status < 0x800000000000)
+            {
+                int code = found_terminated->exit_code;
+                copy_to_user(status, &code, sizeof(int));
+            }
+            int pid = found_terminated->pid;
+
+            process_destroy(found_terminated);
+
+            return pid;
+        }
+
         if (!has_children)
         {
             return -1;

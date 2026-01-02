@@ -37,6 +37,7 @@ typedef struct cpu
     uint64_t kernel_rsp;
     struct Thread *active_thread;
     int lapic_id;
+    int cpu_index;              // Index into cpus[] array (0 = BSP)
     struct gdt_desc gdt[7];
     struct tss_entry tss;
 } cpu_t;

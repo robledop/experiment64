@@ -1,8 +1,9 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "string.h"
-#include "heap.h"
 #include "terminal.h"
+#include "heap.h"
 
 // Tests for EXT2 Root Filesystem
 
@@ -23,7 +24,7 @@ TEST(test_vfs_ext2_open)
 
     vfs_open(file);
 
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -45,7 +46,7 @@ TEST_PRIO(test_vfs_ext2_write, 20)
         printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
-    kfree(file);
+    vfs_release(file);
     return passed;
 }
 
@@ -68,7 +69,7 @@ TEST_PRIO(test_vfs_ext2_read, 30)
         printk("VFS: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
     }
 
-    kfree(file);
+    vfs_release(file);
     return passed;
 }
 
@@ -84,7 +85,7 @@ TEST(test_vfs_ext2_close)
     vfs_open(file);
     vfs_close(file);
 
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -114,7 +115,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     if (bytes == 0)
     {
         printk("VFS: Read returned 0 bytes\n");
-        kfree(file);
+        vfs_release(file);
         return false;
     }
 
@@ -125,7 +126,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     if (strncmp(buffer, "Hello Ext2", 10) != 0 && strncmp(buffer, "WriteTest", 9) != 0)
     {
         printk("VFS: Read wrong data: '%s'\n", buffer);
-        kfree(file);
+        vfs_release(file);
         return false;
     }
 
@@ -133,7 +134,7 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     vfs_close(file);
 
     printk("VFS: Basic test passed. Read: %s", buffer); // buffer has newline
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -161,7 +162,7 @@ TEST(test_ext2_long_name_and_duplicate_rejection)
 
     vfs_inode_t *node = vfs_resolve_path(path);
     TEST_ASSERT(node != nullptr);
-    kfree(node);
+    vfs_release(node);
     return true;
 }
 
@@ -200,11 +201,11 @@ TEST_PRIO(test_ext2_link_and_unlink, 40)
 
     vfs_inode_t *src_check = vfs_resolve_path(src_path);
     TEST_ASSERT(src_check != nullptr);
-    kfree(src_check);
+    vfs_release(src_check);
 
     TEST_ASSERT(vfs_unlink(src_path) == 0);
 
-    kfree(dst);
-    kfree(src);
+    vfs_release(dst);
+    vfs_release(src);
     return true;
 }

@@ -18,10 +18,11 @@
  */
 
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "string.h"
-#include "heap.h"
 #include "terminal.h"
+#include "heap.h"
 
 /**
  * Test: Multi-device superblock isolation
@@ -73,10 +74,10 @@ TEST(test_ext2_multi_device_isolation)
     TEST_ASSERT(strncmp(buf2, disk1_data, strlen(disk1_data)) == 0);
 
     // Cleanup
-    kfree(rf);
-    kfree(d1f);
-    kfree(rf2);
-    kfree(d1f2);
+    vfs_release(rf);
+    vfs_release(d1f);
+    vfs_release(rf2);
+    vfs_release(d1f2);
     vfs_unlink((char*)root_file);
     vfs_unlink((char*)disk1_file);
 
@@ -125,7 +126,7 @@ TEST(test_ext2_many_file_allocations)
         data[0] = (char)('0' + (i % 10));
         TEST_ASSERT(vfs_write(file, 0, data_size, (uint8_t *)data) == data_size);
 
-        kfree(file);
+        vfs_release(file);
     }
 
     // Read back all files and verify data integrity
@@ -148,7 +149,7 @@ TEST(test_ext2_many_file_allocations)
             TEST_ASSERT(readback[j] == (char)('A' + (j % 26)));
         }
 
-        kfree(file);
+        vfs_release(file);
     }
 
     // Delete all files (tests bfree across bitmap sectors)
@@ -192,14 +193,14 @@ TEST(test_ext2_interleaved_device_ops)
         vfs_inode_t* rf = vfs_resolve_path(root_files[i]);
         TEST_ASSERT(rf != nullptr);
         TEST_ASSERT(vfs_write(rf, 0, strlen(root_data[i]), (uint8_t *)root_data[i]) == strlen(root_data[i]));
-        kfree(rf);
+        vfs_release(rf);
 
         // Create on disk1
         TEST_ASSERT(vfs_mknod((char *)disk1_files[i], VFS_FILE, 0) == 0);
         vfs_inode_t* d1f = vfs_resolve_path(disk1_files[i]);
         TEST_ASSERT(d1f != nullptr);
         TEST_ASSERT(vfs_write(d1f, 0, strlen(disk1_data[i]), (uint8_t *)disk1_data[i]) == strlen(disk1_data[i]));
-        kfree(d1f);
+        vfs_release(d1f);
     }
 
     // Interleaved reading and verification
@@ -212,7 +213,7 @@ TEST(test_ext2_interleaved_device_ops)
         TEST_ASSERT(d1f != nullptr);
         TEST_ASSERT(vfs_read(d1f, 0, strlen(disk1_data[i]), (uint8_t *)buf) == strlen(disk1_data[i]));
         TEST_ASSERT(strncmp(buf, disk1_data[i], strlen(disk1_data[i])) == 0);
-        kfree(d1f);
+        vfs_release(d1f);
 
         memset(buf, 0, sizeof(buf));
 
@@ -221,7 +222,7 @@ TEST(test_ext2_interleaved_device_ops)
         TEST_ASSERT(rf != nullptr);
         TEST_ASSERT(vfs_read(rf, 0, strlen(root_data[i]), (uint8_t *)buf) == strlen(root_data[i]));
         TEST_ASSERT(strncmp(buf, root_data[i], strlen(root_data[i])) == 0);
-        kfree(rf);
+        vfs_release(rf);
     }
 
     // Cleanup
@@ -272,8 +273,8 @@ TEST(test_ext2_rapid_lifecycle)
         TEST_ASSERT(vfs_read(file2, 0, strlen(payload), (uint8_t *)buf) == strlen(payload));
         TEST_ASSERT(strncmp(buf, payload, strlen(payload)) == 0);
 
-        kfree(file);
-        kfree(file2);
+        vfs_release(file);
+        vfs_release(file2);
 
         // Delete
         TEST_ASSERT(vfs_unlink((char *)path) == 0);
@@ -319,7 +320,7 @@ TEST(test_ext2_large_file)
         TEST_ASSERT(vfs_write(file, b * block_size, block_size, (uint8_t *)write_buf) == block_size);
     }
 
-    kfree(file);
+    vfs_release(file);
 
     // Read back and verify
     file = vfs_resolve_path(path);
@@ -339,13 +340,13 @@ TEST(test_ext2_large_file)
             {
                 printk("Mismatch at block %d, offset %d: got 0x%02x, expected 0x%02x\n",
                        b, i, (unsigned char)read_buf[i], (unsigned char)expected);
-                kfree(file);
+                vfs_release(file);
                 return false;
             }
         }
     }
 
-    kfree(file);
+    vfs_release(file);
     vfs_unlink((char*)path);
 
     return true;
@@ -388,12 +389,12 @@ TEST(test_ext2_directory_isolation)
     vfs_inode_t* rf = vfs_resolve_path(root_file);
     TEST_ASSERT(rf != nullptr);
     TEST_ASSERT(vfs_write(rf, 0, strlen(root_data), (uint8_t *)root_data) == strlen(root_data));
-    kfree(rf);
+    vfs_release(rf);
 
     vfs_inode_t* d1f = vfs_resolve_path(disk1_file);
     TEST_ASSERT(d1f != nullptr);
     TEST_ASSERT(vfs_write(d1f, 0, strlen(disk1_data), (uint8_t *)disk1_data) == strlen(disk1_data));
-    kfree(d1f);
+    vfs_release(d1f);
 
     // Read back and verify
     char buf[32] = {0};
@@ -402,7 +403,7 @@ TEST(test_ext2_directory_isolation)
     TEST_ASSERT(rf != nullptr);
     TEST_ASSERT(vfs_read(rf, 0, strlen(root_data), (uint8_t *)buf) == strlen(root_data));
     TEST_ASSERT(strncmp(buf, root_data, strlen(root_data)) == 0);
-    kfree(rf);
+    vfs_release(rf);
 
     memset(buf, 0, sizeof(buf));
 
@@ -410,7 +411,7 @@ TEST(test_ext2_directory_isolation)
     TEST_ASSERT(d1f != nullptr);
     TEST_ASSERT(vfs_read(d1f, 0, strlen(disk1_data), (uint8_t *)buf) == strlen(disk1_data));
     TEST_ASSERT(strncmp(buf, disk1_data, strlen(disk1_data)) == 0);
-    kfree(d1f);
+    vfs_release(d1f);
 
     // Cleanup
     vfs_unlink((char*)root_file);

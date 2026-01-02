@@ -1,6 +1,7 @@
 #include "storage.h"
 #include "ahci.h"
 #include "ide.h"
+#include "sleeplock.h"
 #include <stddef.h>
 
 enum storage_backend
@@ -17,9 +18,15 @@ struct storage_device
 };
 
 static struct storage_device g_devices[2];
+static sleeplock_t storage_locks[2];
+static bool storage_lock_initialized = false;
 
 void storage_init(void)
 {
+    sleeplock_init(&storage_locks[0], "storage0");
+    sleeplock_init(&storage_locks[1], "storage1");
+    storage_lock_initialized = true;
+
     // Default: try AHCI on device 0, fallback to IDE drive 0.
     if (ahci_port_ready())
     {
@@ -49,7 +56,7 @@ void storage_init(void)
     }
 }
 
-static int storage_read_backend(const struct storage_device *dev, uint32_t lba, uint8_t count, uint8_t *buffer)
+static int storage_read_backend(const struct storage_device* dev, uint32_t lba, uint8_t count, uint8_t* buffer)
 {
     switch (dev->backend)
     {
@@ -62,29 +69,47 @@ static int storage_read_backend(const struct storage_device *dev, uint32_t lba, 
     }
 }
 
-static int storage_write_backend(const struct storage_device *dev, uint32_t lba, uint8_t count, const uint8_t *buffer)
+static int storage_write_backend(const struct storage_device* dev, uint32_t lba, uint8_t count, const uint8_t* buffer)
 {
     switch (dev->backend)
     {
     case STORAGE_BACKEND_AHCI:
         return ahci_write(lba, count, buffer);
     case STORAGE_BACKEND_IDE:
-        return ide_write_sectors(dev->port, lba, count, (uint8_t *)buffer);
+        return ide_write_sectors(dev->port, lba, count, (uint8_t*)buffer);
     default:
         return -1;
     }
 }
 
-int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t *buffer)
+int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t* buffer)
 {
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
         return -1;
-    return storage_read_backend(&g_devices[device], lba, count, buffer);
+
+    if (storage_lock_initialized)
+        sleeplock_acquire(&storage_locks[device]);
+
+    int result = storage_read_backend(&g_devices[device], lba, count, buffer);
+
+    if (storage_lock_initialized)
+        sleeplock_release(&storage_locks[device]);
+
+    return result;
 }
 
-int storage_write(uint8_t device, uint32_t lba, uint8_t count, const uint8_t *buffer)
+int storage_write(uint8_t device, uint32_t lba, uint8_t count, const uint8_t* buffer)
 {
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
         return -1;
-    return storage_write_backend(&g_devices[device], lba, count, buffer);
+
+    if (storage_lock_initialized)
+        sleeplock_acquire(&storage_locks[device]);
+
+    int result = storage_write_backend(&g_devices[device], lba, count, buffer);
+
+    if (storage_lock_initialized)
+        sleeplock_release(&storage_locks[device]);
+
+    return result;
 }

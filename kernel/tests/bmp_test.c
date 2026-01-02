@@ -3,7 +3,7 @@
 #include "vfs.h"
 #include "heap.h"
 #include "string.h"
-#include "test_helpers.h"
+#include <test_util.h>
 
 TEST(test_bmp_load_valid)
 {

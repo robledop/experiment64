@@ -94,6 +94,12 @@ static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame* frame)
     apic_send_eoi();
 }
 
+static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame* frame)
+{
+    apic_send_eoi();
+    schedule();
+}
+
 void interrupt_handler(struct interrupt_frame* frame)
 {
     if (isr_handlers[frame->int_no])
@@ -124,11 +130,6 @@ void interrupt_handler(struct interrupt_frame* frame)
 #endif
         panic("End of interrupt handler");
     }
-
-    if (frame->int_no >= 32)
-    {
-        // apic_send_eoi(); // Moved to individual handlers to avoid double EOI and handle Spurious Interrupts correctly
-    }
 }
 
 void idt_init(void)
@@ -150,6 +151,7 @@ void idt_init(void)
     register_interrupt_handler(IRQ_BASE + IRQ_KEYBOARD, keyboard_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_PRIMARY, ide_primary_isr);
     register_interrupt_handler(IRQ_BASE + IRQ_IDE_SECONDARY, ide_secondary_isr);
+    register_interrupt_handler(IPI_RESCHEDULE_VECTOR, reschedule_ipi_handler);
 
     idt_reload();
     __asm__ volatile("sti");

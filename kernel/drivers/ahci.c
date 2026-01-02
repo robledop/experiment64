@@ -5,7 +5,6 @@
 #include "terminal.h"
 #include "vmm.h"
 #include "pmm.h"
-#include "ide.h"
 #include <stdint.h>
 
 #define AHCI_GHC_ENABLE (1u << 31)

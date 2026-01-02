@@ -19,6 +19,7 @@ typedef struct buffer_head
 
 #define BIO_FLAG_VALID 0x01
 #define BIO_FLAG_DIRTY 0x02
+#define BIO_FLAG_RECYCLING 0x04  // Buffer is being recycled, don't match in cache
 
 void bio_init(void);
 buffer_head_t *bread(uint8_t device, uint32_t block);

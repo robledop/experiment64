@@ -6,11 +6,15 @@
 #include <idt.h>
 #include <apic.h>
 #include <syscall.h>
+#include <process.h>
 
 #define MAX_CPUS 32
 
 static volatile int cpus_started = 0;
+static volatile bool ap_scheduler_ready = false;
 static cpu_t cpus[MAX_CPUS];
+static uint32_t cpu_count = 1;
+static uint32_t bsp_lapic_id = 0;
 
 [[noreturn]]
 static void ap_main(struct limine_smp_info* info)
@@ -27,8 +31,18 @@ static void ap_main(struct limine_smp_info* info)
 
     __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
 
+    // Wait for BSP to initialize the scheduler and create idle threads
+    while (!__atomic_load_n(&ap_scheduler_ready, __ATOMIC_SEQ_CST))
+    {
+        __asm__ volatile("pause");
+    }
+
+    // Initialize this AP's scheduler state (set idle thread as active)
+    smp_init_ap_scheduler();
+
     __asm__ volatile("sti");
 
+    // Enter the idle loop - timer interrupts will trigger schedule()
     while (1)
     {
         __asm__ volatile("hlt");
@@ -44,6 +58,9 @@ void smp_init_cpu0(void)
         hcf();
     }
 
+    bsp_lapic_id = smp_response->bsp_lapic_id;
+    cpu_count = (uint32_t)(smp_response->cpu_count > MAX_CPUS ? MAX_CPUS : smp_response->cpu_count);
+
     bool bsp_found = false;
     for (uint64_t i = 0; i < smp_response->cpu_count; i++)
     {
@@ -55,6 +72,7 @@ void smp_init_cpu0(void)
         if (cpu_info->lapic_id == smp_response->bsp_lapic_id)
         {
             cpus[i].lapic_id = (int)cpu_info->lapic_id;
+            cpus[i].cpu_index = (int)i;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = nullptr;
 
@@ -101,6 +119,7 @@ void smp_boot_aps(void)
         if (cpu_info->lapic_id != smp_response->bsp_lapic_id)
         {
             cpus[i].lapic_id = (int)cpu_info->lapic_id;
+            cpus[i].cpu_index = (int)i;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = nullptr;
 
@@ -119,3 +138,19 @@ void smp_boot_aps(void)
     boot_message(INFO, "SMP: Started %d/%ld CPUs", __atomic_load_n(&cpus_started, __ATOMIC_SEQ_CST),
                  smp_response->cpu_count);
 }
+
+void smp_ap_scheduler_ready(void)
+{
+    __atomic_store_n(&ap_scheduler_ready, true, __ATOMIC_SEQ_CST);
+}
+
+uint32_t smp_get_cpu_count(void)
+{
+    return cpu_count;
+}
+
+bool smp_is_bsp(void)
+{
+    return apic_get_lapic_id() == bsp_lapic_id;
+}
+

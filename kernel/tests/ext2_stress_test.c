@@ -1,8 +1,9 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "string.h"
-#include "heap.h"
 #include "terminal.h"
+#include "heap.h"
 
 // Helper to construct paths
 static void make_path(char *buffer, const char *base, const char *sub, int index)
@@ -40,7 +41,7 @@ TEST(test_ext2_stress)
             printk("Failed to create directory %s\n", dirname);
             return false;
         }
-        kfree(node);
+        vfs_release(node);
         printk("Directory %s already exists, continuing...\n", dirname);
     }
 
@@ -63,7 +64,7 @@ TEST(test_ext2_stress)
                 printk("Failed to create directory %s\n", path);
                 return false;
             }
-            kfree(node);
+            vfs_release(node);
         }
 
         for (int j = 0; j < files_per_subdir; j++)
@@ -82,7 +83,7 @@ TEST(test_ext2_stress)
                     printk("Failed to create file %s\n", filepath);
                     return false;
                 }
-                kfree(node);
+                vfs_release(node);
             }
 
             // Write content
@@ -100,11 +101,11 @@ TEST(test_ext2_stress)
             {
                 printk("Failed to write to %s\n", filepath);
                 vfs_close(file);
-                kfree(file);
+                vfs_release(file);
                 return false;
             }
             vfs_close(file);
-            kfree(file);
+            vfs_release(file);
         }
     }
 
@@ -133,7 +134,7 @@ TEST(test_ext2_stress)
             vfs_open(file);
             vfs_read(file, 0, sizeof(buffer), (uint8_t *)buffer);
             vfs_close(file);
-            kfree(file);
+            vfs_release(file);
 
             snprintk(content, sizeof(content), "Data %d-%d", i, j);
             if (strncmp(buffer, content, strlen(content)) != 0)

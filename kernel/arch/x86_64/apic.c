@@ -241,3 +241,46 @@ void apic_enable_irq(uint8_t irq, uint8_t vector)
     entry_val |= ((uint64_t)0 << 56); // Destination APIC ID 0
     ioapic_set_entry(gsi, entry_val);
 }
+
+uint32_t apic_get_lapic_id(void)
+{
+    return apic_lapic_read(LAPIC_ID) >> 24;
+}
+
+// ICR delivery mode
+#define ICR_FIXED 0x00000000
+#define ICR_INIT 0x00000500
+#define ICR_STARTUP 0x00000600
+
+// ICR destination shorthand
+#define ICR_DEST_FIELD 0x00000000         // Use destination field
+#define ICR_DEST_SELF 0x00040000          // Send to self
+#define ICR_DEST_ALL 0x00080000           // Send to all including self
+#define ICR_DEST_ALL_EXCLUDING_SELF 0x000C0000  // Send to all excluding self
+
+// ICR level and trigger mode
+#define ICR_LEVEL_ASSERT 0x00004000
+
+void apic_send_ipi(uint8_t lapic_id, uint8_t vector)
+{
+    // Wait for any pending IPI to complete
+    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12))
+        ;
+
+    // Write destination LAPIC ID to ICR high
+    lapic_write(LAPIC_ICR1, (uint32_t)lapic_id << 24);
+
+    // Write vector and delivery mode to ICR low (this triggers the IPI)
+    lapic_write(LAPIC_ICR0, vector | ICR_FIXED | ICR_LEVEL_ASSERT | ICR_DEST_FIELD);
+}
+
+void apic_send_ipi_all_excluding_self(uint8_t vector)
+{
+    // Wait for any pending IPI to complete
+    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12))
+        ;
+
+    // Write vector with "all excluding self" shorthand
+    lapic_write(LAPIC_ICR0, vector | ICR_FIXED | ICR_LEVEL_ASSERT | ICR_DEST_ALL_EXCLUDING_SELF);
+}
+

@@ -1,8 +1,9 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "string.h"
-#include "heap.h"
 #include "terminal.h"
+#include "heap.h"
 
 // Generic VFS tests (operating on vfs_root)
 
@@ -23,7 +24,7 @@ TEST(test_vfs_generic_open)
 
     vfs_open(file);
 
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -45,7 +46,7 @@ TEST(test_vfs_generic_write)
         printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
-    kfree(file);
+    vfs_release(file);
     return passed;
 }
 
@@ -69,7 +70,7 @@ TEST(test_vfs_generic_read)
 
     const bool passed = (bytes > 0);
 
-    kfree(file);
+    vfs_release(file);
     return passed;
 }
 
@@ -85,7 +86,7 @@ TEST(test_vfs_generic_close)
     vfs_open(file);
     vfs_close(file);
 
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -115,7 +116,7 @@ TEST(test_vfs_generic_basic)
     if (bytes == 0)
     {
         printk("VFS: Read returned 0 bytes\n");
-        kfree(file);
+        vfs_release(file);
         return false;
     }
 
@@ -123,7 +124,7 @@ TEST(test_vfs_generic_basic)
     vfs_close(file);
 
     printk("VFS: Basic test passed. Read: %s", buffer);
-    kfree(file);
+    vfs_release(file);
     return true;
 }
 
@@ -163,11 +164,11 @@ TEST(test_vfs_path_canonicalization)
     // test.txt is seeded into rootfs; resolve via dotted path segments.
     vfs_inode_t *node = vfs_resolve_path("/./test.txt");
     TEST_ASSERT(node != nullptr);
-    kfree(node);
+    vfs_release(node);
 
     node = vfs_resolve_path("/bin/../test.txt");
     TEST_ASSERT(node != nullptr);
-    kfree(node);
+    vfs_release(node);
     return true;
 }
 

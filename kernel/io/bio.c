@@ -5,7 +5,7 @@
 #include "terminal.h"
 #include "spinlock.h"
 
-#define BIO_CACHE_SIZE 128
+#define BIO_CACHE_SIZE 512
 
 static buffer_head_t cache[BIO_CACHE_SIZE];
 static LIST_HEAD(lru_list);
@@ -47,10 +47,17 @@ static void move_to_head(buffer_head_t *bh)
 // Returns a buffer with ref_count incremented but NOT locked.
 static buffer_head_t *get_blk(uint8_t device, uint32_t block)
 {
-    // Search cache for existing buffer (regardless of validity)
+    int retries = 0;
+    constexpr int max_retries = 100;  // Prevent infinite loop
+
+retry:
+    // Search cache for existing buffer (must not be recycling)
     for (int i = 0; i < BIO_CACHE_SIZE; i++)
     {
-        if (cache[i].ref_count > 0 && cache[i].device == device && cache[i].block == block)
+        if (cache[i].ref_count > 0 &&
+            !(cache[i].flags & BIO_FLAG_RECYCLING) &&
+            cache[i].device == device &&
+            cache[i].block == block)
         {
             cache[i].ref_count++;
             move_to_head(&cache[i]);
@@ -64,22 +71,90 @@ static buffer_head_t *get_blk(uint8_t device, uint32_t block)
     {
         if (bh->ref_count == 0)
         {
-            // Write back dirty buffer before recycling
+            // Mark as in-use immediately to prevent others from taking it
+            bh->ref_count = 1;
+
+            // If dirty, we need to write it back - but we can't hold spinlock during I/O
             if (bh->flags & BIO_FLAG_DIRTY)
             {
-                storage_write(bh->device, bh->block, 1, bh->data);
-                bh->flags &= ~BIO_FLAG_DIRTY;
+                // Save old device/block for the write-back
+                uint8_t old_device = bh->device;
+                uint32_t old_block = bh->block;
+
+                // Mark as recycling - this prevents other CPUs from matching this buffer
+                bh->flags = BIO_FLAG_RECYCLING;
+
+                // Release spinlock, acquire buffer's sleeplock, write, release sleeplock, reacquire spinlock
+                spinlock_release(&bio_lock);
+                sleeplock_acquire(&bh->lock);
+
+                // Write back the old data using saved device/block
+                storage_write(old_device, old_block, 1, bh->data);
+
+                sleeplock_release(&bh->lock);
+                spinlock_acquire(&bio_lock);
+
+                // After reacquiring lock, check if someone else created a buffer for our block
+                // while we were writing. If so, release this buffer and use theirs.
+                for (int i = 0; i < BIO_CACHE_SIZE; i++)
+                {
+                    if (&cache[i] != bh &&
+                        cache[i].ref_count > 0 &&
+                        !(cache[i].flags & BIO_FLAG_RECYCLING) &&
+                        cache[i].device == device &&
+                        cache[i].block == block)
+                    {
+                        // Someone else created the buffer we needed - release ours and use theirs
+                        bh->ref_count = 0;
+                        bh->flags = 0;  // No longer recycling
+                        cache[i].ref_count++;
+                        move_to_head(&cache[i]);
+                        return &cache[i];
+                    }
+                }
+
+                // No duplicate found, use this buffer
+                bh->device = device;
+                bh->block = block;
+                bh->flags = 0;  // Clear recycling, not valid yet
+                move_to_head(bh);
+                return bh;
             }
+
             bh->device = device;
             bh->block = block;
-            bh->flags = 0; // Invalid - needs to be read
-            bh->ref_count = 1;
+            bh->flags = 0;
             move_to_head(bh);
             return bh;
         }
     }
 
-    printk("BIO: No free buffers!\n");
+    // No free buffers - all have ref_count > 0
+    // This can happen under heavy load. Wait briefly and retry.
+    if (retries++ < max_retries)
+    {
+        // Release lock and yield to let other CPUs release their buffers
+        spinlock_release(&bio_lock);
+
+        // Yield CPU time - this allows other threads to run and release buffers
+        // Use a longer pause and potentially yield to scheduler
+        for (volatile int i = 0; i < 10000; i++)
+            __asm__ volatile("pause");
+
+        spinlock_acquire(&bio_lock);
+        goto retry;
+    }
+
+    printk("BIO: No free buffers after %d retries! (requesting dev=%d block=%d)\n", max_retries, device, block);
+
+    // Debug: count how many buffers are in use
+    int in_use = 0, recycling = 0;
+    for (int i = 0; i < BIO_CACHE_SIZE; i++) {
+        if (cache[i].ref_count > 0) in_use++;
+        if (cache[i].flags & BIO_FLAG_RECYCLING) recycling++;
+    }
+    printk("BIO: %d buffers in use, %d recycling\n", in_use, recycling);
+
     return nullptr;
 }
 
@@ -110,6 +185,7 @@ buffer_head_t *bread(uint8_t device, uint32_t block)
         int rc = storage_read(device, block, 1, bh->data);
         if (rc != 0)
         {
+            printk("BIO: storage_read failed dev=%d block=%d rc=%d\n", device, block, rc);
             // Read failed - release buffer
             sleeplock_release(&bh->lock);
             if (bio_lock_initialized)
