@@ -2,6 +2,8 @@
 #include "ahci.h"
 #include "ide.h"
 #include "sleeplock.h"
+#include "terminal.h"
+#include "tsc.h"
 #include <stddef.h>
 
 enum storage_backend
@@ -87,13 +89,22 @@ int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t* buffer)
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
         return -1;
 
+
     if (storage_lock_initialized)
+    {
+
         sleeplock_acquire(&storage_locks[device]);
+
+    }
+
 
     int result = storage_read_backend(&g_devices[device], lba, count, buffer);
 
+
     if (storage_lock_initialized)
+    {
         sleeplock_release(&storage_locks[device]);
+    }
 
     return result;
 }

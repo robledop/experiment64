@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 // ANSI Color Codes
 #define KNRM "\x1B[0m"
@@ -17,7 +18,7 @@
 #if !defined(TEST_MODE)
 [[noreturn]]
 #endif
-void panic(const char* fmt, ...);
+void panic(const char *fmt, ...);
 void stack_trace(void);
 void debug_init(void);
 int panic_trap_setjmp(void);

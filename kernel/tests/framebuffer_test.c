@@ -1,4 +1,5 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "ioctl.h"
 #include "framebuffer.h"
@@ -16,9 +17,11 @@ extern int sys_munmap(void *addr, size_t length);
 
 TEST(test_fb_device_exists)
 {
-    const vfs_inode_t *fb = vfs_resolve_path("/dev/fb0");
+    vfs_inode_t *fb = vfs_resolve_path("/dev/fb0");
     TEST_ASSERT(fb != nullptr);
-    TEST_ASSERT((fb->flags & VFS_CHARDEVICE) != 0);
+    const bool ok = (fb->flags & VFS_CHARDEVICE) != 0;
+    vfs_release(fb);
+    TEST_ASSERT(ok);
     return true;
 }
 
@@ -42,6 +45,7 @@ TEST(test_fb_ioctl_basic)
     TEST_ASSERT(height == fbhw->height);
     TEST_ASSERT(pitch == fbhw->pitch);
     TEST_ASSERT(fbaddr == (uint64_t)fbhw->address);
+    vfs_release(fb);
     return true;
 }
 

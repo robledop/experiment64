@@ -2,9 +2,12 @@
 #include "limine.h"
 #include "string.h"
 #include "terminal.h"
+#include <stdbool.h>
 #include <stdint.h>
 
+#include "heap.h"
 #include "debug.h"
+#include "spinlock.h"
 
 __attribute__((used, section(".requests"))) static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
@@ -15,6 +18,10 @@ static size_t bitmap_size = 0;
 static size_t highest_page = 0;
 static uint64_t highest_addr = 0;
 static uint64_t pmm_hhdm_offset = 0;
+static size_t reserved_base_page = 0;
+static spinlock_t pmm_lock;
+
+static int bitmap_test(size_t bit);
 
 static void bitmap_set(size_t bit)
 {
@@ -33,6 +40,8 @@ static int bitmap_test(size_t bit)
 
 void pmm_init(uint64_t hhdm_offset)
 {
+    spinlock_init(&pmm_lock);
+
     if (memmap_request.response == nullptr)
     {
         panic("Error: Limine memmap request failed");
@@ -101,6 +110,10 @@ void pmm_init(uint64_t hhdm_offset)
         bitmap_set(bitmap_start_page + i);
     }
 
+    reserved_base_page = bitmap_start_page + bitmap_pages + 16; // leave a guard region after the bitmap
+
+    boot_message(INFO, "PMM bitmap phys=0x%lx virt=%p size=%zu pages=%lu reserved_base_page=%zu", bitmap_phys, bitmap, bitmap_size, bitmap_pages, reserved_base_page);
+
     // Mark the first page (0x0) as used to avoid null pointer confusion
     bitmap_set(0);
 
@@ -112,32 +125,81 @@ uint64_t pmm_get_highest_addr(void)
     return highest_addr;
 }
 
+size_t pmm_get_reserved_base_page(void)
+{
+    return reserved_base_page;
+}
+
+uint64_t pmm_get_bitmap_phys(void)
+{
+    return (uint64_t)bitmap - pmm_hhdm_offset;
+}
+
+size_t pmm_get_bitmap_size(void)
+{
+    return bitmap_size;
+}
+
 void *pmm_alloc_page(void)
 {
-    for (size_t i = 0; i < highest_page; i++)
+    void *addr = nullptr;
+    uint64_t rflags;
+    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+
+    for (size_t i = reserved_base_page; i < highest_page; i++)
     {
-            if (!bitmap_test(i))
+        if (!bitmap_test(i))
+        {
+            uintptr_t phys = i * PAGE_SIZE;
+
+            // Never hand out a page that backs a slab header/payload.
+            if (heap_is_slab_page((void *)phys))
             {
-                bitmap_set(i);
-                uintptr_t phys = i * PAGE_SIZE;
-                void *addr = (void *)phys;
-                return addr;
+                boot_message(ERROR, "pmm_alloc_page: bitmap free but slab-tracked phys=%p", (void *)phys);
+                continue;
             }
+
+            bitmap_set(i);
+            addr = (void *)phys;
+            break;
         }
-    return nullptr; // Out of memory
+    }
+
+    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    return addr; // nullptr when out of memory
 }
 
 void pmm_free_page(void *ptr)
 {
+    if (!ptr)
+        return;
+
+    uint64_t rflags;
+    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+
     uint64_t addr = (uint64_t)ptr;
-    size_t page = addr / PAGE_SIZE;
+    uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
+    size_t page = phys_ptr / PAGE_SIZE;
+
+    if (heap_is_slab_page((void *)phys_ptr))
+    {
+        boot_message(ERROR, "pmm_free_page: attempt to free slab page phys=%p", (void *)phys_ptr);
+        SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+        return; // Ignore to avoid reusing active slab backing page
+    }
+
     bitmap_unset(page);
+    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
 }
 
 void *pmm_alloc_pages(size_t count)
 {
+    void *addr = nullptr;
+    uint64_t rflags;
+    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+
     // Simple first-fit search for contiguous pages
-    for (size_t i = 0; i < highest_page; i++)
+    for (size_t i = reserved_base_page; i < highest_page; i++)
     {
         if (!bitmap_test(i))
         {
@@ -146,6 +208,16 @@ void *pmm_alloc_pages(size_t count)
             {
                 if (i + j < highest_page && !bitmap_test(i + j))
                 {
+                    uintptr_t phys = (i + j) * PAGE_SIZE;
+
+                    // Skip ranges that overlap slab backing pages.
+                    if (heap_is_slab_page((void *)phys))
+                    {
+                        boot_message(ERROR, "pmm_alloc_pages: bitmap free but slab-tracked phys=%p count=%zu", (void *)phys, count);
+                        free_count = 0;
+                        break;
+                    }
+
                     free_count++;
                 }
                 else
@@ -160,7 +232,8 @@ void *pmm_alloc_pages(size_t count)
                 {
                     bitmap_set(i + j);
                 }
-                return (void *)(i * PAGE_SIZE);
+                addr = (void *)(i * PAGE_SIZE);
+                break;
             }
             else
             {
@@ -168,15 +241,33 @@ void *pmm_alloc_pages(size_t count)
             }
         }
     }
-    return nullptr;
+
+    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    return addr;
 }
 
 void pmm_free_pages(void *ptr, size_t count)
 {
+    if (!ptr || count == 0)
+        return;
+
+    uint64_t rflags;
+    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+
     uint64_t addr = (uint64_t)ptr;
-    size_t page = addr / PAGE_SIZE;
+    uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
+    size_t page = phys_ptr / PAGE_SIZE;
+
+    if (heap_is_slab_page((void *)phys_ptr))
+    {
+        boot_message(ERROR, "pmm_free_pages: attempt to free slab page phys=%p count=%zu", (void *)phys_ptr, count);
+        SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+        return; // Prevent reuse; likely a double free or corruption
+    }
+
     for (size_t i = 0; i < count; i++)
     {
         bitmap_unset(page + i);
     }
+    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
 }

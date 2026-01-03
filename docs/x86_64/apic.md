@@ -58,12 +58,17 @@ static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remappin
 ### `apic_local_init()` — Initialize a CPU's Local APIC
 - Called once per CPU core (including on AP startup in SMP)
 - Enables the LAPIC via the Spurious Vector Register
-- Sets up the periodic timer for preemptive scheduling
+- Sets up the periodic timer (vector 32) for preemptive scheduling
 
 ### `apic_enable_irq(irq, vector)` — Route an IRQ to a vector
 - Looks up any IRQ→GSI remapping
 - Configures the IOAPIC redirection table entry
 - Handles polarity (active high/low) and trigger mode (edge/level)
+- Currently targets LAPIC ID 0 (BSP) as the destination
+
+### `apic_send_ipi()` / `apic_send_ipi_all_excluding_self()`
+- Sends a fixed IPI to a specific LAPIC ID or to all CPUs except the caller
+- Used for reschedule nudges and cross-CPU coordination
 
 ### `apic_send_eoi()` — Signal End-of-Interrupt
 - Must be called at the end of every interrupt handler

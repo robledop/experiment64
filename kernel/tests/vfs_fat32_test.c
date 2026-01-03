@@ -1,4 +1,5 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "fat32.h"
 #include "string.h"
@@ -33,16 +34,16 @@ TEST_PRIO(test_vfs_fat32_mount_lookup, 10)
     if (file)
     {
         printk("VFS: Found DATA_T~1.TXT in /mnt (Mount working)\n");
-        kfree(file);
+        vfs_release(file);
         if (mnt != vfs_root)
-            kfree(mnt);
+            vfs_release(mnt);
         return true;
     }
     else
     {
         printk("VFS: DATA_T~1.TXT not found in /mnt (Mount NOT working)\n");
         if (mnt != vfs_root)
-            kfree(mnt);
+            vfs_release(mnt);
         return false;
     }
 }
@@ -71,7 +72,7 @@ TEST_PRIO(test_vfs_fat32_mount_readdir, 20)
     }
 
     if (mnt != vfs_root)
-        kfree(mnt);
+        vfs_release(mnt);
 
     if (!found)
     {
@@ -90,7 +91,7 @@ TEST_PRIO(test_vfs_fat32_read, 30)
     vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
     if (!file)
     {
-        kfree(mnt);
+        vfs_release(mnt);
         return false;
     }
 
@@ -106,8 +107,8 @@ TEST_PRIO(test_vfs_fat32_read, 30)
         printk("VFS FAT32: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
     }
 
-    kfree(file);
-    kfree(mnt);
+    vfs_release(file);
+    vfs_release(mnt);
     return passed;
 }
 
@@ -131,11 +132,11 @@ TEST_PRIO(test_vfs_fat32_link_not_supported, 60)
         // Unexpectedly created a link; clean up and mark failure.
         vfs_unlink((char *)dst);
         passed = false;
-        kfree(maybe);
+        vfs_release(maybe);
     }
 
     if (mnt != vfs_root)
-        kfree(mnt);
+        vfs_release(mnt);
     return passed;
 }
 
@@ -171,9 +172,9 @@ TEST_PRIO(test_vfs_fat32_unlink_file, 70)
     fat32_file_info_t info;
     TEST_ASSERT(fat32_stat(fs, fname, &info) != 0);
 
-    kfree(node);
+    vfs_release(node);
     if (mnt != vfs_root)
-        kfree(mnt);
+        vfs_release(mnt);
     return true;
 }
 
@@ -200,7 +201,7 @@ TEST_PRIO(test_vfs_fat32_mknod_touch, 65)
     TEST_ASSERT(vfs_unlink(path) == 0);
     TEST_ASSERT(vfs_resolve_path(path) == nullptr);
 
-    kfree(node);
+    vfs_release(node);
     return true;
 }
 
@@ -213,7 +214,7 @@ TEST_PRIO(test_vfs_fat32_zero_length_read, 45)
     vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
     if (!file)
     {
-        kfree(mnt);
+        vfs_release(mnt);
         return false;
     }
 
@@ -221,8 +222,8 @@ TEST_PRIO(test_vfs_fat32_zero_length_read, 45)
     const uint64_t bytes = vfs_read(file, 0, 0, (uint8_t *)buffer);
     const bool passed = (bytes == 0);
 
-    kfree(file);
-    kfree(mnt);
+    vfs_release(file);
+    vfs_release(mnt);
     return passed;
 }
 
@@ -247,7 +248,7 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
     if (file)
     {
         fat32_delete_file(fs, fname);
-        kfree(file);
+        vfs_release(file);
     }
 
     // Create the file via FAT32 helpers (VFS lacks mknod for FAT32). If it already exists,
@@ -273,8 +274,8 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
 
     kfree(readback);
     fat32_delete_file(fs, fname);
-    kfree(file);
-    kfree(mnt);
+    vfs_release(file);
+    vfs_release(mnt);
     kfree(data);
     return true;
 }
@@ -288,7 +289,7 @@ TEST_PRIO(test_vfs_fat32_write, 40)
     vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
     if (!file)
     {
-        kfree(mnt);
+        vfs_release(mnt);
         return false;
     }
 
@@ -301,7 +302,7 @@ TEST_PRIO(test_vfs_fat32_write, 40)
         printk("VFS FAT32: Write failed, expected %d, got %lu\n", strlen(new_data), written);
     }
 
-    kfree(file);
-    kfree(mnt);
+    vfs_release(file);
+    vfs_release(mnt);
     return passed;
 }

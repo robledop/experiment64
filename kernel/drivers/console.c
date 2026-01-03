@@ -55,6 +55,8 @@ vfs_inode_t *console_device = nullptr;
 void console_init()
 {
     console_device = kmalloc(sizeof(vfs_inode_t));
+    if (!console_device)
+        return;
     memset(console_device, 0, sizeof(vfs_inode_t));
     console_device->flags = VFS_CHARDEVICE;
     console_device->iops = &console_ops;

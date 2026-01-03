@@ -35,6 +35,8 @@ vfs_dirent_t *devfs_readdir([[maybe_unused]] const vfs_inode_t *node, uint32_t i
     if (index < (uint32_t)device_count)
     {
         vfs_dirent_t *dirent = kmalloc(sizeof(vfs_dirent_t));
+        if (!dirent)
+            return nullptr;
         strcpy(dirent->name, device_registry[index].name);
         dirent->inode = 0; // Dummy
         return dirent;
@@ -76,6 +78,8 @@ void devfs_init(void)
 {
     // Create /dev directory node (the mount root)
     vfs_inode_t *dev_root = kmalloc(sizeof(vfs_inode_t));
+    if (!dev_root)
+        return;
     memset(dev_root, 0, sizeof(vfs_inode_t));
     dev_root->flags = VFS_DIRECTORY;
     dev_root->iops = &devfs_ops;

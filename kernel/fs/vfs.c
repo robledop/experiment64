@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include "gpt.h"
 #include "heap.h"
+#include "debug.h"
 
 vfs_inode_t *vfs_root = nullptr;
 
@@ -23,6 +24,7 @@ void vfs_register_mount(const char *name, vfs_inode_t *root)
     if (mount_count < 16)
     {
         strncpy(mount_table[mount_count].name, name, 63);
+        mount_table[mount_count].name[63] = '\0';
         mount_table[mount_count].root = root;
         mount_count++;
     }
@@ -52,6 +54,14 @@ vfs_inode_t *vfs_check_mount(const char *name)
 void vfs_init()
 {
     vfs_root = nullptr;
+}
+
+static void vfs_put_inode(vfs_inode_t *node)
+{
+    if (!node || node == vfs_root)
+        return;
+    vfs_close(node);
+    kfree(node);
 }
 
 static partition_info_t root_part;
@@ -321,6 +331,9 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
 
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
 {
+    if (!node || !name)
+        return nullptr;
+
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->finddir)
     {
         // Check mounts if we are at root
@@ -365,7 +378,11 @@ vfs_inode_t *vfs_resolve_path(const char *path)
             {
                 vfs_inode_t *next = vfs_finddir(current, name);
                 if (!next)
+                {
+                    vfs_put_inode(current);
                     return nullptr;
+                }
+                vfs_put_inode(current);
                 current = next;
             }
             name_idx = 0;
@@ -384,7 +401,11 @@ vfs_inode_t *vfs_resolve_path(const char *path)
         name[name_idx] = 0;
         vfs_inode_t *next = vfs_finddir(current, name);
         if (!next)
+        {
+            vfs_put_inode(current);
             return nullptr;
+        }
+        vfs_put_inode(current);
         current = next;
     }
 
@@ -433,12 +454,18 @@ int vfs_mknod(char *path, int mode, int dev)
         return -1;
     }
 
+    int res = -1;
     if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->mknod)
     {
-        return parent->iops->mknod(parent, filename, mode, dev);
+        res = parent->iops->mknod(parent, filename, mode, dev);
     }
 
-    return -1;
+    if (parent != vfs_root)
+    {
+        vfs_close(parent);
+        kfree(parent);
+    }
+    return res;
 }
 
 int vfs_link(const char *oldpath, const char *newpath)

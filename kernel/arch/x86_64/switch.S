@@ -42,12 +42,9 @@ switch_to:
 
 .global thread_trampoline
 thread_trampoline:
-    # Release scheduler lock (held by previous thread)
-    # void spinlock_release(spinlock_t *lock);
-    # RDI = &scheduler_lock
-    lea rdi, [rip + scheduler_lock]
-    call spinlock_release
-
+    # New threads start execution with interrupts disabled (inherited from the
+    # scheduler thread / schedule() path). Enable interrupts before calling the
+    # C entrypoint.
     sti
     call r12
     

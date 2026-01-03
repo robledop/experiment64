@@ -17,10 +17,10 @@ static uint32_t cpu_count = 1;
 static uint32_t bsp_lapic_id = 0;
 
 [[noreturn]]
-static void ap_main(struct limine_smp_info* info)
+static void ap_main(struct limine_smp_info *info)
 {
     enable_simd();
-    cpu_t* cpu = (cpu_t*)info->extra_argument;
+    cpu_t *cpu = (cpu_t *)info->extra_argument;
     wrmsr(MSR_GS_BASE, (uint64_t)cpu);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
 
@@ -40,18 +40,12 @@ static void ap_main(struct limine_smp_info* info)
     // Initialize this AP's scheduler state (set idle thread as active)
     smp_init_ap_scheduler();
 
-    __asm__ volatile("sti");
-
-    // Enter the idle loop - timer interrupts will trigger schedule()
-    while (1)
-    {
-        __asm__ volatile("hlt");
-    }
+    __builtin_unreachable();
 }
 
 void smp_init_cpu0(void)
 {
-    struct limine_smp_response* smp_response = boot_get_smp_response();
+    struct limine_smp_response *smp_response = boot_get_smp_response();
     if (smp_response == nullptr)
     {
         // If the SMP response is missing, we can't set up GS_BASE, so gdt_init will crash.
@@ -67,7 +61,7 @@ void smp_init_cpu0(void)
         if (i >= MAX_CPUS)
             break;
 
-        struct limine_smp_info* cpu_info = smp_response->cpus[i];
+        struct limine_smp_info *cpu_info = smp_response->cpus[i];
 
         if (cpu_info->lapic_id == smp_response->bsp_lapic_id)
         {
@@ -95,7 +89,7 @@ void smp_init_cpu0(void)
 
 void smp_boot_aps(void)
 {
-    struct limine_smp_response* smp_response = boot_get_smp_response();
+    struct limine_smp_response *smp_response = boot_get_smp_response();
     if (smp_response == nullptr)
     {
         boot_message(WARNING, "SMP: No response found");
@@ -114,7 +108,7 @@ void smp_boot_aps(void)
         if (i >= MAX_CPUS)
             break;
 
-        struct limine_smp_info* cpu_info = smp_response->cpus[i];
+        struct limine_smp_info *cpu_info = smp_response->cpus[i];
 
         if (cpu_info->lapic_id != smp_response->bsp_lapic_id)
         {
@@ -149,8 +143,14 @@ uint32_t smp_get_cpu_count(void)
     return cpu_count;
 }
 
+cpu_t *smp_get_cpu_by_index(uint32_t idx)
+{
+    if (idx >= cpu_count)
+        return nullptr;
+    return &cpus[idx];
+}
+
 bool smp_is_bsp(void)
 {
     return apic_get_lapic_id() == bsp_lapic_id;
 }
-

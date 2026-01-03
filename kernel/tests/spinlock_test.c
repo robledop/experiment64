@@ -33,11 +33,6 @@ static void contention_thread(void)
 
     g_thread_done = true;
     printk("Thread: Done.\n");
-
-    // Just spin/yield until killed
-    // ReSharper disable once CppDFAEndlessLoop
-    while (1)
-        yield();
 }
 
 TEST(test_spinlock_contention)
@@ -53,7 +48,11 @@ TEST(test_spinlock_contention)
 
     printk("Main: Creating thread...\n");
     thread_t *t = thread_create(proc, contention_thread, false);
-    TEST_ASSERT(t != nullptr);
+    if (!t)
+    {
+        process_destroy(proc);
+        return false;
+    }
 
     // Acquire lock in main thread
     spinlock_acquire(&g_lock);
@@ -86,5 +85,8 @@ TEST(test_spinlock_contention)
 
     TEST_ASSERT(g_thread_done);
     TEST_ASSERT(g_counter == 1);
+    for (int i = 0; i < 1000; i++)
+        yield();
+    process_destroy(proc);
     return true;
 }

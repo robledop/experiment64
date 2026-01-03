@@ -56,10 +56,24 @@ TEST(test_storage_per_device_lock_progress)
     process_t* p0 = process_create("stor0");
     process_t* p1 = process_create("stor1");
     TEST_ASSERT(p0 != nullptr);
-    TEST_ASSERT(p1 != nullptr);
+    if (!p1)
+    {
+        process_destroy(p0);
+        return false;
+    }
 
-    TEST_ASSERT(thread_create(p0, storage_reader_thread0, false) != nullptr);
-    TEST_ASSERT(thread_create(p1, storage_reader_thread1, false) != nullptr);
+    if (!thread_create(p0, storage_reader_thread0, false))
+    {
+        process_destroy(p0);
+        process_destroy(p1);
+        return false;
+    }
+    if (!thread_create(p1, storage_reader_thread1, false))
+    {
+        process_destroy(p0);
+        process_destroy(p1);
+        return false;
+    }
 
     // Nudge other CPUs to reschedule quickly so the new threads get CPU time.
     apic_send_ipi_all_excluding_self(IPI_RESCHEDULE_VECTOR);
@@ -78,6 +92,8 @@ TEST(test_storage_per_device_lock_progress)
     {
         printk("storage lock progress: threads did not finish (done0=%d done1=%d)\n",
                g_storage_thread_done[0], g_storage_thread_done[1]);
+        process_destroy(p0);
+        process_destroy(p1);
         return false;
     }
 
@@ -91,6 +107,9 @@ TEST(test_storage_per_device_lock_progress)
         printk("storage lock progress: device1 read rc=%d (continuing)\n", g_storage_thread_rc[1]);
     }
 
+    for (int i = 0; i < 1000; i++)
+        yield();
+    process_destroy(p0);
+    process_destroy(p1);
     return true;
 }
-

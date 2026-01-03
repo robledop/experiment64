@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #ifdef TEST_MODE
 #include "test.h"
 #include "terminal.h"
@@ -13,6 +15,11 @@ extern struct test_case __stop_test_array[];
 
 volatile const char *g_current_test_name = nullptr;
 volatile bool g_test_failed = false;
+volatile uint64_t g_current_test_start_ns = 0;
+
+#ifndef TEST_PROGRESS_LOGGING
+#define TEST_PROGRESS_LOGGING 1
+#endif
 
 void test_mark_failure(const char *file, int line, const char *expr)
 {
@@ -70,19 +77,30 @@ void run_tests(void)
         struct test_case *t = tests[i];
         g_current_test_name = t->name;
         g_test_failed = false;
+        g_current_test_start_ns = tsc_nanos();
+#if TEST_PROGRESS_LOGGING
+        printk("[RUN ] %s\n", t->name);
+#endif
         total++;
 #ifdef TEST_LOGGING
         printk("[TEST %lu/%lu] Starting: %s (entering...)\n", (unsigned long)(i + 1), (unsigned long)count, t->name);
 #endif
         uint64_t test_start_ns = tsc_nanos();
-        test_capture_begin();
+        const bool capture_enabled = false;
+        if (capture_enabled)
+            test_capture_begin();
+
         bool ok = t->func();
         if (g_test_failed)
             ok = false;
-        if (ok)
-            test_capture_discard();
-        else
-            test_capture_flush();
+
+        if (capture_enabled)
+        {
+            if (ok)
+                test_capture_discard();
+            else
+                test_capture_flush();
+        }
         uint64_t test_end_ns = tsc_nanos();
         uint64_t elapsed_ns = (test_end_ns >= test_start_ns) ? (test_end_ns - test_start_ns) : 0;
         uint64_t elapsed_ms = elapsed_ns / 1000000;
@@ -99,6 +117,7 @@ void run_tests(void)
             stack_trace();
         }
         g_current_test_name = nullptr;
+        g_current_test_start_ns = 0;
     }
 
     uint64_t suite_end_ns = tsc_nanos();
@@ -123,6 +142,7 @@ void run_tests(void)
 // In non-TEST_MODE builds provide stubs so test macros link.
 volatile bool g_test_failed = false;
 volatile const char *g_current_test_name = nullptr;
+volatile uint64_t g_current_test_start_ns = 0;
 
 void test_mark_failure(const char *file, int line, const char *expr)
 {

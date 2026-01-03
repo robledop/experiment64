@@ -6,9 +6,12 @@
 #include "terminal.h"
 #include "process.h"
 #include "fcntl.h"
-#include "uart.h"
 #include "vfs.h"
 #include "mman.h"
+#include "test_util.h"
+#ifdef TEST_MODE
+#include "tsc.h"
+#endif
 
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c
 int sys_open(const char *path, int flags);
@@ -60,6 +63,7 @@ static void enter_user_mode(uint64_t rip, uint64_t rsp)
     const uint64_t user_ss = 0x18 | 3;
     const uint64_t rflags = 0x202;
 
+
     __asm__ volatile(
         "cli\n"
         "swapgs\n"
@@ -82,12 +86,10 @@ static void enter_user_mode(uint64_t rip, uint64_t rsp)
 static void syscall_test_prepare_longjmp(void)
 {
     syscall_test_disable_interrupts();
-    __asm__ volatile("swapgs" ::: "memory");
 }
 
 static void syscall_test_resume_after_longjmp(void)
 {
-    __asm__ volatile("swapgs" ::: "memory");
     syscall_test_restore_interrupts();
 }
 
@@ -436,6 +438,7 @@ TEST(test_syscall_getpid)
     // 5. Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
+
         // Switch to User Mode
         uint64_t user_stack = user_base + 4096 - 16;
         enter_user_mode(user_base, user_stack);
@@ -444,6 +447,7 @@ TEST(test_syscall_getpid)
     }
     else
     {
+
         syscall_test_resume_after_longjmp();
         // Returned from longjmp
         bool passed = true;
@@ -703,6 +707,7 @@ TEST(test_syscall_file_io)
     uint64_t hhdm_offset = 0xffff800000000000;
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
+
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, file_io_stub_bytes, sizeof(file_io_stub_bytes));
 
@@ -825,6 +830,7 @@ TEST(test_syscall_chdir)
 
 TEST(test_syscall_getcwd)
 {
+
     char buf[64] = {0};
     TEST_ASSERT(sys_getcwd(buf, sizeof(buf)) == 0);
     TEST_ASSERT(strcmp(buf, "/") == 0);
@@ -842,6 +848,7 @@ TEST(test_syscall_getcwd)
 
     strncpy(current_process->cwd, saved, sizeof(current_process->cwd) - 1);
     current_process->cwd[sizeof(current_process->cwd) - 1] = '\0';
+
     return true;
 }
 
@@ -957,7 +964,10 @@ TEST(test_syscall_execve)
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     uint64_t hhdm_offset = 0xffff800000000000;
+
+
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
 
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, execve_stub_bytes, sizeof(execve_stub_bytes));
@@ -1035,6 +1045,8 @@ TEST_PRIO(test_syscall_mknod, 10)
                 printk("Syscall Test: MKNOD failed (node not found or wrong type)\n");
                 passed = false;
             }
+            if (node)
+                vfs_release(node);
         }
         else
             printk("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);

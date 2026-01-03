@@ -36,6 +36,7 @@ typedef struct cpu
     uint64_t user_rsp;
     uint64_t kernel_rsp;
     struct Thread *active_thread;
+    struct Thread *scheduler_thread; // Per-CPU scheduler context (xv6-style)
     int lapic_id;
     int cpu_index;              // Index into cpus[] array (0 = BSP)
     struct gdt_desc gdt[7];

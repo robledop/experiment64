@@ -50,7 +50,22 @@ bool network_is_ready(void)
 
 void network_set_dns_servers(uint32_t dns_servers_p[static 1], uint32_t dns_server_count)
 {
-    dns_servers = (uint32_t *)kmalloc(sizeof(uint32_t) * dns_server_count);
+    if (dns_server_count == 0)
+    {
+        if (dns_servers)
+        {
+            kfree(dns_servers);
+            dns_servers = nullptr;
+        }
+        return;
+    }
+
+    uint32_t *new_servers = (uint32_t *)kmalloc(sizeof(uint32_t) * dns_server_count);
+    if (!new_servers)
+        return;
+    if (dns_servers)
+        kfree(dns_servers);
+    dns_servers = new_servers;
     memcpy(dns_servers, dns_servers_p, sizeof(uint32_t) * dns_server_count);
 }
 
@@ -58,6 +73,8 @@ void network_set_my_ip_address(const uint8_t ip[static 4])
 {
     if (my_ip_address == nullptr) {
         my_ip_address = (uint8_t *)kmalloc(4);
+        if (!my_ip_address)
+            return;
     }
     memcpy(my_ip_address, ip, 4);
 }
@@ -66,6 +83,8 @@ void network_set_subnet_mask(const uint8_t ip[static 4])
 {
     if (subnet_mask == nullptr) {
         subnet_mask = (uint8_t *)kmalloc(4);
+        if (!subnet_mask)
+            return;
     }
     memcpy(subnet_mask, ip, 4);
 }
@@ -74,6 +93,8 @@ void network_set_default_gateway(const uint8_t ip[static 4])
 {
     if (default_gateway == nullptr) {
         default_gateway = (uint8_t *)kmalloc(4);
+        if (!default_gateway)
+            return;
     }
     memcpy(default_gateway, ip, 4);
 }
@@ -102,6 +123,8 @@ void network_set_mac(const uint8_t mac_addr[static 6])
 {
     if (mac == nullptr) {
         mac = (uint8_t *)kmalloc(6);
+        if (!mac)
+            return;
     }
     memcpy(mac, mac_addr, 6);
 }

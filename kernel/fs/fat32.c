@@ -483,8 +483,12 @@ int fat32_stat(fat32_fs_t* fs, const char* path, fat32_file_info_t* info)
 
 static uint64_t fat32_vfs_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
 {
+    if (!node || !node->device || !buffer || size == 0)
+        return 0;
     fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
     fat32_fs_t* fs = data->fs;
+    if (!fs)
+        return 0;
     uint32_t current_cluster = node->inode;
     uint32_t bytes_per_cluster = fs->bytes_per_cluster;
 
@@ -542,8 +546,12 @@ static uint64_t fat32_vfs_read(const vfs_inode_t* node, uint64_t offset, uint64_
 
 static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
 {
+    if (!node || !node->device || !buffer || size == 0)
+        return 0;
     fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
     fat32_fs_t* fs = data->fs;
+    if (!fs)
+        return 0;
     uint32_t current_cluster = node->inode;
     uint32_t bytes_per_cluster = fs->bytes_per_cluster;
 
@@ -692,8 +700,12 @@ static void fat32_vfs_close(vfs_inode_t* node)
 
 static vfs_dirent_t* fat32_vfs_readdir(const vfs_inode_t* node, uint32_t index)
 {
+    if (!node || !node->device)
+        return nullptr;
     fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
     fat32_fs_t* fs = data->fs;
+    if (!fs)
+        return nullptr;
     uint32_t current_cluster = node->inode;
     uint8_t* cluster_buf = kmalloc(fs->bytes_per_cluster);
     if (!cluster_buf)
@@ -723,6 +735,8 @@ static vfs_dirent_t* fat32_vfs_readdir(const vfs_inode_t* node, uint32_t index)
             if (count == index)
             {
                 dirent = kmalloc(sizeof(vfs_dirent_t));
+                if (!dirent)
+                    goto end;
                 fat_name_to_str((char*)entry[i].name, dirent->name);
                 dirent->inode = (entry[i].fst_clus_hi << 16) | entry[i].fst_clus_lo;
                 if (dirent->inode == 0)
@@ -746,8 +760,12 @@ end:
 
 static vfs_inode_t* fat32_vfs_finddir(const vfs_inode_t* node, const char* name)
 {
+    if (!node || !node->device || !name)
+        return nullptr;
     fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
     fat32_fs_t* fs = data->fs;
+    if (!fs)
+        return nullptr;
     uint32_t dir_cluster = node->inode;
 
     fat32_directory_entry_t entry;
@@ -757,6 +775,8 @@ static vfs_inode_t* fat32_vfs_finddir(const vfs_inode_t* node, const char* name)
         return nullptr;
 
     vfs_inode_t* new_node = kmalloc(sizeof(vfs_inode_t));
+    if (!new_node)
+        return nullptr;
     memset(new_node, 0, sizeof(vfs_inode_t));
 
     new_node->inode = (entry.fst_clus_hi << 16) | entry.fst_clus_lo;
@@ -767,6 +787,11 @@ static vfs_inode_t* fat32_vfs_finddir(const vfs_inode_t* node, const char* name)
     new_node->flags = (entry.attr & ATTR_DIRECTORY) ? VFS_DIRECTORY : VFS_FILE;
 
     fat32_inode_data_t* new_data = kmalloc(sizeof(fat32_inode_data_t));
+    if (!new_data)
+    {
+        kfree(new_node);
+        return nullptr;
+    }
     new_data->fs = fs;
     new_data->dir_cluster = found_cluster;
     new_data->dir_offset = found_offset;
@@ -788,6 +813,8 @@ static int fat32_vfs_mknod(const vfs_inode_t* node, const char* name, int mode, 
         return -1;
 
     fat32_inode_data_t* data = (fat32_inode_data_t*)node->device;
+    if (!data)
+        return -1;
     fat32_fs_t* fs = data->fs;
     if (!fs)
         return -1;
@@ -848,11 +875,27 @@ static int fat32_vfs_mknod(const vfs_inode_t* node, const char* name, int mode, 
 
 static vfs_inode_t* fat32_vfs_clone(const vfs_inode_t* node)
 {
+    if (!node)
+        return nullptr;
+
     vfs_inode_t* new_node = kmalloc(sizeof(vfs_inode_t));
+    if (!new_node)
+        return nullptr;
     memcpy(new_node, node, sizeof(vfs_inode_t));
 
     fat32_inode_data_t* old_data = (fat32_inode_data_t*)node->device;
+    if (!old_data)
+    {
+        kfree(new_node);
+        return nullptr;
+    }
+
     fat32_inode_data_t* new_data = kmalloc(sizeof(fat32_inode_data_t));
+    if (!new_data)
+    {
+        kfree(new_node);
+        return nullptr;
+    }
     memcpy(new_data, old_data, sizeof(fat32_inode_data_t));
     new_node->device = new_data;
 
@@ -995,6 +1038,8 @@ static struct inode_operations fat32_iops = {
 vfs_inode_t* fat32_mount(uint8_t drive_index, uint32_t partition_lba)
 {
     fat32_fs_t* fs = kmalloc(sizeof(fat32_fs_t));
+    if (!fs)
+        return nullptr;
     if (fat32_init(fs, drive_index, partition_lba) != 0)
     {
         kfree(fs);
@@ -1002,11 +1047,22 @@ vfs_inode_t* fat32_mount(uint8_t drive_index, uint32_t partition_lba)
     }
 
     vfs_inode_t* root = kmalloc(sizeof(vfs_inode_t));
+    if (!root)
+    {
+        kfree(fs);
+        return nullptr;
+    }
     memset(root, 0, sizeof(vfs_inode_t));
     root->flags = VFS_DIRECTORY;
     root->inode = fs->root_cluster;
 
     fat32_inode_data_t* data = kmalloc(sizeof(fat32_inode_data_t));
+    if (!data)
+    {
+        kfree(root);
+        kfree(fs);
+        return nullptr;
+    }
     data->fs = fs;
     data->dir_cluster = 0;
     data->dir_offset = 0;

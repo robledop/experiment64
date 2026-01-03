@@ -50,6 +50,7 @@ override CFLAGS += \
     -Iinclude \
     -std=c23 \
     -ffreestanding \
+	-fno-builtin \
     -ftree-vectorize \
     -nostdlib \
     -fno-lto \
@@ -79,7 +80,7 @@ override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
 override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
-run-gdb tests tests-gdb: CFLAGS += -DDEBUG -fstack-protector-strong -fsanitize=undefined
+run-gdb tests tests-gdb vbox: CFLAGS += -DDEBUG -fstack-protector-strong -fsanitize=undefined
 
 QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log -cpu max
 

@@ -57,10 +57,21 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
 
     brelse(bh);
 
+    if (entry_size < sizeof(gpt_entry_t) || num_entries == 0)
+    {
+        printk("GPT: Invalid entry size (%u) or count (%u)\n", entry_size, num_entries);
+        return;
+    }
+
     // Read Partition Entries
     // Calculate how many sectors we need to read
-    uint32_t total_size = num_entries * entry_size;
-    uint32_t sectors = (total_size + 511) / 512;
+    uint64_t total_size = (uint64_t)num_entries * entry_size;
+    uint32_t sectors = (uint32_t)((total_size + 511) / 512);
+    if (sectors == 0)
+    {
+        printk("GPT: Invalid entries size\n");
+        return;
+    }
 
     uint8_t *entries_buf = kmalloc(sectors * 512);
     if (!entries_buf)

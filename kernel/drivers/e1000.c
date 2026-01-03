@@ -12,7 +12,6 @@
 #include "terminal.h"
 #include "tsc.h"
 #include "vmm.h"
-#include <stddef.h>
 
 #define IRQ0 0x20
 #define E1000_MMIO_SIZE 0x20000U

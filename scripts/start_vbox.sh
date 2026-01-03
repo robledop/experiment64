@@ -30,6 +30,6 @@ VBoxManage modifyvm "$VM_NAME" --ioapic on --cpus 8 --chipset piix3
 VBoxManage modifyvm "$VM_NAME" --boot1 disk --boot2 none --boot3 none --boot4 none
 VBoxManage modifyvm "$VM_NAME" --firmware efi
 VBoxManage modifyvm "$VM_NAME" --uart1 0x3F8 4 --uartmode1 file "$(pwd)/vbox.log"
-VBoxManage setextradata "$VM_NAME" GUI/ScaleFactor "1.75"
+VBoxManage setextradata "$VM_NAME" GUI/ScaleFactor "1.5"
 VBoxManage setextradata "$VM_NAME" GUI/DefaultCloseAction "poweroff"
 VBoxManage startvm "$VM_NAME"

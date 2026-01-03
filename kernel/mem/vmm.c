@@ -5,6 +5,7 @@
 
 #include "debug.h"
 #include "terminal.h"
+#include "tsc.h"
 
 uint64_t g_hhdm_offset = 0;
 
@@ -233,6 +234,7 @@ static void free_page_table_level(const uint64_t *table, int level)
 
 void vmm_destroy_pml4(pml4_t pml4)
 {
+
     uint64_t *pml4_virt = (uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
 
     // Only free user space (0-255)
@@ -243,11 +245,12 @@ void vmm_destroy_pml4(pml4_t pml4)
             uint64_t phys = pml4_virt[i] & 0x000FFFFFFFFFF000;
             uint64_t *pdpt = (uint64_t *)(phys + g_hhdm_offset);
             free_page_table_level(pdpt, 3); // PDPT is level 3
-            pmm_free_page((void *)phys);    // Free the PDPT itself
+            pmm_free_page((void *)phys); // Free the PDPT itself
         }
     }
 
     pmm_free_page((void *)pml4);
+
 }
 
 uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt)

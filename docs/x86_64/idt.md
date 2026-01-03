@@ -32,6 +32,8 @@ The IDT (Interrupt Descriptor Table) tells the CPU where to jump when an interru
 | 14  | 46     | IDE Primary      |
 | 15  | 47     | IDE Secondary    |
 
+**IPI note:** Vector `0xFE` is reserved for reschedule IPIs (`IPI_RESCHEDULE_VECTOR`).
+
 ---
 
 ## IDT Entry Structure
@@ -178,7 +180,9 @@ isr_common_stub:
    register_interrupt_handler(33, keyboard_isr);  // IRQ 1
    register_interrupt_handler(46, ide_primary_isr);
    register_interrupt_handler(47, ide_secondary_isr);
+   register_interrupt_handler(IPI_RESCHEDULE_VECTOR, reschedule_ipi_handler);
    ```
+   Mouse IRQs are registered in `mouse_init()` after the PS/2 controller is configured.
 
 4. **Load IDT and enable interrupts:**
    ```c
@@ -238,25 +242,42 @@ Called by the assembly stub with a pointer to the interrupt frame:
 ```c
 void interrupt_handler(struct interrupt_frame* frame) {
     if (isr_handlers[frame->int_no]) {
-        // Call registered handler
         isr_handlers[frame->int_no](frame);
-    } else if (frame->int_no < 32) {
-        // Unhandled exception = panic
+        return;
+    }
+
+    if (frame->int_no < 32) {
+        // User-mode page faults are treated as process errors, not kernel panics.
+        if (frame->int_no == 14 && (frame->cs & 0x3)) {
+            process_t *p = current_process;
+            thread_t *t = current_thread;
+            if (p) {
+                p->exit_code = -1;
+                p->terminated = true;
+                if (p->parent)
+                    thread_wakeup(p->parent);
+            }
+            if (t)
+                t->state = THREAD_TERMINATED;
+            schedule();
+            return;
+        }
+
+        // Kernel-mode exception: print debug and halt.
         printk("EXCEPTION %d at RIP 0x%lx\n", frame->int_no, frame->rip);
-        
         if (frame->int_no == 14) {
-            // Page fault: print faulting address
             uint64_t cr2;
             asm volatile("mov %0, cr2" : "=r"(cr2));
             printk("CR2: 0x%lx\n", cr2);
         }
-        
         stack_trace();
-        panic("Unhandled exception");
+        hcf();
     }
-    // Vectors 32+ without handlers are silently ignored
+    // Vectors 32+ without handlers are silently ignored.
 }
 ```
+
+**Note:** In `TEST_MODE`, the kernel may call `shutdown()` after emitting debug output.
 
 ---
 
@@ -307,6 +328,15 @@ static void ide_primary_isr(struct interrupt_frame* frame) {
 }
 ```
 
+### Reschedule IPI (Vector 0xFE)
+
+```c
+static void reschedule_ipi_handler(struct interrupt_frame* frame) {
+    apic_send_eoi();
+    schedule();  // Prompt the scheduler to look for runnable work
+}
+```
+
 ---
 
 ## Interrupt Flow Summary
@@ -348,4 +378,3 @@ swapgs                         ; Swap user GS ↔ kernel GS
 ```
 
 This is reversed on `iretq` to restore the user's `GS`.
-

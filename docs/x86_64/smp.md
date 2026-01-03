@@ -24,10 +24,12 @@ typedef struct cpu {
     struct cpu *self;           // Self-pointer (for GS-based access)
     uint64_t user_rsp;          // Saved user stack pointer
     uint64_t kernel_rsp;        // Current kernel stack pointer
-    struct Thread *active_thread; // Currently running thread
-    int lapic_id;               // This CPU's LAPIC ID
-    struct gdt_desc gdt[7];     // Per-CPU GDT
-    struct tss_entry tss;       // Per-CPU TSS
+    struct Thread *active_thread;   // Currently running thread
+    struct Thread *scheduler_thread; // Per-CPU scheduler context
+    int lapic_id;                   // This CPU's LAPIC ID
+    int cpu_index;                  // Index into cpus[] (0 = BSP)
+    struct gdt_desc gdt[7];         // Per-CPU GDT
+    struct tss_entry tss;           // Per-CPU TSS
 } cpu_t;
 ```
 
@@ -80,23 +82,27 @@ Called early in boot on the BSP (CPU 0):
 ```c
 void smp_init_cpu0(void)
 {
-    // Get SMP info from bootloader
     struct limine_smp_response* smp_response = boot_get_smp_response();
-    
-    // Find the BSP in the CPU list
+    if (!smp_response)
+        hcf();
+
+    bsp_lapic_id = smp_response->bsp_lapic_id;
+    cpu_count = (uint32_t)(smp_response->cpu_count > MAX_CPUS ? MAX_CPUS : smp_response->cpu_count);
+
     for (uint64_t i = 0; i < smp_response->cpu_count; i++) {
+        if (i >= MAX_CPUS)
+            break;
         struct limine_smp_info* cpu_info = smp_response->cpus[i];
-        
+
         if (cpu_info->lapic_id == smp_response->bsp_lapic_id) {
-            // Initialize BSP's cpu_t structure
-            cpus[i].lapic_id = cpu_info->lapic_id;
+            cpus[i].lapic_id = (int)cpu_info->lapic_id;
+            cpus[i].cpu_index = (int)i;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = nullptr;
             
             // Clear segment registers before setting MSR
             __asm__ volatile("xor eax, eax; mov gs, eax; mov fs, eax");
             
-            // Set up GS for per-CPU access
             wrmsr(MSR_GS_BASE, (uint64_t)&cpus[i]);
             wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)&cpus[i]);
             break;
@@ -120,14 +126,21 @@ Called later to bring up the other CPUs:
 void smp_boot_aps(void)
 {
     struct limine_smp_response* smp_response = boot_get_smp_response();
+    if (!smp_response) {
+        boot_message(WARNING, "SMP: No response found");
+        return;
+    }
     
     for (uint64_t i = 0; i < smp_response->cpu_count; i++) {
+        if (i >= MAX_CPUS)
+            break;
         struct limine_smp_info* cpu_info = smp_response->cpus[i];
         
         // Skip the BSP
         if (cpu_info->lapic_id != smp_response->bsp_lapic_id) {
             // Initialize this AP's cpu_t
-            cpus[i].lapic_id = cpu_info->lapic_id;
+            cpus[i].lapic_id = (int)cpu_info->lapic_id;
+            cpus[i].cpu_index = (int)i;
             cpus[i].self = &cpus[i];
             cpus[i].active_thread = nullptr;
             
@@ -176,13 +189,14 @@ static void ap_main(struct limine_smp_info* info)
     
     // Signal we're ready
     __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
-    
-    // Enable interrupts and wait for work
-    __asm__ volatile("sti");
-    
-    while (1) {
-        __asm__ volatile("hlt");  // Sleep until interrupt
+
+    // Wait for BSP to initialize the scheduler, then enter it.
+    while (!__atomic_load_n(&ap_scheduler_ready, __ATOMIC_SEQ_CST)) {
+        __asm__ volatile("pause");
     }
+
+    smp_init_ap_scheduler();
+    __builtin_unreachable();
 }
 ```
 
@@ -254,6 +268,7 @@ Boot
   │     ├─► smp_init_cpu0()  ─► cpus_started = 1
   │     │
   │     ├─► ... kernel init ...
+  │     ├─► process_init()  ─► ap_scheduler_ready = true
   │     │
   │     └─► smp_boot_aps()
   │           │
@@ -262,10 +277,12 @@ Boot
   │           └─► Wait loop
   │
   ├─► AP1 starts at ap_main() ─► cpus_started = 2
-  │     └─► hlt loop
+  │     ├─► wait for ap_scheduler_ready
+  │     └─► smp_init_ap_scheduler() → scheduler loop
   │
   ├─► AP2 starts at ap_main() ─► cpus_started = 3
-  │     └─► hlt loop
+  │     ├─► wait for ap_scheduler_ready
+  │     └─► smp_init_ap_scheduler() → scheduler loop
   │
   └─► ... more APs ...
 ```
@@ -285,25 +302,25 @@ Boot
 
 The IDT itself is shared (same interrupt handlers for all CPUs), but each CPU must load the IDTR register.
 
----
-
-## Current Limitations
-
-1. **Global run queue** — All CPUs share the same thread list. There's no CPU affinity, load balancing, or work-stealing. The first CPU to find a ready thread will run it.
-
-2. **No CPU hotplug** — CPUs must be present at boot.
-
-3. **MAX_CPUS = 32** — Hard limit on supported CPUs.
-
-4. **Simple wait** — Uses a spin loop delay instead of proper synchronization barrier.
 
 ---
 
 ## SMP Implementation Details
 
+### Per-CPU Scheduler Threads
+
+Each CPU owns a scheduler pseudo-thread stored in `cpu->scheduler_thread`. These threads:
+
+- Run the `scheduler_loop()` on a dedicated kernel stack
+- Are **not** part of any process thread list
+- Act as the context that `schedule()` switches back to before picking work
+
+APs enter the scheduler by waiting for `ap_scheduler_ready` and then calling
+`smp_init_ap_scheduler()`, which switches onto the scheduler thread stack.
+
 ### Per-CPU Idle Threads
 
-Each CPU has its own idle thread stored in `idle_threads[cpu_index]`. Unlike regular threads, idle threads are **not added to the process thread list** - they're only used as a fallback when no other thread is ready.
+Each CPU has its own idle thread stored in `idle_threads[cpu_index]`. Unlike regular threads, idle threads are **not added to the process thread list**. They serve as a safe fallback (for example, when the active thread is destroyed), while the scheduler loop itself idles with `hlt` if no runnable threads exist.
 
 ```c
 // Idle threads are created separately and not added to any list
@@ -318,26 +335,27 @@ static thread_t *create_idle_thread(void) {
 
 ### Thread Scheduling
 
-When an AP receives a timer interrupt:
+Timer interrupts call `scheduler_tick()`, which wakes sleepers and decrements the
+current thread's time slice. If rescheduling is needed, the timer ISR invokes
+`schedule()` to switch into the per-CPU scheduler thread.
 
-1. `timer_isr()` calls `scheduler_tick()` which wakes up blocked threads
-2. If rescheduling is needed, `schedule()` is called
-3. `sched()` searches all processes for a ready thread
-4. If the current thread is idle, it searches from the beginning of the process list
-5. If no thread is ready, the CPU switches to its idle thread
+The scheduler loop (see `docs/x86_64/scheduler.md`) then selects a runnable thread:
+
+- Round-robin across the global process list to avoid starvation
+- Skip threads already active on another CPU
+- Allow user-mode threads on any CPU
+
+If no runnable thread is found, the CPU idles with interrupts enabled:
 
 ```c
-if (curr->is_idle) {
-    // Search all processes from the beginning
-    list_for_each_entry(p, &process_list, list) {
-        list_for_each_entry(t, &p->threads, list) {
-            if (t->state == THREAD_READY && !t->is_idle) {
-                next_thread = t;
-                goto found;
-            }
-        }
-    }
+const bool allow_user = true;
+thread_t *next = find_any_runnable_thread_rr(cpu, allow_user);
+if (!next) {
+    spinlock_release(&scheduler_lock);
+    __asm__ volatile("sti; hlt; cli");
+    continue;
 }
+switch_to(schedt, next);
 ```
 
 ### IPI (Inter-Processor Interrupt) Support
@@ -367,7 +385,5 @@ static void reschedule_ipi_handler(struct interrupt_frame* frame) {
 
 After the BSP initializes the scheduler, APs wait for the `ap_scheduler_ready` flag, then:
 
-1. Call `smp_init_ap_scheduler()` to set their idle thread as active
-2. Enable interrupts
-3. Enter the idle loop (timer interrupts will trigger scheduling)
-
+1. Call `smp_init_ap_scheduler()`, which switches onto the per-CPU scheduler thread stack
+2. `scheduler_loop()` takes over; it enables interrupts only when idling

@@ -7,6 +7,7 @@
 #include <process.h>
 #include <kernel.h>
 #include <debug.h>
+#include <vmm.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -44,7 +45,7 @@ __attribute__((aligned(0x10))) static struct idt_entry idt[256];
 static struct idt_ptr idtr;
 static isr_handler_t isr_handlers[256];
 
-extern void* isr_stub_table[];
+extern void *isr_stub_table[];
 
 void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
 {
@@ -68,7 +69,7 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
 }
 
-static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     bool need_resched = scheduler_tick();
     apic_send_eoi();
@@ -76,31 +77,31 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
         schedule();
 }
 
-static void keyboard_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     keyboard_handler_main();
     apic_send_eoi();
 }
 
-static void ide_primary_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(0);
     apic_send_eoi();
 }
 
-static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(1);
     apic_send_eoi();
 }
 
-static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame* frame)
+static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame *frame)
 {
     apic_send_eoi();
     schedule();
 }
 
-void interrupt_handler(struct interrupt_frame* frame)
+void interrupt_handler(struct interrupt_frame *frame)
 {
     if (isr_handlers[frame->int_no])
     {
@@ -120,7 +121,67 @@ void interrupt_handler(struct interrupt_frame* frame)
         {
             uint64_t cr2;
             __asm__ volatile("mov %0, cr2" : "=r"(cr2));
+#ifdef TEST_MODE
+            // Emit a compact, low-noise line first so interleaved logs do not obscure PF context.
+            printk("PF DEBUG: rip=0x%lx cs=0x%lx rsp=0x%lx err=0x%lx cr2=0x%lx\n",
+                   frame->rip,
+                   frame->cs,
+                   frame->rsp,
+                   frame->err_code,
+                   cr2);
+
+#endif
             printk("CR2 (Page Fault Address): 0x%lx\n", cr2);
+            // If the fault came from user mode, treat it as a bad process and reap it
+            // rather than panicking the whole kernel.
+            const bool user_mode = (frame->cs & 0x3) != 0;
+
+            if (user_mode)
+            {
+                thread_t *t = current_thread;
+                process_t *p = current_process;
+                boot_message(ERROR,
+                             "Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
+                             p ? p->pid : -1,
+                             t ? t->tid : -1,
+                             frame->rip,
+                             frame->rsp,
+                             cr2,
+                             frame->err_code);
+
+                if (p)
+                {
+                    p->exit_code = -1;
+                    p->terminated = true;
+                }
+                if (t)
+                {
+                    t->state = THREAD_TERMINATED;
+                }
+                if (p && p->parent)
+                {
+                    thread_wakeup(p->parent);
+                }
+
+                schedule();
+                // schedule() should not return to the faulting context, but bail out defensively.
+                return;
+            }
+#ifdef TEST_MODE
+            uint64_t cr3;
+            __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+            printk("Process: pid=%d cr3=0x%lx\n", current_process ? current_process->pid : -1, cr3);
+            printk("Regs: rax=0x%lx rbx=0x%lx rcx=0x%lx rdx=0x%lx\n",
+                   frame->rax,
+                   frame->rbx,
+                   frame->rcx,
+                   frame->rdx);
+            printk("Regs: rsi=0x%lx rdi=0x%lx rbp=0x%lx rsp=0x%lx\n",
+                   frame->rsi,
+                   frame->rdi,
+                   frame->rbp,
+                   frame->rsp);
+#endif
         }
 
         stack_trace();
@@ -128,7 +189,7 @@ void interrupt_handler(struct interrupt_frame* frame)
 #ifdef TEST_MODE
         shutdown();
 #endif
-        panic("End of interrupt handler");
+        hcf();
     }
 }
 

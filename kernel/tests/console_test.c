@@ -1,13 +1,15 @@
 #include "test.h"
+#include "test_util.h"
 #include "vfs.h"
 #include "string.h"
-#include "heap.h"
 
 TEST(test_console_device)
 {
-    const vfs_inode_t *console = vfs_resolve_path("/dev/console");
+    vfs_inode_t *console = vfs_resolve_path("/dev/console");
     TEST_ASSERT(console != nullptr);
-    TEST_ASSERT((console->flags & VFS_CHARDEVICE) != 0);
+    const bool ok = (console->flags & VFS_CHARDEVICE) != 0;
+    vfs_release(console);
+    TEST_ASSERT(ok);
     return true;
 }
 
@@ -21,5 +23,6 @@ TEST(test_dev_dir)
     TEST_ASSERT(dirent != nullptr);
     TEST_ASSERT(strcmp(dirent->name, "console") == 0);
     kfree(dirent);
+    vfs_release(dev);
     return true;
 }

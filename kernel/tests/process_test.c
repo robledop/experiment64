@@ -3,16 +3,17 @@
 #include "string.h"
 #include "terminal.h"
 
+static volatile bool process_thread_done = false;
+
 static void test_thread_entry(void)
 {
     printk("Test thread running!\n");
-    // ReSharper disable once CppDFAEndlessLoop
-    while (1)
-        yield();
+    process_thread_done = true;
 }
 
 TEST(test_process_creation)
 {
+    process_thread_done = false;
     process_t *proc = process_create("test_proc");
     if (!proc)
     {
@@ -23,12 +24,14 @@ TEST(test_process_creation)
     if (strcmp(proc->name, "test_proc") != 0)
     {
         printk("Process name mismatch: %s\n", proc->name);
+        process_destroy(proc);
         return false;
     }
 
     if (proc->pid <= 1) // PID 1 is kernel
     {
         printk("Invalid PID: %d\n", proc->pid);
+        process_destroy(proc);
         return false;
     }
 
@@ -36,26 +39,44 @@ TEST(test_process_creation)
     if (!thread)
     {
         printk("Failed to create thread\n");
+        process_destroy(proc);
         return false;
     }
 
     if (thread->process != proc)
     {
         printk("Thread process mismatch\n");
+        process_destroy(proc);
         return false;
     }
 
-    if (thread->state != THREAD_READY)
+    if (thread->state != THREAD_READY && thread->state != THREAD_RUNNING && thread->state != THREAD_TERMINATED)
     {
         printk("Thread state mismatch\n");
+        process_destroy(proc);
         return false;
     }
 
+    for (int i = 0; i < 1000; i++)
+    {
+        if (process_thread_done)
+            break;
+        yield();
+    }
+
+    if (!process_thread_done)
+    {
+        printk("Process test thread did not run\n");
+    }
+
+    process_destroy(proc);
     printk("Process and thread created successfully. PID: %d, TID: %d\n", proc->pid, thread->tid);
     return true;
 }
 
 static volatile int thread_ran = 0;
+
+static volatile bool scheduler_thread_done = false;
 
 static void scheduler_thread_entry(void)
 {
@@ -66,18 +87,24 @@ static void scheduler_thread_entry(void)
 
     // Exit thread
     printk("Scheduler thread exiting.\n");
+    scheduler_thread_done = true;
 }
 
 TEST(test_scheduler)
 {
     thread_ran = 0;
+    scheduler_thread_done = false;
     process_t *proc = process_create("sched_test");
     if (!proc)
         return false;
 
     thread_t *t = thread_create(proc, scheduler_thread_entry, false);
     if (!t)
+    {
+        process_destroy(proc);
         return false;
+    }
+
 
     printk("Yielding to scheduler thread...\n");
 
@@ -91,11 +118,19 @@ TEST(test_scheduler)
 
     if (thread_ran)
     {
+        for (int i = 0; i < 1000; i++)
+        {
+            if (scheduler_thread_done)
+                break;
+            yield();
+        }
+        process_destroy(proc);
         printk("Scheduler test passed: Thread ran.\n");
         return true;
     }
     else
     {
+        process_destroy(proc);
         printk("Scheduler test failed: Thread did not run.\n");
         return false;
     }

@@ -6,6 +6,25 @@
 #include "terminal.h"
 #include "heap.h"
 #include "fcntl.h"
+#include "string.h"
+
+static file_descriptor_t *alloc_console_fd(vfs_inode_t *inode, int flags)
+{
+    if (!inode)
+        return nullptr;
+    file_descriptor_t *desc = kmalloc(sizeof(file_descriptor_t));
+    if (!desc)
+        return nullptr;
+    memset(desc, 0, sizeof(file_descriptor_t));
+    desc->inode = inode;
+    desc->offset = 0;
+    desc->flags = flags;
+    desc->ref = 1;
+    if (inode->ref == 0)
+        vfs_open(inode);
+    inode->ref++;
+    return desc;
+}
 
 void init_process_entry(void)
 {
@@ -24,23 +43,26 @@ void init_process_entry(void)
     if (console)
     {
         // fd 0: stdin
-        current_process->fd_table[0] = kmalloc(sizeof(file_descriptor_t));
-        current_process->fd_table[0]->inode = console;
-        current_process->fd_table[0]->offset = 0;
-        current_process->fd_table[0]->flags = O_RDONLY;
-        vfs_open(console);
+        int stdio_opened = 0;
+        current_process->fd_table[0] = alloc_console_fd(console, O_RDONLY);
+        if (current_process->fd_table[0])
+            stdio_opened++;
 
         // fd 1: stdout
-        current_process->fd_table[1] = kmalloc(sizeof(file_descriptor_t));
-        current_process->fd_table[1]->inode = console;
-        current_process->fd_table[1]->offset = 0;
-        current_process->fd_table[1]->flags = O_WRONLY;
+        current_process->fd_table[1] = alloc_console_fd(console, O_WRONLY);
+        if (current_process->fd_table[1])
+            stdio_opened++;
 
         // fd 2: stderr
-        current_process->fd_table[2] = kmalloc(sizeof(file_descriptor_t));
-        current_process->fd_table[2]->inode = console;
-        current_process->fd_table[2]->offset = 0;
-        current_process->fd_table[2]->flags = O_WRONLY;
+        current_process->fd_table[2] = alloc_console_fd(console, O_WRONLY);
+        if (current_process->fd_table[2])
+            stdio_opened++;
+
+        if (stdio_opened == 0)
+        {
+            vfs_close(console);
+            kfree(console);
+        }
     }
     else
     {
@@ -58,6 +80,10 @@ void init_process_entry(void)
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
         void *phys = pmm_alloc_page();
+        if (!phys)
+        {
+            panic("Failed to allocate init stack page");
+        }
         vmm_map_page(pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 

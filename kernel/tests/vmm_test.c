@@ -10,9 +10,12 @@ TEST(test_vmm_map)
 
     constexpr uint64_t virt = 0x200000000; // 8GB
     void* phys = pmm_alloc_page();
+    TEST_ASSERT(phys != nullptr);
 
     vmm_map_page(pml4, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE);
+    TEST_ASSERT(vmm_virt_to_phys(pml4, virt) == (uint64_t)phys);
 
+    vmm_destroy_pml4(pml4);
     return true;
 }
 

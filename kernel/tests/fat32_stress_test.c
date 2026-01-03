@@ -1,4 +1,5 @@
 #include "test.h"
+#include "test_util.h"
 #include "fat32.h"
 #include "string.h"
 #include "terminal.h"
@@ -31,6 +32,7 @@ TEST(test_fat32_stress)
             printk("Failed to create directory %s\n", dirname);
             return false;
         }
+        vfs_release(dir);
     }
 
     uint8_t *write_buf = (uint8_t *)kmalloc(STRESS_FILE_SIZE);
@@ -39,8 +41,12 @@ TEST(test_fat32_stress)
     if (!write_buf || !read_buf)
     {
         printk("Failed to allocate buffers\n");
+        kfree(write_buf);
+        kfree(read_buf);
         return false;
     }
+
+    bool passed = false;
 
     // Create and Write Phase
     printk("Phase 1: Creating and Writing %d files...\n", STRESS_FILE_COUNT);
@@ -53,14 +59,14 @@ TEST(test_fat32_stress)
         if (vfs_mknod(filename, VFS_FILE, 0) != 0)
         {
             printk("Failed to create file %s\n", filename);
-            return false;
+            goto out;
         }
 
         vfs_inode_t *node = vfs_resolve_path(filename);
         if (!node)
         {
             printk("Failed to resolve file %s\n", filename);
-            return false;
+            goto out;
         }
 
         vfs_open(node);
@@ -73,10 +79,12 @@ TEST(test_fat32_stress)
         {
             printk("Failed to write all data to %s (wrote %llu)\n", filename, written);
             vfs_close(node);
-            return false;
+            vfs_release(node);
+            goto out;
         }
 
         vfs_close(node);
+        vfs_release(node);
 
         if (i % 10 == 0)
             printk(".");
@@ -94,7 +102,7 @@ TEST(test_fat32_stress)
         if (!node)
         {
             printk("Failed to resolve file %s for reading\n", filename);
-            return false;
+            goto out;
         }
 
         vfs_open(node);
@@ -105,7 +113,8 @@ TEST(test_fat32_stress)
         {
             printk("Failed to read all data from %s (read %llu)\n", filename, read);
             vfs_close(node);
-            return false;
+            vfs_release(node);
+            goto out;
         }
 
         // Verify
@@ -114,16 +123,21 @@ TEST(test_fat32_stress)
         {
             printk("Data verification failed for %s\n", filename);
             vfs_close(node);
-            return false;
+            vfs_release(node);
+            goto out;
         }
 
         vfs_close(node);
+        vfs_release(node);
         if (i % 10 == 0)
             printk(".");
     }
     printk("\nStress test completed successfully.\n");
 
+    passed = true;
+
+out:
     kfree(write_buf);
     kfree(read_buf);
-    return true;
+    return passed;
 }

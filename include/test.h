@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 
 #define TEST_ASSERT(condition)                                                                            \
     do                                                                                                    \
@@ -35,4 +37,5 @@ void heap_test(void);
 bool bio_test(void);
 extern volatile const char *g_current_test_name;
 extern volatile bool g_test_failed;
+extern volatile uint64_t g_current_test_start_ns;
 void test_mark_failure(const char *file, int line, const char *expr);
