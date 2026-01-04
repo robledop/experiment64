@@ -201,7 +201,7 @@ void panic(const char *fmt, ...)
     va_list args;
     va_start(args, fmt);
     vprintk(fmt, args);
-    va_end(args);
+    va_end(args); // NOLINT(clang-analyzer-valist.Uninitialized)
 
     printk(KRESET "\n");
 

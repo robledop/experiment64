@@ -80,23 +80,23 @@ typedef struct Process
 
 typedef struct Thread
 {
-    int tid;
+    fpu_state_t fpu_state; // FPU/SSE state
     process_t* process;
     uint64_t rsp; // Saved kernel stack pointer for context switches
     struct context* context; // Base of saved context frame
-    thread_state_t state;
     uint64_t kstack_top; // Kernel stack top
     uint64_t user_entry; // For spawn
     uint64_t user_stack; // For spawn
     uint64_t saved_user_rsp; // Saved user RSP during syscalls
-    fpu_state_t fpu_state; // FPU/SSE state
     uint64_t sleep_until; // Wake tick for sleep syscall
     void* chan; // Sleep channel
-    bool is_idle; // Is this the idle thread?
-    bool is_user; // Runs in user mode (restrict to BSP for now)
     uint64_t ticks_remaining; // Time slice remaining
-    uint64_t _align[2]; // Padding to ensure list is 16-byte aligned relative to start
+    uint64_t _align[2]; // Padding to keep list 16-byte aligned relative to start
     list_head_t list; // Thread list node
+    int tid;
+    thread_state_t state;
+    bool is_idle; // Is this the idle thread?
+    bool is_user; // Runs in user mode
 } thread_t;
 
 extern list_head_t process_list;

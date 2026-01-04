@@ -8,13 +8,13 @@
  * RSI = next
  *
  * struct Thread {
- *     int tid;             // 0
- *     // padding 4 bytes   // 4
- *     process_t *process;  // 8
- *     uint64_t rsp;        // 16
+ *     fpu_state_t fpu_state; // 0
+ *     process_t *process;    // 1024
+ *     uint64_t rsp;          // 1032
  *     ...
  * }
  */
+#define THREAD_RSP_OFFSET 1032
 switch_to:
     /* Save callee-saved registers */
     push rbx
@@ -24,11 +24,11 @@ switch_to:
     push r14
     push r15
 
-    /* Save RSP to prev->rsp (offset 16) */
-    mov [rdi + 16], rsp
+    /* Save RSP to prev->rsp */
+    mov [rdi + THREAD_RSP_OFFSET], rsp
 
-    /* Load RSP from next->rsp (offset 16) */
-    mov rsp, [rsi + 16]
+    /* Load RSP from next->rsp */
+    mov rsp, [rsi + THREAD_RSP_OFFSET]
 
     /* Restore callee-saved registers */
     pop r15
