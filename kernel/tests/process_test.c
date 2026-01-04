@@ -2,6 +2,7 @@
 #include "process.h"
 #include "string.h"
 #include "terminal.h"
+#include "spinlock.h"
 
 static volatile bool process_thread_done = false;
 
@@ -134,4 +135,92 @@ TEST(test_scheduler)
         printk("Scheduler test failed: Thread did not run.\n");
         return false;
     }
+}
+
+static spinlock_t sleep_lock;
+static volatile bool sleep_ready = false;
+static volatile bool sleep_woke = false;
+static int sleep_channel = 0;
+
+static void scheduler_sleep_entry(void)
+{
+    spinlock_acquire(&sleep_lock);
+    sleep_ready = true;
+    thread_sleep(&sleep_channel, &sleep_lock);
+    sleep_woke = true;
+    spinlock_release(&sleep_lock);
+}
+
+TEST(test_scheduler_sleep_wakeup)
+{
+    spinlock_init(&sleep_lock);
+    sleep_ready = false;
+    sleep_woke = false;
+
+    process_t *proc = process_create("sleep_wakeup");
+    if (!proc)
+        return false;
+
+    thread_t *t = thread_create(proc, scheduler_sleep_entry, false);
+    if (!t)
+    {
+        process_destroy(proc);
+        return false;
+    }
+
+    for (int i = 0; i < 2000; i++)
+    {
+        if (sleep_ready)
+            break;
+        yield();
+    }
+
+    if (!sleep_ready)
+    {
+        printk("Sleep test failed: thread did not enter sleep path\n");
+        process_destroy(proc);
+        return false;
+    }
+
+    bool blocked = false;
+    for (int i = 0; i < 2000; i++)
+    {
+        uint64_t flags;
+        SPIN_LOCK_IRQSAVE(scheduler_lock, flags);
+        thread_state_t state = t->state;
+        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, flags);
+
+        if (state == THREAD_BLOCKED)
+        {
+            blocked = true;
+            break;
+        }
+        yield();
+    }
+
+    if (!blocked)
+    {
+        printk("Sleep test failed: thread did not block\n");
+        process_destroy(proc);
+        return false;
+    }
+
+    thread_wakeup(&sleep_channel);
+
+    for (int i = 0; i < 2000; i++)
+    {
+        if (sleep_woke)
+            break;
+        yield();
+    }
+
+    if (!sleep_woke)
+    {
+        printk("Sleep test failed: thread did not wake\n");
+        process_destroy(proc);
+        return false;
+    }
+
+    process_destroy(proc);
+    return true;
 }

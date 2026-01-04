@@ -148,3 +148,20 @@ TEST(test_kmalloc_reuses_freed_slot)
     kfree(third);
     return true;
 }
+
+TEST(test_heap_slab_tracking)
+{
+    void *small = kmalloc(64);
+    TEST_ASSERT(small != nullptr);
+    TEST_ASSERT(heap_is_slab_range(small, 16));
+    TEST_ASSERT(!heap_is_slab_header_range(small, 16));
+
+    void *large = kmalloc(4096);
+    TEST_ASSERT(large != nullptr);
+    TEST_ASSERT(!heap_is_slab_range(large, 4096));
+    TEST_ASSERT(!heap_is_slab_header_range(large, 16));
+
+    kfree(small);
+    kfree(large);
+    return true;
+}

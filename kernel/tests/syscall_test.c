@@ -1552,6 +1552,42 @@ TEST(test_syscall_mmap_invalid_length)
     return true;
 }
 
+TEST(test_syscall_mmap_overlap_handling)
+{
+    const int fd = sys_open("/dev/fb0", O_RDWR);
+    if (fd < 0)
+        return false;
+
+    const size_t len = PAGE_SIZE;
+    void *first = sys_mmap((void *)0x4000000000ull, len, PROT_READ | PROT_WRITE,
+                           MAP_SHARED, fd, 0);
+    if (first == MAP_FAILED)
+    {
+        sys_close(fd);
+        return false;
+    }
+
+    const uint64_t first_base = (uint64_t)first & ~(PAGE_SIZE - 1);
+    void *second = sys_mmap((void *)first_base, len, PROT_READ | PROT_WRITE,
+                            MAP_SHARED, fd, 0);
+    if (second == MAP_FAILED || second == (void *)first_base || (uint64_t)second < first_base + len)
+    {
+        sys_munmap(first, len);
+        sys_close(fd);
+        return false;
+    }
+
+    if (sys_munmap(first, len) != 0)
+    {
+        sys_munmap(second, len);
+        sys_close(fd);
+        return false;
+    }
+
+    const bool ok = (sys_munmap(second, len) == 0) && (sys_close(fd) == 0);
+    return ok;
+}
+
 TEST(test_syscall_munmap_invalid)
 {
     // munmap with nullptr should fail
