@@ -29,7 +29,7 @@ Idle threads and scheduler threads are **not** part of any process thread list.
 ## Thread States
 
 ```
-THREAD_READY → THREAD_RUNNING → THREAD_BLOCKED → THREAD_READY
+THREAD_READY -> THREAD_RUNNING -> THREAD_BLOCKED -> THREAD_READY
 THREAD_TERMINATED (final)
 ```
 
@@ -71,7 +71,9 @@ thread entrypoint, and falls back to `sys_exit(0)` if the entry returns.
 
 ## Scheduler Loop
 
-`schedule()` is called from timer interrupts, `yield()`, and sleep/wakeup paths.
+`schedule()` is called from timer interrupts, `yield()`, and sleep paths like
+`thread_sleep()`, plus a few fault/exit paths that must abandon the current
+context.
 It disables interrupts, marks the current thread runnable when appropriate, and
 switches into the per-CPU scheduler thread.
 
@@ -114,7 +116,8 @@ If `need_resched` is true, the ISR calls `schedule()` after EOI.
 1. Marks the current thread `THREAD_BLOCKED` and sets `chan`.
 2. Releases locks, calls `schedule()`, then reacquires locks.
 
-`thread_wakeup(chan)` scans all threads and marks matches as `THREAD_READY`.
+`thread_wakeup(chan)` scans all threads and marks matches as `THREAD_READY`. It
+does not force an immediate reschedule.
 
 ---
 

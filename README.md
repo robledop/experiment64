@@ -2,6 +2,17 @@
 
 An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
+## Index
+
+- Scheduler: [`docs/scheduler.md`](docs/scheduler.md)
+- SMP: [`docs/x86_64/smp.md`](docs/x86_64/smp.md)
+- ACPI: [`docs/x86_64/acpi.md`](docs/x86_64/acpi.md)
+- APIC/IOAPIC: [`docs/x86_64/apic.md`](docs/x86_64/apic.md)
+- CPU/FPU state: [`docs/x86_64/cpu.md`](docs/x86_64/cpu.md)
+- IDT: [`docs/x86_64/idt.md`](docs/x86_64/idt.md)
+- GDT/TSS: [`docs/x86_64/gdt.md`](docs/x86_64/gdt.md)
+- Memory: [`docs/pmm.md`](docs/pmm.md), [`docs/vmm.md`](docs/vmm.md), [`docs/heap.md`](docs/heap.md)
+
 ![Kernel splash](https://pazotto.com/img/experiment64/Screenshot2.png)
 
 ## Layout (high level)
@@ -51,17 +62,6 @@ Always add new tests for every new feature/bug fix, if possible.
 
 ![Testing framework output](https://pazotto.com/img/experiment64/Screenshot1.png)
 
-## Checks
-
-To ensure code quality and consistency, run the following checks:
-
-```bash
-make check
-```
-
-This command will run formatting checks, linting, and static analysis on the codebase. Run it after making changes to
-ensure everything adheres to the project's coding standards.
-
 ## Running
 
 To actually run the OS inside QEMU, use the following command:
@@ -72,13 +72,13 @@ make run
 
 ## Kernel overview
 
-- **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, APIC + IOAPIC, IDT/GDT, syscall entry
-- **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap
+- **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, ACPI, APIC + IOAPIC, IDT/GDT, syscall entry (see [`docs/x86_64/smp.md`](docs/x86_64/smp.md), [`docs/x86_64/acpi.md`](docs/x86_64/acpi.md), [`docs/x86_64/apic.md`](docs/x86_64/apic.md), [`docs/x86_64/idt.md`](docs/x86_64/idt.md), [`docs/x86_64/gdt.md`](docs/x86_64/gdt.md))
+- **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap (see [`docs/pmm.md`](docs/pmm.md), [`docs/vmm.md`](docs/vmm.md), [`docs/heap.md`](docs/heap.md))
 - **Timing**: PIT for ticks, TSC calibration for timing
 - **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, e1000 NIC, framebuffer device `/dev/fb0`
 - **Networking**: e1000 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/`, FAT32 mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`
-- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
+- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see [`docs/scheduler.md`](docs/scheduler.md) and `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
-- **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up
+- **Logging**: boot messages buffered in memory (disk flush is currently disabled)
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture

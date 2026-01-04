@@ -24,7 +24,7 @@ APIC is essential for **multi-core systems (SMP)** because it can route interrup
 ### 2. **I/O APIC (IOAPIC)** - Usually one per system
 - Connects to external devices (keyboard, mouse, disks, etc.)
 - Routes device interrupts to the appropriate CPU's LAPIC
-- Has a redirection table that maps IRQs → CPU + vector
+- Has a redirection table that maps IRQs -> CPU + vector
 
 ---
 
@@ -43,12 +43,12 @@ static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remappin
 
 ### `apic_init()` — Initialize the APIC system
 1. **Disables the legacy PIC** (`pic_disable()`)
-2. **Parses the MADT (ACPI table)** to find:
+2. **Parses the MADT (ACPI table)** to find: (see [`acpi.md`](acpi.md))
     - LAPIC base address
     - IOAPIC base address
-    - Interrupt Source Overrides (ISOs) — remappings like "IRQ 0 → GSI 2"
+    - Interrupt Source Overrides (ISOs) — remappings like "IRQ 0 -> GSI 2"
 3. **Calibrates the LAPIC timer** (for scheduler ticks)
-4. **Configures keyboard interrupt** (IRQ 1 → Vector 33)
+4. **Configures keyboard interrupt** (IRQ 1 -> Vector 33)
 
 ### `apic_timer_calibrate()` — Calibrate the LAPIC timer
 - Uses the PIT (a known-frequency timer) as reference
@@ -61,10 +61,10 @@ static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remappin
 - Sets up the periodic timer (vector 32) for preemptive scheduling
 
 ### `apic_enable_irq(irq, vector)` — Route an IRQ to a vector
-- Looks up any IRQ→GSI remapping
+- Looks up any IRQ->GSI remapping
 - Configures the IOAPIC redirection table entry
 - Handles polarity (active high/low) and trigger mode (edge/level)
-- Currently targets LAPIC ID 0 (BSP) as the destination
+- Currently targets LAPIC ID 0 (hardcoded destination)
 
 ### `apic_send_ipi()` / `apic_send_ipi_all_excluding_self()`
 - Sends a fixed IPI to a specific LAPIC ID or to all CPUs except the caller
@@ -83,13 +83,11 @@ static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remappin
 
 ```
 Device (keyboard) 
-    ↓ IRQ 1
+    IRQ 1
 I/O APIC (looks up redirection table)
-    ↓ Vector 33 → CPU 0
+    Vector 33 -> CPU 0
 Local APIC (CPU 0)
-    ↓
 CPU executes interrupt handler for vector 33
-    ↓
 Handler calls apic_send_eoi()
 ```
 

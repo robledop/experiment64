@@ -343,23 +343,14 @@ static void reschedule_ipi_handler(struct interrupt_frame* frame) {
 
 ```
 1. Device raises IRQ
-       ↓
 2. IOAPIC routes to LAPIC (vector 33)
-       ↓
 3. CPU looks up IDT[33]
-       ↓
 4. CPU pushes state, jumps to isr33
-       ↓
 5. isr33 pushes vector, jumps to isr_common_stub
-       ↓
 6. Stub saves registers, calls interrupt_handler()
-       ↓
 7. interrupt_handler() calls keyboard_isr()
-       ↓
 8. keyboard_isr() reads key, calls apic_send_eoi()
-       ↓
 9. Stub restores registers, executes iretq
-       ↓
 10. CPU resumes interrupted code
 ```
 

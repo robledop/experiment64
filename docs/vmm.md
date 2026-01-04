@@ -1,0 +1,75 @@
+# Virtual Memory Manager (`vmm.c`)
+
+The VMM builds and manipulates x86_64 page tables. It is responsible for
+allocating paging structures with the PMM, mapping/unmapping virtual addresses,
+and creating per-process page tables.
+
+---
+
+## Key Concepts
+
+- **PML4**: top-level x86_64 page table.
+- **User vs kernel space**: user mappings live in PML4 slots 0-255, kernel
+  mappings live in 256-511.
+- **HHDM**: the higher-half direct map provides a fixed offset to access
+  physical memory as virtual (`phys + g_hhdm_offset`).
+
+---
+
+## Core Functions
+
+### `vmm_init(hhdm_offset)`
+Stores the HHDM offset used to convert physical addresses into a kernel virtual
+pointer for page table access.
+
+### `vmm_map_page(pml4, virt, phys, flags)`
+Walks (or creates) PML4 -> PDPT -> PD -> PT and inserts a mapping.
+
+Important details:
+- Intermediate tables are allocated with `pmm_alloc_page()`.
+- Intermediate entries are marked `PTE_PRESENT | PTE_WRITABLE | PTE_USER`.
+- Performs `invlpg` for the mapped virtual address.
+
+### `vmm_unmap_page(pml4, virt)`
+Clears the PTE for `virt` and executes `invlpg`.
+It does **not** free page tables.
+
+### `vmm_new_pml4()`
+Allocates a new PML4 and copies the **kernel half** (entries 256-511) from the
+current CR3. The user half is empty.
+
+### `vmm_copy_pml4(src)`
+Creates a deep copy of the **user half** (entries 0-255) of `src` and reuses the
+kernel half copied by `vmm_new_pml4()`.
+
+### `vmm_destroy_pml4(pml4)`
+Frees the user half (entries 0-255) and the PML4 itself. The kernel half is
+shared and is not freed.
+
+### `vmm_switch_pml4(pml4)`
+Writes CR3 to switch address spaces.
+
+---
+
+## Typical Usage
+
+```c
+// Create a new address space
+pml4_t pml4 = vmm_new_pml4();
+
+// Map a user page
+void *phys = pmm_alloc_page();
+vmm_map_page(pml4, 0x400000, (uint64_t)phys,
+             PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+// Switch into it
+vmm_switch_pml4(pml4);
+```
+
+---
+
+## Current Limitations
+
+- No locking inside VMM; callers must serialize concurrent edits to a page table.
+- `vmm_unmap_page()` does not free intermediate tables.
+- No support for huge pages beyond preserving existing kernel huge mappings.

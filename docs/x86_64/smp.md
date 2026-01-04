@@ -114,13 +114,16 @@ void smp_init_cpu0(void)
 ```
 
 **Why clear GS/FS first?**  
-In 64-bit mode, loading a null selector into `GS` ensures the CPU uses `MSR_GS_BASE` instead of the descriptor table. Without this, the MSR write might be ignored.
+In 64-bit mode the FS/GS base comes from the MSRs, but clearing the selectors
+avoids stale descriptors and gives a clean baseline before writing `MSR_GS_BASE`
+and `MSR_KERNEL_GS_BASE`.
 
 ---
 
 ### 2. AP Startup (`smp_boot_aps`)
 
-Called later to bring up the other CPUs:
+Called after APIC/TSC init but before `process_init()`. APs will start and then
+wait for the scheduler-ready flag:
 
 ```c
 void smp_boot_aps(void)
@@ -262,29 +265,24 @@ GCC/Clang atomic builtins are used instead of C11 `<stdatomic.h>` for compatibil
 
 ```
 Boot
-  │
-  ├─► BSP runs kernel entry
-  │     │
-  │     ├─► smp_init_cpu0()  ─► cpus_started = 1
-  │     │
-  │     ├─► ... kernel init ...
-  │     ├─► process_init()  ─► ap_scheduler_ready = true
-  │     │
-  │     └─► smp_boot_aps()
-  │           │
-  │           ├─► Set goto_address for each AP
-  │           │
-  │           └─► Wait loop
-  │
-  ├─► AP1 starts at ap_main() ─► cpus_started = 2
-  │     ├─► wait for ap_scheduler_ready
-  │     └─► smp_init_ap_scheduler() → scheduler loop
-  │
-  ├─► AP2 starts at ap_main() ─► cpus_started = 3
-  │     ├─► wait for ap_scheduler_ready
-  │     └─► smp_init_ap_scheduler() → scheduler loop
-  │
-  └─► ... more APs ...
+  > BSP runs kernel entry
+      > smp_init_cpu0()  ─► cpus_started = 1
+      > ... kernel init ...
+      > smp_boot_aps()
+          > Set goto_address for each AP
+          > Wait loop
+      > ... memory + device init ...
+      > process_init()  ─► ap_scheduler_ready = true
+          
+  > AP1 starts at ap_main() ─► cpus_started = 2
+      > wait for ap_scheduler_ready
+      > smp_init_ap_scheduler() -> scheduler loop
+  
+  > AP2 starts at ap_main() ─► cpus_started = 3
+      > wait for ap_scheduler_ready
+      > smp_init_ap_scheduler() -> scheduler loop
+      
+  > ... more APs ...
 ```
 
 ---
@@ -339,7 +337,7 @@ Timer interrupts call `scheduler_tick()`, which wakes sleepers and decrements th
 current thread's time slice. If rescheduling is needed, the timer ISR invokes
 `schedule()` to switch into the per-CPU scheduler thread.
 
-The scheduler loop (see `docs/x86_64/scheduler.md`) then selects a runnable thread:
+The scheduler loop (see `docs/scheduler.md`) then selects a runnable thread:
 
 - Round-robin across the global process list to avoid starvation
 - Skip threads already active on another CPU

@@ -228,22 +228,19 @@ If all cores shared one TSS, they'd all try to use the same kernel stack = insta
 
 ## Syscall Segment Layout
 
-The `syscall`/`sysret` instructions expect segments in a specific order:
+The `syscall`/`sysret` instructions expect segments in a specific order. The
+kernel programs STAR like this (see `syscall_init()`):
 
 ```
-STAR MSR layout:
-  Bits 47-32: SYSRET CS (user code) = 0x18 (+ 16 for 64-bit = 0x28... wait)
-  Bits 31-16: SYSCALL CS (kernel code) = 0x08
+STAR[63:48] = 0x10  ; user base selector
+STAR[47:32] = 0x08  ; kernel code selector
 ```
 
-`sysret` adds offsets to the base:
-- `SYSRET_CS = base + 16` (for 64-bit code)
-- `SYSRET_SS = base + 8` (for data)
+This yields:
+- `SYSCALL` -> CS = `0x08`, SS = `0x10`
+- `SYSRET`  -> CS = `0x20`, SS = `0x18` (base + 16 and base + 8)
 
-So with base `0x18`:
-- User Data = `0x18 + 8 = 0x20`... 
-
-This is why User Data (0x18) comes before User Code (0x20) — it matches the `sysret` expectations.
+That is why User Data (0x18) comes before User Code (0x20) in the GDT layout.
 
 ---
 
@@ -251,17 +248,11 @@ This is why User Data (0x18) comes before User Code (0x20) — it matches the `s
 
 ```
 User mode (Ring 3, user stack)
-    ↓
 Interrupt/Exception occurs
-    ↓
 CPU reads TSS.rsp0
-    ↓
 CPU switches to kernel stack (Ring 0)
-    ↓
 CPU pushes SS, RSP, RFLAGS, CS, RIP
-    ↓
 Jump to interrupt handler
 ```
 
 This automatic stack switch is why `tss_set_stack()` must be called on every context switch — each thread needs its own kernel stack.
-

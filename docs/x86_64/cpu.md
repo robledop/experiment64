@@ -109,8 +109,8 @@ else
 Sets up a fresh FPU state for a new thread.
 
 **Initializes:**
-- `FCW` (x87 Control Word) at offset 0 → `0x037F` (extended precision, exceptions masked)
-- `MXCSR` (SSE Control) at offset 24 → `0x1F80` (all exceptions masked)
+- `FCW` (x87 Control Word) at offset 0 -> `0x037F` (extended precision, exceptions masked)
+- `MXCSR` (SSE Control) at offset 24 -> `0x1F80` (all exceptions masked)
 - XSAVE header at offset 512 (if using XSAVE)
 
 ---
@@ -186,15 +186,10 @@ Helper functions to check AVX availability and FPU save area size.
 
 ```
 Thread A running
-    ↓
 Timer interrupt (scheduler tick)
-    ↓
 save_fpu_state(&thread_a->fpu_state)
-    ↓
 Switch to Thread B's page table & stack
-    ↓
 restore_fpu_state(&thread_b->fpu_state)
-    ↓
 Thread B running
 ```
 
