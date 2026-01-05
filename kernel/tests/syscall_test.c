@@ -344,7 +344,7 @@ static void syscall_test_exit_handler(int code)
 TEST(test_syscall_write_exit)
 {
     test_runner_pid = current_process->pid;
-    // 1. Allocate a page for user code and stack
+    // Allocate a page for user code and stack
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
@@ -352,7 +352,7 @@ TEST(test_syscall_write_exit)
         return false;
     }
 
-    // 2. Map it as User | Present | RW at 0x400000
+    // Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -361,7 +361,7 @@ TEST(test_syscall_write_exit)
 
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    // 3. Copy stub to the page
+    // Copy stub to the page
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, write_exit_stub_bytes, sizeof(write_exit_stub_bytes));
 
@@ -369,10 +369,10 @@ TEST(test_syscall_write_exit)
     const char *msg = "Hello Write\n";
     memcpy((void *)((uint64_t)virt_page + 0x100), msg, strlen(msg) + 1);
 
-    // 4. Register exit hook
+    // Register exit hook
     syscall_set_exit_hook(syscall_test_exit_handler);
 
-    // 5. Prepare for jump
+    // Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
         // Switch to User Mode
@@ -411,7 +411,7 @@ TEST(test_syscall_write_exit)
 TEST(test_syscall_getpid)
 {
     test_runner_pid = current_process->pid;
-    // 1. Allocate a page for user code and stack
+    // Allocate a page for user code and stack
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
@@ -419,7 +419,7 @@ TEST(test_syscall_getpid)
         return false;
     }
 
-    // 2. Map it as User | Present | RW at 0x400000
+    // Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -428,14 +428,14 @@ TEST(test_syscall_getpid)
 
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    // 3. Copy stub to the page
+    // Copy stub to the page
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, getpid_stub_bytes, sizeof(getpid_stub_bytes));
 
-    // 4. Register exit hook
+    // Register exit hook
     syscall_set_exit_hook(syscall_test_exit_handler);
 
-    // 5. Prepare for jump
+    // Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
 
@@ -473,7 +473,7 @@ TEST(test_syscall_getpid)
 TEST(test_syscall_yield)
 {
     test_runner_pid = current_process->pid;
-    // 1. Allocate a page for user code and stack
+    // Allocate a page for user code and stack
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
@@ -481,7 +481,7 @@ TEST(test_syscall_yield)
         return false;
     }
 
-    // 2. Map it as User | Present | RW at 0x400000
+    // Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -490,14 +490,14 @@ TEST(test_syscall_yield)
 
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    // 3. Copy stub to the page
+    // Copy stub to the page
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, yield_stub_bytes, sizeof(yield_stub_bytes));
 
-    // 4. Register exit hook
+    // Register exit hook
     syscall_set_exit_hook(syscall_test_exit_handler);
 
-    // 5. Prepare for jump
+    // Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
         // Switch to User Mode
@@ -533,7 +533,7 @@ TEST(test_syscall_yield)
 TEST(test_syscall_spawn)
 {
     test_runner_pid = current_process->pid;
-    // 1. Allocate a page for user code and stack
+    // Allocate a page for user code and stack
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
@@ -541,7 +541,7 @@ TEST(test_syscall_spawn)
         return false;
     }
 
-    // 2. Map it as User | Present | RW at 0x400000
+    // Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -550,7 +550,7 @@ TEST(test_syscall_spawn)
 
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    // 3. Copy stub to the page
+    // Copy stub to the page
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, spawn_stub_bytes, sizeof(spawn_stub_bytes));
 
@@ -558,10 +558,10 @@ TEST(test_syscall_spawn)
     const char *path = "/bin/prog";
     memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
 
-    // 4. Register exit hook
+    // Register exit hook
     syscall_set_exit_hook(syscall_test_exit_handler);
 
-    // 5. Prepare for jump
+    // Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
         // Switch to User Mode
@@ -597,7 +597,7 @@ TEST(test_syscall_spawn)
 TEST(test_syscall_fork)
 {
     test_runner_pid = current_process->pid;
-    // 1. Allocate a page for user code and stack
+    // Allocate a page for user code and stack
     void *phys_page = pmm_alloc_page();
     if (!phys_page)
     {
@@ -605,7 +605,7 @@ TEST(test_syscall_fork)
         return false;
     }
 
-    // 2. Map it as User | Present | RW at 0x400000
+    // Map it as User | Present | RW at 0x400000
     uint64_t user_base = 0x400000;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -614,14 +614,14 @@ TEST(test_syscall_fork)
 
     vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
-    // 3. Copy stub to the page
+    // Copy stub to the page
     void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
     memcpy(virt_page, fork_stub_bytes, sizeof(fork_stub_bytes));
 
-    // 4. Register exit hook
+    // Register exit hook
     syscall_set_exit_hook(syscall_test_exit_handler);
 
-    // 5. Prepare for jump
+    // Prepare for jump
     if (__builtin_setjmp(test_env) == 0)
     {
         // Switch to User Mode
