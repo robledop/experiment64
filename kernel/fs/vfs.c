@@ -263,7 +263,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
 {
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->readdir)
     {
-        // 1. Try to get entry from underlying filesystem
+        // Try to get entry from underlying filesystem
         vfs_dirent_t *dirent = node->iops->readdir(node, index);
 
         if (dirent || node != vfs_root)
@@ -271,7 +271,7 @@ vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
             return dirent;
         }
 
-        // 2. If underlying FS is done (dirent == nullptr) AND we are at root,
+        // If underlying FS is done (dirent == nullptr) AND we are at root,
         // check for virtual mount points that are NOT on disk.
 
         // Count real entries to determine offset

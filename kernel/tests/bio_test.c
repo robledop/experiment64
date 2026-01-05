@@ -55,7 +55,7 @@ TEST(bio_test)
     constexpr int stress_count = 200;
     constexpr int start_sector = 2000;
 
-    // 1. Write patterns
+    // Write patterns
     for (int i = 0; i < stress_count; i++)
     {
         buffer_head_t *sbh = bread(0, start_sector + i);
@@ -76,7 +76,7 @@ TEST(bio_test)
             printk("BIO Stress: Wrote %d blocks\n", i + 1);
     }
 
-    // 2. Verify patterns
+    // Verify patterns
     printk("BIO Stress: Verifying...\n");
     for (int i = 0; i < stress_count; i++)
     {

@@ -65,7 +65,7 @@ TEST(test_fat32_write_delete)
     const char *content = "Write Test";
     uint32_t len = strlen(content);
 
-    // 1. Create and Write
+    // Create and Write
     if (fat32_write_file(&test_fs, filename, (uint8_t *)content, len) != 0)
     {
         printk("Failed to write NEW.TXT\n");

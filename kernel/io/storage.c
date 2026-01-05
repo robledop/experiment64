@@ -1,10 +1,7 @@
-#include "storage.h"
-#include "ahci.h"
-#include "ide.h"
-#include "sleeplock.h"
-#include "terminal.h"
-#include "tsc.h"
-#include <stddef.h>
+#include <storage.h>
+#include <ahci.h>
+#include <ide.h>
+#include <sleeplock.h>
 
 enum storage_backend
 {
@@ -87,19 +84,16 @@ static int storage_write_backend(const struct storage_device* dev, uint32_t lba,
 int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t* buffer)
 {
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
+    {
         return -1;
-
+    }
 
     if (storage_lock_initialized)
     {
-
         sleeplock_acquire(&storage_locks[device]);
-
     }
 
-
     int result = storage_read_backend(&g_devices[device], lba, count, buffer);
-
 
     if (storage_lock_initialized)
     {
@@ -112,15 +106,21 @@ int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t* buffer)
 int storage_write(uint8_t device, uint32_t lba, uint8_t count, const uint8_t* buffer)
 {
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
+    {
         return -1;
+    }
 
     if (storage_lock_initialized)
+    {
         sleeplock_acquire(&storage_locks[device]);
+    }
 
     int result = storage_write_backend(&g_devices[device], lba, count, buffer);
 
     if (storage_lock_initialized)
+    {
         sleeplock_release(&storage_locks[device]);
+    }
 
     return result;
 }

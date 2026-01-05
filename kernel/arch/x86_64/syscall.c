@@ -32,7 +32,7 @@ extern void fork_child_trampoline(void);
 #define EXEC_MAX_ARG_LEN 128
 
 #ifdef TEST_MODE
-extern volatile const char *g_current_test_name;
+extern volatile const char* g_current_test_name;
 volatile uint64_t test_syscall_count = 0;
 volatile uint64_t test_syscall_last_num = 0;
 volatile uint64_t test_syscall_last_arg1 = 0;
@@ -41,30 +41,30 @@ volatile uint64_t test_syscall_last_arg1 = 0;
 uint8_t bootstrap_stack[4096];
 
 int sys_close(int fd);
-int sys_readdir(int fd, vfs_dirent_t *dent);
+int sys_readdir(int fd, vfs_dirent_t* dent);
 int64_t sys_sbrk(int64_t increment);
 void sys_exit(int code);
-int sys_wait(int *status);
+int sys_wait(int* status);
 int sys_getpid(void);
-int sys_read(int fd, char *buf, size_t count);
-int sys_write(int fd, const char *buf, size_t count);
-int sys_exec(const char *path, struct syscall_regs *regs);
-int sys_execve(const char *path, const char *const argv[], const char *const envp[], struct syscall_regs *regs);
-int sys_spawn(const char *path);
-int sys_fork(struct syscall_regs *regs);
-int sys_chdir(const char *path);
+int sys_read(int fd, char* buf, size_t count);
+int sys_write(int fd, const char* buf, size_t count);
+int sys_exec(const char* path, struct syscall_regs* regs);
+int sys_execve(const char* path, const char* const argv[], const char* const envp[], struct syscall_regs* regs);
+int sys_spawn(const char* path);
+int sys_fork(struct syscall_regs* regs);
+int sys_chdir(const char* path);
 int sys_sleep(uint64_t milliseconds);
 int sys_usleep(uint64_t usec);
-int sys_mknod(const char *path, int mode, int dev);
-int sys_ioctl(int fd, int request, void *arg);
-int sys_open(const char *path, int flags);
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
-int sys_munmap(void *addr, size_t length);
-int sys_stat(const char *path, struct stat *st);
-int sys_fstat(int fd, struct stat *st);
-int sys_link(const char *oldpath, const char *newpath);
-int sys_unlink(const char *path);
-int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
+int sys_mknod(const char* path, int mode, int dev);
+int sys_ioctl(int fd, int request, void* arg);
+int sys_open(const char* path, int flags);
+void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset);
+int sys_munmap(void* addr, size_t length);
+int sys_stat(const char* path, struct stat* st);
+int sys_fstat(int fd, struct stat* st);
+int sys_link(const char* oldpath, const char* newpath);
+int sys_unlink(const char* path);
+int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
 int sys_pipe(int pipefd[2]);
 long sys_lseek(int fd, long offset, int whence);
 int sys_dup(int oldfd);
@@ -72,7 +72,7 @@ int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
 
-static bool copy_to_user(void *dst, const void *src, size_t size)
+static bool copy_to_user(void* dst, const void* src, size_t size)
 {
     if (!dst || !src)
         return false;
@@ -80,7 +80,7 @@ static bool copy_to_user(void *dst, const void *src, size_t size)
     return true;
 }
 
-static bool fd_can_read(const file_descriptor_t *desc)
+static bool fd_can_read(const file_descriptor_t* desc)
 {
     if (!desc)
         return false;
@@ -88,7 +88,7 @@ static bool fd_can_read(const file_descriptor_t *desc)
     return mode != O_WRONLY;
 }
 
-static bool fd_can_write(const file_descriptor_t *desc)
+static bool fd_can_write(const file_descriptor_t* desc)
 {
     if (!desc)
         return false;
@@ -96,7 +96,7 @@ static bool fd_can_write(const file_descriptor_t *desc)
     return mode == O_WRONLY || mode == O_RDWR || mode == (O_WRONLY | O_RDWR);
 }
 
-static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
+static void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st)
 {
     if (!inode || !st)
         return;
@@ -126,17 +126,17 @@ static void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
 
 void syscall_set_stack(uint64_t stack)
 {
-    cpu_t *cpu = get_cpu();
+    cpu_t* cpu = get_cpu();
     cpu->kernel_rsp = stack;
     tss_set_stack(stack);
 }
 
-static void set_process_name_from_path(process_t *proc, const char *path)
+static void set_process_name_from_path(process_t* proc, const char* path)
 {
     if (!proc || !path)
         return;
-    const char *name = path;
-    for (const char *p = path; *p; p++)
+    const char* name = path;
+    for (const char* p = path; *p; p++)
     {
         if (*p == '/' && p[1])
             name = p + 1;
@@ -144,7 +144,7 @@ static void set_process_name_from_path(process_t *proc, const char *path)
     path_safe_copy(proc->name, sizeof(proc->name), name);
 }
 
-static int copy_in_args(const char *const *argv, char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN])
+static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN])
 {
     if (!argv)
         return 0;
@@ -152,7 +152,7 @@ static int copy_in_args(const char *const *argv, char args[EXEC_MAX_ARGS][EXEC_M
     int count = 0;
     while (count < EXEC_MAX_ARGS)
     {
-        const char *user_arg = argv[count];
+        const char* user_arg = argv[count];
         if (!user_arg)
             break;
 
@@ -170,8 +170,8 @@ static int copy_in_args(const char *const *argv, char args[EXEC_MAX_ARGS][EXEC_M
 }
 
 // ReSharper disable once CppDFAConstantParameter
-static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
-                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t *out_rsp)
+static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
+                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
 {
     uint64_t sp = stack_top;
     uint64_t arg_ptrs[EXEC_MAX_ARGS];
@@ -180,7 +180,7 @@ static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
     {
         size_t len = strlen(args[i]) + 1;
         sp -= len;
-        memcpy((void *)sp, args[i], len);
+        memcpy((void*)sp, args[i], len);
         arg_ptrs[i] = sp;
     }
 
@@ -189,18 +189,18 @@ static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
 
     // argv terminator
     sp -= sizeof(uint64_t);
-    *(uint64_t *)sp = 0;
+    *(uint64_t*)sp = 0;
 
     // argv pointers
     for (int i = argc - 1; i >= 0; i--)
     {
         sp -= sizeof(uint64_t);
-        *(uint64_t *)sp = arg_ptrs[i];
+        *(uint64_t*)sp = arg_ptrs[i];
     }
 
     // argc
     sp -= sizeof(uint64_t);
-    *(uint64_t *)sp = (uint64_t)argc;
+    *(uint64_t*)sp = (uint64_t)argc;
 
     *out_rsp = sp;
     (void)pml4;
@@ -209,13 +209,13 @@ static int setup_user_stack(const uint64_t *pml4, uint64_t stack_top,
 
 // ReSharper disable once CppDFAConstantFunctionResult
 // ReSharper disable once CppDFAConstantParameter
-static int resolve_user_path(const char *path, char *resolved, size_t size)
+static int resolve_user_path(const char* path, char* resolved, size_t size)
 {
     if (!resolved || size == 0)
         // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
-    const char *base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
+    const char* base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
     path_build_absolute(base, path, resolved, size);
     return 0;
 }
@@ -243,7 +243,7 @@ void syscall_init(void)
     // Set TSS RSP0 to the kernel stack
     // For BSP, we use bootstrap stack initially
     // For APs, we should probably have a stack allocated or use what's set
-    cpu_t *cpu = get_cpu();
+    cpu_t* cpu = get_cpu();
     if (cpu->kernel_rsp == 0)
     {
         // For BSP, use bootstrap_stack if no stack is set.
@@ -273,12 +273,12 @@ void syscall_set_exit_hook(void (*hook)(int))
 #define TEST_SYSCALL_LOG(fmt, ...) ((void)0)
 #endif
 
-int sys_write(int fd, const char *buf, size_t count)
+int sys_write(int fd, const char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
 
     // Handle stdout/stderr (fd 1/2) specially - check if redirected to pipe/file
     if (fd == 1 || fd == 2)
@@ -290,7 +290,7 @@ int sys_write(int fd, const char *buf, size_t count)
                 return -1;
             if (desc->flags & O_APPEND)
                 desc->offset = desc->inode->size;
-            uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
+            uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t*)buf);
             desc->offset += written;
             return clamp_to_int(written);
         }
@@ -309,17 +309,14 @@ int sys_write(int fd, const char *buf, size_t count)
     if (desc->flags & O_APPEND)
         desc->offset = desc->inode->size;
 
-    uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t *)buf);
+    uint64_t written = vfs_write(desc->inode, desc->offset, count, (uint8_t*)buf);
     desc->offset += written;
     return clamp_to_int(written);
 }
 
 void sys_exit(int code)
 {
-#ifdef TEST_MODE
-    if (exit_hook)
-        printk("sys_exit: pid=%d code=%d (exit_hook=%p)\n", current_process->pid, code, exit_hook);
-#endif
+    TEST_SYSCALL_LOG("sys_exit: pid=%d code=%d (exit_hook=%p)\n", current_process->pid, code, exit_hook);
 
     if (exit_hook)
     {
@@ -334,7 +331,8 @@ void sys_exit(int code)
                current_process->parent ? current_process->parent->pid : -1);
     }
 #endif
-    // printk("Process %d exited with code %d\n", current_process->pid, code);
+    TEST_SYSCALL_LOG("Process %d exited with code %d\n", current_process->pid, code);
+
     current_process->exit_code = code;
     current_process->terminated = true;
     current_thread->state = THREAD_TERMINATED;
@@ -342,7 +340,7 @@ void sys_exit(int code)
         thread_wakeup(current_process->parent);
 
     // Save current thread state
-    thread_t *current = get_current_thread();
+    thread_t* current = get_current_thread();
     if (current)
     {
         // Save context if needed (already saved by interrupt handler)
@@ -356,11 +354,11 @@ int sys_kill(int pid, int sig)
     (void)sig; // For now, any signal terminates the process
 
     // Find the target process
-    process_t *target = nullptr;
-    list_head_t *pos;
+    process_t* target = nullptr;
+    list_head_t* pos;
     list_for_each(pos, &process_list)
     {
-        process_t *p = list_entry(pos, process_t, list);
+        process_t* p = list_entry(pos, process_t, list);
         if (p->pid == pid)
         {
             target = p;
@@ -380,10 +378,10 @@ int sys_kill(int pid, int sig)
     target->terminated = true;
 
     // Terminate all threads of the process
-    list_head_t *thread_pos;
+    list_head_t* thread_pos;
     list_for_each(thread_pos, &target->threads)
     {
-        thread_t *t = list_entry(thread_pos, thread_t, list);
+        thread_t* t = list_entry(thread_pos, thread_t, list);
         t->state = THREAD_TERMINATED;
     }
 
@@ -414,11 +412,11 @@ void spawn_trampoline(void)
         "mov es, %0\n"
         "mov fs, %0\n"
         "mov gs, %0\n"
-        "push %0\n"      // SS
-        "push %1\n"      // RSP
-        "push %2\n"      // RFLAGS
-        "push %3\n"      // CS
-        "push %4\n"      // RIP
+        "push %0\n" // SS
+        "push %1\n" // RSP
+        "push %2\n" // RFLAGS
+        "push %3\n" // CS
+        "push %4\n" // RIP
         "xor rdi, rdi\n" // argc = 0
         "xor rsi, rsi\n" // argv = nullptr
         "iretq\n"
@@ -427,13 +425,11 @@ void spawn_trampoline(void)
         : "memory", "rdi", "rsi");
 }
 
-int sys_spawn(const char *path)
+int sys_spawn(const char* path)
 {
     if (!path || !*path)
         return -1;
-#ifdef TEST_MODE
     TEST_SYSCALL_LOG("sys_spawn: parent pid=%d path=%s\n", current_process ? current_process->pid : -1, path);
-#endif
     char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         // ReSharper disable once CppDFAUnreachableCode
@@ -450,7 +446,8 @@ int sys_spawn(const char *path)
     uint64_t max_vaddr;
     if (!elf_load(abs_path, &entry_point, &max_vaddr, new_pml4))
     {
-        TEST_SYSCALL_LOG("sys_spawn: pid=%d elf_load failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+        TEST_SYSCALL_LOG("sys_spawn: pid=%d elf_load failed path=%s\n", current_process ? current_process->pid : -1,
+                         abs_path);
         vmm_destroy_pml4(new_pml4);
         return -1;
     }
@@ -461,17 +458,18 @@ int sys_spawn(const char *path)
 
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
-        void *phys = pmm_alloc_page();
+        void* phys = pmm_alloc_page();
         if (!phys)
         {
-            TEST_SYSCALL_LOG("sys_spawn: pid=%d stack alloc failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+            TEST_SYSCALL_LOG("sys_spawn: pid=%d stack alloc failed path=%s\n",
+                             current_process ? current_process->pid : -1, abs_path);
             vmm_destroy_pml4(new_pml4);
             return -1;
         }
         vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 
-    process_t *proc = process_create(path);
+    process_t* proc = process_create(path);
     if (!proc)
     {
         vmm_destroy_pml4(new_pml4);
@@ -485,7 +483,7 @@ int sys_spawn(const char *path)
     process_copy_fds(proc, current_process);
     vm_area_add(proc, stack_base, stack_top, VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK);
 
-    thread_t *thread = thread_create(proc, spawn_trampoline, true);
+    thread_t* thread = thread_create(proc, spawn_trampoline, true);
     if (!thread)
     {
         process_destroy(proc);
@@ -494,18 +492,16 @@ int sys_spawn(const char *path)
     thread->user_entry = entry_point;
     thread->user_stack = stack_top;
 
-#ifdef TEST_MODE
     TEST_SYSCALL_LOG("sys_spawn: created pid=%d tid=%d entry=%lx stack=%lx parent=%d\n",
                      proc->pid,
                      thread ? thread->tid : -1,
                      (unsigned long)entry_point,
                      (unsigned long)stack_top,
                      current_process ? current_process->pid : -1);
-#endif
     return proc->pid;
 }
 
-int sys_fork(struct syscall_regs *regs)
+int sys_fork(struct syscall_regs* regs)
 {
     if (!regs)
         return -1;
@@ -517,7 +513,7 @@ int sys_fork(struct syscall_regs *regs)
 
 
     // Create Process
-    process_t *child_proc = process_create(current_process->name);
+    process_t* child_proc = process_create(current_process->name);
     if (!child_proc)
     {
         vmm_destroy_pml4(child_pml4);
@@ -532,7 +528,7 @@ int sys_fork(struct syscall_regs *regs)
     vm_area_clone(child_proc, current_process);
 
     // Create Thread
-    thread_t *child_thread = thread_create(child_proc, nullptr, true);
+    thread_t* child_thread = thread_create(child_proc, nullptr, true);
     if (!child_thread)
     {
         process_destroy(child_proc);
@@ -549,8 +545,8 @@ int sys_fork(struct syscall_regs *regs)
     ctx_addr -= sizeof(struct context);
     ctx_addr &= ~0xFULL; // keep 16-byte alignment so child_regs ends up 8 mod 16
 
-    struct context *child_ctx = (struct context *)ctx_addr;
-    struct syscall_regs *child_regs = (struct syscall_regs *)(ctx_addr + sizeof(struct context));
+    struct context* child_ctx = (struct context*)ctx_addr;
+    struct syscall_regs* child_regs = (struct syscall_regs*)(ctx_addr + sizeof(struct context));
 
     *child_regs = *regs; // Copy user registers
     memset(child_ctx, 0, sizeof(struct context));
@@ -558,7 +554,7 @@ int sys_fork(struct syscall_regs *regs)
 
     child_thread->context = child_ctx;
     child_thread->rsp = (uint64_t)child_ctx;
-    cpu_t *cpu = get_cpu();
+    cpu_t* cpu = get_cpu();
     child_thread->saved_user_rsp = cpu->user_rsp; // Inherit user stack pointer
 
 
@@ -569,10 +565,10 @@ int sys_fork(struct syscall_regs *regs)
         const uint64_t ctx_addr = (uint64_t)child_ctx;
         const uint64_t regs_addr = (uint64_t)child_regs;
         const uint64_t frame_words[4] = {
-            *((uint64_t *)ctx_addr),
-            *((uint64_t *)(ctx_addr + 8)),
-            *((uint64_t *)(ctx_addr + 16)),
-            *((uint64_t *)(ctx_addr + 24)),
+            *((uint64_t*)ctx_addr),
+            *((uint64_t*)(ctx_addr + 8)),
+            *((uint64_t*)(ctx_addr + 16)),
+            *((uint64_t*)(ctx_addr + 24)),
         };
         printk("sys_fork: child pid=%d tid=%d rsp=0x%lx ktop=0x%lx saved_user_rsp=0x%lx\n",
                child_proc->pid,
@@ -594,18 +590,17 @@ int sys_fork(struct syscall_regs *regs)
     }
 #endif
 
-#ifdef TEST_MODE
-    if (exit_hook)
-        printk("sys_fork: parent pid=%d child pid=%d\n", current_process->pid, child_proc->pid);
-#endif
+    TEST_SYSCALL_LOG("sys_fork: parent pid=%d child pid=%d\n", current_process->pid, child_proc->pid);
 
     return child_proc->pid;
 }
+
 int sys_getpid(void)
 {
     return current_process->pid;
 }
-int sys_wait(int *status)
+
+int sys_wait(int* status)
 {
 #ifdef TEST_MODE
     printk("sys_wait: pid=%d waiting...\n", current_process ? current_process->pid : -1);
@@ -616,8 +611,8 @@ int sys_wait(int *status)
         SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
 
         bool has_children = false;
-        process_t *found = nullptr;
-        process_t *p;
+        process_t* found = nullptr;
+        process_t* p;
         list_for_each_entry(p, &process_list, list)
         {
             if (p->parent == current_process)
@@ -642,10 +637,7 @@ int sys_wait(int *status)
 
             SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
             process_destroy(found);
-#ifdef TEST_MODE
-            if (exit_hook)
-                printk("sys_wait: pid=%d reaped child=%d code=%d\n", current_process->pid, pid, code);
-#endif
+            TEST_SYSCALL_LOG("sys_wait: pid=%d reaped child=%d code=%d\n", current_process->pid, pid, code);
             return pid;
         }
 
@@ -654,35 +646,30 @@ int sys_wait(int *status)
             SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
             return -1;
         }
-#ifdef TEST_MODE
-        if (exit_hook)
-            printk("sys_wait: pid=%d sleeping for child\n", current_process->pid);
-#endif
+        TEST_SYSCALL_LOG("sys_wait: pid=%d sleeping for child\n", current_process->pid);
         thread_sleep(current_process, &scheduler_lock);
         SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
     }
 }
 
-int sys_exec(const char *path, struct syscall_regs *regs)
+int sys_exec(const char* path, struct syscall_regs* regs)
 {
     // Add a null terminator so copy_in_args stops after the single path entry.
-    const char *argv[2] = {path, nullptr};
+    const char* argv[2] = {path, nullptr};
     return sys_execve(path, argv, nullptr, regs);
 }
 
-int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] const char *const envp[],
-               struct syscall_regs *regs)
+int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] const char* const envp[],
+               struct syscall_regs* regs)
 {
     if (!path || !*path)
         return -1;
 
-#ifdef TEST_MODE
     TEST_SYSCALL_LOG("sys_execve: enter pid=%d path_ptr=%p argv_ptr=%p envp_ptr=%p\n",
                      current_process ? current_process->pid : -1,
                      path,
                      argv,
                      envp);
-#endif
 
     char abs_path[VFS_MAX_PATH];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
@@ -698,20 +685,19 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
         argc = 1;
     }
 
-#ifdef TEST_MODE
     TEST_SYSCALL_LOG("sys_execve: pid=%d path=%s argc=%d argv_ptr=%p first_arg=%s\n",
                      current_process ? current_process->pid : -1,
                      abs_path,
                      argc,
                      argv,
                      (argc > 0) ? args[0] : "<none>");
-#endif
 
     pml4_t old_pml4 = current_process->pml4;
     pml4_t new_pml4 = vmm_new_pml4();
     if (!new_pml4)
     {
-        TEST_SYSCALL_LOG("sys_execve: pid=%d new_pml4 alloc failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+        TEST_SYSCALL_LOG("sys_execve: pid=%d new_pml4 alloc failed path=%s\n",
+                         current_process ? current_process->pid : -1, abs_path);
         return -1;
     }
 
@@ -719,7 +705,8 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
     uint64_t max_vaddr;
     if (!elf_load(abs_path, &entry_point, &max_vaddr, new_pml4))
     {
-        TEST_SYSCALL_LOG("sys_execve: pid=%d elf_load failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+        TEST_SYSCALL_LOG("sys_execve: pid=%d elf_load failed path=%s\n", current_process ? current_process->pid : -1,
+                         abs_path);
         vmm_destroy_pml4(new_pml4);
         return -1;
     }
@@ -730,10 +717,11 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
 
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
-        void *phys = pmm_alloc_page();
+        void* phys = pmm_alloc_page();
         if (!phys)
         {
-            TEST_SYSCALL_LOG("sys_execve: pid=%d stack alloc failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+            TEST_SYSCALL_LOG("sys_execve: pid=%d stack alloc failed path=%s\n",
+                             current_process ? current_process->pid : -1, abs_path);
             vmm_destroy_pml4(new_pml4);
             return -1;
         }
@@ -745,7 +733,8 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
     vmm_switch_pml4(new_pml4);
     if (setup_user_stack(new_pml4, stack_top, args, argc, &user_rsp) != 0)
     {
-        TEST_SYSCALL_LOG("sys_execve: pid=%d setup_user_stack failed path=%s\n", current_process ? current_process->pid : -1, abs_path);
+        TEST_SYSCALL_LOG("sys_execve: pid=%d setup_user_stack failed path=%s\n",
+                         current_process ? current_process->pid : -1, abs_path);
         current_process->pml4 = old_pml4;
         vmm_switch_pml4(old_pml4);
         vmm_destroy_pml4(new_pml4);
@@ -760,23 +749,21 @@ int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] cons
     if (old_pml4 && old_pml4 != new_pml4)
         vmm_destroy_pml4(old_pml4);
 
-#ifdef TEST_MODE
     TEST_SYSCALL_LOG("sys_execve: pid=%d entry=%lx rsp=%lx\n",
                      current_process ? current_process->pid : -1,
                      (unsigned long)entry_point,
                      (unsigned long)user_rsp);
-#endif
     return 0;
 }
 
-int sys_chdir(const char *path)
+int sys_chdir(const char* path)
 {
     if (!path || !*path)
         return -1;
     char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
-    vfs_inode_t *node = vfs_resolve_path(abs_path);
+    vfs_inode_t* node = vfs_resolve_path(abs_path);
     if (!node)
         return -1;
     if ((node->flags & 0x07) != VFS_DIRECTORY)
@@ -798,11 +785,11 @@ int sys_chdir(const char *path)
     return 0;
 }
 
-int sys_getcwd(char *buf, size_t size)
+int sys_getcwd(char* buf, size_t size)
 {
     if (!buf || size == 0)
         return -1;
-    const char *cwd = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
+    const char* cwd = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
 
 
     const size_t len = strlen(cwd);
@@ -814,7 +801,7 @@ int sys_getcwd(char *buf, size_t size)
     return 0;
 }
 
-int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
+int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
 {
     uint64_t ns = tsc_nanos();
     if (ns == 0)
@@ -853,7 +840,7 @@ int sys_usleep(uint64_t usec)
     if (usec == 0)
         return 0;
 
-    const uint64_t tick_us = 1000000ull / TIMER_FREQUENCY_HZ;
+    constexpr uint64_t tick_us = 1000000ull / TIMER_FREQUENCY_HZ;
     if (usec >= tick_us)
     {
         uint64_t ms = usec / 1000;
@@ -867,7 +854,7 @@ int sys_usleep(uint64_t usec)
     return 0;
 }
 
-int sys_mknod(const char *path, int mode, int dev)
+int sys_mknod(const char* path, int mode, int dev)
 {
     if ((uint64_t)path >= 0x800000000000) // Check if user pointer
         return -1;
@@ -879,7 +866,7 @@ int sys_mknod(const char *path, int mode, int dev)
     return vfs_mknod(kpath, mode, dev);
 }
 
-int sys_stat(const char *path, struct stat *st)
+int sys_stat(const char* path, struct stat* st)
 {
     if (!path || !st)
         return -1;
@@ -887,7 +874,7 @@ int sys_stat(const char *path, struct stat *st)
     char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
-    vfs_inode_t *inode = vfs_resolve_path(abs_path);
+    vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode)
         return -1;
 
@@ -900,7 +887,7 @@ int sys_stat(const char *path, struct stat *st)
     return 0;
 }
 
-int sys_link(const char *oldpath, const char *newpath)
+int sys_link(const char* oldpath, const char* newpath)
 {
     if (!oldpath || !newpath || !*oldpath || !*newpath)
         return -1;
@@ -913,7 +900,7 @@ int sys_link(const char *oldpath, const char *newpath)
     return vfs_link(abs_old, abs_new);
 }
 
-int sys_unlink(const char *path)
+int sys_unlink(const char* path)
 {
     if (!path || !*path)
         return -1;
@@ -928,12 +915,12 @@ int sys_unlink(const char *path)
     return vfs_unlink(abs_path);
 }
 
-int sys_fstat(int fd, struct stat *st)
+int sys_fstat(int fd, struct stat* st)
 {
     if (!st || fd < 0 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return -1;
 
@@ -954,13 +941,13 @@ int64_t sys_sbrk(int64_t increment)
     {
         for (uint64_t addr = old_page_end; addr < new_page_end; addr += PAGE_SIZE)
         {
-            void *phys = pmm_alloc_page();
+            void* phys = pmm_alloc_page();
             if (!phys)
             {
                 return -1; // OOM
             }
             vmm_map_page(current_process->pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-            memset((void *)addr, 0, PAGE_SIZE);
+            memset((void*)addr, 0, PAGE_SIZE);
         }
     }
     else if (increment < 0)
@@ -974,7 +961,7 @@ int64_t sys_sbrk(int64_t increment)
 }
 
 uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3,
-                         struct syscall_regs *regs)
+                         struct syscall_regs* regs)
 {
     // Enable interrupts to allow I/O
     __asm__ volatile("sti");
@@ -993,64 +980,64 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     switch (syscall_number)
     {
     case SYS_WRITE:
-        return sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
+        return sys_write((int)arg1, (const char*)arg2, (size_t)arg3);
     case SYS_EXIT:
         sys_exit((int)arg1);
         return 0;
     case SYS_EXEC:
-        sys_exec((const char *)arg1, regs);
+        sys_exec((const char*)arg1, regs);
         return 0;
     case SYS_EXECVE:
-        return sys_execve((const char *)arg1, (const char *const *)arg2, (const char *const *)arg3, regs);
+        return sys_execve((const char*)arg1, (const char*const *)arg2, (const char*const *)arg3, regs);
     case SYS_FORK:
         return sys_fork(regs);
     case SYS_SPAWN:
-        return sys_spawn((const char *)arg1);
+        return sys_spawn((const char*)arg1);
     case SYS_WAIT:
-        return sys_wait((int *)arg1);
+        return sys_wait((int*)arg1);
     case SYS_GETPID:
         return sys_getpid();
     case SYS_YIELD:
         yield();
         return 0;
     case SYS_READ:
-        return sys_read((int)arg1, (char *)arg2, (size_t)arg3);
+        return sys_read((int)arg1, (char*)arg2, (size_t)arg3);
     case SYS_SBRK:
         return sys_sbrk((int64_t)arg1);
     case SYS_OPEN:
-        return sys_open((const char *)arg1, (int)arg2);
+        return sys_open((const char*)arg1, (int)arg2);
     case SYS_CLOSE:
         return sys_close((int)arg1);
     case SYS_READDIR:
-        return sys_readdir((int)arg1, (vfs_dirent_t *)arg2);
+        return sys_readdir((int)arg1, (vfs_dirent_t*)arg2);
     case SYS_CHDIR:
-        return sys_chdir((const char *)arg1);
+        return sys_chdir((const char*)arg1);
     case SYS_SLEEP:
         return sys_sleep(arg1);
     case SYS_USLEEP:
         return sys_usleep(arg1);
     case SYS_MKNOD:
-        return sys_mknod((const char *)arg1, (int)arg2, (int)arg3);
+        return sys_mknod((const char*)arg1, (int)arg2, (int)arg3);
     case SYS_IOCTL:
-        return sys_ioctl((int)arg1, (int)arg2, (void *)arg3);
+        return sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
     case SYS_MMAP:
-        return (uint64_t)sys_mmap((void *)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
+        return (uint64_t)sys_mmap((void*)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
     case SYS_MUNMAP:
-        return (uint64_t)sys_munmap((void *)arg1, (size_t)arg2);
+        return (uint64_t)sys_munmap((void*)arg1, (size_t)arg2);
     case SYS_STAT:
-        return sys_stat((const char *)arg1, (struct stat *)arg2);
+        return sys_stat((const char*)arg1, (struct stat*)arg2);
     case SYS_FSTAT:
-        return sys_fstat((int)arg1, (struct stat *)arg2);
+        return sys_fstat((int)arg1, (struct stat*)arg2);
     case SYS_LINK:
-        return sys_link((const char *)arg1, (const char *)arg2);
+        return sys_link((const char*)arg1, (const char*)arg2);
     case SYS_UNLINK:
-        return sys_unlink((const char *)arg1);
+        return sys_unlink((const char*)arg1);
     case SYS_GETCWD:
-        return sys_getcwd((char *)arg1, (size_t)arg2);
+        return sys_getcwd((char*)arg1, (size_t)arg2);
     case SYS_GETTIMEOFDAY:
-        return sys_gettimeofday((struct timeval *)arg1, (struct timezone *)arg2);
+        return sys_gettimeofday((struct timeval*)arg1, (struct timezone*)arg2);
     case SYS_PIPE:
-        return sys_pipe((int *)arg1);
+        return sys_pipe((int*)arg1);
     case SYS_LSEEK:
         return sys_lseek((int)arg1, (long)arg2, (int)arg3);
     case SYS_DUP:
@@ -1070,12 +1057,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     }
 }
 
-int sys_read(int fd, char *buf, size_t count)
+int sys_read(int fd, char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return 0;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
 
     // Handle stdin (fd 0) specially only if it's the console device or not set up
     if (fd == 0)
@@ -1085,7 +1072,7 @@ int sys_read(int fd, char *buf, size_t count)
         {
             if (!fd_can_read(desc))
                 return -1;
-            uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
+            uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t*)buf);
             desc->offset += read;
             return clamp_to_int(read);
         }
@@ -1118,12 +1105,12 @@ int sys_read(int fd, char *buf, size_t count)
     if (!fd_can_read(desc))
         return -1;
 
-    uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
+    uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t*)buf);
     desc->offset += read;
     return clamp_to_int(read);
 }
 
-int sys_open(const char *path, int flags)
+int sys_open(const char* path, int flags)
 {
     if (!path || !*path)
         return -1;
@@ -1142,7 +1129,7 @@ int sys_open(const char *path, int flags)
     if (fd == -1)
         return -1;
 
-    vfs_inode_t *inode = vfs_resolve_path(abs_path);
+    vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode && (flags & O_CREATE))
     {
         if (vfs_mknod(abs_path, VFS_FILE, 0) == 0)
@@ -1173,7 +1160,7 @@ int sys_open(const char *path, int flags)
         }
     }
 
-    file_descriptor_t *desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t* desc = kmalloc(sizeof(file_descriptor_t));
     if (!desc)
     {
         vfs_close(inode);
@@ -1194,19 +1181,19 @@ int sys_open(const char *path, int flags)
     return fd;
 }
 
-int sys_ioctl(int fd, int request, void *arg)
+int sys_ioctl(int fd, int request, void* arg)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return -1;
 
     return vfs_ioctl(desc->inode, request, arg);
 }
 
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)
+void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset)
 {
     (void)prot;
     if (length == 0)
@@ -1219,12 +1206,12 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t of
     if (fd < 0 || fd >= MAX_FDS)
         return MAP_FAILED;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return MAP_FAILED;
 
     // Require this to be the framebuffer device.
-    struct limine_framebuffer *fb = framebuffer_current();
+    struct limine_framebuffer* fb = framebuffer_current();
     if (!fb || desc->inode->device != fb)
         return MAP_FAILED;
 
@@ -1252,7 +1239,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t of
     while (true)
     {
         bool overlap = false;
-        vm_area_t *area;
+        vm_area_t* area;
         list_for_each_entry(area, &current_process->vm_areas, list)
         {
             if (!(base + total_len <= area->start || base >= area->end))
@@ -1285,10 +1272,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t of
 
     vm_area_add(current_process, base, base + total_len, VMA_READ | VMA_WRITE | VMA_USER | VMA_MMAP);
 
-    return (void *)(base + in_page_delta);
+    return (void*)(base + in_page_delta);
 }
 
-int sys_munmap(void *addr, size_t length)
+int sys_munmap(void* addr, size_t length)
 {
     if (!addr || length == 0)
         return -1;
@@ -1296,7 +1283,7 @@ int sys_munmap(void *addr, size_t length)
     uint64_t start = (uint64_t)addr & ~(PAGE_SIZE - 1);
     uint64_t end = start + align_up(length, PAGE_SIZE);
 
-    vm_area_t *area;
+    vm_area_t* area;
     bool found = false;
     list_for_each_entry(area, &current_process->vm_areas, list)
     {
@@ -1312,7 +1299,7 @@ int sys_munmap(void *addr, size_t length)
     for (uint64_t va = start; va < end; va += PAGE_SIZE)
         vmm_unmap_page(current_process->pml4, va);
 
-    vm_area_t *tmp;
+    vm_area_t* tmp;
     list_for_each_entry_safe(area, tmp, &current_process->vm_areas, list)
     {
         if (area->start == start && area->end == end && (area->flags & VMA_MMAP))
@@ -1347,12 +1334,12 @@ int sys_pipe(int pipefd[2])
     if (read_fd == -1 || write_fd == -1)
         return -1; // No free file descriptors
 
-    vfs_inode_t *read_inode = nullptr;
-    vfs_inode_t *write_inode = nullptr;
+    vfs_inode_t* read_inode = nullptr;
+    vfs_inode_t* write_inode = nullptr;
     if (pipe_alloc(&read_inode, &write_inode) != 0)
         return -1;
 
-    file_descriptor_t *read_desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t* read_desc = kmalloc(sizeof(file_descriptor_t));
     if (!read_desc)
     {
         kfree(read_inode);
@@ -1360,7 +1347,7 @@ int sys_pipe(int pipefd[2])
         return -1;
     }
 
-    file_descriptor_t *write_desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t* write_desc = kmalloc(sizeof(file_descriptor_t));
     if (!write_desc)
     {
         kfree(read_desc);
@@ -1392,7 +1379,7 @@ int sys_close(int fd)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc)
         return -1;
 
@@ -1426,7 +1413,7 @@ long sys_lseek(int fd, long offset, int whence)
 {
     if (fd < 3 || fd >= MAX_FDS)
         return -1;
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode)
         return -1;
 
@@ -1461,7 +1448,7 @@ int sys_dup(int oldfd)
 {
     if (oldfd < 0 || oldfd >= MAX_FDS)
         return -1;
-    file_descriptor_t *old_desc = current_process->fd_table[oldfd];
+    file_descriptor_t* old_desc = current_process->fd_table[oldfd];
     if (!old_desc)
         return -1;
 
@@ -1485,15 +1472,15 @@ int sys_dup(int oldfd)
     return newfd;
 }
 
-int sys_readdir(int fd, vfs_dirent_t *dent)
+int sys_readdir(int fd, vfs_dirent_t* dent)
 {
     if (fd < 3 || fd >= MAX_FDS)
         return -1;
-    file_descriptor_t *desc = current_process->fd_table[fd];
+    file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc)
         return -1;
 
-    vfs_dirent_t *d = vfs_readdir(desc->inode, desc->offset);
+    vfs_dirent_t* d = vfs_readdir(desc->inode, desc->offset);
     if (!d)
         return 0; // End of directory
 
@@ -1505,10 +1492,10 @@ int sys_readdir(int fd, vfs_dirent_t *dent)
 
 void sys_shutdown()
 {
-    outw(0x604, 0x2000);  // qemu
+    outw(0x604, 0x2000); // qemu
     outw(0x4004, 0x3400); // VirtualBox
     outw(0xB004, 0x2000); // Bochs
-    outw(0x600, 0x34);    // Cloud hypervisors
+    outw(0x600, 0x34); // Cloud hypervisors
 
     hlt();
 }
