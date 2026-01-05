@@ -326,7 +326,7 @@ int main(void)
         }
     }
 
-    printf(KWHT "User mode shell started\n");
+    printf(KWHT "User mode shell started. Press CTRL + P to list active threads.\n");
 
     // Read and run input commands.
     while (true)
