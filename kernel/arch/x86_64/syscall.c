@@ -77,7 +77,6 @@ static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
     if (!dst)
         return false;
     thread_t* t = get_current_thread();
-    cpu_t* cpu = get_cpu();
     const bool userish = (t && t->is_user);
     if (!userish)
         return true;

@@ -30,7 +30,6 @@ extern void thread_trampoline(void);
 
 [[noreturn]] static void scheduler_loop(void);
 static bool thread_is_active_on_any_cpu(thread_t* t);
-bool process_can_reap_locked(process_t* proc);
 static void process_destroy_now(process_t* proc);
 
 static inline void thread_list_move_to_tail(thread_t* t)
