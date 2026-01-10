@@ -68,9 +68,11 @@ typedef struct Process
     pml4_t pml4; // Page directory (physical address)
     list_head_t threads; // Head of a thread list
     list_head_t list; // Global process list node
+    list_head_t reap_list; // Pending reap list node
     struct Process* parent; // Parent process
     int exit_code;
     bool terminated;
+    bool reap_pending;
     uint64_t heap_end; // Current program break
     file_descriptor_t* fd_table[MAX_FDS];
     char cwd[VFS_MAX_PATH];
@@ -88,7 +90,6 @@ typedef struct Thread
     uint64_t user_entry; // For spawn
     uint64_t user_stack; // For spawn
     uint64_t saved_user_rsp; // Saved user RSP during syscalls
-    uint64_t sleep_until; // Wake tick for sleep syscall
     void* chan; // Sleep channel
     uint64_t ticks_remaining; // Time slice remaining
     uint64_t _align[2]; // Padding to keep list 16-byte aligned relative to start

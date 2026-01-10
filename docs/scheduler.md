@@ -17,7 +17,6 @@ Scheduler globals:
 
 ```c
 static thread_t *idle_threads[MAX_CPUS];
-static thread_t *scheduler_threads[MAX_CPUS];
 spinlock_t scheduler_lock;
 volatile uint64_t scheduler_ticks;
 ```
@@ -101,9 +100,8 @@ which restores the kernel `pml4` and loops again.
 The LAPIC timer ISR calls `scheduler_tick()`:
 
 - Increments `scheduler_ticks`
-- Wakes sleeping threads whose `sleep_until` has expired
 - Decrements `ticks_remaining` for the current thread
-- Returns `need_resched` when a time slice expires or a wakeup happens
+- Returns `need_resched` when a time slice expires
 
 If `need_resched` is true, the ISR calls `schedule()` after EOI.
 

@@ -18,7 +18,7 @@ static constexpr size_t MAX_CPUS = 32;
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t* kernel_process = nullptr;
 static thread_t* idle_threads[MAX_CPUS] = {nullptr};
-static thread_t* scheduler_threads[MAX_CPUS] = {nullptr};
+static list_head_t reap_list = LIST_HEAD_INIT(reap_list);
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
@@ -26,10 +26,13 @@ volatile uint64_t scheduler_ticks = 0;
 spinlock_t scheduler_lock;
 static bool scheduler_ready = false; // Ignore timer ticks until process_init completes
 
-extern void fork_return(void);
 extern void thread_trampoline(void);
 
 [[noreturn]] static void scheduler_loop(void);
+static bool thread_is_active_on_any_cpu(thread_t* t);
+static bool process_can_reap_locked(process_t* proc);
+static void process_destroy_now(process_t* proc);
+static void reap_pending_processes(void);
 
 static inline void thread_list_move_to_tail(thread_t* t)
 {
@@ -319,13 +322,6 @@ bool scheduler_tick(void)
                 continue;
             }
 
-            thread_state_t state = (thread_state_t)raw_state;
-            if (state == THREAD_BLOCKED && t->sleep_until && t->sleep_until <= scheduler_ticks)
-            {
-                thread_state_store(t, THREAD_READY);
-                t->sleep_until = 0;
-                need_resched = true;
-            }
         }
     }
 
@@ -414,6 +410,7 @@ void process_init(void)
     kernel_process->cwd[0] = '/';
     kernel_process->cwd[1] = '\0';
     vm_area_init(kernel_process);
+    INIT_LIST_HEAD(&kernel_process->reap_list);
 
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -465,14 +462,14 @@ void process_init(void)
     uint32_t cpu_count = smp_get_cpu_count();
     for (uint32_t i = 0; i < cpu_count && i < MAX_CPUS; i++)
     {
-        scheduler_threads[i] = create_scheduler_thread(i);
+        thread_t* sched = create_scheduler_thread(i);
         cpu_t* c = smp_get_cpu_by_index(i);
-        if (!scheduler_threads[i] || !c)
+        if (!sched || !c)
         {
             boot_message(ERROR, "Process: Failed to create scheduler thread for CPU %d", i);
             continue;
         }
-        c->scheduler_thread = scheduler_threads[i];
+        c->scheduler_thread = sched;
     }
 
     // Create idle threads for all CPUs
@@ -500,6 +497,7 @@ process_t* process_create(const char* name)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
     vm_area_init(proc);
+    INIT_LIST_HEAD(&proc->reap_list);
 
     spinlock_acquire(&scheduler_lock);
     proc->pid = next_pid++;
@@ -597,59 +595,81 @@ void process_copy_fds(process_t* dest, const process_t* src)
     }
 }
 
+static void process_collect_threads_locked(process_t* proc, list_head_t* free_list)
+{
+    thread_t *t, *next_t;
+    list_for_each_entry_safe(t, next_t, &proc->threads, list)
+    {
+        list_del(&t->list);
+        list_add_tail(&t->list, free_list);
+
+        thread_state_store(t, THREAD_TERMINATED);
+        t->process = nullptr;
+        t->saved_user_rsp = 0;
+    }
+}
+
 void process_destroy(process_t* proc)
 {
     if (!proc)
         return;
 
-    // Hold lock while modifying the thread list and process list
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
-    // Free threads - collect them first, then free outside lock
-    list_head_t free_list = LIST_HEAD_INIT(free_list);
-    const uint32_t cpu_count = smp_get_cpu_count();
-
-    thread_t *t, *next_t;
-    list_for_each_entry_safe(t, next_t, &proc->threads, list)
+    if (proc->reap_pending)
     {
-        list_del(&t->list);
-        list_add_tail(&t->list, &free_list);
-
-        // If any CPU still points at this thread as active, redirect it to the
-        // per-CPU idle thread so we never switch into freed memory.
-        for (uint32_t i = 0; i < cpu_count; i++)
-        {
-            cpu_t* cpu = smp_get_cpu_by_index(i);
-            if (!cpu)
-                continue;
-            if (cpu->active_thread == t)
-            {
-                thread_t* fallback = (i < MAX_CPUS && idle_threads[i]) ? idle_threads[i] : idle_threads[0];
-                cpu->active_thread = fallback;
-                if (fallback)
-                {
-                    fallback->state = THREAD_RUNNING;
-                    fallback->ticks_remaining = TIME_SLICE_TICKS;
-                    cpu->user_rsp = fallback->saved_user_rsp;
-                }
-                else
-                {
-                    cpu->user_rsp = 0;
-                }
-            }
-        }
-
-        // Make the thread unmistakably dead even if another CPU still has a raw pointer.
-        thread_state_store(t, THREAD_TERMINATED);
-        t->process = nullptr;
-        t->saved_user_rsp = 0;
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        return;
     }
 
-    list_del(&proc->list);
+    if (!process_can_reap_locked(proc))
+    {
+        thread_t* t;
+        list_for_each_entry(t, &proc->threads, list)
+        {
+            if (!thread_is_active_on_any_cpu(t))
+                thread_state_store(t, THREAD_TERMINATED);
+        }
+
+        if (!proc->reap_pending)
+        {
+            proc->reap_pending = true;
+            list_add_tail(&proc->reap_list, &reap_list);
+        }
+
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        apic_send_ipi_all_excluding_self(IPI_RESCHEDULE_VECTOR);
+        return;
+    }
+
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    process_destroy_now(proc);
+}
+
+static void process_destroy_now(process_t* proc)
+{
+    if (!proc)
+        return;
+
+    list_head_t free_list = LIST_HEAD_INIT(free_list);
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+
+    if (proc->reap_pending)
+    {
+        list_del(&proc->reap_list);
+        proc->reap_pending = false;
+    }
+
+    if (process_in_list(proc))
+        list_del(&proc->list);
+
+    process_collect_threads_locked(proc, &free_list);
 
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
+    thread_t *t, *next_t;
     list_for_each_entry_safe(t, next_t, &free_list, list)
     {
         list_del(&t->list);
@@ -786,13 +806,13 @@ void smp_init_ap_scheduler(void)
         cpu->active_thread = schedt;
         schedt->state = THREAD_RUNNING;
 
-        // Ensure syscall/TSS stack uses the scheduler stack for this CPU.
+        // Ensure the syscall / TSS stack uses the scheduler stack for this CPU.
         cpu->kernel_rsp = schedt->kstack_top;
         tss_set_stack(cpu->kernel_rsp);
 
         // The AP enters `ap_main` on a Limine-provided bootstrap stack, not on the
         // per-thread kernel stack. If we don't switch stacks here, the first time
-        // this CPU gets preempted we will save an out-of-range RSP into the scheduler
+        // this CPU gets preempted, we will save an out-of-range RSP into the scheduler
         // thread, and later scheduler validation will reject that thread.
         //
         // Switch onto the scheduler thread stack by performing a one-way context switch
@@ -842,6 +862,54 @@ static bool thread_is_active_on_any_cpu(thread_t* t)
             return true;
     }
     return false;
+}
+
+static bool process_can_reap_locked(process_t* proc)
+{
+    if (!proc)
+        return false;
+
+    thread_t* t;
+    list_for_each_entry(t, &proc->threads, list)
+    {
+        if (thread_is_active_on_any_cpu(t))
+            return false;
+
+        uint32_t raw_state = thread_state_load_raw(t);
+        if (!thread_state_valid_raw(raw_state))
+        {
+            thread_state_store(t, THREAD_TERMINATED);
+            return false;
+        }
+        if ((thread_state_t)raw_state != THREAD_TERMINATED)
+            return false;
+    }
+
+    return true;
+}
+
+static void reap_pending_processes(void)
+{
+    list_head_t ready = LIST_HEAD_INIT(ready);
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+
+    process_t *proc, *next_proc;
+    list_for_each_entry_safe(proc, next_proc, &reap_list, reap_list)
+    {
+        if (!process_can_reap_locked(proc))
+            continue;
+
+        list_del(&proc->reap_list);
+        list_add_tail(&proc->reap_list, &ready);
+    }
+
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+
+    list_for_each_entry_safe(proc, next_proc, &ready, reap_list)
+    {
+        process_destroy_now(proc);
+    }
 }
 
 /**
@@ -940,6 +1008,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
 
     for (;;)
     {
+        reap_pending_processes();
         spinlock_acquire(&scheduler_lock);
         constexpr bool allow_user = true;
         thread_t* next = find_any_runnable_thread_rr(cpu, allow_user);
@@ -958,6 +1027,50 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
                 continue;
             }
             next = idle;
+        }
+
+        const uintptr_t ktop = next->kstack_top;
+        const uintptr_t kbase = (ktop != 0) ? (ktop - KSTACK_SIZE) : 0;
+        if (ktop == 0 || next->rsp < kbase || next->rsp >= ktop)
+        {
+            boot_message(ERROR,
+                         "scheduler_loop: invalid rsp pid=%d tid=%d rsp=0x%lx kstack=[0x%lx-0x%lx)",
+                         next->process ? next->process->pid : -1,
+                         next->tid,
+                         next->rsp,
+                         kbase,
+                         ktop);
+            thread_state_store(next, THREAD_TERMINATED);
+            spinlock_release(&scheduler_lock);
+            continue;
+        }
+        const uintptr_t rip_slot = next->rsp + (6 * sizeof(uint64_t));
+        if (rip_slot < kbase || rip_slot + sizeof(uint64_t) > ktop)
+        {
+            boot_message(ERROR,
+                         "scheduler_loop: invalid rip slot pid=%d tid=%d rsp=0x%lx kstack=[0x%lx-0x%lx)",
+                         next->process ? next->process->pid : -1,
+                         next->tid,
+                         next->rsp,
+                         kbase,
+                         ktop);
+            thread_state_store(next, THREAD_TERMINATED);
+            spinlock_release(&scheduler_lock);
+            continue;
+        }
+        const uint64_t saved_rip = *(const uint64_t*)rip_slot;
+        const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
+        if (saved_rip == 0 || saved_rip < user_top)
+        {
+            boot_message(ERROR,
+                         "scheduler_loop: bad rip pid=%d tid=%d rip=0x%lx rsp=0x%lx",
+                         next->process ? next->process->pid : -1,
+                         next->tid,
+                         saved_rip,
+                         next->rsp);
+            thread_state_store(next, THREAD_TERMINATED);
+            spinlock_release(&scheduler_lock);
+            continue;
         }
 
         if (next->process && next->process->pml4)

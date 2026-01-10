@@ -101,6 +101,97 @@ static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame *fram
     schedule();
 }
 
+static void dump_panic_context(const struct interrupt_frame *frame, const struct interrupt_frame *snapshot)
+{
+    cpu_t* cpu = get_cpu();
+    uint64_t curr_rsp = 0;
+    __asm__ volatile("mov %0, rsp" : "=r"(curr_rsp));
+    uint64_t cr2 = 0;
+    __asm__ volatile("mov %0, cr2" : "=r"(cr2));
+
+    printk("PANIC DEBUG: frame=%p int=%lu err=0x%lx\n",
+           frame,
+           (unsigned long)snapshot->int_no,
+           snapshot->err_code);
+    printk("PANIC DEBUG: snapshot rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx cr2=0x%lx curr_rsp=0x%lx\n",
+           snapshot->rip,
+           snapshot->cs,
+           snapshot->rflags,
+           snapshot->rsp,
+           snapshot->ss,
+           cr2,
+           curr_rsp);
+    if (frame->int_no != snapshot->int_no || frame->err_code != snapshot->err_code ||
+        frame->rip != snapshot->rip || frame->cs != snapshot->cs || frame->rflags != snapshot->rflags ||
+        frame->rsp != snapshot->rsp || frame->ss != snapshot->ss)
+    {
+        printk("PANIC DEBUG: frame changed in handler int=%lu err=0x%lx rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx\n",
+               (unsigned long)frame->int_no,
+               frame->err_code,
+               frame->rip,
+               frame->cs,
+               frame->rflags,
+               frame->rsp,
+               frame->ss);
+    }
+    if (!cpu)
+    {
+        printk("PANIC DEBUG: cpu=null\n");
+        return;
+    }
+
+    printk("PANIC DEBUG: cpu=%p idx=%d kernel_rsp=0x%lx user_rsp=0x%lx tss.rsp0=0x%lx active_thread=%p\n",
+           cpu,
+           cpu->cpu_index,
+           cpu->kernel_rsp,
+           cpu->user_rsp,
+           cpu->tss.rsp0,
+           cpu->active_thread);
+
+    thread_t* t = cpu->active_thread;
+    const uintptr_t t_addr = (uintptr_t)t;
+    if (t && (t_addr % __alignof__(thread_t)) == 0)
+    {
+        process_t* p = t->process;
+        int pid = -1;
+        if (p && (((uintptr_t)p) % __alignof__(process_t)) == 0)
+            pid = p->pid;
+
+        printk("PANIC DEBUG: tid=%d state=%u is_user=%d is_idle=%d kstack_top=0x%lx rsp=0x%lx saved_user_rsp=0x%lx pid=%d process=%p\n",
+               t->tid,
+               (unsigned)t->state,
+               t->is_user,
+               t->is_idle,
+               t->kstack_top,
+               t->rsp,
+               t->saved_user_rsp,
+               pid,
+               p);
+
+        if (t->kstack_top != 0)
+        {
+            const uintptr_t kbase = t->kstack_top - KSTACK_SIZE;
+            const uintptr_t ktop = t->kstack_top;
+            const uintptr_t faddr = (uintptr_t)frame;
+            const bool in_kstack = (faddr >= kbase && faddr < ktop);
+            printk("PANIC DEBUG: kstack=[0x%lx-0x%lx) frame_in_kstack=%d\n",
+                   kbase,
+                   ktop,
+                   in_kstack);
+        }
+    }
+    else
+    {
+        printk("PANIC DEBUG: active_thread invalid or misaligned (ptr=%p)\n", t);
+    }
+
+    printk("PANIC DEBUG: frame cs=0x%lx ss=0x%lx rsp=0x%lx rflags=0x%lx\n",
+           snapshot->cs,
+           snapshot->ss,
+           snapshot->rsp,
+           snapshot->rflags);
+}
+
 void interrupt_handler(struct interrupt_frame *frame)
 {
     if (isr_handlers[frame->int_no])
@@ -109,32 +200,35 @@ void interrupt_handler(struct interrupt_frame *frame)
     }
     else if (frame->int_no < 32)
     {
-        printk("PANIC: EXCEPTION OCCURRED! Vector: %d\n", frame->int_no);
-        printk("Error Code: 0x%lx\n", frame->err_code);
-        printk("RIP: 0x%lx\n", frame->rip);
-        printk("CS: 0x%lx\n", frame->cs);
-        printk("RFLAGS: 0x%lx\n", frame->rflags);
-        printk("RSP: 0x%lx\n", frame->rsp);
-        printk("SS: 0x%lx\n", frame->ss);
+        struct interrupt_frame snapshot = *frame;
+        const struct interrupt_frame *snap = &snapshot;
 
-        if (frame->int_no == 14)
+        printk("PANIC: EXCEPTION OCCURRED! Vector: %d\n", (int)snap->int_no);
+        printk("Error Code: 0x%lx\n", snap->err_code);
+        printk("RIP: 0x%lx\n", snap->rip);
+        printk("CS: 0x%lx\n", snap->cs);
+        printk("RFLAGS: 0x%lx\n", snap->rflags);
+        printk("RSP: 0x%lx\n", snap->rsp);
+        printk("SS: 0x%lx\n", snap->ss);
+
+        if (snap->int_no == 14)
         {
             uint64_t cr2;
             __asm__ volatile("mov %0, cr2" : "=r"(cr2));
 #ifdef TEST_MODE
             // Emit a compact, low-noise line first so interleaved logs do not obscure PF context.
             printk("PF DEBUG: rip=0x%lx cs=0x%lx rsp=0x%lx err=0x%lx cr2=0x%lx\n",
-                   frame->rip,
-                   frame->cs,
-                   frame->rsp,
-                   frame->err_code,
+                   snap->rip,
+                   snap->cs,
+                   snap->rsp,
+                   snap->err_code,
                    cr2);
 
 #endif
             printk("CR2 (Page Fault Address): 0x%lx\n", cr2);
             // If the fault came from user mode, treat it as a bad process and reap it
             // rather than panicking the whole kernel.
-            const bool user_mode = (frame->cs & 0x3) != 0;
+            const bool user_mode = (snap->cs & 0x3) != 0;
 
             if (user_mode)
             {
@@ -144,10 +238,10 @@ void interrupt_handler(struct interrupt_frame *frame)
                              "Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
                              p ? p->pid : -1,
                              t ? t->tid : -1,
-                             frame->rip,
-                             frame->rsp,
+                             snap->rip,
+                             snap->rsp,
                              cr2,
-                             frame->err_code);
+                             snap->err_code);
 
                 if (p)
                 {
@@ -172,18 +266,19 @@ void interrupt_handler(struct interrupt_frame *frame)
             __asm__ volatile("mov %0, cr3" : "=r"(cr3));
             printk("Process: pid=%d cr3=0x%lx\n", current_process ? current_process->pid : -1, cr3);
             printk("Regs: rax=0x%lx rbx=0x%lx rcx=0x%lx rdx=0x%lx\n",
-                   frame->rax,
-                   frame->rbx,
-                   frame->rcx,
-                   frame->rdx);
+                   snap->rax,
+                   snap->rbx,
+                   snap->rcx,
+                   snap->rdx);
             printk("Regs: rsi=0x%lx rdi=0x%lx rbp=0x%lx rsp=0x%lx\n",
-                   frame->rsi,
-                   frame->rdi,
-                   frame->rbp,
-                   frame->rsp);
+                   snap->rsi,
+                   snap->rdi,
+                   snap->rbp,
+                   snap->rsp);
 #endif
         }
 
+        dump_panic_context(frame, snap);
         stack_trace();
 
 #ifdef TEST_MODE

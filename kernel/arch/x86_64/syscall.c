@@ -72,9 +72,49 @@ int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
 
+static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
+{
+    if (!dst)
+        return false;
+    thread_t* t = get_current_thread();
+    cpu_t* cpu = get_cpu();
+    const bool userish = (t && t->is_user);
+    if (!userish)
+        return true;
+    uintptr_t addr = (uintptr_t)dst;
+    uintptr_t end = addr + size;
+    if (end < addr)
+        return false;
+
+    const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
+    const bool in_kernel = (addr >= user_top) || (end > user_top);
+
+    const uintptr_t ktop = t ? t->kstack_top : 0;
+    const uintptr_t kbase = (ktop != 0) ? (ktop - KSTACK_SIZE) : 0;
+    const bool in_kstack = (ktop != 0) && (addr < ktop) && (end > kbase);
+
+    if (in_kernel || in_kstack)
+    {
+        process_t* p = get_current_process();
+        printk("%s: bad dst=%p size=%zu pid=%d tid=%d in_kernel=%d in_kstack=%d ret=%p\n",
+               op ? op : "user_ptr_write",
+               dst,
+               size,
+               p ? p->pid : -1,
+               t ? t->tid : -1,
+               in_kernel,
+               in_kstack,
+               __builtin_return_address(0));
+        return false;
+    }
+    return true;
+}
+
 static bool copy_to_user(void* dst, const void* src, size_t size)
 {
     if (!dst || !src)
+        return false;
+    if (!user_ptr_write_ok(dst, size, "copy_to_user"))
         return false;
     memcpy(dst, src, size);
     return true;
@@ -795,6 +835,8 @@ int sys_getcwd(char* buf, size_t size)
     const size_t len = strlen(cwd);
     if (len + 1 > size)
         return -1;
+    if (!user_ptr_write_ok(buf, len + 1, "sys_getcwd"))
+        return -1;
     memcpy(buf, cwd, len + 1);
 
 
@@ -809,11 +851,15 @@ int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
 
     if (tv)
     {
+        if (!user_ptr_write_ok(tv, sizeof(*tv), "sys_gettimeofday"))
+            return -1;
         tv->tv_sec = (int64_t)(ns / 1000000000ull);
         tv->tv_usec = (int64_t)((ns % 1000000000ull) / 1000ull);
     }
     if (tz)
     {
+        if (!user_ptr_write_ok(tz, sizeof(*tz), "sys_gettimeofday"))
+            return -1;
         tz->tz_minuteswest = 0;
         tz->tz_dsttime = 0;
     }
@@ -870,6 +916,8 @@ int sys_stat(const char* path, struct stat* st)
 {
     if (!path || !st)
         return -1;
+    if (!user_ptr_write_ok(st, sizeof(*st), "sys_stat"))
+        return -1;
 
     char abs_path[VFS_MAX_PATH];
     resolve_user_path(path, abs_path, sizeof(abs_path));
@@ -918,6 +966,8 @@ int sys_unlink(const char* path)
 int sys_fstat(int fd, struct stat* st)
 {
     if (!st || fd < 0 || fd >= MAX_FDS)
+        return -1;
+    if (!user_ptr_write_ok(st, sizeof(*st), "sys_fstat"))
         return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
@@ -1061,6 +1111,10 @@ int sys_read(int fd, char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return 0;
+    if (count == 0)
+        return 0;
+    if (!user_ptr_write_ok(buf, count, "sys_read"))
+        return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
 
@@ -1317,6 +1371,8 @@ int sys_pipe(int pipefd[2])
 {
     if (!pipefd)
         return -1;
+    if (!user_ptr_write_ok(pipefd, sizeof(int) * 2, "sys_pipe"))
+        return -1;
 
     // Find two free file descriptors
     int read_fd = -1, write_fd = -1;
@@ -1484,7 +1540,11 @@ int sys_readdir(int fd, vfs_dirent_t* dent)
     if (!d)
         return 0; // End of directory
 
-    copy_to_user(dent, d, sizeof(vfs_dirent_t));
+    if (!copy_to_user(dent, d, sizeof(vfs_dirent_t)))
+    {
+        kfree(d);
+        return -1;
+    }
     kfree(d);
     desc->offset++;
     return 1; // Success
