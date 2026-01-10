@@ -608,7 +608,7 @@ int sys_wait(int* status)
     while (1)
     {
         uint64_t rflags;
-        SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+        SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
         bool has_children = false;
         process_t* found = nullptr;
@@ -635,7 +635,7 @@ int sys_wait(int* status)
             }
             int pid = found->pid;
 
-            SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
             process_destroy(found);
             TEST_SYSCALL_LOG("sys_wait: pid=%d reaped child=%d code=%d\n", current_process->pid, pid, code);
             return pid;
@@ -643,12 +643,12 @@ int sys_wait(int* status)
 
         if (!has_children)
         {
-            SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
             return -1;
         }
         TEST_SYSCALL_LOG("sys_wait: pid=%d sleeping for child\n", current_process->pid);
         thread_sleep(current_process, &scheduler_lock);
-        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
     }
 }
 

@@ -31,13 +31,13 @@ static void ap_main(struct limine_smp_info *info)
 
     __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
 
-    // Wait for BSP to initialize the scheduler and create idle threads
+    // Wait for BSP to initialize the scheduler
     while (!__atomic_load_n(&ap_scheduler_ready, __ATOMIC_SEQ_CST))
     {
         __asm__ volatile("pause");
     }
 
-    // Initialize this AP's scheduler state (set idle thread as active)
+    // Initialize this AP's scheduler state (set scheduler thread as active)
     smp_init_ap_scheduler();
 
     __builtin_unreachable();

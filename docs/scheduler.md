@@ -82,7 +82,7 @@ switches into the per-CPU scheduler thread.
 - Scans the global process list in round-robin order to avoid starvation.
 - Skips threads already active on another CPU.
 - Schedules user-mode and kernel threads on any CPU.
-- If no runnable threads exist, idles with `sti; hlt; cli`.
+- If no runnable threads exist, switches to the per-CPU idle thread, which halts in a loop.
 
 When a runnable thread is found, the scheduler:
 
@@ -125,8 +125,8 @@ does not force an immediate reschedule.
 
 Idle threads are **not** part of the runnable set. They are used as safe
 `active_thread` fallbacks when destroying processes or cleaning up stale thread
-pointers. When no runnable threads exist, the scheduler loop halts the CPU
-instead of explicitly scheduling an idle thread.
+pointers. When no runnable threads exist, the scheduler switches to the per-CPU
+idle thread, which executes `hlt` in a loop.
 
 ---
 

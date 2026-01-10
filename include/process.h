@@ -66,7 +66,7 @@ typedef struct Process
     int pid;
     char name[PROCESS_NAME_MAX];
     pml4_t pml4; // Page directory (physical address)
-    list_head_t threads; // Head of thread list
+    list_head_t threads; // Head of a thread list
     list_head_t list; // Global process list node
     struct Process* parent; // Parent process
     int exit_code;

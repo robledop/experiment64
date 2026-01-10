@@ -10,6 +10,7 @@
 #include <smp.h>
 #include <gdt.h>
 
+#include "debug.h"
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 static constexpr size_t MAX_CPUS = 32;
@@ -38,6 +39,10 @@ static inline void thread_list_move_to_tail(thread_t* t)
     list_add_tail(&t->list, &t->process->threads);
 }
 
+/**
+ * Initialize the virtual memory area list for a process.
+ * @param proc
+ */
 void vm_area_init(process_t* proc)
 {
     if (!proc)
@@ -46,6 +51,14 @@ void vm_area_init(process_t* proc)
     proc->vm_area_count = 0;
 }
 
+/**
+ * Add a virtual memory area to a process.
+ * @param proc Process to add the area to
+ * @param start Start address
+ * @param end End address
+ * @param flags Protection flags
+ * @return
+ */
 vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t flags)
 {
     if (!proc || start >= end)
@@ -79,6 +92,11 @@ vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t f
     return area;
 }
 
+/**
+ * Clone the virtual memory areas from one process to another.
+ * @param dest Destination process
+ * @param src Source process
+ */
 void vm_area_clone(process_t* dest, const process_t* src)
 {
     if (!dest || !src)
@@ -94,6 +112,10 @@ void vm_area_clone(process_t* dest, const process_t* src)
     }
 }
 
+/**
+ * Clear all virtual memory areas for a process.
+ * @param proc Process to clear areas for
+ */
 void vm_area_clear(process_t* proc)
 {
     if (!proc)
@@ -117,13 +139,15 @@ void vm_area_clear(process_t* proc)
     }
 }
 
-// Create an idle thread for a CPU. Unlike regular threads, idle threads
-// are NOT added to the process thread list to avoid scheduler confusion.
+/*
+ * Create an idle thread for a CPU. Unlike regular threads, idle threads
+ * are NOT added to the process thread list to avoid scheduler confusion.
+ */
 static thread_t* create_idle_thread(void)
 {
     thread_t* thread = kmalloc(sizeof(thread_t));
     if (!thread)
-        return nullptr;
+        panic("Failed to allocate idle thread");
     memset(thread, 0, sizeof(thread_t));
 
     void* kstack = kmalloc(KSTACK_SIZE);
@@ -160,6 +184,15 @@ static thread_t* create_idle_thread(void)
     return thread;
 }
 
+/**
+ * Create a scheduler thread for a CPU.
+ * Each scheduler thread is responsible for managing the scheduling of threads
+ * on a specific CPU. It runs at a higher priority than regular threads and
+ * ensures fair and efficient thread execution.
+ *
+ * @param cpu_idx CPU index
+ * @return Scheduler thread or nullptr on failure
+ */
 static thread_t* create_scheduler_thread(uint32_t cpu_idx)
 {
     thread_t* thread = kmalloc(sizeof(thread_t));
@@ -187,6 +220,8 @@ static thread_t* create_scheduler_thread(uint32_t cpu_idx)
 
     uint64_t stack_ptr = thread->kstack_top - KSTACK_SYSCALL_HEADROOM;
     stack_ptr -= sizeof(struct context);
+    // Align for direct C entry (scheduler_loop); SysV expects 16B alignment at call sites.
+    stack_ptr &= ~0xFULL;
     struct context* ctx = (struct context*)stack_ptr;
     memset(ctx, 0, sizeof(struct context));
     ctx->rip = (uint64_t)scheduler_loop;
@@ -205,6 +240,7 @@ static inline bool thread_state_valid_raw(uint32_t raw_state)
 static inline uint32_t thread_state_load_raw(const thread_t* t)
 {
     return __atomic_load_n((const uint32_t*)&t->state, __ATOMIC_RELAXED);
+    // __ATOMIC_RELAXED means no memory ordering constraints
 }
 
 static inline void thread_state_store(thread_t* t, thread_state_t state)
@@ -365,7 +401,7 @@ void process_init(void)
 {
     spinlock_init(&scheduler_lock);
 
-    // Initialize the first kernel process (idle task / initial kernel task)
+    // Initialize the first kernel process (initial kernel task)
     kernel_process = kmalloc(sizeof(process_t));
     if (!kernel_process)
     {
@@ -379,7 +415,6 @@ void process_init(void)
     kernel_process->cwd[1] = '\0';
     vm_area_init(kernel_process);
 
-    // Use current CR3
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
     kernel_process->pml4 = (pml4_t)cr3;
@@ -396,6 +431,7 @@ void process_init(void)
     kernel_thread->process = kernel_process;
     kernel_thread->state = THREAD_RUNNING;
     kernel_thread->ticks_remaining = TIME_SLICE_TICKS;
+    kernel_thread->is_idle = false;
 
     // For the initial kernel thread, capture the current RSP and derive a stack window
     // so scheduler sanity checks consider it in-bounds. This thread is already running
@@ -417,8 +453,6 @@ void process_init(void)
     // something reasonable until threads switch away from the bootstrap stack.
     if (cpu && cpu->kernel_rsp == 0)
         cpu->kernel_rsp = kernel_thread->kstack_top;
-
-    kernel_thread->is_idle = false;
 
     INIT_LIST_HEAD(&kernel_process->threads);
     list_add_tail(&kernel_thread->list, &kernel_process->threads);
@@ -456,7 +490,6 @@ void process_init(void)
                  kernel_process->pid, cpu_count);
     scheduler_ready = true;
 
-    // Signal APs that scheduler is ready
     smp_ap_scheduler_ready();
 }
 
@@ -488,10 +521,10 @@ process_t* process_create(const char* name)
     }
 
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     INIT_LIST_HEAD(&proc->threads);
     list_add_tail(&proc->list, &process_list);
-    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     return proc;
 }
@@ -509,7 +542,7 @@ void process_copy_fds(process_t* dest, const process_t* src)
                 memset(new_desc, 0, sizeof(file_descriptor_t));
                 new_desc->flags = old_desc->flags;
                 new_desc->offset = old_desc->offset;
-                new_desc->ref = 1; // Initialize ref count for new descriptor
+                new_desc->ref = 1;
 
                 if (old_desc->inode)
                 {
@@ -569,9 +602,9 @@ void process_destroy(process_t* proc)
     if (!proc)
         return;
 
-    // Hold lock while modifying thread list and process list
+    // Hold lock while modifying the thread list and process list
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
     // Free threads - collect them first, then free outside lock
     list_head_t free_list = LIST_HEAD_INIT(free_list);
@@ -613,19 +646,15 @@ void process_destroy(process_t* proc)
         t->saved_user_rsp = 0;
     }
 
-    // Remove from process list
     list_del(&proc->list);
 
-    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
-    // Free threads outside the lock
     list_for_each_entry_safe(t, next_t, &free_list, list)
     {
         list_del(&t->list);
-        // Free kernel stack
-        void* stack_base = (void*)(t->kstack_top - KSTACK_SIZE);
-        kfree(stack_base);
-
+        auto kernel_stack_base = (void*)(t->kstack_top - KSTACK_SIZE);
+        kfree(kernel_stack_base);
         kfree(t);
     }
 
@@ -646,7 +675,7 @@ void process_destroy(process_t* proc)
                     proc->fd_table[j] = nullptr;
                     if (j > i)
                     {
-                        // Another fd points to same descriptor, decrement ref
+                        // Another fd points to the same descriptor, decrement ref
                         if (desc->ref > 0)
                             desc->ref--;
                     }
@@ -679,7 +708,6 @@ void process_destroy(process_t* proc)
         }
     }
 
-    // Free vm areas
     vm_area_clear(proc);
 
     // Free address space
@@ -687,8 +715,6 @@ void process_destroy(process_t* proc)
     {
         vmm_destroy_pml4(proc->pml4);
     }
-
-    // Process was already removed from process_list at the start of this function
 
     kfree(proc);
 }
@@ -735,9 +761,9 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
     thread->rsp = (uint64_t)ctx;
 
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     list_add_tail(&thread->list, &process->threads);
-    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     // Kick other CPUs so newly readied work does not stick to the BSP.
     if (scheduler_ready && smp_get_cpu_count() > 1)
@@ -750,7 +776,7 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
 
 void smp_init_ap_scheduler(void)
 {
-    // Set this CPU's idle thread as active
+    // Set this CPU's scheduler thread as active
     cpu_t* cpu = get_cpu();
     uint32_t cpu_idx = (uint32_t)cpu->cpu_index;
 
@@ -766,8 +792,8 @@ void smp_init_ap_scheduler(void)
 
         // The AP enters `ap_main` on a Limine-provided bootstrap stack, not on the
         // per-thread kernel stack. If we don't switch stacks here, the first time
-        // this CPU gets preempted we will save an out-of-range RSP into the idle
-        // thread, and later scheduler validation will reject that idle thread.
+        // this CPU gets preempted we will save an out-of-range RSP into the scheduler
+        // thread, and later scheduler validation will reject that thread.
         //
         // Switch onto the scheduler thread stack by performing a one-way context switch
         // from a synthetic "bootstrap" thread frame. We do NOT hold scheduler_lock here
@@ -798,8 +824,11 @@ process_t* get_current_process(void)
     return nullptr;
 }
 
-// Check if a thread is currently the active thread on any CPU.
-// Caller must hold scheduler_lock.
+/**
+ * Check if a thread is currently the active thread on any CPU.
+ * @warning Caller must hold scheduler_lock.
+ * @param t Thread to check
+ */
 static bool thread_is_active_on_any_cpu(thread_t* t)
 {
     if (!t)
@@ -815,8 +844,11 @@ static bool thread_is_active_on_any_cpu(thread_t* t)
     return false;
 }
 
-// Helper: scan all processes and return the first runnable non-idle thread.
-// Caller must hold scheduler_lock.
+/**
+ * Scan all processes and return the first runnable thread.
+ * @warning Caller must hold scheduler_lock.
+ * @param allow_user Whether to consider user threads
+ */
 static thread_t* find_any_runnable_thread(bool allow_user)
 {
     process_t* p;
@@ -835,6 +867,13 @@ static thread_t* find_any_runnable_thread(bool allow_user)
 // Round-robin variant to avoid starving later-created processes (important for tests).
 static process_t* rr_last_proc[MAX_CPUS] = {nullptr};
 
+/**
+ * Find any runnable thread using round-robin across processes.
+ * @warning Caller must hold scheduler_lock.
+ * @param cpu CPU to consider (or nullptr for any)
+ * @param allow_user Whether to consider user threads
+ * @return Runnable thread or nullptr if none found
+ */
 static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
 {
     if (!cpu)
@@ -846,7 +885,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
 
     list_head_t* head = &process_list;
     process_t* startp = rr_last_proc[cpu_idx];
-    list_head_t* start = (startp && process_in_list(startp)) ? startp->list.next : head->next;
+    list_head_t* start = (startp != nullptr && process_in_list(startp)) ? startp->list.next : head->next;
     if (start == head)
         start = head->next;
 
@@ -882,8 +921,10 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
     return nullptr;
 }
 
-// xv6-style scheduler loop running on a per-CPU scheduler pseudo-thread stack.
-// Note: we do NOT keep scheduler_lock held while running normal threads.
+/**
+ * xv6-style scheduler loop running on a per-CPU scheduler pseudo-thread stack.
+ * @note we do NOT keep scheduler_lock held while running normal threads.
+ */
 [[noreturn]] static void scheduler_loop(void)
 {
     cpu_t* cpu = get_cpu();
@@ -900,15 +941,24 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
     for (;;)
     {
         spinlock_acquire(&scheduler_lock);
-        const bool allow_user = true;
+        constexpr bool allow_user = true;
         thread_t* next = find_any_runnable_thread_rr(cpu, allow_user);
         if (!next)
         {
-            spinlock_release(&scheduler_lock);
-            __asm__ volatile("sti; hlt; cli");
-            continue;
+            thread_t* idle = nullptr;
+            const int cpu_idx = cpu->cpu_index;
+            if (cpu_idx >= 0 && cpu_idx < (int)MAX_CPUS)
+                idle = idle_threads[cpu_idx];
+            if (!idle)
+                idle = idle_threads[0];
+            if (!idle)
+            {
+                spinlock_release(&scheduler_lock);
+                __asm__ volatile("sti; hlt; cli");
+                continue;
+            }
+            next = idle;
         }
-
 
         if (next->process && next->process->pml4)
             vmm_switch_pml4(next->process->pml4);
@@ -922,10 +972,6 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
         next->state = THREAD_RUNNING;
         next->ticks_remaining = TIME_SLICE_TICKS;
 
-        // Important: do not run normal threads with scheduler_lock held.
-        // The running thread may call sys_exit/sys_wait/yield and re-acquire scheduler_lock.
-        // We release here and rely on schedule() to switch back into this scheduler
-        // with scheduler_lock held again.
         spinlock_release(&scheduler_lock);
         switch_to(schedt, next);
 
@@ -1022,7 +1068,7 @@ void thread_sleep(void* chan, spinlock_t* lock)
 void thread_wakeup(void* chan)
 {
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     process_t* p;
     list_for_each_entry(p, &process_list, list)
     {
@@ -1046,7 +1092,7 @@ void thread_wakeup(void* chan)
             }
         }
     }
-    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 }
 
 void yield(void)
@@ -1074,7 +1120,7 @@ static const char* thread_state_str(thread_state_t state)
 void process_dump(void)
 {
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(scheduler_lock, rflags);
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     printk("\n%-5s %-5s %-6s %s\n", "PID", "TID", "STATE", "NAME");
     process_t* p;
     list_for_each_entry(p, &process_list, list)
@@ -1090,13 +1136,12 @@ void process_dump(void)
                 state_str = thread_state_str((thread_state_t)raw_state);
             }
 
-            printk("%-5d %-5d %-6s %s%s\n",
+            printk("%-5d %-5d %-6s %s\n",
                    p->pid,
                    t->tid,
                    state_str,
-                   p->name,
-                   t->is_idle ? " (idle)" : "");
+                   p->name);
         }
     }
-    SPIN_UNLOCK_IRQRESTORE(scheduler_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 }

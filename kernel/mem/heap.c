@@ -401,7 +401,7 @@ void *kmalloc(size_t size)
         return nullptr;
 
     uint64_t flags;
-    SPIN_LOCK_IRQSAVE(heap_lock, flags);
+    SPIN_LOCK_INT_SAVE(heap_lock, flags);
 
     void *result = nullptr;
     int index = get_cache_index(size);
@@ -414,7 +414,7 @@ void *kmalloc(size_t size)
         result = alloc_big(size);
     }
 
-    SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+    SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
 
     return result;
 }
@@ -435,7 +435,7 @@ void kfree(void *ptr)
         return;
 
     uint64_t flags;
-    SPIN_LOCK_IRQSAVE(heap_lock, flags);
+    SPIN_LOCK_INT_SAVE(heap_lock, flags);
 
     // Find page start
     uint64_t addr = (uint64_t)ptr;
@@ -445,7 +445,7 @@ void kfree(void *ptr)
     if (header->magic != HEAP_MAGIC || header->guard_magic != HEAP_MAGIC)
     {
         printk("kfree: Invalid pointer (magic/guard mismatch) %p magic=%lx guard=%lx\n", ptr, header->magic, header->guard_magic);
-        SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+        SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
         return;
     }
 
@@ -460,14 +460,14 @@ void kfree(void *ptr)
         if (index < 0)
         {
             boot_message(ERROR, "heap: kfree invalid slab obj_size=%zu ptr=%p", header->obj_size, ptr);
-            SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
             return;
         }
 
         if (slot_base < slot_min || slot_base >= page_end)
         {
             boot_message(ERROR, "heap: kfree slot out of range (slot=%p start=%p end=%p)", slot_base, page_start, page_end);
-            SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
             return;
         }
 
@@ -490,7 +490,7 @@ void kfree(void *ptr)
             if (index == 1)
             {
                 // Keep cache-1 slabs resident to simplify corruption tracking.
-                SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+                SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
                 return;
             }
 
@@ -499,7 +499,7 @@ void kfree(void *ptr)
             uintptr_t phys_addr = (uintptr_t)page_start - g_hhdm_offset;
             void *phys = (void *)phys_addr;
             pmm_free_pages(phys, 1);
-            SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
             return;
         }
     }
@@ -511,7 +511,7 @@ void kfree(void *ptr)
         pmm_free_pages(phys, header->page_count);
     }
 
-    SPIN_UNLOCK_IRQRESTORE(heap_lock, flags);
+    SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
 }
 
 void *krealloc(void *ptr, size_t new_size)

@@ -186,9 +186,9 @@ TEST(test_scheduler_sleep_wakeup)
     for (int i = 0; i < 2000; i++)
     {
         uint64_t flags;
-        SPIN_LOCK_IRQSAVE(scheduler_lock, flags);
+        SPIN_LOCK_INT_SAVE(scheduler_lock, flags);
         thread_state_t state = t->state;
-        SPIN_UNLOCK_IRQRESTORE(scheduler_lock, flags);
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
 
         if (state == THREAD_BLOCKED)
         {

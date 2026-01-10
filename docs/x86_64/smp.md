@@ -343,15 +343,13 @@ The scheduler loop (see `docs/scheduler.md`) then selects a runnable thread:
 - Skip threads already active on another CPU
 - Allow user-mode threads on any CPU
 
-If no runnable thread is found, the CPU idles with interrupts enabled:
+If no runnable thread is found, the scheduler switches to the per-CPU idle thread:
 
 ```c
 const bool allow_user = true;
 thread_t *next = find_any_runnable_thread_rr(cpu, allow_user);
 if (!next) {
-    spinlock_release(&scheduler_lock);
-    __asm__ volatile("sti; hlt; cli");
-    continue;
+    next = idle_threads[cpu->cpu_index];
 }
 switch_to(schedt, next);
 ```

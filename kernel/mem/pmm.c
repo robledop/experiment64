@@ -144,7 +144,7 @@ void *pmm_alloc_page(void)
 {
     void *addr = nullptr;
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
     for (size_t i = reserved_base_page; i < highest_page; i++)
     {
@@ -165,7 +165,7 @@ void *pmm_alloc_page(void)
         }
     }
 
-    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
     return addr; // nullptr when out of memory
 }
 
@@ -175,7 +175,7 @@ void pmm_free_page(void *ptr)
         return;
 
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
     uint64_t addr = (uint64_t)ptr;
     uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
@@ -184,19 +184,19 @@ void pmm_free_page(void *ptr)
     if (heap_is_slab_page((void *)phys_ptr))
     {
         boot_message(ERROR, "pmm_free_page: attempt to free slab page phys=%p", (void *)phys_ptr);
-        SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+        SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
         return; // Ignore to avoid reusing active slab backing page
     }
 
     bitmap_unset(page);
-    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
 }
 
 void *pmm_alloc_pages(size_t count)
 {
     void *addr = nullptr;
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
     // Simple first-fit search for contiguous pages
     for (size_t i = reserved_base_page; i < highest_page; i++)
@@ -242,7 +242,7 @@ void *pmm_alloc_pages(size_t count)
         }
     }
 
-    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
     return addr;
 }
 
@@ -252,7 +252,7 @@ void pmm_free_pages(void *ptr, size_t count)
         return;
 
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(pmm_lock, rflags);
+    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
     uint64_t addr = (uint64_t)ptr;
     uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
@@ -261,7 +261,7 @@ void pmm_free_pages(void *ptr, size_t count)
     if (heap_is_slab_page((void *)phys_ptr))
     {
         boot_message(ERROR, "pmm_free_pages: attempt to free slab page phys=%p count=%zu", (void *)phys_ptr, count);
-        SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+        SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
         return; // Prevent reuse; likely a double free or corruption
     }
 
@@ -269,5 +269,5 @@ void pmm_free_pages(void *ptr, size_t count)
     {
         bitmap_unset(page + i);
     }
-    SPIN_UNLOCK_IRQRESTORE(pmm_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
 }

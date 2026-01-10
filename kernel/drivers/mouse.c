@@ -93,12 +93,12 @@ static uint64_t mouse_dev_read(const vfs_inode_t *node, uint64_t offset, uint64_
         return 0;
 
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(mouse_lock, rflags);
+    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
 
     while (mouse_buffer_empty()) {
-        SPIN_UNLOCK_IRQRESTORE(mouse_lock, rflags);
+        SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
         thread_sleep(&mouse_device, nullptr);
-        SPIN_LOCK_IRQSAVE(mouse_lock, rflags);
+        SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
     }
 
     struct ps2_mouse_packet packet;
@@ -106,7 +106,7 @@ static uint64_t mouse_dev_read(const vfs_inode_t *node, uint64_t offset, uint64_
     const uint64_t bytes = (size < sizeof(packet)) ? size : sizeof(packet);
     memcpy(buffer, &packet, (size_t)bytes);
 
-    SPIN_UNLOCK_IRQRESTORE(mouse_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
 
     return bytes;
 }
@@ -172,10 +172,10 @@ static void mouse_handler(struct interrupt_frame *frame)
             mouse_device.packet.y = mouse_device.y;
 
             uint64_t rflags;
-            SPIN_LOCK_IRQSAVE(mouse_lock, rflags);
+            SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
             mouse_buffer_push(mouse_device.packet);
             thread_wakeup(&mouse_device);
-            SPIN_UNLOCK_IRQRESTORE(mouse_lock, rflags);
+            SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
 
             mouse_device.cycle = 0;
             break;
@@ -253,9 +253,9 @@ void mouse_get_position(mouse_t *mouse)
 void mouse_flush_pending_events(void)
 {
     uint64_t rflags;
-    SPIN_LOCK_IRQSAVE(mouse_lock, rflags);
+    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
     mouse_buf_head = mouse_buf_tail = 0;
-    SPIN_UNLOCK_IRQRESTORE(mouse_lock, rflags);
+    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
 }
 
 static struct inode_operations mouse_dev_ops = {
