@@ -124,6 +124,8 @@ void process_spawn_init(void)
         boot_message(ERROR, "Failed to create init process");
         return;
     }
+    init_process = init_proc;
+    init_proc->parent = kernel_process;
 
     // Set init process PML4 to current kernel PML4
     uint64_t cr3;

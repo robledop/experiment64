@@ -373,25 +373,81 @@ void sys_exit(int code)
 #endif
     TEST_SYSCALL_LOG("Process %d exited with code %d\n", current_process->pid, code);
 
-    current_process->exit_code = code;
-    current_process->terminated = true;
-    current_thread->state = THREAD_TERMINATED;
-    if (current_process->parent)
-        thread_wakeup(current_process->parent);
+    __asm__ volatile("cli");
 
-    // Save current thread state
-    thread_t* current = get_current_thread();
-    if (current)
+    // Acquire scheduler lock before modifying thread/process state to prevent races
+    spinlock_acquire(&scheduler_lock);
+
+    thread_t* self = current_thread;
+    process_t* proc = current_process;
+    if (self)
+        self->state = THREAD_TERMINATED;
+
+    bool proc_terminated = false;
+    if (self && self->is_user)
     {
-        // Save context if needed (already saved by interrupt handler)
+        proc_terminated = true;
+    }
+    else if (proc)
+    {
+        proc_terminated = true;
+        thread_t* t;
+        list_for_each_entry(t, &proc->threads, list)
+        {
+            if (t->state != THREAD_TERMINATED)
+            {
+                proc_terminated = false;
+                break;
+            }
+        }
     }
 
+    process_t* parent = nullptr;
+    if (proc && proc_terminated)
+    {
+        proc->exit_code = code;
+        proc->terminated = true;
+
+        process_t* new_parent = init_process ? init_process : kernel_process;
+        process_t* p;
+        list_for_each_entry(p, &process_list, list)
+        {
+            if (p && p->parent == proc)
+            {
+                p->parent = new_parent;
+                if (p->terminated)
+                    thread_wakeup(new_parent);
+            }
+        }
+
+        parent = proc->parent;
+    }
+
+    spinlock_release(&scheduler_lock);
+
+    // Wake up parent outside the lock (thread_wakeup acquires its own lock)
+    // Note: interrupts are still disabled, so thread_wakeup won't be preempted
+    if (parent)
+        thread_wakeup(parent);
+
+    // schedule() will switch to another thread; interrupts will be re-enabled
+    // when the new thread runs. This thread's stack is safe because no IPI
+    // can arrive to trigger reaping while we're still using it.
     schedule();
 }
 
 int sys_kill(int pid, int sig)
 {
     (void)sig; // For now, any signal terminates the process
+
+    // Disable interrupts first. If we end up killing ourselves, we need to keep
+    // them disabled until after schedule() to prevent an IPI from triggering a
+    // nested schedule that could free our stack while we're still using it.
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    // Acquire scheduler lock before accessing process_list and modifying state
+    spinlock_acquire(&scheduler_lock);
 
     // Find the target process
     process_t* target = nullptr;
@@ -407,11 +463,21 @@ int sys_kill(int pid, int sig)
     }
 
     if (!target)
+    {
+        spinlock_release(&scheduler_lock);
+        if (rflags & RFLAGS_IF)
+            __asm__ volatile("sti");
         return -1; // Process not found
+    }
 
     // Don't allow killing the kernel process or init
-    if (target->pid <= 1)
+    if (target->pid <= 1 || (init_process && target == init_process))
+    {
+        spinlock_release(&scheduler_lock);
+        if (rflags & RFLAGS_IF)
+            __asm__ volatile("sti");
         return -1;
+    }
 
     // Mark the process as terminated
     target->exit_code = 128 + sig; // Convention: exit code = 128 + signal number
@@ -425,13 +491,38 @@ int sys_kill(int pid, int sig)
         t->state = THREAD_TERMINATED;
     }
 
-    // Wake up the parent if it's waiting
-    if (target->parent)
-        thread_wakeup(target->parent);
+    process_t* new_parent = init_process ? init_process : kernel_process;
+    process_t* p;
+    list_for_each_entry(p, &process_list, list)
+    {
+        if (p && p->parent == target)
+        {
+            p->parent = new_parent;
+            if (p->terminated)
+                thread_wakeup(new_parent);
+        }
+    }
 
-    // If we killed ourselves, reschedule
-    if (target == current_process)
+    // Cache parent and check if we killed ourselves before releasing lock
+    process_t* parent = target->parent;
+    bool killed_self = (target == current_process);
+
+    spinlock_release(&scheduler_lock);
+
+    // Wake up the parent if it's waiting (thread_wakeup acquires its own lock)
+    if (parent)
+        thread_wakeup(parent);
+
+    // If we killed ourselves, reschedule (interrupts stay disabled)
+    if (killed_self)
+    {
         schedule();
+        // schedule() won't return for a terminated thread
+    }
+
+    // Restore interrupt state only if we didn't kill ourselves
+    if (rflags & RFLAGS_IF)
+        __asm__ volatile("sti");
 
     return 0;
 }
@@ -652,6 +743,7 @@ int sys_wait(int* status)
 
         bool has_children = false;
         process_t* found = nullptr;
+        bool has_unreapable_zombie = false;
         process_t* p;
         list_for_each_entry(p, &process_list, list)
         {
@@ -660,8 +752,12 @@ int sys_wait(int* status)
                 has_children = true;
                 if (p->terminated)
                 {
-                    found = p;
-                    break;
+                    if (process_can_reap_locked(p))
+                    {
+                        found = p;
+                        break;
+                    }
+                    has_unreapable_zombie = true;
                 }
             }
         }
@@ -676,7 +772,7 @@ int sys_wait(int* status)
             int pid = found->pid;
 
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            process_destroy(found);
+            process_reap(found);
             TEST_SYSCALL_LOG("sys_wait: pid=%d reaped child=%d code=%d\n", current_process->pid, pid, code);
             return pid;
         }
@@ -685,6 +781,12 @@ int sys_wait(int* status)
         {
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
             return -1;
+        }
+        if (has_unreapable_zombie)
+        {
+            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+            yield();
+            continue;
         }
         TEST_SYSCALL_LOG("sys_wait: pid=%d sleeping for child\n", current_process->pid);
         thread_sleep(current_process, &scheduler_lock);

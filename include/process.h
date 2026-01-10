@@ -68,11 +68,9 @@ typedef struct Process
     pml4_t pml4; // Page directory (physical address)
     list_head_t threads; // Head of a thread list
     list_head_t list; // Global process list node
-    list_head_t reap_list; // Pending reap list node
     struct Process* parent; // Parent process
     int exit_code;
     bool terminated;
-    bool reap_pending;
     uint64_t heap_end; // Current program break
     file_descriptor_t* fd_table[MAX_FDS];
     char cwd[VFS_MAX_PATH];
@@ -102,12 +100,15 @@ typedef struct Thread
 
 extern list_head_t process_list;
 extern process_t* kernel_process;
+extern process_t* init_process;
 extern spinlock_t scheduler_lock;
 extern volatile uint64_t scheduler_ticks;
 
 void process_init(void);
 process_t* process_create(const char* name);
 void process_destroy(process_t* process);
+void process_reap(process_t* process);
+bool process_can_reap_locked(process_t* proc);
 void process_copy_fds(process_t* dest, const process_t* src);
 void vm_area_init(process_t* proc);
 vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t flags);

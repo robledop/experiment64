@@ -17,8 +17,8 @@ static constexpr size_t MAX_CPUS = 32;
 
 list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t* kernel_process = nullptr;
+process_t* init_process = nullptr;
 static thread_t* idle_threads[MAX_CPUS] = {nullptr};
-static list_head_t reap_list = LIST_HEAD_INIT(reap_list);
 static int next_pid = 1;
 static int next_tid = 1;
 volatile uint64_t scheduler_ticks = 0;
@@ -30,9 +30,8 @@ extern void thread_trampoline(void);
 
 [[noreturn]] static void scheduler_loop(void);
 static bool thread_is_active_on_any_cpu(thread_t* t);
-static bool process_can_reap_locked(process_t* proc);
+bool process_can_reap_locked(process_t* proc);
 static void process_destroy_now(process_t* proc);
-static void reap_pending_processes(void);
 
 static inline void thread_list_move_to_tail(thread_t* t)
 {
@@ -410,7 +409,6 @@ void process_init(void)
     kernel_process->cwd[0] = '/';
     kernel_process->cwd[1] = '\0';
     vm_area_init(kernel_process);
-    INIT_LIST_HEAD(&kernel_process->reap_list);
 
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -497,7 +495,6 @@ process_t* process_create(const char* name)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
     vm_area_init(proc);
-    INIT_LIST_HEAD(&proc->reap_list);
 
     spinlock_acquire(&scheduler_lock);
     proc->pid = next_pid++;
@@ -614,36 +611,36 @@ void process_destroy(process_t* proc)
     if (!proc)
         return;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-
-    if (proc->reap_pending)
-    {
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    if (proc == kernel_process || (init_process && proc == init_process))
         return;
-    }
 
-    if (!process_can_reap_locked(proc))
+    for (;;)
     {
+        uint64_t rflags;
+        SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+
         thread_t* t;
         list_for_each_entry(t, &proc->threads, list)
         {
-            if (!thread_is_active_on_any_cpu(t))
-                thread_state_store(t, THREAD_TERMINATED);
+            thread_state_store(t, THREAD_TERMINATED);
         }
 
-        if (!proc->reap_pending)
-        {
-            proc->reap_pending = true;
-            list_add_tail(&proc->reap_list, &reap_list);
-        }
-
+        const bool can_reap = process_can_reap_locked(proc);
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        apic_send_ipi_all_excluding_self(IPI_RESCHEDULE_VECTOR);
-        return;
+
+        if (can_reap)
+            break;
+
+        yield();
     }
 
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    process_destroy_now(proc);
+}
+
+void process_reap(process_t* proc)
+{
+    if (!proc)
+        return;
     process_destroy_now(proc);
 }
 
@@ -656,10 +653,12 @@ static void process_destroy_now(process_t* proc)
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
-    if (proc->reap_pending)
+    // Re-verify that no thread is active on any CPU before destroying.
+    // The state could have changed between process_can_reap_locked() and now.
+    if (!process_can_reap_locked(proc))
     {
-        list_del(&proc->reap_list);
-        proc->reap_pending = false;
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        return;
     }
 
     if (process_in_list(proc))
@@ -785,12 +784,6 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
     list_add_tail(&thread->list, &process->threads);
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
-    // Kick other CPUs so newly readied work does not stick to the BSP.
-    if (scheduler_ready && smp_get_cpu_count() > 1)
-    {
-        apic_send_ipi_all_excluding_self(IPI_RESCHEDULE_VECTOR);
-    }
-
     return thread;
 }
 
@@ -864,7 +857,7 @@ static bool thread_is_active_on_any_cpu(thread_t* t)
     return false;
 }
 
-static bool process_can_reap_locked(process_t* proc)
+bool process_can_reap_locked(process_t* proc)
 {
     if (!proc)
         return false;
@@ -886,30 +879,6 @@ static bool process_can_reap_locked(process_t* proc)
     }
 
     return true;
-}
-
-static void reap_pending_processes(void)
-{
-    list_head_t ready = LIST_HEAD_INIT(ready);
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-
-    process_t *proc, *next_proc;
-    list_for_each_entry_safe(proc, next_proc, &reap_list, reap_list)
-    {
-        if (!process_can_reap_locked(proc))
-            continue;
-
-        list_del(&proc->reap_list);
-        list_add_tail(&proc->reap_list, &ready);
-    }
-
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-
-    list_for_each_entry_safe(proc, next_proc, &ready, reap_list)
-    {
-        process_destroy_now(proc);
-    }
 }
 
 /**
@@ -1008,7 +977,6 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
 
     for (;;)
     {
-        reap_pending_processes();
         spinlock_acquire(&scheduler_lock);
         constexpr bool allow_user = true;
         thread_t* next = find_any_runnable_thread_rr(cpu, allow_user);

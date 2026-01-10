@@ -243,20 +243,49 @@ void interrupt_handler(struct interrupt_frame *frame)
                              cr2,
                              snap->err_code);
 
+                // Acquire scheduler lock before modifying thread/process state to prevent races.
+                // Interrupts are already disabled by the interrupt gate.
+                spinlock_acquire(&scheduler_lock);
+
                 if (p)
                 {
                     p->exit_code = -1;
                     p->terminated = true;
                 }
-                if (t)
+                if (p)
                 {
-                    t->state = THREAD_TERMINATED;
-                }
-                if (p && p->parent)
-                {
-                    thread_wakeup(p->parent);
+                    thread_t* tt;
+                    list_for_each_entry(tt, &p->threads, list)
+                    {
+                        tt->state = THREAD_TERMINATED;
+                    }
+
+                    process_t* new_parent = init_process ? init_process : kernel_process;
+                    process_t* child;
+                    list_for_each_entry(child, &process_list, list)
+                    {
+                        if (child && child->parent == p)
+                        {
+                            child->parent = new_parent;
+                            if (child->terminated)
+                                thread_wakeup(new_parent);
+                        }
+                    }
                 }
 
+                // Cache parent before releasing lock
+                process_t *parent = (p && p->parent) ? p->parent : nullptr;
+
+                spinlock_release(&scheduler_lock);
+
+                // Wake up parent outside the lock (thread_wakeup acquires its own lock)
+                if (parent)
+                {
+                    thread_wakeup(parent);
+                }
+
+                // schedule() will switch to another thread; interrupts will be re-enabled
+                // when the new thread runs.
                 schedule();
                 // schedule() should not return to the faulting context, but bail out defensively.
                 return;
