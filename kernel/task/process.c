@@ -361,7 +361,7 @@ bool scheduler_tick(void)
             raw_state = THREAD_READY;
             if (curr_aligned)
                 thread_state_store(curr, THREAD_READY);
-            need_resched = true; // Ask scheduler to pick a safer thread.
+            need_resched = true; // Ask the scheduler to pick a safer thread.
             curr = nullptr;
         }
 

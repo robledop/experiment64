@@ -377,6 +377,10 @@ static void reschedule_ipi_handler(struct interrupt_frame* frame) {
 }
 ```
 
+This IPI can be used as a *hint* to prompt another CPU to reschedule sooner, but
+normal progress does not depend on it (each CPU's LAPIC timer still drives
+preemption).
+
 ### AP Initialization
 
 After the BSP initializes the scheduler, APs wait for the `ap_scheduler_ready` flag, then:

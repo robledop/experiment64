@@ -119,6 +119,17 @@ does not force an immediate reschedule.
 
 ---
 
+## Process Exit and Reaping
+
+User-mode faults and `sys_exit()` mark the current thread as terminated and may
+mark the owning process as terminated. Orphaned child processes are re-parented
+to `init` (when present) so they can be reaped later.
+
+Final cleanup (freeing kernel stacks/address spaces) happens when the parent
+calls `wait` and the process is safe to reap.
+
+---
+
 ## Idle Threads and Fallbacks
 
 Idle threads are **not** part of the runnable set. They are used as safe
@@ -130,8 +141,8 @@ idle thread, which executes `hlt` in a loop.
 
 ## SMP Interactions
 
-- `thread_create()` sends `IPI_RESCHEDULE_VECTOR` to other CPUs once the
-  scheduler is ready, prompting them to look for work.
+- The scheduler is fully driven by per-CPU timer preemption and explicit yield/sleep paths.
+- A reschedule IPI exists (`IPI_RESCHEDULE_VECTOR`), but it is not required for correctness.
 - `schedule()` and `scheduler_loop()` avoid running the same thread on multiple
   CPUs at once.
 
