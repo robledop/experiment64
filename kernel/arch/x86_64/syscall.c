@@ -77,7 +77,7 @@ static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
     if (!dst)
         return false;
     thread_t* t = get_current_thread();
-    const bool userish = (t && t->is_user);
+    const bool userish = (t != nullptr && t->is_user);
     if (!userish)
         return true;
     uintptr_t addr = (uintptr_t)dst;
@@ -88,7 +88,7 @@ static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
     const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
     const bool in_kernel = (addr >= user_top) || (end > user_top);
 
-    const uintptr_t ktop = t ? t->kstack_top : 0;
+    const uintptr_t ktop = t->kstack_top;
     const uintptr_t kbase = (ktop != 0) ? (ktop - KSTACK_SIZE) : 0;
     const bool in_kstack = (ktop != 0) && (addr < ktop) && (end > kbase);
 
@@ -99,8 +99,8 @@ static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
                op ? op : "user_ptr_write",
                dst,
                size,
-               p ? p->pid : -1,
-               t ? t->tid : -1,
+               p != nullptr ? p->pid : -1,
+               t->tid,
                in_kernel,
                in_kstack,
                __builtin_return_address(0));
@@ -209,8 +209,8 @@ static int copy_in_args(const char* const * argv, char args[EXEC_MAX_ARGS][EXEC_
 }
 
 // ReSharper disable once CppDFAConstantParameter
-static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
-                            const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
+static void setup_user_stack(uint64_t stack_top,
+                             const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
 {
     uint64_t sp = stack_top;
     uint64_t arg_ptrs[EXEC_MAX_ARGS];
@@ -242,8 +242,6 @@ static int setup_user_stack(const uint64_t* pml4, uint64_t stack_top,
     *(uint64_t*)sp = (uint64_t)argc;
 
     *out_rsp = sp;
-    (void)pml4;
-    return 0;
 }
 
 // ReSharper disable once CppDFAConstantFunctionResult
@@ -450,7 +448,7 @@ int sys_kill(int pid, int sig)
 
     // Find the target process
     process_t* target = nullptr;
-    list_head_t* pos;
+    list_item_t* pos;
     list_for_each(pos, &process_list)
     {
         process_t* p = list_entry(pos, process_t, list);
@@ -483,7 +481,7 @@ int sys_kill(int pid, int sig)
     target->terminated = true;
 
     // Terminate all threads of the process
-    list_head_t* thread_pos;
+    list_item_t* thread_pos;
     list_for_each(thread_pos, &target->threads)
     {
         thread_t* t = list_entry(thread_pos, thread_t, list);
@@ -872,15 +870,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
     uint64_t user_rsp = stack_top;
     current_process->pml4 = new_pml4;
     vmm_switch_pml4(new_pml4);
-    if (setup_user_stack(new_pml4, stack_top, args, argc, &user_rsp) != 0)
-    {
-        TEST_SYSCALL_LOG("sys_execve: pid=%d setup_user_stack failed path=%s\n",
-                         current_process ? current_process->pid : -1, abs_path);
-        current_process->pml4 = old_pml4;
-        vmm_switch_pml4(old_pml4);
-        vmm_destroy_pml4(new_pml4);
-        return -1;
-    }
+    setup_user_stack(stack_top, args, argc, &user_rsp);
 
     current_process->heap_end = max_vaddr;
     set_process_name_from_path(current_process, abs_path);
@@ -1457,6 +1447,9 @@ int sys_munmap(void* addr, size_t length)
     vm_area_t* tmp;
     list_for_each_entry_safe(area, tmp, &current_process->vm_areas, list)
     {
+        if (!area)
+            panic("%s: area is null", __func__);
+
         if (area->start == start && area->end == end && (area->flags & VMA_MMAP))
         {
             list_del(&area->list);

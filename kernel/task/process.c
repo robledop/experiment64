@@ -9,13 +9,12 @@
 #include <apic.h>
 #include <smp.h>
 #include <gdt.h>
-
-#include "debug.h"
+#include <debug.h>
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 static constexpr size_t MAX_CPUS = 32;
 
-list_head_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
+list_item_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t* kernel_process = nullptr;
 process_t* init_process = nullptr;
 static thread_t* idle_threads[MAX_CPUS] = {nullptr};
@@ -48,7 +47,7 @@ void vm_area_init(process_t* proc)
 {
     if (!proc)
         return;
-    INIT_LIST_HEAD(&proc->vm_areas);
+    list_init_head(&proc->vm_areas);
     proc->vm_area_count = 0;
 }
 
@@ -67,8 +66,8 @@ vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t f
 
     if (!list_empty(&proc->vm_areas))
     {
-        list_head_t* head = &proc->vm_areas;
-        for (list_head_t* pos = head->next; pos != head; pos = pos->next)
+        list_item_t* head = &proc->vm_areas;
+        for (list_item_t* pos = head->next; pos != head; pos = pos->next)
         {
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             vm_area_t* existing = list_entry(pos, vm_area_t, list);
@@ -103,7 +102,7 @@ void vm_area_clone(process_t* dest, const process_t* src)
     if (!dest || !src)
         return;
 
-    INIT_LIST_HEAD(&dest->vm_areas);
+    list_init_head(&dest->vm_areas);
     dest->vm_area_count = 0;
 
     vm_area_t* area;
@@ -128,7 +127,7 @@ void vm_area_clear(process_t* proc)
         list_del(&area->list);
         kfree(area);
     }
-    INIT_LIST_HEAD(&proc->vm_areas);
+    list_init_head(&proc->vm_areas);
     proc->vm_area_count = 0;
 }
 
@@ -180,7 +179,7 @@ static thread_t* create_idle_thread(void)
     thread->rsp = stack_ptr;
 
     // Initialize list node but do NOT add to any list
-    INIT_LIST_HEAD(&thread->list);
+    list_init_head(&thread->list);
 
     return thread;
 }
@@ -229,7 +228,7 @@ static thread_t* create_scheduler_thread(uint32_t cpu_idx)
 
     thread->context = ctx;
     thread->rsp = stack_ptr;
-    INIT_LIST_HEAD(&thread->list);
+    list_init_head(&thread->list);
     return thread;
 }
 
@@ -254,7 +253,7 @@ static bool process_in_list(const process_t* proc)
     if (!proc)
         return false;
 
-    list_head_t* pos;
+    list_item_t* pos;
     list_for_each(pos, &process_list)
     {
         if (list_entry(pos, process_t, list) == proc)
@@ -263,6 +262,7 @@ static bool process_in_list(const process_t* proc)
     return false;
 }
 
+// ReSharper disable once CppDFAConstantParameter
 static inline bool thread_is_ready(thread_t* t, bool allow_user, const char* ctx)
 {
     uint32_t raw_state = thread_state_load_raw(t);
@@ -288,6 +288,7 @@ static inline bool thread_is_ready(thread_t* t, bool allow_user, const char* ctx
 
     thread_state_t state = (thread_state_t)raw_state;
     const bool userish = t->is_user || (t->saved_user_rsp != 0);
+    // ReSharper disable once CppDFAUnreachableCode
     return state == THREAD_READY && !t->is_idle && (allow_user || !userish);
 }
 
@@ -319,12 +320,11 @@ bool scheduler_tick(void)
                 thread_state_store(t, THREAD_TERMINATED);
                 continue;
             }
-
         }
     }
 
     cpu_t* cpu = get_cpu();
-    thread_t* curr = cpu ? cpu->active_thread : nullptr;
+    thread_t* curr = cpu != nullptr ? cpu->active_thread : nullptr;
     if (curr)
     {
         if (cpu && cpu->scheduler_thread == curr)
@@ -448,7 +448,7 @@ void process_init(void)
     if (cpu && cpu->kernel_rsp == 0)
         cpu->kernel_rsp = kernel_thread->kstack_top;
 
-    INIT_LIST_HEAD(&kernel_process->threads);
+    list_init_head(&kernel_process->threads);
     list_add_tail(&kernel_thread->list, &kernel_process->threads);
 
     list_add_tail(&kernel_process->list, &process_list);
@@ -516,7 +516,7 @@ process_t* process_create(const char* name)
 
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    INIT_LIST_HEAD(&proc->threads);
+    list_init_head(&proc->threads);
     list_add_tail(&proc->list, &process_list);
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
@@ -591,11 +591,14 @@ void process_copy_fds(process_t* dest, const process_t* src)
     }
 }
 
-static void process_collect_threads_locked(process_t* proc, list_head_t* free_list)
+static void process_collect_threads_locked(const process_t* proc, list_item_t* free_list)
 {
     thread_t *t, *next_t;
     list_for_each_entry_safe(t, next_t, &proc->threads, list)
     {
+        if (!t)
+            panic("%s: thread is null", __func__);
+
         list_del(&t->list);
         list_add_tail(&t->list, free_list);
 
@@ -645,10 +648,7 @@ void process_reap(process_t* proc)
 
 static void process_destroy_now(process_t* proc)
 {
-    if (!proc)
-        return;
-
-    list_head_t free_list = LIST_HEAD_INIT(free_list);
+    list_item_t free_list = LIST_HEAD_INIT(free_list);
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
@@ -670,6 +670,9 @@ static void process_destroy_now(process_t* proc)
     thread_t *t, *next_t;
     list_for_each_entry_safe(t, next_t, &free_list, list)
     {
+        if (!t)
+            panic("%s: thread is null", __func__);
+
         list_del(&t->list);
         auto kernel_stack_base = (void*)(t->kstack_top - KSTACK_SIZE);
         kfree(kernel_stack_base);
@@ -885,7 +888,8 @@ bool process_can_reap_locked(process_t* proc)
  * @warning Caller must hold scheduler_lock.
  * @param allow_user Whether to consider user threads
  */
-static thread_t* find_any_runnable_thread(bool allow_user)
+// ReSharper disable once CppDFAConstantParameter
+static thread_t* find_any_runnable_thread(const bool allow_user)
 {
     process_t* p;
     list_for_each_entry(p, &process_list, list)
@@ -910,7 +914,8 @@ static process_t* rr_last_proc[MAX_CPUS] = {nullptr};
  * @param allow_user Whether to consider user threads
  * @return Runnable thread or nullptr if none found
  */
-static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
+// ReSharper disable once CppDFAConstantParameter
+static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
 {
     if (!cpu)
         return find_any_runnable_thread(allow_user);
@@ -919,13 +924,13 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
     if (cpu_idx < 0 || cpu_idx >= (int)MAX_CPUS)
         return find_any_runnable_thread(allow_user);
 
-    list_head_t* head = &process_list;
+    list_item_t* head = &process_list;
     process_t* startp = rr_last_proc[cpu_idx];
-    list_head_t* start = (startp != nullptr && process_in_list(startp)) ? startp->list.next : head->next;
+    list_item_t* start = (startp != nullptr && process_in_list(startp)) ? startp->list.next : head->next;
     if (start == head)
         start = head->next;
 
-    for (list_head_t* pos = start; pos != head; pos = pos->next)
+    for (list_item_t* pos = start; pos != head; pos = pos->next)
     {
         process_t* p = list_entry(pos, process_t, list);
         thread_t* t;
@@ -940,7 +945,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, bool allow_user)
     }
 
     // Wrap-around: head -> start
-    for (list_head_t* pos = head->next; pos != start && pos != head; pos = pos->next)
+    for (list_item_t* pos = head->next; pos != start && pos != head; pos = pos->next)
     {
         process_t* p = list_entry(pos, process_t, list);
         thread_t* t;
@@ -1079,7 +1084,7 @@ void schedule(void)
 
     spinlock_acquire(&scheduler_lock);
 
-    // If we are preempting a running thread (e.g. from timer interrupt),
+    // If we are preempting a running thread (e.g., from timer interrupt),
     // mark it runnable so the scheduler can pick it again.
     if (curr != schedt && curr->state == THREAD_RUNNING && !curr->is_idle)
     {
@@ -1094,7 +1099,6 @@ void schedule(void)
     spinlock_release(&scheduler_lock);
     switch_to(curr, schedt);
 
-    // Restore interrupt state
     if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 }
@@ -1124,7 +1128,6 @@ void thread_sleep(void* chan, spinlock_t* lock)
     // Release scheduler lock so other threads can run while we sleep.
     spinlock_release(&scheduler_lock);
 
-    // Let scheduler pick the next runnable thread.
     schedule();
 
     curr->chan = nullptr;
@@ -1140,7 +1143,6 @@ void thread_sleep(void* chan, spinlock_t* lock)
         spinlock_acquire(&scheduler_lock);
     }
 
-    // Restore interrupt state
     if (rflags & RFLAGS_IF)
         __asm__ volatile("sti");
 }

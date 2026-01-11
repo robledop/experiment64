@@ -13,7 +13,7 @@ typedef struct buffer_head
     uint8_t *data;
     uint8_t flags;
     uint32_t ref_count;
-    list_head_t list; // For LRU
+    list_item_t list; // For LRU
     sleeplock_t lock; // Per-buffer lock for exclusive access
 } buffer_head_t;
 

@@ -58,7 +58,7 @@ typedef struct vm_area
     uint64_t start;
     uint64_t end;
     uint32_t flags;
-    list_head_t list;
+    list_item_t list;
 } vm_area_t;
 
 typedef struct Process
@@ -66,15 +66,15 @@ typedef struct Process
     int pid;
     char name[PROCESS_NAME_MAX];
     pml4_t pml4; // Page directory (physical address)
-    list_head_t threads; // Head of a thread list
-    list_head_t list; // Global process list node
+    list_item_t threads; // Head of a thread list
+    list_item_t list; // Global process list node
     struct Process* parent; // Parent process
     int exit_code;
     bool terminated;
     uint64_t heap_end; // Current program break
     file_descriptor_t* fd_table[MAX_FDS];
     char cwd[VFS_MAX_PATH];
-    list_head_t vm_areas; // List of vm_area_t
+    list_item_t vm_areas; // List of vm_area_t
     uint32_t vm_area_count;
 } process_t;
 
@@ -91,14 +91,14 @@ typedef struct Thread
     void* chan; // Sleep channel
     uint64_t ticks_remaining; // Time slice remaining
     uint64_t _align[2]; // Padding to keep list 16-byte aligned relative to start
-    list_head_t list; // Thread list node
+    list_item_t list; // Thread list node
     int tid;
     thread_state_t state;
     bool is_idle; // Is this the idle thread?
     bool is_user; // Runs in user mode
 } thread_t;
 
-extern list_head_t process_list;
+extern list_item_t process_list;
 extern process_t* kernel_process;
 extern process_t* init_process;
 extern spinlock_t scheduler_lock;

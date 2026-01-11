@@ -1,9 +1,9 @@
-#include "bio.h"
-#include "heap.h"
-#include "storage.h"
-#include "string.h"
-#include "terminal.h"
-#include "spinlock.h"
+#include <bio.h>
+#include <heap.h>
+#include <storage.h>
+#include <string.h>
+#include <terminal.h>
+#include <spinlock.h>
 
 #define BIO_CACHE_SIZE 512
 
@@ -27,7 +27,7 @@ void bio_init(void)
             return;
         }
         // Initialize as free/empty
-        INIT_LIST_HEAD(&cache[i].list);
+        list_init_head(&cache[i].list);
         sleeplock_init(&cache[i].lock, "bio_buffer");
 
         // Add to LRU list (initially all in list)

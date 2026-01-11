@@ -41,7 +41,7 @@ typedef struct slab_header
     uint8_t is_slab;
     uint8_t padding[7]; // Align
     // Slab specific
-    list_head_t list;
+    list_item_t list;
     size_t obj_size;
     size_t free_count;
     void *free_list;
@@ -54,7 +54,7 @@ typedef struct slab_header
 // Indices: 0, 1,  2,   3,   4,   5,    6
 #define CACHE_COUNT 7
 
-static list_head_t slab_caches[CACHE_COUNT];
+static list_item_t slab_caches[CACHE_COUNT];
 static bool slab_guard_valid(slab_header_t *slab);
 #ifdef HEAP_TRACE
 static void slab_hexdump(slab_header_t *slab, size_t bytes);
@@ -238,7 +238,7 @@ void heap_init(uint64_t hhdm_offset)
     spinlock_init(&heap_lock);
     for (int i = 0; i < CACHE_COUNT; i++)
     {
-        INIT_LIST_HEAD(&slab_caches[i]);
+        list_init_head(&slab_caches[i]);
     }
     boot_message(INFO, "Heap Initialized. HHDM Offset: 0x%lx", g_hhdm_offset);
 }
@@ -319,7 +319,7 @@ static void *alloc_slab(int index)
         slab->guard_magic = HEAP_MAGIC;
         slab->is_slab = 1;
         slab->obj_size = get_cache_size(index);
-        INIT_LIST_HEAD(&slab->list);
+        list_init_head(&slab->list);
 
         // Initialize guard region between metadata and payload
         slab_fill((uint8_t *)slab + sizeof(slab_header_t), SLAB_GUARD, slab_guard_size());
