@@ -92,7 +92,7 @@ It has the *beginnings* of a GUI, with a simple window manager and basic graphic
 
 ## DOOM
 
-I also ported DOOM.
+I also ported DOOM. It only runs full screen, not inside a window.
 
 ![DOOM screenshot](docs/img/doom.png)
 
