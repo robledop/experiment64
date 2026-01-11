@@ -82,3 +82,17 @@ make run
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture
+
+
+## GUI
+
+It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives.
+
+![GUI screenshot](docs/img/gui.png)
+
+## DOOM
+
+I also ported DOOM.
+
+![DOOM screenshot](docs/img/doom.png)
+
