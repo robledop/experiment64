@@ -1,7 +1,11 @@
 #pragma once
 #include <stdint.h>
-#include "vmm.h"
-#include "cpu.h"
+#include <fs/vfs.h>
+#include <task/spinlock.h>
+#include <lib/list.h>
+#include <lib/path.h>
+#include <mem/vmm.h>
+#include <arch/x86_64/cpu.h>
 
 #define KSTACK_SIZE 65536
 #define KSTACK_SYSCALL_HEADROOM 512
@@ -41,9 +45,6 @@ struct context
     uint64_t rip;
 };
 
-#include "vfs.h"
-#include "spinlock.h"
-#include "list.h"
 
 typedef struct
 {
@@ -73,7 +74,7 @@ typedef struct Process
     bool terminated;
     uint64_t heap_end; // Current program break
     file_descriptor_t* fd_table[MAX_FDS];
-    char cwd[VFS_MAX_PATH];
+    char cwd[PATH_MAX];
     list_item_t vm_areas; // List of vm_area_t
     uint32_t vm_area_count;
 } process_t;

@@ -1,8 +1,8 @@
-#include <spinlock.h>
+#include <task/spinlock.h>
 
 #ifdef TEST_MODE
-#include <string.h>
-#include <test.h>
+#include <lib/string.h>
+#include <tests/test.h>
 #include <debug.h>
 extern spinlock_t scheduler_lock;
 #endif

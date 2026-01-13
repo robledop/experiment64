@@ -1,11 +1,56 @@
-#include "pci.h"
-#include "io.h"
-#include "terminal.h"
-#include "ahci.h"
-#include "e1000.h"
-#include "ide.h"
+#include <drivers/pci.h>
+#include <arch/x86_64/port_io.h>
+#include <drivers/terminal.h>
+#include <drivers/ahci.h>
+#include <drivers/e1000.h>
+#include <drivers/ide.h>
 #include <stddef.h>
-#include <string.h>
+#include <lib/string.h>
+
+// Type 0x00: A general device
+struct pci_header {
+    uint16_t vendor_id;
+    uint16_t device_id;
+    // Provides control over a device's ability to generate and respond to PCI cycles.
+    // Where the only functionality guaranteed to be supported by all devices is, when a 0 is written to this register,
+    // the device is disconnected from the PCI bus for all accesses except Configuration Space access.
+    uint16_t command;
+    uint16_t status;
+    uint8_t revision_id;
+    // (Programming Interface Byte): A read-only register that specifies a register-level programming interface
+    // the device has, if it has any at all.
+    uint8_t prog_if;
+    // A read-only register that specifies the specific function the device performs.
+    uint8_t subclass;
+    // A read-only register that specifies the type of function the device performs.
+    uint8_t class;
+    // Specifies the system cache line size in 32-bit units. A device can limit the number of cache line sizes it can
+    // support, if a unsupported value is written to this field, the device will behave as if a value of 0 was written.
+    uint8_t cache_line_size;
+    // Specifies the latency timer in units of PCI bus clocks
+    uint8_t latency_timer;
+    // Identifies the layout of the rest of the header beginning at byte 0x10 of the header. If bit 7 of this register
+    // is set, the device has multiple functions; otherwise, it is a single function device. Types:
+    // 0x0: a general device
+    // 0x1: a PCI-to-PCI bridge
+    // 0x2: a PCI-to-CardBus bridge.
+    uint8_t header_type;
+    // Represents that status and allows control of a devices BIST (built-in self test).
+    uint8_t BIST;
+    uint32_t bars[6];
+    uint32_t cardbus_cis_pointer;
+    uint16_t subsystem_vendor_id;
+    uint16_t subsystem_id;
+    uint32_t expansion_rom_base_address;
+    uint8_t capabilities_pointer;
+    uint8_t reserved0;
+    uint16_t reserved1;
+    uint32_t reserved2;
+    uint8_t irq;
+    uint8_t interrupt_pin;
+    uint8_t min_grant;
+    uint8_t max_latency;
+} __attribute__((packed));
 
 // https://wiki.osdev.org/PCI
 
@@ -264,47 +309,56 @@ const char* pci_find_vendor(const uint16_t vendor_id)
  */
 void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t device, const uint8_t function)
 {
-    boot_message(INFO, "%s", pci_find_name(pci.class, pci.subclass));
+    struct pci_device dev = {
+        .bus = bus,
+        .slot = device,
+        .function = function,
+        .vendor_id = pci.vendor_id,
+        .device_id = pci.device_id,
+        .class = pci.class,
+        .subclass = pci.subclass,
+        .prog_if = pci.prog_if,
+        .header_type = pci.header_type,
+        .irq = pci.irq,
+    };
+    memcpy(dev.bars, pci.bars, sizeof(dev.bars));
+
+    boot_message(INFO, "%s", pci_find_name(dev.class, dev.subclass));
 
     // {0x02, 0x00, "Ethernet Controller"},
-    if (pci.class == 0x02 && pci.subclass == 0x00)
+    if (dev.class == 0x02 && dev.subclass == 0x00)
     {
         boot_message(INFO,
                      "Ethernet controller Vendor: %s (0x%04X), Device: 0x%04X",
-                     pci_find_vendor(pci.vendor_id),
-                     pci.vendor_id,
-                     pci.device_id);
+                     pci_find_vendor(dev.vendor_id),
+                     dev.vendor_id,
+                     dev.device_id);
     }
 
     // {0x04, 0x03, "Audio Device"},
-    if (pci.class == 0x04 && pci.subclass == 0x03)
+    if (dev.class == 0x04 && dev.subclass == 0x03)
     {
         boot_message(INFO,
                      "Audio device Vendor: %s (0x%04X), Device: 0x%04X",
-                     pci_find_vendor(pci.vendor_id),
-                     pci.vendor_id,
-                     pci.device_id);
+                     pci_find_vendor(dev.vendor_id),
+                     dev.vendor_id,
+                     dev.device_id);
     }
 
     for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++)
     {
         const struct pci_driver* driver = &pci_drivers[i];
 
-        const bool class_match = driver->class == pci.class;
-        const bool subclass_match = driver->subclass == pci.subclass;
-        const bool vendor_match = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == pci.vendor_id;
-        const bool device_match = driver->device_id == PCI_ANY_ID || driver->device_id == pci.device_id;
+        const bool class_match = driver->class == dev.class;
+        const bool subclass_match = driver->subclass == dev.subclass;
+        const bool vendor_match = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == dev.vendor_id;
+        const bool device_match = driver->device_id == PCI_ANY_ID || driver->device_id == dev.device_id;
 
         if (class_match && subclass_match && vendor_match && device_match)
         {
-            boot_message(INFO, "Loading driver for %s", pci_find_name(pci.class, pci.subclass));
+            boot_message(INFO, "Loading driver for %s", pci_find_name(dev.class, dev.subclass));
 
-            pci_drivers[i].init((struct pci_device){
-                .header = pci,
-                .bus = bus,
-                .slot = device,
-                .function = function,
-            });
+            pci_drivers[i].init(dev);
             return;
         }
     }
@@ -378,7 +432,7 @@ uint32_t pci_get_bar(const struct pci_device dev, const uint8_t type)
     uint32_t bar = 0;
     for (int i = 0; i < 6; i++)
     {
-        bar = dev.header.bars[i];
+        bar = dev.bars[i];
         if ((bar & 0x1) == type)
         {
             return bar;

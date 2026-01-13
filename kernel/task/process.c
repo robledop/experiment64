@@ -1,14 +1,14 @@
-#include <process.h>
-#include <heap.h>
-#include <string.h>
-#include <terminal.h>
-#include <cpu.h>
-#include <vmm.h>
-#include <syscall.h>
-#include <spinlock.h>
-#include <apic.h>
-#include <smp.h>
-#include <gdt.h>
+#include <task/process.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <arch/x86_64/cpu.h>
+#include <mem/vmm.h>
+#include <sys/syscall.h>
+#include <task/spinlock.h>
+#include <arch/x86_64/apic.h>
+#include <arch/x86_64/smp.h>
+#include <arch/x86_64/gdt.h>
 #include <debug.h>
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
@@ -106,7 +106,7 @@ void vm_area_clone(process_t* dest, const process_t* src)
     dest->vm_area_count = 0;
 
     vm_area_t* area;
-    list_for_each_entry(area, &src->vm_areas, list)
+    list_foreach_entry(area, &src->vm_areas, list)
     {
         vm_area_add(dest, area->start, area->end, area->flags);
     }
@@ -122,7 +122,7 @@ void vm_area_clear(process_t* proc)
         return;
 
     vm_area_t *area, *tmp;
-    list_for_each_entry_safe(area, tmp, &proc->vm_areas, list)
+    list_foreach_entry_safe(area, tmp, &proc->vm_areas, list)
     {
         list_del(&area->list);
         kfree(area);
@@ -254,7 +254,7 @@ static bool process_in_list(const process_t* proc)
         return false;
 
     list_item_t* pos;
-    list_for_each(pos, &process_list)
+    list_foreach(pos, &process_list)
     {
         if (list_entry(pos, process_t, list) == proc)
             return true;
@@ -302,7 +302,7 @@ bool scheduler_tick(void)
 
     spinlock_acquire(&scheduler_lock);
     process_t* p;
-    list_for_each_entry(p, &process_list, list)
+    list_foreach_entry(p, &process_list, list)
     {
         if (list_empty(&p->threads))
         {
@@ -310,7 +310,7 @@ bool scheduler_tick(void)
         }
 
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             uint32_t raw_state = thread_state_load_raw(t);
             if (!thread_state_valid_raw(raw_state))
@@ -505,8 +505,8 @@ process_t* process_create(const char* name)
     process_t* current = get_current_process();
     if (current && current->cwd[0])
     {
-        strncpy(proc->cwd, current->cwd, VFS_MAX_PATH - 1);
-        proc->cwd[VFS_MAX_PATH - 1] = '\0';
+        strncpy(proc->cwd, current->cwd, PATH_MAX - 1);
+        proc->cwd[PATH_MAX - 1] = '\0';
     }
     else
     {
@@ -594,7 +594,7 @@ void process_copy_fds(process_t* dest, const process_t* src)
 static void process_collect_threads_locked(const process_t* proc, list_item_t* free_list)
 {
     thread_t *t, *next_t;
-    list_for_each_entry_safe(t, next_t, &proc->threads, list)
+    list_foreach_entry_safe(t, next_t, &proc->threads, list)
     {
         if (!t)
             panic("%s: thread is null", __func__);
@@ -622,7 +622,7 @@ void process_destroy(process_t* proc)
         SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
         thread_t* t;
-        list_for_each_entry(t, &proc->threads, list)
+        list_foreach_entry(t, &proc->threads, list)
         {
             thread_state_store(t, THREAD_TERMINATED);
         }
@@ -668,7 +668,7 @@ static void process_destroy_now(process_t* proc)
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     thread_t *t, *next_t;
-    list_for_each_entry_safe(t, next_t, &free_list, list)
+    list_foreach_entry_safe(t, next_t, &free_list, list)
     {
         if (!t)
             panic("%s: thread is null", __func__);
@@ -865,7 +865,7 @@ bool process_can_reap_locked(process_t* proc)
         return false;
 
     thread_t* t;
-    list_for_each_entry(t, &proc->threads, list)
+    list_foreach_entry(t, &proc->threads, list)
     {
         if (thread_is_active_on_any_cpu(t))
             return false;
@@ -892,10 +892,10 @@ bool process_can_reap_locked(process_t* proc)
 static thread_t* find_any_runnable_thread(const bool allow_user)
 {
     process_t* p;
-    list_for_each_entry(p, &process_list, list)
+    list_foreach_entry(p, &process_list, list)
     {
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t))
                 return t;
@@ -934,7 +934,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
     {
         process_t* p = list_entry(pos, process_t, list);
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t))
             {
@@ -949,7 +949,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
     {
         process_t* p = list_entry(pos, process_t, list);
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t))
             {
@@ -1152,10 +1152,10 @@ void thread_wakeup(void* chan)
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     process_t* p;
-    list_for_each_entry(p, &process_list, list)
+    list_foreach_entry(p, &process_list, list)
     {
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             uint32_t raw_state = thread_state_load_raw(t);
             if (!thread_state_valid_raw(raw_state))
@@ -1205,10 +1205,10 @@ void process_dump(void)
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     printk("\n%-5s %-5s %-6s %s\n", "PID", "TID", "STATE", "NAME");
     process_t* p;
-    list_for_each_entry(p, &process_list, list)
+    list_foreach_entry(p, &process_list, list)
     {
         thread_t* t;
-        list_for_each_entry(t, &p->threads, list)
+        list_foreach_entry(t, &p->threads, list)
         {
             uint32_t raw_state = thread_state_load_raw(t);
             const char* state_str = "BAD";

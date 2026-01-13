@@ -1,5 +1,5 @@
-#include "uart.h"
-#include "io.h"
+#include <drivers/uart.h>
+#include <arch/x86_64/port_io.h>
 
 #define COM1 0x3F8
 

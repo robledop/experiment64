@@ -1,11 +1,11 @@
-#include "vfs.h"
-#include "keyboard.h"
-#include "terminal.h"
-#include "string.h"
-#include "heap.h"
-#include "console.h"
-#include "devfs.h"
-#include "ioctl.h"
+#include <fs/vfs.h>
+#include <drivers/keyboard.h>
+#include <drivers/terminal.h>
+#include <lib/string.h>
+#include <mem/heap.h>
+#include <drivers/console.h>
+#include <fs/devfs.h>
+#include <sys/ioctl.h>
 
 uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size, uint8_t *buffer)
 {

@@ -1,5 +1,5 @@
-#include "test.h"
-#include "process.h"
+#include <tests/test.h>
+#include <task/process.h>
 
 [[noreturn]]
 static void dummy_entry(void)

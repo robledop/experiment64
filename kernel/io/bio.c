@@ -1,9 +1,9 @@
-#include <bio.h>
-#include <heap.h>
-#include <storage.h>
-#include <string.h>
-#include <terminal.h>
-#include <spinlock.h>
+#include <io/bio.h>
+#include <mem/heap.h>
+#include <io/storage.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <task/spinlock.h>
 
 #define BIO_CACHE_SIZE 512
 
@@ -67,7 +67,7 @@ retry:
 
     // Not found, recycle the LRU unused buffer
     buffer_head_t *bh;
-    list_for_each_entry_reverse(bh, &lru_list, list)
+    list_foreach_entry_reverse(bh, &lru_list, list)
     {
         if (bh->ref_count == 0)
         {

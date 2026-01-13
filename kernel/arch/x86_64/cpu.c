@@ -1,5 +1,5 @@
-#include <string.h>
-#include <cpu.h>
+#include <lib/string.h>
+#include <arch/x86_64/cpu.h>
 
 static bool g_use_xsave = false;
 static bool g_use_xsaveopt = false;

@@ -1,6 +1,6 @@
-#include "test.h"
-#include "ioctl.h"
-#include "time.h"
+#include <tests/test.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
 // Syscall entry points (non-static in syscall.c)
 int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
 int sys_ioctl(int fd, int request, void* arg);

@@ -1,9 +1,9 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "string.h"
-#include "terminal.h"
-#include "heap.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
 
 // Helper to construct paths
 static void make_path(char *buffer, const char *base, const char *sub, int index)

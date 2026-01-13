@@ -1,9 +1,9 @@
-#include "test.h"
-#include "process.h"
-#include "storage.h"
-#include "terminal.h"
-#include "heap.h"
-#include "apic.h"
+#include <tests/test.h>
+#include <task/process.h>
+#include <io/storage.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
+#include <arch/x86_64/apic.h>
 
 // This test exercises the storage I/O path concurrently on both logical devices.
 // With SMP enabled, it helps catch global-lock deadlocks and validates that

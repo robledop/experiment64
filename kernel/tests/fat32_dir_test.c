@@ -1,7 +1,7 @@
-#include "test.h"
-#include "fat32.h"
-#include "string.h"
-#include "terminal.h"
+#include <tests/test.h>
+#include <fs/fat32.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
 
 extern fat32_fs_t test_fs;
 extern bool fs_initialized;

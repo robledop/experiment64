@@ -1,7 +1,7 @@
 #include <limine.h>
 #include <stddef.h>
-#include "terminal.h"
-#include "cpu.h"
+#include <drivers/terminal.h>
+#include <arch/x86_64/cpu.h>
 
 __attribute__((used, section(".requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
     __attribute__((used, section(".requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER

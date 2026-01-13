@@ -1,13 +1,13 @@
-#include <idt.h>
+#include <arch/x86_64/idt.h>
 #include <limine.h>
-#include <terminal.h>
-#include <keyboard.h>
-#include <apic.h>
-#include <ide.h>
-#include <process.h>
+#include <drivers/terminal.h>
+#include <drivers/keyboard.h>
+#include <arch/x86_64/apic.h>
+#include <drivers/ide.h>
+#include <task/process.h>
 #include <kernel.h>
 #include <debug.h>
-#include <vmm.h>
+#include <mem/vmm.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -21,7 +21,6 @@
 #define IRQ_IDE_PRIMARY 14
 #define IRQ_IDE_SECONDARY 15
 
-// We need the framebuffer request to get the framebuffer
 extern volatile struct limine_framebuffer_request framebuffer_request;
 
 struct idt_entry
@@ -150,6 +149,7 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
 
     thread_t* t = cpu->active_thread;
     const uintptr_t t_addr = (uintptr_t)t;
+    // Ensure the thread pointer is properly aligned
     if (t && (t_addr % __alignof__(thread_t)) == 0)
     {
         process_t* p = t->process;
@@ -255,14 +255,14 @@ void interrupt_handler(struct interrupt_frame *frame)
                 if (p)
                 {
                     thread_t* tt;
-                    list_for_each_entry(tt, &p->threads, list)
+                    list_foreach_entry(tt, &p->threads, list)
                     {
                         tt->state = THREAD_TERMINATED;
                     }
 
                     process_t* new_parent = init_process ? init_process : kernel_process;
                     process_t* child;
-                    list_for_each_entry(child, &process_list, list)
+                    list_foreach_entry(child, &process_list, list)
                     {
                         if (child && child->parent == p)
                         {

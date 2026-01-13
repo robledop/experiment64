@@ -1,9 +1,9 @@
-#include <ide.h>
-#include <io.h>
-#include "string.h"
-#include "apic.h"
-#include "terminal.h"
-#include "spinlock.h"
+#include <drivers/ide.h>
+#include <arch/x86_64/port_io.h>
+#include <lib/string.h>
+#include <arch/x86_64/apic.h>
+#include <drivers/terminal.h>
+#include <task/spinlock.h>
 
 #define IDE_BSY 0x80
 #define IDE_DRDY 0x40

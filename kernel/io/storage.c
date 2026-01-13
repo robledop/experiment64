@@ -1,7 +1,7 @@
-#include <storage.h>
-#include <ahci.h>
-#include <ide.h>
-#include <sleeplock.h>
+#include <io/storage.h>
+#include <drivers/ahci.h>
+#include <drivers/ide.h>
+#include <task/sleeplock.h>
 
 enum storage_backend
 {

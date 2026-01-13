@@ -1,8 +1,8 @@
-#include "gpt.h"
-#include "bio.h"
-#include "heap.h"
-#include "string.h"
-#include "terminal.h"
+#include <drivers/gpt.h>
+#include <io/bio.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
 
 #define GPT_SIGNATURE 0x5452415020494645ULL
 

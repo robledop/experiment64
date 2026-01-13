@@ -1,5 +1,5 @@
-#include "e1000.h"
-#include "heap.h"
+#include <drivers/e1000.h>
+#include <mem/heap.h>
 #include "net/arp.h"
 #include "net/dhcp.h"
 #include "net/ethernet.h"
@@ -7,7 +7,7 @@
 #include "net/ipv4.h"
 #include "net/network.h"
 #include "net/udp.h"
-#include "string.h"
+#include <lib/string.h>
 #include <arpa/inet.h>
 #include <stddef.h>
 

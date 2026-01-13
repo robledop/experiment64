@@ -1,16 +1,11 @@
-#include "terminal.h"
-#include "font.h"
-#include "uart.h"
-#include "string.h"
-#include "framebuffer.h"
+#include <drivers/terminal.h>
+#include <lib/font.h>
+#include <drivers/uart.h>
+#include <lib/string.h>
+#include <drivers/framebuffer.h>
+#include <lib/ansi.h>
 #include <stdarg.h>
 #include <limits.h>
-
-#define KRESET "\033[0m"
-#define KRED "\033[31m"
-#define KYEL "\033[33m"
-#define KBGRN "\033[1;32m"
-#define KWHT "\033[37m"
 
 static struct limine_framebuffer *terminal_fb = nullptr;
 static int terminal_x = 0;
@@ -810,7 +805,7 @@ void boot_log_flush(void)
     boot_log_ready = false;
 }
 
-void boot_message(t level, const char *fmt, ...)
+void boot_message(boot_log_level_t level, const char *fmt, ...)
 {
     const char *level_str;
     switch (level)

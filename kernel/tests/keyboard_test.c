@@ -1,6 +1,6 @@
-#include "test.h"
-#include "keyboard.h"
-#include "string.h"
+#include <tests/test.h>
+#include <drivers/keyboard.h>
+#include <lib/string.h>
 
 // Helper scancodes (set 1)
 #define SC_A 0x1E

@@ -17,8 +17,8 @@
  * Undefined behavior sanitizer runtime support.
  */
 
-#include "debug.h"
-#include "terminal.h"
+#include <debug.h>
+#include <drivers/terminal.h>
 #include <stdint.h>
 
 #define UNDEFINED_BEHAVIOR 3

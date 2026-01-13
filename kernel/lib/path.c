@@ -1,5 +1,5 @@
-#include "path.h"
-#include "string.h"
+#include <lib/path.h>
+#include <lib/string.h>
 
 void path_safe_copy(char *dst, size_t dst_size, const char *src)
 {
@@ -25,7 +25,7 @@ void path_simplify(char *path, size_t path_size)
     if (!path || path_size == 0)
         return;
 
-    char buffer[PATH_MAX_LEN];
+    char buffer[PATH_MAX];
     path_safe_copy(buffer, sizeof(buffer), path);
 
     char *segments[PATH_MAX_SEGMENTS];

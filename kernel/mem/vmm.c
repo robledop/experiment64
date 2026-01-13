@@ -1,11 +1,10 @@
-#include "vmm.h"
-#include "pmm.h"
-#include "string.h"
+#include <mem/vmm.h>
+#include <mem/pmm.h>
+#include <lib/string.h>
 #include <stdint.h>
-
-#include "debug.h"
-#include "terminal.h"
-#include "tsc.h"
+#include <debug.h>
+#include <drivers/terminal.h>
+#include <drivers/tsc.h>
 
 uint64_t g_hhdm_offset = 0;
 

@@ -1,6 +1,6 @@
-#include "devfs.h"
-#include "heap.h"
-#include "string.h"
+#include <fs/devfs.h>
+#include <mem/heap.h>
+#include <lib/string.h>
 
 #define MAX_DEVICES 32
 

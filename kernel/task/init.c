@@ -1,12 +1,12 @@
 #include <debug.h>
-#include <process.h>
-#include <elf.h>
-#include <pmm.h>
-#include <vmm.h>
-#include <terminal.h>
-#include <heap.h>
-#include <fcntl.h>
-#include <string.h>
+#include <task/process.h>
+#include <lib/elf.h>
+#include <mem/pmm.h>
+#include <mem/vmm.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
+#include <sys/fcntl.h>
+#include <lib/string.h>
 
 static file_descriptor_t *alloc_console_fd(vfs_inode_t *inode, int flags)
 {

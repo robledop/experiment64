@@ -1,12 +1,12 @@
-#include "vfs.h"
-#include "string.h"
-#include "terminal.h"
-#include "fat32.h"
-#include "ext2.h"
+#include <fs/vfs.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <fs/fat32.h>
+#include <fs/ext2.h>
 #include <stddef.h>
-#include "gpt.h"
-#include "heap.h"
-#include "debug.h"
+#include <drivers/gpt.h>
+#include <mem/heap.h>
+#include <debug.h>
 
 vfs_inode_t *vfs_root = nullptr;
 
@@ -417,7 +417,7 @@ int vfs_mknod(char *path, int mode, int dev)
     if (!path || !vfs_root)
         return -1;
 
-    char parent_path[VFS_MAX_PATH];
+    char parent_path[PATH_MAX];
     char filename[128];
     char *last_slash = strrchr(path, '/');
 
@@ -430,7 +430,7 @@ int vfs_mknod(char *path, int mode, int dev)
         }
         else
         {
-            if ((size_t)len >= VFS_MAX_PATH)
+            if ((size_t)len >= PATH_MAX)
                 return -1;
             strncpy(parent_path, path, (size_t)len);
             parent_path[len] = 0;
@@ -477,7 +477,7 @@ int vfs_link(const char *oldpath, const char *newpath)
     if (!target)
         return -1;
 
-    char parent_path[VFS_MAX_PATH];
+    char parent_path[PATH_MAX];
     char filename[128];
     char *last_slash = strrchr(newpath, '/');
 
@@ -490,7 +490,7 @@ int vfs_link(const char *oldpath, const char *newpath)
         }
         else
         {
-            if ((size_t)len >= VFS_MAX_PATH)
+            if ((size_t)len >= PATH_MAX)
             {
                 vfs_close(target);
                 if (target != vfs_root)
@@ -555,7 +555,7 @@ int vfs_unlink(const char *path)
     if (!path || !vfs_root)
         return -1;
 
-    char parent_path[VFS_MAX_PATH];
+    char parent_path[PATH_MAX];
     char filename[128];
     char *last_slash = strrchr(path, '/');
 
@@ -568,7 +568,7 @@ int vfs_unlink(const char *path)
         }
         else
         {
-            if ((size_t)len >= VFS_MAX_PATH)
+            if ((size_t)len >= PATH_MAX)
                 return -1;
             strncpy(parent_path, path, (size_t)len);
             parent_path[len] = 0;

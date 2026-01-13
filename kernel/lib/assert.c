@@ -1,6 +1,6 @@
-#include <assert.h>
+#include <lib/assert.h>
 #include <stdarg.h>
-#include <terminal.h>
+#include <drivers/terminal.h>
 #include <debug.h>
 
 void _assert(char* snippet, char* file, int line, char* message, ...)

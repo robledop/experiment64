@@ -1,14 +1,14 @@
-#include "debug.h"
-#include "elf.h"
+#include <debug.h>
+#include <lib/elf.h>
 #include "limine.h"
-#include "terminal.h"
-#include "cpu.h"
-#include "tsc.h"
+#include <drivers/terminal.h>
+#include <arch/x86_64/cpu.h>
+#include <drivers/tsc.h>
 #include <kernel.h>
 #include <stdarg.h>
 
 #ifdef TEST_MODE
-#include "test.h"
+#include <tests/test.h>
 extern volatile uint64_t test_syscall_last_num;
 extern volatile uint64_t test_syscall_last_arg1;
 #endif

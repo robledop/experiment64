@@ -1,6 +1,6 @@
-#include "test.h"
-#include "storage.h"
-#include "string.h"
+#include <tests/test.h>
+#include <io/storage.h>
+#include <lib/string.h>
 #include <stdint.h>
 
 // GPT header signature.

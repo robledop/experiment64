@@ -1,17 +1,18 @@
-#include "e1000.h"
-#include "apic.h"
-#include "debug.h"
-#include "idt.h"
-#include "io.h"
+#include <drivers/e1000.h>
+#include <arch/x86_64/apic.h>
+#include <debug.h>
+#include <arch/x86_64/idt.h>
+#include <arch/x86_64/port_io.h>
+#include <lib/mmio.h>
 #include "net/arp.h"
 #include "net/dhcp.h"
 #include "net/helpers.h"
 #include "net/network.h"
-#include "pmm.h"
-#include "string.h"
-#include "terminal.h"
-#include "tsc.h"
-#include "vmm.h"
+#include <mem/pmm.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <drivers/tsc.h>
+#include <mem/vmm.h>
 
 #define IRQ0 0x20
 #define E1000_MMIO_SIZE 0x20000U
@@ -66,7 +67,7 @@ static uintptr_t virt_to_phys(const void *virt)
 static void e1000_write_command(const uint16_t p_address, const uint32_t p_value)
 {
     if (bar_type == PCI_BAR_MEM) {
-        write32(mem_base + p_address, p_value);
+        mmio_write32(mem_base + p_address, p_value);
     } else {
         outl(io_base, p_address);
         outl(io_base + 4, p_value);
@@ -79,7 +80,7 @@ static void e1000_write_command(const uint16_t p_address, const uint32_t p_value
 static uint32_t e1000_read_command(const uint16_t p_address)
 {
     if (bar_type == PCI_BAR_MEM) {
-        return read32(mem_base + p_address);
+        return mmio_read32(mem_base + p_address);
     }
 
     outl(io_base, p_address);
@@ -304,7 +305,7 @@ static bool e1000_start(void)
         e1000_write_command(REG_MTA + i * 4, 0);
     }
 
-    const uint8_t irq = pci_device.header.irq;
+    const uint8_t irq = pci_device.irq;
     const uint8_t vector = IRQ0 + irq;
 
     apic_enable_irq(irq, vector);

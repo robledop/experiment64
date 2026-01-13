@@ -1,26 +1,26 @@
-#include <syscall.h>
-#include <cpu.h>
-#include <gdt.h>
-#include <terminal.h>
-#include <elf.h>
-#include <vmm.h>
-#include <pmm.h>
-#include <process.h>
-#include <keyboard.h>
+#include <sys/syscall.h>
+#include <arch/x86_64/cpu.h>
+#include <arch/x86_64/gdt.h>
+#include <drivers/terminal.h>
+#include <lib/elf.h>
+#include <mem/vmm.h>
+#include <mem/pmm.h>
+#include <task/process.h>
+#include <drivers/keyboard.h>
 #include <stdint.h>
-#include <string.h>
-#include <heap.h>
-#include <framebuffer.h>
-#include <apic.h>
-#include <mman.h>
-#include <util.h>
-#include <fcntl.h>
-#include <io.h>
-#include <vfs.h>
-#include <time.h>
-#include <tsc.h>
-#include <path.h>
-#include <pipe.h>
+#include <lib/string.h>
+#include <mem/heap.h>
+#include <drivers/framebuffer.h>
+#include <arch/x86_64/apic.h>
+#include <sys/mman.h>
+#include <lib/util.h>
+#include <sys/fcntl.h>
+#include <arch/x86_64/port_io.h>
+#include <fs/vfs.h>
+#include <sys/time.h>
+#include <drivers/tsc.h>
+#include <lib/path.h>
+#include <fs/pipe.h>
 #include <debug.h>
 
 extern void syscall_entry(void);
@@ -389,7 +389,7 @@ void sys_exit(int code)
     {
         proc_terminated = true;
         thread_t* t;
-        list_for_each_entry(t, &proc->threads, list)
+        list_foreach_entry(t, &proc->threads, list)
         {
             if (t->state != THREAD_TERMINATED)
             {
@@ -407,7 +407,7 @@ void sys_exit(int code)
 
         process_t* new_parent = init_process ? init_process : kernel_process;
         process_t* p;
-        list_for_each_entry(p, &process_list, list)
+        list_foreach_entry(p, &process_list, list)
         {
             if (p && p->parent == proc)
             {
@@ -449,7 +449,7 @@ int sys_kill(int pid, int sig)
     // Find the target process
     process_t* target = nullptr;
     list_item_t* pos;
-    list_for_each(pos, &process_list)
+    list_foreach(pos, &process_list)
     {
         process_t* p = list_entry(pos, process_t, list);
         if (p->pid == pid)
@@ -482,7 +482,7 @@ int sys_kill(int pid, int sig)
 
     // Terminate all threads of the process
     list_item_t* thread_pos;
-    list_for_each(thread_pos, &target->threads)
+    list_foreach(thread_pos, &target->threads)
     {
         thread_t* t = list_entry(thread_pos, thread_t, list);
         t->state = THREAD_TERMINATED;
@@ -490,7 +490,7 @@ int sys_kill(int pid, int sig)
 
     process_t* new_parent = init_process ? init_process : kernel_process;
     process_t* p;
-    list_for_each_entry(p, &process_list, list)
+    list_foreach_entry(p, &process_list, list)
     {
         if (p && p->parent == target)
         {
@@ -558,7 +558,7 @@ int sys_spawn(const char* path)
     if (!path || !*path)
         return -1;
     TEST_SYSCALL_LOG("sys_spawn: parent pid=%d path=%s\n", current_process ? current_process->pid : -1, path);
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         // ReSharper disable once CppDFAUnreachableCode
         return -1;
@@ -742,7 +742,7 @@ int sys_wait(int* status)
         process_t* found = nullptr;
         bool has_unreapable_zombie = false;
         process_t* p;
-        list_for_each_entry(p, &process_list, list)
+        list_foreach_entry(p, &process_list, list)
         {
             if (p->parent == current_process)
             {
@@ -810,7 +810,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
                      argv,
                      envp);
 
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         // ReSharper disable once CppDFAUnreachableCode
         return -1;
@@ -891,7 +891,7 @@ int sys_chdir(const char* path)
 {
     if (!path || !*path)
         return -1;
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     vfs_inode_t* node = vfs_resolve_path(abs_path);
@@ -996,7 +996,7 @@ int sys_mknod(const char* path, int mode, int dev)
     if ((uint64_t)path >= 0x800000000000) // Check if user pointer
         return -1;
 
-    char kpath[VFS_MAX_PATH];
+    char kpath[PATH_MAX];
     path_safe_copy(kpath, sizeof(kpath), path);
     path_simplify(kpath, sizeof(kpath));
 
@@ -1010,7 +1010,7 @@ int sys_stat(const char* path, struct stat* st)
     if (!user_ptr_write_ok(st, sizeof(*st), "sys_stat"))
         return -1;
 
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
@@ -1031,8 +1031,8 @@ int sys_link(const char* oldpath, const char* newpath)
     if (!oldpath || !newpath || !*oldpath || !*newpath)
         return -1;
 
-    char abs_old[VFS_MAX_PATH];
-    char abs_new[VFS_MAX_PATH];
+    char abs_old[PATH_MAX];
+    char abs_new[PATH_MAX];
     resolve_user_path(oldpath, abs_old, sizeof(abs_old));
     resolve_user_path(newpath, abs_new, sizeof(abs_new));
 
@@ -1044,7 +1044,7 @@ int sys_unlink(const char* path)
     if (!path || !*path)
         return -1;
 
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     resolve_user_path(path, abs_path, sizeof(abs_path));
 
     // Prevent unlinking the root
@@ -1260,7 +1260,7 @@ int sys_open(const char* path, int flags)
     if (!path || !*path)
         return -1;
     const bool want_write = (flags & O_WRONLY) || (flags & O_RDWR);
-    char abs_path[VFS_MAX_PATH];
+    char abs_path[PATH_MAX];
     resolve_user_path(path, abs_path, sizeof(abs_path));
     int fd = -1;
     for (int i = 3; i < MAX_FDS; i++)
@@ -1385,7 +1385,7 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
     {
         bool overlap = false;
         vm_area_t* area;
-        list_for_each_entry(area, &current_process->vm_areas, list)
+        list_foreach_entry(area, &current_process->vm_areas, list)
         {
             if (!(base + total_len <= area->start || base >= area->end))
             {
@@ -1430,7 +1430,7 @@ int sys_munmap(void* addr, size_t length)
 
     vm_area_t* area;
     bool found = false;
-    list_for_each_entry(area, &current_process->vm_areas, list)
+    list_foreach_entry(area, &current_process->vm_areas, list)
     {
         if (area->start == start && area->end == end && (area->flags & VMA_MMAP))
         {
@@ -1445,7 +1445,7 @@ int sys_munmap(void* addr, size_t length)
         vmm_unmap_page(current_process->pml4, va);
 
     vm_area_t* tmp;
-    list_for_each_entry_safe(area, tmp, &current_process->vm_areas, list)
+    list_foreach_entry_safe(area, tmp, &current_process->vm_areas, list)
     {
         if (!area)
             panic("%s: area is null", __func__);

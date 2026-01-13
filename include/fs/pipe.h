@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "vfs.h"
-#include "spinlock.h"
+#include <fs/vfs.h>
+#include <task/spinlock.h>
 
 #define PIPE_BUF_SIZE 4096
 

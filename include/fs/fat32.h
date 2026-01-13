@@ -88,7 +88,7 @@ typedef struct
     uint32_t first_cluster;
 } fat32_file_info_t;
 
-#include "vfs.h"
+#include <fs/vfs.h>
 
 int fat32_init(fat32_fs_t *fs, uint8_t drive_index, uint32_t partition_lba);
 vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba);

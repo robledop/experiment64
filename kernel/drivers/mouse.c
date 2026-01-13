@@ -1,14 +1,14 @@
-#include "mouse.h"
-#include "io.h"
-#include "framebuffer.h"
-#include "devfs.h"
-#include "vfs.h"
-#include "heap.h"
-#include "string.h"
-#include "process.h"
-#include "spinlock.h"
-#include "idt.h"
-#include "apic.h"
+#include <drivers/mouse.h>
+#include <arch/x86_64/port_io.h>
+#include <drivers/framebuffer.h>
+#include <fs/devfs.h>
+#include <fs/vfs.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <task/process.h>
+#include <task/spinlock.h>
+#include <arch/x86_64/idt.h>
+#include <arch/x86_64/apic.h>
 #include "limine.h"
 
 #define MOUSE_BUFFER_SIZE 32

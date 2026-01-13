@@ -1,5 +1,5 @@
-#include "test.h"
-#include "string.h"
+#include <tests/test.h>
+#include <lib/string.h>
 #include <limits.h>
 
 TEST(test_strlen)

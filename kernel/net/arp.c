@@ -1,9 +1,9 @@
 #include "net/arp.h"
 #include "net/ethernet.h"
 #include "net/network.h"
-#include "heap.h"
-#include "process.h"
-#include "string.h"
+#include <mem/heap.h>
+#include <task/process.h>
+#include <lib/string.h>
 #include <arpa/inet.h>
 
 uint8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};

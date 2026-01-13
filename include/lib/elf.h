@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <vmm.h>
+#include <mem/vmm.h>
 
 #define SHT_SYMTAB 2
 #define SHT_STRTAB 3

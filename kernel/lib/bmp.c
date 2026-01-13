@@ -1,8 +1,8 @@
 #include <stdint.h>
-#include "bmp.h"
-#include "heap.h"
-#include "terminal.h"
-#include "vfs.h"
+#include <lib/bmp.h>
+#include <mem/heap.h>
+#include <drivers/terminal.h>
+#include <fs/vfs.h>
 
 enum
 {

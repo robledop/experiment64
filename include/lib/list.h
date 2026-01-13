@@ -104,24 +104,48 @@ static inline UNUSED bool list_empty(const list_item_t* head)
 #define list_first_entry(ptr, type, member) \
     list_entry((ptr)->next, type, member)
 
-#define list_for_each(pos, head) \
+/**
+ * Iterate over a list of elements of type `type` with member `member`.
+ * @param pos - Pointer to the current element in the iteration
+ * @param head - Pointer to the head of the list
+ */
+#define list_foreach(pos, head) \
     for ((pos) = (head)->next; (pos) != (head); (pos) = (pos)->next)
 
 // UBSAN-friendly iteration that avoids container_of on the list head when empty and
 // does not introduce helper variables that shadow in nested loops.
-#define list_for_each_entry(pos, head, member)                                                   \
-    for ((pos) = list_empty(head) ? NULL : list_entry((head)->next, typeof(*(pos)), member);     \
-         (pos) != NULL;                                                                          \
+/**
+ * Iterate over a list of elements of type `type` with member `member`.
+ * @param pos - Pointer to the current element in the iteration
+ * @param head - Pointer to the head of the list
+ * @param member - Name of the member within the element that is the list node
+ */
+#define list_foreach_entry(pos, head, member)                                                   \
+    for ((pos) = list_empty(head) ? nullptr : list_entry((head)->next, typeof(*(pos)), member);     \
+         (pos) != nullptr;                                                                          \
          (pos) = ((pos)->member.next == (head)) ? nullptr : list_entry((pos)->member.next, typeof(*(pos)), member))
 
-#define list_for_each_entry_safe(pos, n, head, member)                                           \
+/**
+ * Iterate over a list of elements of type `type` with member `member`, safely handling removal.
+ * @param pos - Pointer to the current element in the iteration
+ * @param n - Pointer to the next element in the iteration
+ * @param head - Pointer to the head of the list
+ * @param member - Name of the member within the element that is the list node
+ */
+#define list_foreach_entry_safe(pos, n, head, member)                                           \
     for ((pos) = list_empty(head) ? nullptr : list_entry((head)->next, typeof(*(pos)), member),     \
          (n) = (pos) ? (((pos)->member.next == (head)) ? nullptr : list_entry((pos)->member.next, typeof(*(n)), member)) : nullptr; \
          (pos) != nullptr;                                                                          \
          (pos) = (n),                                                                            \
          (n) = (pos) ? (((pos)->member.next == (head)) ? nullptr : list_entry((pos)->member.next, typeof(*(n)), member)) : nullptr)
 
-#define list_for_each_entry_reverse(pos, head, member)                                           \
+/**
+ * Iterate over a list of elements of type `type` with member `member`, in reverse order.
+ * @param pos - Pointer to the current element in the iteration
+ * @param head - Pointer to the head of the list
+ * @param member - Name of the member within the element that is the list node
+ */
+#define list_foreach_entry_reverse(pos, head, member)                                           \
     for ((pos) = list_empty(head) ? nullptr : list_entry((head)->prev, typeof(*(pos)), member);     \
          (pos) != nullptr;                                                                          \
          (pos) = ((pos)->member.prev == (head)) ? nullptr : list_entry((pos)->member.prev, typeof(*(pos)), member))

@@ -1,11 +1,11 @@
-#include "test.h"
+#include <tests/test.h>
 #include "net/helpers.h"
 #include "net/network.h"
 #include "net/dhcp.h"
 #include "net/ethernet.h"
 #include "net/ipv4.h"
 #include "net/udp.h"
-#include "string.h"
+#include <lib/string.h>
 #include <arpa/inet.h>
 
 // ============================================================================

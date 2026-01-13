@@ -1,7 +1,7 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "string.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <lib/string.h>
 
 TEST(test_console_device)
 {

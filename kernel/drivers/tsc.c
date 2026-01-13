@@ -1,7 +1,7 @@
-#include <tsc.h>
-#include <cpu.h>
-#include <pit.h>
-#include <terminal.h>
+#include <drivers/tsc.h>
+#include <arch/x86_64/cpu.h>
+#include <drivers/pit.h>
+#include <drivers/terminal.h>
 
 static uint64_t tsc_frequency = 0;
 

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "vfs.h"
-#include "heap.h"
-#include "string.h"
-#include "terminal.h"
+#include <fs/vfs.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
 
 // Helper to properly release a VFS inode allocated by vfs_resolve_path() / clone ops.
 // Calls the filesystem close handler (drops inode refs) and frees the wrapper.

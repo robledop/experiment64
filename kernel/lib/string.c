@@ -1,10 +1,10 @@
-#include <string.h>
+#include <lib/string.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <limits.h>
 
-#include "heap.h"
-#include "terminal.h"
+#include <mem/heap.h>
+#include <drivers/terminal.h>
 
 // Forward declaration for AVX-optimized copy
 static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n);

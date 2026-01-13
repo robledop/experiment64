@@ -1,9 +1,9 @@
-#include "test.h"
-#include "bmp.h"
-#include "vfs.h"
-#include "heap.h"
-#include "string.h"
-#include <test_util.h>
+#include <tests/test.h>
+#include <lib/bmp.h>
+#include <fs/vfs.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <tests/test_util.h>
 
 TEST(test_bmp_load_valid)
 {

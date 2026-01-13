@@ -1,8 +1,8 @@
-#include "test.h"
-#include "elf.h"
-#include "vmm.h"
-#include "terminal.h"
-#include "tsc.h"
+#include <tests/test.h>
+#include <lib/elf.h>
+#include <mem/vmm.h>
+#include <drivers/terminal.h>
+#include <drivers/tsc.h>
 
 // Regression: executing a program twice from the same shell/session should not
 // corrupt VFS state or crash in path resolution.

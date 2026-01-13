@@ -1,6 +1,6 @@
-#include "test.h"
-#include "debug.h"
-#include "cpu.h"
+#include <tests/test.h>
+#include <debug.h>
+#include <arch/x86_64/cpu.h>
 
 TEST_PRIO(test_panic_trap_path, 200)
 {

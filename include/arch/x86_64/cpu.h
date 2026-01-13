@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <gdt.h>
+#include <arch/x86_64/gdt.h>
 
 // XCR0 feature bits
 #define XCR0_X87 (1u << 0)

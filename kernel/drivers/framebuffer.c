@@ -1,9 +1,9 @@
-#include "framebuffer.h"
-#include "string.h"
-#include "assert.h"
-#include "devfs.h"
-#include "vfs.h"
-#include "ioctl.h"
+#include <drivers/framebuffer.h>
+#include <lib/string.h>
+#include <lib/assert.h>
+#include <fs/devfs.h>
+#include <fs/vfs.h>
+#include <sys/ioctl.h>
 
 static struct limine_framebuffer* active_fb = nullptr;
 

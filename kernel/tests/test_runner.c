@@ -1,14 +1,14 @@
 #include <stdint.h>
 
 #ifdef TEST_MODE
-#include "test.h"
-#include "terminal.h"
-#include "io.h"
-#include "string.h"
-#include "sort.h"
-#include "kernel.h"
-#include "tsc.h"
-#include "debug.h"
+#include <tests/test.h>
+#include <drivers/terminal.h>
+#include <arch/x86_64/port_io.h>
+#include <lib/string.h>
+#include <lib/sort.h>
+#include <kernel.h>
+#include <drivers/tsc.h>
+#include <debug.h>
 
 extern struct test_case __start_test_array[];
 extern struct test_case __stop_test_array[];

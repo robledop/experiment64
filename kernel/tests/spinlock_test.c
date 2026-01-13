@@ -1,7 +1,7 @@
-#include "test.h"
-#include "spinlock.h"
-#include "process.h"
-#include "terminal.h"
+#include <tests/test.h>
+#include <task/spinlock.h>
+#include <task/process.h>
+#include <drivers/terminal.h>
 
 TEST(test_spinlock_basic)
 {

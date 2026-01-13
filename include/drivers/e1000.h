@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pci.h"
+#include <drivers/pci.h>
 #include <stdint.h>
 
 #define INTEL_VEND 0x8086    // Vendor ID for Intel

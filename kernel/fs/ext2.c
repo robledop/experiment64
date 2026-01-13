@@ -1,17 +1,17 @@
-#include "ext2.h"
-#include "string.h"
+#include <fs/ext2.h>
+#include <lib/string.h>
 #include <stdint.h>
-#include "vfs.h"
-#include "spinlock.h"
-#include "sleeplock.h"
-#include "bio.h"
-#include "terminal.h"
-#include "heap.h"
-#include "debug.h"
-#include "tsc.h"
+#include <fs/vfs.h>
+#include <task/spinlock.h>
+#include <task/sleeplock.h>
+#include <io/bio.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
+#include <debug.h>
+#include <drivers/tsc.h>
 #include <limits.h>
-#include "util.h"
-#include "assert.h"
+#include <lib/util.h>
+#include <lib/assert.h>
 
 
 #define EXT2_HAVE_DEV_LOCK 1

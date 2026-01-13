@@ -1,9 +1,9 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "string.h"
-#include "terminal.h"
-#include "heap.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
 
 // Tests for EXT2 Root Filesystem
 

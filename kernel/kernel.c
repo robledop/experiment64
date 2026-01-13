@@ -1,33 +1,33 @@
 #include <stdint.h>
-#include <gdt.h>
-#include <idt.h>
-#include <terminal.h>
-#include <framebuffer.h>
-#include <bmp.h>
-#include <cpu.h>
-#include <apic.h>
-#include <uart.h>
-#include <pmm.h>
-#include <vmm.h>
-#include <heap.h>
-#include <bio.h>
-#include <keyboard.h>
-#include <mouse.h>
-#include <vfs.h>
-#include <syscall.h>
-#include <process.h>
-#include <boot.h>
-#include <smp.h>
-#include <io.h>
-#include <debug.h>
-#include <tsc.h>
-#include <console.h>
-#include <devfs.h>
-#include <kernel.h>
-#include <pci.h>
-#include <storage.h>
+#include <arch/x86_64/gdt.h>
+#include <arch/x86_64/idt.h>
+#include <drivers/terminal.h>
+#include <drivers/framebuffer.h>
+#include <lib/bmp.h>
+#include <arch/x86_64/cpu.h>
+#include <arch/x86_64/apic.h>
+#include <drivers/uart.h>
+#include <mem/pmm.h>
+#include <mem/vmm.h>
+#include <mem/heap.h>
+#include <io/bio.h>
+#include <drivers/keyboard.h>
+#include <drivers/mouse.h>
+#include <fs/vfs.h>
+#include <sys/syscall.h>
+#include <task/process.h>
+#include <../include/boot.h>
+#include <arch/x86_64/smp.h>
+#include <arch/x86_64/port_io.h>
+#include <../include/debug.h>
+#include <drivers/tsc.h>
+#include <drivers/console.h>
+#include <fs/devfs.h>
+#include <../include/kernel.h>
+#include <drivers/pci.h>
+#include <io/storage.h>
 #ifdef TEST_MODE
-#include <test.h>
+#include <tests/test.h>
 #endif
 
 void shutdown()
@@ -36,12 +36,12 @@ void shutdown()
     // Try 0x501 which is common default
     outb(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
     outw(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
-    outd(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
+    outl(ISA_DEBUG_EXIT_PORT, ISA_DEBUG_EXIT_CMD);
 
     // Try 0xf4 as well
     outb(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
     outw(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
-    outd(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
+    outl(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
 
     outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD); // qemu
     outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD); // VirtualBox
@@ -137,7 +137,6 @@ void _start(void) // NOLINT(*-reserved-identifier)
     vfs_init();
     devfs_init();
     console_init();
-
     vfs_mount_root();
 
 #ifdef TEST_MODE

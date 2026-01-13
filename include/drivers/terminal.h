@@ -3,19 +3,19 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include "limine.h"
+#include <limine.h>
 
 #define TERMINAL_MARGIN 0
 #define LINE_SPACING 5
 #define FONT_HEIGHT 8
 
 // Do not change this
-typedef enum warning_level
+typedef enum boot_log_level
 {
     INFO,
     WARNING,
     ERROR,
-} t;
+} boot_log_level_t;
 
 void terminal_init(struct limine_framebuffer *fb);
 void terminal_putc(char c);
@@ -30,7 +30,7 @@ void terminal_get_resolution(int *width, int *height);
 void terminal_set_color(uint32_t color);
 void terminal_clear(uint32_t color);
 void terminal_scroll(int rows);
-void boot_message(t level, const char *fmt, ...);
+void boot_message(boot_log_level_t level, const char *fmt, ...);
 void boot_log_flush(void);
 
 #ifdef TEST_MODE

@@ -1,16 +1,16 @@
-#include "test.h"
-#include "syscall.h"
-#include "string.h"
-#include "vmm.h"
-#include "pmm.h"
-#include "terminal.h"
-#include "process.h"
-#include "fcntl.h"
-#include "vfs.h"
-#include "mman.h"
-#include "test_util.h"
+#include <tests/test.h>
+#include <sys/syscall.h>
+#include <lib/string.h>
+#include <mem/vmm.h>
+#include <mem/pmm.h>
+#include <drivers/terminal.h>
+#include <task/process.h>
+#include <sys/fcntl.h>
+#include <fs/vfs.h>
+#include <sys/mman.h>
+#include <tests/test_util.h>
 #ifdef TEST_MODE
-#include "tsc.h"
+#include <drivers/tsc.h>
 #endif
 
 // Direct syscall implementations from kernel/arch/x86_64/syscall.c

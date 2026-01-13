@@ -1,8 +1,8 @@
-#include "test.h"
-#include "process.h"
-#include "string.h"
-#include "terminal.h"
-#include "spinlock.h"
+#include <tests/test.h>
+#include <task/process.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <task/spinlock.h>
 
 static volatile bool process_thread_done = false;
 

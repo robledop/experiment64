@@ -1,5 +1,5 @@
-#include "sleeplock.h"
-#include "process.h"
+#include <task/sleeplock.h>
+#include <task/process.h>
 
 void sleeplock_init(sleeplock_t *lk, const char *name)
 {

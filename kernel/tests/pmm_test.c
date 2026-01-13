@@ -1,6 +1,6 @@
-#include "test.h"
-#include "cpu.h"
-#include "pmm.h"
+#include <tests/test.h>
+#include <arch/x86_64/cpu.h>
+#include <mem/pmm.h>
 
 TEST(test_pmm_alloc_free)
 {

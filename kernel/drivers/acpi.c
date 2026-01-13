@@ -1,7 +1,7 @@
-#include <acpi.h>
+#include <drivers/acpi.h>
 #include <limine.h>
 #include <stddef.h>
-#include <string.h>
+#include <lib/string.h>
 #include <limits.h>
 
 extern volatile struct limine_hhdm_request hhdm_request;

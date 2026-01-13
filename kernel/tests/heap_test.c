@@ -1,6 +1,6 @@
-#include "test.h"
-#include "heap.h"
-#include "string.h"
+#include <tests/test.h>
+#include <mem/heap.h>
+#include <lib/string.h>
 
 TEST(test_kmalloc_small)
 {

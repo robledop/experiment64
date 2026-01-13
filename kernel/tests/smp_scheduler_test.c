@@ -1,14 +1,14 @@
-#include "test.h"
+#include <tests/test.h>
 #include <stdint.h>
-#include "process.h"
-#include "cpu.h"
-#include "smp.h"
-#include "terminal.h"
-#include "apic.h"
-#include "syscall.h"
-#include "vmm.h"
-#include "pmm.h"
-#include "string.h"
+#include <task/process.h>
+#include <arch/x86_64/cpu.h>
+#include <arch/x86_64/smp.h>
+#include <drivers/terminal.h>
+#include <arch/x86_64/apic.h>
+#include <sys/syscall.h>
+#include <mem/vmm.h>
+#include <mem/pmm.h>
+#include <lib/string.h>
 
 // SMP scheduler sanity tests.
 // Goal: prove that APs (cpu_index != 0) can actually execute runnable threads.

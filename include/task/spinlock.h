@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cpu.h"
+#include <arch/x86_64/cpu.h>
 
 typedef struct
 {

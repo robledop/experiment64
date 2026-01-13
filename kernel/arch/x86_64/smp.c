@@ -1,12 +1,12 @@
-#include <smp.h>
+#include <arch/x86_64/smp.h>
 #include <boot.h>
-#include <terminal.h>
-#include <cpu.h>
-#include <gdt.h>
-#include <idt.h>
-#include <apic.h>
-#include <syscall.h>
-#include <process.h>
+#include <drivers/terminal.h>
+#include <arch/x86_64/cpu.h>
+#include <arch/x86_64/gdt.h>
+#include <arch/x86_64/idt.h>
+#include <arch/x86_64/apic.h>
+#include <sys/syscall.h>
+#include <task/process.h>
 
 #define MAX_CPUS 32
 

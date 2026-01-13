@@ -1,6 +1,6 @@
-#include "bio.h"
-#include "terminal.h"
-#include "test.h"
+#include <io/bio.h>
+#include <drivers/terminal.h>
+#include <tests/test.h>
 
 TEST(bio_test)
 {

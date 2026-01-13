@@ -1,7 +1,7 @@
-#include "test.h"
-#include "vmm.h"
-#include "string.h"
-#include "pmm.h"
+#include <tests/test.h>
+#include <mem/vmm.h>
+#include <lib/string.h>
+#include <mem/pmm.h>
 
 TEST(test_vmm_map)
 {

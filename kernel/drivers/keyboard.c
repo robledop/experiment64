@@ -1,12 +1,12 @@
-#include "keyboard.h"
-#include "io.h"
-#include "process.h"
-#include "cpu.h"
-#include "devfs.h"
-#include "vfs.h"
-#include "heap.h"
-#include "string.h"
-#include "terminal.h"
+#include <drivers/keyboard.h>
+#include <arch/x86_64/port_io.h>
+#include <task/process.h>
+#include <arch/x86_64/cpu.h>
+#include <fs/devfs.h>
+#include <fs/vfs.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
 
 // US QWERTY Scancode Set 1
 static constexpr char scancode_to_char[SCANCODE_TABLE_SIZE] = {

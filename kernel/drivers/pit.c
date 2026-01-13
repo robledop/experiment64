@@ -1,5 +1,5 @@
-#include "pit.h"
-#include "io.h"
+#include <drivers/pit.h>
+#include <arch/x86_64/port_io.h>
 
 #define PIT_CHANNEL0 0x40
 #define PIT_CMD 0x43

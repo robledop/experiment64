@@ -1,8 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
-#define VFS_MAX_PATH 256
+#include <lib/path.h>
 
 #define VFS_FILE 0x01
 #define VFS_DIRECTORY 0x02

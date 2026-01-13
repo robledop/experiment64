@@ -1,6 +1,6 @@
-#include "gdt.h"
-#include "string.h"
-#include "cpu.h"
+#include <arch/x86_64/gdt.h>
+#include <lib/string.h>
+#include <arch/x86_64/cpu.h>
 
 #define GDT_ACCESS_PRESENT 0x80
 #define GDT_ACCESS_RING0 0x00

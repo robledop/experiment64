@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "pmm.h" // for PAGE_SIZE
+#include <mem/pmm.h> // for PAGE_SIZE
 
 #define PTE_PRESENT (1ull << 0)
 #define PTE_WRITABLE (1ull << 1)

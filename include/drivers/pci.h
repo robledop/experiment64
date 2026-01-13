@@ -72,51 +72,6 @@
 // This bit will be set to 1 whenever the device detects a parity error, even if parity error handling is disabled.
 #define PCI_STATUS_DETECTED_PARITY 0x8000
 
-// Type 0x00: A general device
-struct pci_header {
-    uint16_t vendor_id;
-    uint16_t device_id;
-    // Provides control over a device's ability to generate and respond to PCI cycles.
-    // Where the only functionality guaranteed to be supported by all devices is, when a 0 is written to this register,
-    // the device is disconnected from the PCI bus for all accesses except Configuration Space access.
-    uint16_t command;
-    uint16_t status;
-    uint8_t revision_id;
-    // (Programming Interface Byte): A read-only register that specifies a register-level programming interface
-    // the device has, if it has any at all.
-    uint8_t prog_if;
-    // A read-only register that specifies the specific function the device performs.
-    uint8_t subclass;
-    // A read-only register that specifies the type of function the device performs.
-    uint8_t class;
-    // Specifies the system cache line size in 32-bit units. A device can limit the number of cache line sizes it can
-    // support, if a unsupported value is written to this field, the device will behave as if a value of 0 was written.
-    uint8_t cache_line_size;
-    // Specifies the latency timer in units of PCI bus clocks
-    uint8_t latency_timer;
-    // Identifies the layout of the rest of the header beginning at byte 0x10 of the header. If bit 7 of this register
-    // is set, the device has multiple functions; otherwise, it is a single function device. Types:
-    // 0x0: a general device
-    // 0x1: a PCI-to-PCI bridge
-    // 0x2: a PCI-to-CardBus bridge.
-    uint8_t header_type;
-    // Represents that status and allows control of a devices BIST (built-in self test).
-    uint8_t BIST;
-    uint32_t bars[6];
-    uint32_t cardbus_cis_pointer;
-    uint16_t subsystem_vendor_id;
-    uint16_t subsystem_id;
-    uint32_t expansion_rom_base_address;
-    uint8_t capabilities_pointer;
-    uint8_t reserved0;
-    uint16_t reserved1;
-    uint32_t reserved2;
-    uint8_t irq;
-    uint8_t interrupt_pin;
-    uint8_t min_grant;
-    uint8_t max_latency;
-} __attribute__((packed));
-
 #define PCI_BAR_MEM 0x0
 #define PCI_BAR_IO 0x1
 #define PCI_BAR_NONE 0x3
@@ -128,7 +83,14 @@ struct pci_device {
     uint32_t bus;
     uint32_t slot;
     uint32_t function;
-    struct pci_header header;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t class;
+    uint8_t subclass;
+    uint8_t prog_if;
+    uint8_t header_type;
+    uint8_t irq;
+    uint32_t bars[6];
 };
 
 struct pci_driver {

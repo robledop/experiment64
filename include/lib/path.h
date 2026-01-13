@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#define PATH_MAX_LEN 256
+#define PATH_MAX 256
 #define PATH_MAX_SEGMENTS 64
 
 // Safely copy a string with bounds checking

@@ -1,9 +1,9 @@
-#include "heap.h"
-#include "pmm.h"
-#include "string.h"
-#include "terminal.h"
-#include "list.h"
-#include "spinlock.h"
+#include <mem/heap.h>
+#include <mem/pmm.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <lib/list.h>
+#include <task/spinlock.h>
 
 #define HEAP_MAGIC 0xC0FFEE1234567890
 #define SLAB_MIN_SIZE 32
@@ -272,7 +272,7 @@ static void *alloc_slab(int index)
     slab_header_t *iter;
 
     // Find a slab with free objects
-    list_for_each_entry(iter, &slab_caches[index], list)
+    list_foreach_entry(iter, &slab_caches[index], list)
     {
         if (iter->magic != HEAP_MAGIC || iter->guard_magic != HEAP_MAGIC || !iter->is_slab)
         {

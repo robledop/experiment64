@@ -1,4 +1,4 @@
-#include "debug.h"
+#include <debug.h>
 #include <stdint.h>
 
 // https://wiki.osdev.org/Stack_Smashing_Protector

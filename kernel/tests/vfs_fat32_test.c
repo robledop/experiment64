@@ -1,10 +1,10 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "fat32.h"
-#include "string.h"
-#include "heap.h"
-#include "terminal.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <fs/fat32.h>
+#include <lib/string.h>
+#include <mem/heap.h>
+#include <drivers/terminal.h>
 
 // Mirror of the private struct in fat32.c so we can grab the mounted fs pointer
 typedef struct

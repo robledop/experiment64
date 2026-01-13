@@ -1,5 +1,5 @@
-#include "sort.h"
-#include "string.h"
+#include <lib/sort.h>
+#include <lib/string.h>
 #include <limits.h>
 
 static void swap(void *a, void *b, size_t size)

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "list.h"
-#include "sleeplock.h"
+#include <lib/list.h>
+#include <task/sleeplock.h>
 
 #define BIO_BLOCK_SIZE 512
 

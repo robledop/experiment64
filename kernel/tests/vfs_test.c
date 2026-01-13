@@ -1,9 +1,9 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "string.h"
-#include "terminal.h"
-#include "heap.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <mem/heap.h>
 
 // Generic VFS tests (operating on vfs_root)
 
@@ -174,8 +174,8 @@ TEST(test_vfs_path_canonicalization)
 
 TEST(test_vfs_path_overlength_rejected)
 {
-    // Build an overlength path (> VFS_MAX_PATH) and ensure resolution fails.
-    char longpath[VFS_MAX_PATH + 16];
+    // Build an overlength path (> PATH_MAX) and ensure resolution fails.
+    char longpath[PATH_MAX + 16];
     memset(longpath, 'a', sizeof(longpath));
     longpath[0] = '/';
     longpath[sizeof(longpath) - 1] = '\0';

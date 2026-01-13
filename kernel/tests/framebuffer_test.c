@@ -1,12 +1,12 @@
-#include "test.h"
-#include "test_util.h"
-#include "vfs.h"
-#include "ioctl.h"
-#include "framebuffer.h"
-#include "mman.h"
-#include "vmm.h"
-#include "process.h"
-#include "fcntl.h"
+#include <tests/test.h>
+#include <tests/test_util.h>
+#include <fs/vfs.h>
+#include <sys/ioctl.h>
+#include <drivers/framebuffer.h>
+#include <sys/mman.h>
+#include <mem/vmm.h>
+#include <task/process.h>
+#include <sys/fcntl.h>
 #include <stdint.h>
 
 // Kernel syscall entry points (not exposed in headers)

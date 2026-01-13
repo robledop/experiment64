@@ -1,6 +1,6 @@
-#include "test.h"
-#include "gpt.h"
-#include "terminal.h"
+#include <tests/test.h>
+#include <drivers/gpt.h>
+#include <drivers/terminal.h>
 
 static void partition_callback(partition_info_t *part)
 {

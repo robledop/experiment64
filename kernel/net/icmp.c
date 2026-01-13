@@ -2,8 +2,8 @@
 #include "net/helpers.h"
 #include "net/icmp.h"
 #include "net/network.h"
-#include "heap.h"
-#include "string.h"
+#include <mem/heap.h>
+#include <lib/string.h>
 #include <arpa/inet.h>
 
 const char* icmp_request_payload = "osdev icmp request payload";

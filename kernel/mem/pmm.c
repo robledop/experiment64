@@ -1,13 +1,13 @@
-#include "pmm.h"
+#include <mem/pmm.h>
 #include "limine.h"
-#include "string.h"
-#include "terminal.h"
+#include <lib/string.h>
+#include <drivers/terminal.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "heap.h"
-#include "debug.h"
-#include "spinlock.h"
+#include <mem/heap.h>
+#include <debug.h>
+#include <task/spinlock.h>
 
 __attribute__((used, section(".requests"))) static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,

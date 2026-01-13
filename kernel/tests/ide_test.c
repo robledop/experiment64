@@ -1,7 +1,7 @@
-#include "test.h"
-#include "ide.h"
-#include "string.h"
-#include "terminal.h" // For printk if needed
+#include <tests/test.h>
+#include <drivers/ide.h>
+#include <lib/string.h>
+#include <drivers/terminal.h> // For printk if needed
 
 static bool ide_initialized = false;
 

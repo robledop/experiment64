@@ -1,9 +1,9 @@
-#include <apic.h>
-#include <acpi.h>
-#include <pic.h>
-#include <terminal.h>
+#include <arch/x86_64/apic.h>
+#include <drivers/acpi.h>
+#include <arch/x86_64/pic.h>
+#include <drivers/terminal.h>
 #include <limine.h>
-#include <pit.h>
+#include <drivers/pit.h>
 
 // https://wiki.osdev.org/IOAPIC
 

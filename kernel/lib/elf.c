@@ -1,11 +1,11 @@
-#include <elf.h>
-#include <vfs.h>
-#include <vmm.h>
-#include <pmm.h>
-#include <heap.h>
-#include <string.h>
-#include <terminal.h>
-#include <tsc.h>
+#include <lib/elf.h>
+#include <fs/vfs.h>
+#include <mem/vmm.h>
+#include <mem/pmm.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <drivers/tsc.h>
 
 static bool elf_validate_header(const elf64_ehdr* header)
 {

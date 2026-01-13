@@ -1,9 +1,9 @@
-#include "fat32.h"
-#include "heap.h"
-#include "string.h"
-#include "terminal.h"
-#include "bio.h"
-#include "util.h"
+#include <fs/fat32.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <drivers/terminal.h>
+#include <io/bio.h>
+#include <lib/util.h>
 #include <stddef.h>
 #include <limits.h>
 

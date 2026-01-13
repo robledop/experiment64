@@ -6,10 +6,10 @@
  * can be read from the read end.
  */
 
-#include "pipe.h"
-#include "heap.h"
-#include "string.h"
-#include "process.h"
+#include <fs/pipe.h>
+#include <mem/heap.h>
+#include <lib/string.h>
+#include <task/process.h>
 
 // Pipe inode operations
 static uint64_t pipe_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);

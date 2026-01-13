@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "vfs.h"
+#include <fs/vfs.h>
 
 extern struct ext2_inode_operations ext2fs_inode_ops;
 extern struct icache icache;
@@ -242,7 +242,7 @@ struct ext2_dir_entry_2
 #define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
-#include "sleeplock.h"
+#include <task/sleeplock.h>
 
 // In-memory inode structure
 struct ext2_inode
