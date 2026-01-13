@@ -443,7 +443,7 @@ int sys_kill(int pid, int sig)
     uint64_t rflags;
     __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
-    // Acquire scheduler lock before accessing process_list and modifying state
+    // Acquire scheduler lock before accessing process_list and modifying the state
     spinlock_acquire(&scheduler_lock);
 
     // Find the target process

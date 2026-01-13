@@ -14,7 +14,6 @@
 #define MAX_FDS 16
 #define TIME_SLICE_MS 50
 
-// VM area flags (expandable as we add mmap/munmap)
 #define VMA_READ (1u << 0)
 #define VMA_WRITE (1u << 1)
 #define VMA_EXEC (1u << 2)
