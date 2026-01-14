@@ -18,6 +18,7 @@ void icmp_send_echo_reply(uint8_t* packet, const uint16_t len)
         (void*)(packet + sizeof(struct ether_header) + sizeof(struct ipv4_header) + sizeof(struct icmp_header));
 
     struct icmp_packet* reply_packet = kzalloc(sizeof(struct icmp_packet));
+    reply_packet->payload = kzalloc(strlen(icmp_request_payload));
     struct ether_header reply_ether_header;
     memcpy(reply_ether_header.dest_host, ether_header->src_host, 6);
     memcpy(reply_ether_header.src_host, network_get_my_mac_address(), 6);
@@ -55,6 +56,7 @@ void icmp_send_echo_reply(uint8_t* packet, const uint16_t len)
            len - sizeof(struct ether_header) - sizeof(struct ipv4_header) - sizeof(struct icmp_header));
 
     network_send_packet(reply_packet, len);
+    kfree(reply_packet->payload);
     kfree(reply_packet);
 }
 
@@ -91,6 +93,7 @@ void icmp_send_echo_request(const uint8_t dest_ip[static 4], const uint16_t sequ
     }
 
     struct icmp_packet* packet = kzalloc(sizeof(struct icmp_packet));
+    packet->payload = kzalloc(strlen(icmp_request_payload));
     struct ether_header ether_header;
     memcpy(ether_header.dest_host, entry.mac, 6);
     memcpy(ether_header.src_host, network_get_my_mac_address(), 6);
@@ -128,5 +131,6 @@ void icmp_send_echo_request(const uint8_t dest_ip[static 4], const uint16_t sequ
         checksum(&packet->icmp_header, (int)sizeof(struct icmp_header) + (int)strlen(icmp_request_payload), 0);
 
     network_send_packet(packet, sizeof(struct icmp_packet) + strlen(icmp_request_payload));
+    kfree(packet->payload);
     kfree(packet);
 }

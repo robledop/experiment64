@@ -21,7 +21,7 @@ struct icmp_packet
     struct ether_header ether_header;
     struct ipv4_header ip_header;
     struct icmp_header icmp_header;
-    uint8_t payload[];
+    uint8_t *payload;
 } __attribute__((packed));
 
 struct icmp_echo_reply
