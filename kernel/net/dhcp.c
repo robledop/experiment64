@@ -5,33 +5,35 @@
 #include <drivers/terminal.h>
 #include <arpa/inet.h>
 
+#define MAX_DNS_SERVERS 5 // Let's keep this simple
+
 // TODO: This does not implement things that require the client to store state (like lease time)
 
-void set_request_dhcp_options(uint8_t *options, const uint8_t ip[4], const uint8_t server_ip[4])
+void set_request_dhcp_options(uint8_t* options, const uint8_t ip[4], const uint8_t server_ip[4])
 {
     int offset = 0;
 
     // Option 53: DHCP Message Type
-    options[offset++] = DHCP_OPTION_MESSAGE_TYPE;     // Type
+    options[offset++] = DHCP_OPTION_MESSAGE_TYPE; // Type
     options[offset++] = DHCP_OPTION_MESSAGE_TYPE_LEN; // Length
     options[offset++] = DHCP_MESSAGE_TYPE_REQUEST;
 
     options[offset++] = DHCP_OPT_REQUESTED_IP_ADDR; // Option 50: Requested IP Address
-    options[offset++] = 4;                          // Length
+    options[offset++] = 4; // Length
     options[offset++] = ip[0];
     options[offset++] = ip[1];
     options[offset++] = ip[2];
     options[offset++] = ip[3];
 
     options[offset++] = DHCP_OPT_SERVER_ID; // Option 54: Server Identifier
-    options[offset++] = 4;                  // Length
+    options[offset++] = 4; // Length
     options[offset++] = server_ip[0];
     options[offset++] = server_ip[1];
     options[offset++] = server_ip[2];
     options[offset++] = server_ip[3];
 
     options[offset++] = DHCP_OPT_HOST_NAME; // Option 12: Host Name
-    options[offset++] = 5;                  // Length
+    options[offset++] = 5; // Length
     options[offset++] = 'o';
     options[offset++] = 's';
     options[offset++] = 'd';
@@ -43,40 +45,51 @@ void set_request_dhcp_options(uint8_t *options, const uint8_t ip[4], const uint8
 }
 
 int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN], uint32_t dns_servers[static 1],
-                                 size_t *dns_server_count)
+                                 size_t* dns_server_count)
 {
     size_t offset = 0;
     *dns_server_count = 0;
 
-    while (offset < DHCP_OPTIONS_LEN) {
+    while (offset < DHCP_OPTIONS_LEN)
+    {
         uint8_t option_code = options[offset++];
 
-        if (option_code == DHCP_OPT_END) {
+        if (option_code == DHCP_OPT_END)
+        {
             break;
-        } else if (option_code == DHCP_OPT_PAD) {
-            continue; // Pad option, skip to next byte
-        } else {
-            if (offset >= DHCP_OPTIONS_LEN) {
+        }
+        else if (option_code == DHCP_OPT_PAD)
+        {
+            continue; // Pad option, skip to the next byte
+        }
+        else
+        {
+            if (offset >= DHCP_OPTIONS_LEN)
+            {
                 // Malformed packet
                 return -1;
             }
 
             uint8_t option_length = options[offset++];
 
-            if (offset + option_length > DHCP_OPTIONS_LEN) {
+            if (offset + option_length > DHCP_OPTIONS_LEN)
+            {
                 // Malformed packet
                 return -1;
             }
 
-            if (option_code == DHCP_OPT_DNS) {
-                if (option_length % 4 != 0) {
+            if (option_code == DHCP_OPT_DNS)
+            {
+                if (option_length % 4 != 0)
+                {
                     // Invalid length for DNS servers (should be a multiple of 4)
                     return -1;
                 }
 
                 size_t num_servers = option_length / 4;
 
-                for (size_t i = 0; i < num_servers; i++) {
+                for (size_t i = 0; i < num_servers && i < MAX_DNS_SERVERS; i++)
+                {
                     uint32_t dns_server_network_order;
                     memcpy(&dns_server_network_order, &options[offset + i * 4], sizeof(uint32_t));
                     dns_servers[i] = dns_server_network_order;
@@ -84,7 +97,9 @@ int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN],
 
                 *dns_server_count = num_servers;
                 return 0; // Success
-            } else {
+            }
+            else
+            {
                 // Skip over the data for this option
                 offset += option_length;
             }
@@ -98,16 +113,23 @@ int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN],
 uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LEN], int option)
 {
     int offset = 0;
-    while (offset < DHCP_OPTIONS_LEN) {
+    while (offset < DHCP_OPTIONS_LEN)
+    {
         uint8_t option_code = options[offset++];
 
-        if (option_code == DHCP_OPT_END) {
+        if (option_code == DHCP_OPT_END)
+        {
             break;
-        } else if (option_code == DHCP_OPT_PAD) {
+        }
+        else if (option_code == DHCP_OPT_PAD)
+        {
             continue; // Pad option, skip to next byte
-        } else {
+        }
+        else
+        {
             // Ensure there's enough space for length field
-            if (offset >= DHCP_OPTIONS_LEN) {
+            if (offset >= DHCP_OPTIONS_LEN)
+            {
                 // Malformed packet
                 return 0;
             }
@@ -115,21 +137,26 @@ uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LE
             uint8_t option_length = options[offset++];
 
             // Ensure there's enough space for the option data
-            if (offset + option_length > DHCP_OPTIONS_LEN) {
+            if (offset + option_length > DHCP_OPTIONS_LEN)
+            {
                 // Malformed packet
                 return 0;
             }
 
-            if (option_code == option) {
-                if (option_length != 4) {
+            if (option_code == option)
+            {
+                if (option_length != 4)
+                {
                     // Invalid subnet mask length
                     return 0;
                 }
                 // Extract the subnet mask
                 const uint32_t subnet_mask = ((uint32_t)options[offset] << 24) | (options[offset + 1] << 16) |
-                                             (options[offset + 2] << 8) | options[offset + 3];
+                    (options[offset + 2] << 8) | options[offset + 3];
                 return subnet_mask;
-            } else {
+            }
+            else
+            {
                 // Skip over the data for this option
                 offset += option_length;
             }
@@ -138,37 +165,37 @@ uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LE
     return 0;
 }
 
-void set_discover_dhcp_options(uint8_t *options)
+void set_discover_dhcp_options(uint8_t* options)
 {
     int offset = 0;
 
     // Option 53: DHCP Message Type
-    options[offset++] = DHCP_OPTION_MESSAGE_TYPE;     // Type
+    options[offset++] = DHCP_OPTION_MESSAGE_TYPE; // Type
     options[offset++] = DHCP_OPTION_MESSAGE_TYPE_LEN; // Length
     options[offset++] = DHCP_MESSAGE_TYPE_DISCOVER;
 
     // Option 55: Parameter Request List
     options[offset++] = DHCP_OPTION_PARAMETER_REQUEST; // Type
-    options[offset++] = 3;                             // Length (requesting 3 parameters)
-    options[offset++] = DHCP_OPT_SUBNET_MASK;          // Request Subnet Mask
-    options[offset++] = DHCP_OPT_ROUTER;               // Request Router
-    options[offset++] = DHCP_OPT_DNS;                  // Request DNS
+    options[offset++] = 3; // Length (requesting 3 parameters)
+    options[offset++] = DHCP_OPT_SUBNET_MASK; // Request Subnet Mask
+    options[offset++] = DHCP_OPT_ROUTER; // Request Router
+    options[offset++] = DHCP_OPT_DNS; // Request DNS
 
     // Option 255: End of Options
     options[offset] = DHCP_OPT_END;
 }
 
-void dhcp_receive(uint8_t *packet)
+void dhcp_receive(uint8_t* packet)
 {
-    struct dhcp_header *dhcp_packet = (struct dhcp_header *)(packet + sizeof(struct ether_header) +
-                                                             sizeof(struct ipv4_header) + sizeof(struct udp_header));
+    struct dhcp_header* dhcp_packet = (struct dhcp_header*)(packet + sizeof(struct ether_header) +
+        sizeof(struct ipv4_header) + sizeof(struct udp_header));
     const uint16_t dhcp_message_type = dhcp_packet->options[2];
 
     // A response to our DHCP Discover (Offer)
     if (dhcp_packet->op == DHCP_OP_OFFER && dhcp_message_type == DHCP_MESSAGE_TYPE_OFFER &&
         network_get_my_mac_address() &&
-        network_compare_mac_addresses(dhcp_packet->chaddr, network_get_my_mac_address())) {
-
+        network_compare_mac_addresses(dhcp_packet->chaddr, network_get_my_mac_address()))
+    {
         uint32_t dhcp_server_ip_p = dhcp_options_get_ip_option(dhcp_packet->options, DHCP_OPT_SERVER_ID);
         dhcp_server_ip_p = htonl(dhcp_server_ip_p);
         uint8_t dhcp_server_ip[4];
@@ -189,10 +216,11 @@ void dhcp_receive(uint8_t *packet)
         dhcp_send_request(network_get_my_mac_address(), dhcp_packet->yiaddr, dhcp_packet->siaddr);
     }
     // A response to our DHCP Request (ACK)
-    // This is the final step in the DHCP process and we are now bound to the IP address
+    // This is the final step in the DHCP process, and we are now bound to the IP address
     else if (dhcp_packet->op == DHCP_OP_OFFER && dhcp_message_type == DHCP_MESSAGE_TYPE_ACK &&
-             network_get_my_mac_address() &&
-             network_compare_mac_addresses(dhcp_packet->chaddr, network_get_my_mac_address())) {
+        network_get_my_mac_address() &&
+        network_compare_mac_addresses(dhcp_packet->chaddr, network_get_my_mac_address()))
+    {
         boot_message(INFO,
                      "%-13s %d.%d.%d.%d",
                      "IP address:",
@@ -225,11 +253,12 @@ void dhcp_receive(uint8_t *packet)
                      gateway[2],
                      gateway[3]);
 
-        uint32_t dns_servers[5];
+        uint32_t dns_servers[MAX_DNS_SERVERS];
         size_t dns_server_count;
         dhcp_options_get_dns_servers(dhcp_packet->options, dns_servers, &dns_server_count);
 
-        for (size_t i = 0; i < dns_server_count; i++) {
+        for (size_t i = 0; i < dns_server_count && i < MAX_DNS_SERVERS; i++)
+        {
             uint32_t dns_p = dns_servers[i];
             uint8_t dns[4];
             memcpy(dns, &dns_p, 4);

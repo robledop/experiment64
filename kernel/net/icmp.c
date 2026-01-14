@@ -70,7 +70,7 @@ void icmp_receive(uint8_t* packet, const uint16_t len)
     case ICMP_V4_ECHO:
         {
             icmp_send_echo_reply(packet, len);
-            icmp_send_echo_request((uint8_t[]){192, 168, 0, 1}, icmp_header->sequence);
+            // icmp_send_echo_request((uint8_t[]){192, 168, 0, 1}, icmp_header->sequence);
             break;
         }
     case ICMP_REPLY:
