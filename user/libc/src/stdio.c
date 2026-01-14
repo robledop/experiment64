@@ -75,7 +75,7 @@ static void out_padding(struct out_ctx *ctx, int width, int content_len, char pa
         out_char(ctx, pad);
 }
 
-static int format_uint(char *buf, size_t cap, unsigned long val, int base, bool lowercase)
+static int format_uint(char *buf, size_t cap, unsigned long long val, int base, bool lowercase)
 {
     const char *digits = lowercase ? "0123456789abcdef" : "0123456789ABCDEF";
     int i = 0;
@@ -114,7 +114,7 @@ static void format_double(char *buf, size_t cap, double val, int precision)
         remaining--;
         val = -val;
     }
-    unsigned long whole = (unsigned long)val;
+    unsigned long long whole = (unsigned long long)val;
     double frac_d = val - (double)whole;
     char intbuf[32];
     int intlen = format_uint(intbuf, sizeof intbuf, whole, 10, true);
@@ -130,7 +130,7 @@ static void format_double(char *buf, size_t cap, double val, int precision)
         double scale = 1.0;
         for (int i = 0; i < precision; i++)
             scale *= 10.0;
-        unsigned long frac = (unsigned long)(frac_d * scale + 0.5);
+        unsigned long long frac = (unsigned long long)(frac_d * scale + 0.5);
         char fracbuf[32];
         int fraclen = format_uint(fracbuf, sizeof fracbuf, frac, 10, true);
         // pad leading zeros if needed
@@ -162,7 +162,13 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         bool left_align = false;
         int width = 0;
         int precision = -1;
-        bool long_mod = false;
+        enum
+        {
+            LEN_NONE,
+            LEN_LONG,
+            LEN_LLONG,
+            LEN_SIZE
+        } len_mod = LEN_NONE;
         if (*p == '-')
         {
             left_align = true;
@@ -185,7 +191,20 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         }
         if (*p == 'l')
         {
-            long_mod = true;
+            if (*(p + 1) == 'l')
+            {
+                len_mod = LEN_LLONG;
+                p += 2;
+            }
+            else
+            {
+                len_mod = LEN_LONG;
+                p++;
+            }
+        }
+        else if (*p == 'z')
+        {
+            len_mod = LEN_SIZE;
             p++;
         }
 
@@ -194,10 +213,26 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         case 'd':
         case 'i':
         {
-            long val = long_mod ? va_arg(args, long) : va_arg(args, int);
+            long long val;
+            switch (len_mod)
+            {
+            case LEN_LLONG:
+                val = va_arg(args, long long);
+                break;
+            case LEN_LONG:
+                val = va_arg(args, long);
+                break;
+            case LEN_SIZE:
+                val = va_arg(args, ssize_t);
+                break;
+            default:
+                val = va_arg(args, int);
+                break;
+            }
             char numbuf[32];
             int len = 0;
-            unsigned long abs = (val < 0) ? (unsigned long)(-val) : (unsigned long)val;
+            unsigned long long abs = (val < 0) ? (unsigned long long)(-(val + 1)) + 1
+                                               : (unsigned long long)val;
             len = format_uint(numbuf, sizeof numbuf, abs, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
             int total_len = len + pad_zero + (val < 0 ? 1 : 0);
@@ -215,7 +250,22 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         }
         case 'u':
         {
-            unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
+            unsigned long long val;
+            switch (len_mod)
+            {
+            case LEN_LLONG:
+                val = va_arg(args, unsigned long long);
+                break;
+            case LEN_LONG:
+                val = va_arg(args, unsigned long);
+                break;
+            case LEN_SIZE:
+                val = va_arg(args, size_t);
+                break;
+            default:
+                val = va_arg(args, unsigned int);
+                break;
+            }
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
@@ -231,7 +281,22 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         }
         case 'x':
         {
-            unsigned long val = long_mod ? va_arg(args, unsigned long) : va_arg(args, unsigned int);
+            unsigned long long val;
+            switch (len_mod)
+            {
+            case LEN_LLONG:
+                val = va_arg(args, unsigned long long);
+                break;
+            case LEN_LONG:
+                val = va_arg(args, unsigned long);
+                break;
+            case LEN_SIZE:
+                val = va_arg(args, size_t);
+                break;
+            default:
+                val = va_arg(args, unsigned int);
+                break;
+            }
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
@@ -247,7 +312,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         }
         case 'p':
         {
-            unsigned long val = va_arg(args, unsigned long);
+            unsigned long long val = (unsigned long long)va_arg(args, unsigned long);
             char numbuf[32];
             int hexlen = format_uint(numbuf, sizeof numbuf, val, 16, true);
             int total_len = 2 + hexlen;
