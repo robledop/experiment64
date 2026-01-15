@@ -33,6 +33,10 @@
 #define SYS_SHUTDOWN 30
 #define SYS_REBOOT 31
 #define SYS_KILL 32
+#define SYS_SOCKET 33
+#define SYS_BIND 34
+#define SYS_SENDTO 35
+#define SYS_RECVFROM 36
 
 static inline long syscall0(long n)
 {

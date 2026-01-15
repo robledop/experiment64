@@ -21,6 +21,15 @@
 #include <drivers/tsc.h>
 #include <lib/path.h>
 #include <fs/pipe.h>
+#include <net/socket.h>
+#include <net/ethernet.h>
+#include <net/ipv4.h>
+#include <net/udp.h>
+#include <net/icmp.h>
+#include <net/helpers.h>
+#include <net/arp.h>
+#include <net/network.h>
+#include <arpa/inet.h>
 #include <debug.h>
 
 extern void syscall_entry(void);
@@ -71,6 +80,28 @@ int sys_dup(int oldfd);
 int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
+static void socket_inode_close(vfs_inode_t* node);
+int sys_bind(int fd, const struct sockaddr* addr, size_t addrlen);
+int sys_sendto(int fd, const void* buf, size_t len, int flags,
+               const struct sockaddr* dest_addr, socklen_t addrlen);
+int sys_recvfrom(int fd, void* buf, size_t len, int flags,
+                 struct sockaddr* src_addr, socklen_t* addrlen);
+
+static struct inode_operations socket_iops = {
+    .read = nullptr,
+    .write = nullptr,
+    .truncate = nullptr,
+    .open = nullptr,
+    .close = socket_inode_close,
+    .ioctl = nullptr,
+    .readdir = nullptr,
+    .finddir = nullptr,
+    .clone = nullptr,
+    .mknod = nullptr,
+    .link = nullptr,
+    .unlink = nullptr,
+    .stat = nullptr,
+};
 
 static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
 {
@@ -1101,6 +1132,373 @@ int64_t sys_sbrk(int64_t increment)
     return (int64_t)old_brk;
 }
 
+int sys_socket(const int domain, const int type, int protocol)
+{
+    if (domain != PF_INET) return -1;
+    if (type == SOCK_STREAM) return -1;
+    if (type != SOCK_DGRAM && type != SOCK_RAW) return -1;
+    if (protocol == 0) protocol = (type == SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_ICMP;
+
+    if ((type == SOCK_DGRAM && protocol != IPPROTO_UDP) ||
+        (type == SOCK_RAW && protocol != IPPROTO_ICMP))
+    {
+        return -1;
+    }
+
+    int fd = -1;
+    for (int i = 3; i < MAX_FDS; i++)
+    {
+        if (current_process->fd_table[i] == nullptr)
+        {
+            fd = i;
+            break;
+        }
+    }
+    if (fd == -1) return -1;
+
+    auto const sock = (socket_t*)kzalloc(sizeof(socket_t));
+    if (!sock) return -1;
+    sock->domain = domain;
+    sock->type = type;
+    sock->protocol = protocol;
+    sock->state = SOCKET_STATE_UNBOUND;
+    sock->ref = 1;
+
+    auto const inode = (vfs_inode_t*)kzalloc(sizeof(vfs_inode_t));
+    if (!inode)
+    {
+        kfree(sock);
+        return -1;
+    }
+    inode->flags = VFS_PIPE;
+    inode->ref = 1;
+    inode->iops = &socket_iops;
+    inode->device = sock;
+
+    auto const desc = (file_descriptor_t*)kzalloc(sizeof(file_descriptor_t));
+    if (!desc)
+    {
+        kfree(inode);
+        kfree(sock);
+        return -1;
+    }
+    desc->inode = inode;
+    desc->offset = 0;
+    desc->flags = O_RDWR;
+    desc->ref = 1;
+
+    current_process->fd_table[fd] = desc;
+    socket_register(sock);
+    return fd;
+}
+
+int sys_bind(const int fd, const struct sockaddr* addr, const size_t addrlen)
+{
+    if (fd < 0 || fd >= MAX_FDS) return -1;
+    if (!addr) return -1;
+    if (addrlen < sizeof(struct sockaddr_in)) return -1;
+
+    file_descriptor_t* desc = current_process->fd_table[fd];
+    if (!desc || !desc->inode) return -1;
+    if (desc->inode->iops != &socket_iops) return -1;
+
+    auto const sock = (socket_t*)desc->inode->device;
+    if (!sock) return -1;
+    if (sock->state != SOCKET_STATE_UNBOUND) return -1;
+
+    struct sockaddr_in in = {0};
+    memcpy(&in, addr, sizeof(in));
+    if (in.sin_family != AF_INET) return -1;
+
+    uint16_t port = 0;
+    if (socket_assign_port(sock, in.sin_addr, in.sin_port, &port) != 0)
+        return -1;
+
+    memcpy(sock->local.ip, in.sin_addr, sizeof(sock->local.ip));
+    sock->local.port = port;
+    sock->state = SOCKET_STATE_BOUND;
+    return 0;
+}
+
+static bool ip_is_zero(const uint8_t ip[static 4])
+{
+    return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
+}
+
+/**
+ * Compare the destination IP address with the subnet mask and gateway to determine the next hop.
+ */
+static void select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
+{
+    const uint8_t* my_ip = network_get_my_ip_address();
+    const uint8_t* mask = network_get_subnet_mask();
+    const uint8_t* gw = network_get_default_gateway();
+
+    const uint8_t* next = dest_ip;
+    if (my_ip && mask && gw)
+    {
+        bool same = true;
+        for (int i = 0; i < 4; i++)
+        {
+            // AND each octet of the destination IP with the subnet mask
+            // Do the same thing with our own IP
+            // Compare the two. If they are different, we need to use the gateway
+            // because we are not on the same subnet
+            if ((dest_ip[i] & mask[i]) != (my_ip[i] & mask[i]))
+            {
+                same = false;
+                break;
+            }
+        }
+        if (!same) next = gw;
+    }
+
+    memcpy(out, next, 4);
+}
+
+int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
+               const struct sockaddr* dest_addr, const socklen_t addrlen)
+{
+    (void)flags;
+    if (fd < 0 || fd >= MAX_FDS) return -1;
+    if (!dest_addr) return -1;
+    if (addrlen < sizeof(struct sockaddr_in)) return -1;
+    if (!buf && len > 0) return -1;
+
+    file_descriptor_t* desc = current_process->fd_table[fd];
+    if (!desc || !desc->inode) return -1;
+    if (desc->inode->iops != &socket_iops) return -1;
+
+    auto const sock = (socket_t*)desc->inode->device;
+    if (!sock) return -1;
+
+    struct sockaddr_in in = {0};
+    memcpy(&in, dest_addr, sizeof(in));
+    if (in.sin_family != AF_INET) return -1;
+
+    const uint8_t* my_ip = network_get_my_ip_address();
+    if (!my_ip) return -1;
+
+    uint8_t src_ip[4];
+    // If the IP is 0.0.0.0, that is local, so use our own IP
+    if (ip_is_zero(sock->local.ip))
+        memcpy(src_ip, my_ip, sizeof(src_ip));
+    else
+        memcpy(src_ip, sock->local.ip, sizeof(src_ip));
+
+    if (sock->protocol == IPPROTO_UDP && sock->type == SOCK_DGRAM)
+    {
+        if (in.sin_port == 0) return -1;
+
+        if (sock->state == SOCKET_STATE_UNBOUND)
+        {
+            uint16_t port = 0;
+            if (socket_assign_port(sock, my_ip, 0, &port) != 0)
+                return -1;
+            memcpy(sock->local.ip, my_ip, sizeof(sock->local.ip));
+            sock->local.port = port;
+            sock->state = SOCKET_STATE_BOUND;
+            memcpy(src_ip, my_ip, sizeof(src_ip));
+        }
+
+        uint8_t next_hop[4];
+        select_next_hop(in.sin_addr, next_hop);
+        const struct arp_cache_entry entry = arp_cache_find(next_hop);
+        if (entry.ip[0] == 0)
+        {
+            arp_send_request(next_hop);
+            return -1;
+        }
+
+        const uint8_t* src_mac = network_get_my_mac_address();
+        if (!src_mac) return -1;
+
+        const size_t total_len = sizeof(struct ether_header) + sizeof(struct ipv4_header) +
+            sizeof(struct udp_header) + len;
+        uint8_t* packet = kmalloc(total_len);
+        if (!packet) return -1;
+
+        auto const eth = (struct ether_header*)packet;
+        memcpy(eth->dest_host, entry.mac, 6);
+        memcpy(eth->src_host, src_mac, 6);
+        eth->ether_type = htons(ETHERTYPE_IP);
+
+        auto const ip = (struct ipv4_header*)(packet + sizeof(struct ether_header));
+        ip->version = 4;
+        ip->ihl = 0x05;
+        ip->dscp_ecn = 0;
+        ip->total_length = htons(sizeof(struct ipv4_header) + sizeof(struct udp_header) + len);
+        ip->identification = 0;
+        ip->flags_fragment_offset = 0;
+        ip->ttl = 64;
+        ip->protocol = IP_PROTOCOL_UDP;
+        ip->header_checksum = 0;
+        memcpy(ip->source_ip, src_ip, 4);
+        memcpy(ip->dest_ip, in.sin_addr, 4);
+        ip->header_checksum = checksum(ip, (int)sizeof(struct ipv4_header), 0);
+
+        auto const udp = (struct udp_header*)((uint8_t*)ip + sizeof(struct ipv4_header));
+        udp->src_port = sock->local.port;
+        udp->dest_port = in.sin_port;
+        udp->len = htons(sizeof(struct udp_header) + len);
+        udp->checksum = 0;
+
+        uint8_t* payload = (uint8_t*)udp + sizeof(struct udp_header);
+        if (len > 0)
+            memcpy(payload, buf, len);
+
+        const struct udp_pseudo_header pseudo = {
+            .src_ip = {src_ip[0], src_ip[1], src_ip[2], src_ip[3]},
+            .dest_ip = {in.sin_addr[0], in.sin_addr[1], in.sin_addr[2], in.sin_addr[3]},
+            .zero = 0,
+            .protocol = IP_PROTOCOL_UDP,
+            .udp_length = udp->len,
+        };
+
+        const size_t checksum_len = sizeof(struct udp_pseudo_header) + sizeof(struct udp_header) + len;
+        uint8_t* checksum_buf = kmalloc(checksum_len);
+        if (!checksum_buf)
+        {
+            kfree(packet);
+            return -1;
+        }
+        memcpy(checksum_buf, &pseudo, sizeof(struct udp_pseudo_header));
+        memcpy(checksum_buf + sizeof(struct udp_pseudo_header), udp, sizeof(struct udp_header));
+        if (len > 0)
+            memcpy(checksum_buf + sizeof(struct udp_pseudo_header) + sizeof(struct udp_header), payload, len);
+        udp->checksum = checksum(checksum_buf, (int)checksum_len, 0);
+        kfree(checksum_buf);
+
+        network_send_packet(packet, (uint16_t)total_len);
+        kfree(packet);
+        return clamp_to_int(len);
+    }
+
+    if (sock->protocol == IPPROTO_ICMP && sock->type == SOCK_RAW)
+    {
+        if (len < sizeof(struct icmp_header)) return -1;
+
+        uint8_t next_hop[4];
+        select_next_hop(in.sin_addr, next_hop);
+        const struct arp_cache_entry entry = arp_cache_find(next_hop);
+        if (entry.ip[0] == 0)
+        {
+            arp_send_request(next_hop);
+            return -1;
+        }
+
+        const uint8_t* src_mac = network_get_my_mac_address();
+        if (!src_mac)
+            return -1;
+
+        const size_t total_len = sizeof(struct ether_header) + sizeof(struct ipv4_header) + len;
+        uint8_t* packet = kmalloc(total_len);
+        if (!packet)
+            return -1;
+
+        auto const eth = (struct ether_header*)packet;
+        memcpy(eth->dest_host, entry.mac, 6);
+        memcpy(eth->src_host, src_mac, 6);
+        eth->ether_type = htons(ETHERTYPE_IP);
+
+        auto const ip = (struct ipv4_header*)(packet + sizeof(struct ether_header));
+        ip->version = 4;
+        ip->ihl = 0x05;
+        ip->dscp_ecn = 0;
+        ip->total_length = htons(sizeof(struct ipv4_header) + len);
+        ip->identification = 0;
+        ip->flags_fragment_offset = 0;
+        ip->ttl = 64;
+        ip->protocol = IP_PROTOCOL_ICMP;
+        ip->header_checksum = 0;
+        memcpy(ip->source_ip, src_ip, 4);
+        memcpy(ip->dest_ip, in.sin_addr, 4);
+        ip->header_checksum = checksum(ip, (int)sizeof(struct ipv4_header), 0);
+
+        uint8_t* icmp_data = (uint8_t*)ip + sizeof(struct ipv4_header);
+        if (len > 0)
+            memcpy(icmp_data, buf, len);
+        auto const icmp = (struct icmp_header*)icmp_data;
+        icmp->checksum = 0;
+        icmp->checksum = checksum(icmp_data, (int)len, 0);
+
+        network_send_packet(packet, (uint16_t)total_len);
+        kfree(packet);
+        return clamp_to_int(len);
+    }
+
+    return -1;
+}
+
+int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
+                 struct sockaddr* src_addr, socklen_t* addrlen)
+{
+    if (fd < 0 || fd >= MAX_FDS) return -1;
+    if (len == 0) return 0;
+    if (!buf) return -1;
+    if (!user_ptr_write_ok(buf, len, "sys_recvfrom")) return -1;
+    if (src_addr && !user_ptr_write_ok(src_addr, sizeof(struct sockaddr_in), "sys_recvfrom"))
+        return -1;
+    if (addrlen && !user_ptr_write_ok(addrlen, sizeof(socklen_t), "sys_recvfrom"))
+        return -1;
+
+    file_descriptor_t* desc = current_process->fd_table[fd];
+    if (!desc || !desc->inode) return -1;
+    if (desc->inode->iops != &socket_iops) return -1;
+
+    socket_t* sock = (socket_t*)desc->inode->device;
+    if (!sock) return -1;
+
+    const bool block = (flags & MSG_DONTWAIT) == 0;
+    socket_rx_packet_t* pkt = socket_rx_pop(sock, block);
+    if (!pkt) return -1;
+
+    size_t copy_len = (pkt->len < len) ? pkt->len : len;
+    if (copy_len > 0) memcpy(buf, pkt->data, copy_len);
+
+    if (src_addr)
+    {
+        struct sockaddr_in out = {0};
+        out.sin_family = AF_INET;
+        out.sin_port = pkt->from.port;
+        memcpy(out.sin_addr, pkt->from.ip, sizeof(out.sin_addr));
+        if (!copy_to_user(src_addr, &out, sizeof(out)))
+        {
+            if (pkt->data)
+                kfree(pkt->data);
+            kfree(pkt);
+            return -1;
+        }
+    }
+
+    if (addrlen)
+    {
+        socklen_t out_len = sizeof(struct sockaddr_in);
+        if (!copy_to_user(addrlen, &out_len, sizeof(out_len)))
+        {
+            if (pkt->data) kfree(pkt->data);
+            kfree(pkt);
+            return -1;
+        }
+    }
+
+    if (pkt->data) kfree(pkt->data);
+    kfree(pkt);
+    return clamp_to_int(copy_len);
+}
+
+static void socket_inode_close(vfs_inode_t* node)
+{
+    if (!node) return;
+    socket_t* sock = (socket_t*)node->device;
+    if (sock)
+    {
+        socket_unregister(sock);
+        node->device = nullptr;
+        kfree(sock);
+    }
+}
+
 uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3,
                          struct syscall_regs* regs)
 {
@@ -1111,7 +1509,6 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     test_syscall_count++;
     test_syscall_last_num = syscall_number;
     test_syscall_last_arg1 = arg1;
-
 #endif
 
     uint64_t arg4 = regs ? regs->r10 : 0;
@@ -1191,6 +1588,16 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         return 0;
     case SYS_KILL:
         return sys_kill((int)arg1, (int)arg2);
+    case SYS_SOCKET:
+        return sys_socket((int)arg1, (int)arg2, (int)arg3);
+    case SYS_BIND:
+        return sys_bind((int)arg1, (const struct sockaddr*)arg2, (size_t)arg3);
+    case SYS_SENDTO:
+        return sys_sendto((int)arg1, (const void*)arg2, (size_t)arg3, (int)arg4,
+                          (const struct sockaddr*)arg5, (socklen_t)arg6);
+    case SYS_RECVFROM:
+        return sys_recvfrom((int)arg1, (void*)arg2, (size_t)arg3, (int)arg4,
+                            (struct sockaddr*)arg5, (socklen_t*)arg6);
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode

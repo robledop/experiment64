@@ -41,7 +41,7 @@ QEMU_DRIVES :=  \
 # User-mode networking (has built-in DHCP server)
 QEMU_NETWORK_USER=-netdev user,id=net0 -device e1000,netdev=net0
 # TAP networking (requires DHCP server on the network)
-QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0
+QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap1,script=no,downscript=no -device e1000,netdev=net0
 # Default to user-mode networking
 QEMU_NETWORK=$(QEMU_NETWORK_USER)
 
@@ -146,7 +146,6 @@ run: clean
 .PHONY: run-tap
 run-tap: clean
 	$(MAKE) image.hdd
-	./scripts/create_tap.sh
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox

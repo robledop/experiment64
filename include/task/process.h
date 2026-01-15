@@ -11,7 +11,7 @@
 #define KSTACK_SYSCALL_HEADROOM 512
 
 #define PROCESS_NAME_MAX 64
-#define MAX_FDS 16
+#define MAX_FDS 32
 #define TIME_SLICE_MS 50
 
 #define VMA_READ (1u << 0)

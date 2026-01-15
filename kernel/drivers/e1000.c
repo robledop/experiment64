@@ -431,7 +431,7 @@ int e1000_send_packet(const void *data, const uint16_t len)
 
     const uint8_t slot = tx_cur;
 
-    // Wait for descriptor to be available
+    // Wait for the descriptor to be available
     while ((tx_descs[slot]->status & TSTA_DD) == 0)
         ;
 

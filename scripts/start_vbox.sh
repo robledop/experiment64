@@ -7,6 +7,8 @@ RAW_DISK="image.hdd"
 RAW_IDE_DISK="image2.ide"
 VDI_DISK="image.vdi"
 VDI_IDE_DISK="image2.vdi"
+MAC_ADDRESS="525400123456"
+NETWORK_INTERFACE="enp0s20f0u1c2"
 
 if VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then
   if VBoxManage showvminfo "$VM_NAME" | grep -q "running"; then
@@ -25,11 +27,11 @@ VBoxManage storagectl "$VM_NAME" --name "IDE" --add ide --controller PIIX4 --boo
 VBoxManage storageattach "$VM_NAME" --storagectl "SATA" --port 0 --device 0 --type hdd --medium "$VDI_DISK"
 VBoxManage storageattach "$VM_NAME" --storagectl "IDE" --port 1 --device 0 --type hdd --medium "$VDI_IDE_DISK"
 VBoxManage modifyvm "$VM_NAME" --memory "$MEMORY" --vram 16 --graphicscontroller vboxvga
-VBoxManage modifyvm "$VM_NAME" --nic1 nat --nictype1 82540EM
+VBoxManage modifyvm "$VM_NAME" --nic1 bridged --nictype1 82540EM --bridgeadapter1 "$NETWORK_INTERFACE" --nicpromisc1 allow-all --macaddress1 "$MAC_ADDRESS"
 VBoxManage modifyvm "$VM_NAME" --ioapic on --cpus 8 --chipset piix3
 VBoxManage modifyvm "$VM_NAME" --boot1 disk --boot2 none --boot3 none --boot4 none
 VBoxManage modifyvm "$VM_NAME" --firmware efi
 VBoxManage modifyvm "$VM_NAME" --uart1 0x3F8 4 --uartmode1 file "$(pwd)/vbox.log"
-VBoxManage setextradata "$VM_NAME" GUI/ScaleFactor "1.5"
+VBoxManage setextradata "$VM_NAME" GUI/ScaleFactor "1"
 VBoxManage setextradata "$VM_NAME" GUI/DefaultCloseAction "poweroff"
 VBoxManage startvm "$VM_NAME"

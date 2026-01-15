@@ -7,7 +7,7 @@ TAP=tap0
 IP=192.168.0.95/24
 BRIDGE=br0
 # This is for my specific network interface, you may need to change this
-#MY_NETWORK_ADAPTER=enxf8e43bad9bb7
+#MY_NETWORK_ADAPTER=enp0s20f0u1c2
 
 echo "Setting TAP interface for user $USER"
 if ip link show | grep -q "$TAP"; then
@@ -26,4 +26,4 @@ fi
 
 #sudo ip link set dev "$MY_NETWORK_ADAPTER" master "$BRIDGE"
 
-sudo ip link set dev "$TAP" master "$BRIDGE"
+#sudo ip link set dev "$TAP" master "$BRIDGE"

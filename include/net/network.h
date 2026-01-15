@@ -6,6 +6,8 @@ void network_receive(uint8_t *packet, uint16_t len);
 int network_send_packet(const void *data, uint16_t len);
 void network_set_mac(const uint8_t mac_addr[static 6]);
 uint8_t *network_get_my_ip_address(void);
+uint8_t *network_get_subnet_mask(void);
+uint8_t *network_get_default_gateway(void);
 bool network_compare_ip_addresses(const uint8_t ip1[static 4], const uint8_t ip2[static 4]);
 bool network_compare_mac_addresses(const uint8_t mac1[static 6], const uint8_t mac2[static 6]);
 uint8_t *network_get_my_mac_address(void);

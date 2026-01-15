@@ -42,6 +42,10 @@ struct syscall_regs
 #define SYS_SHUTDOWN 30
 #define SYS_REBOOT 31
 #define SYS_KILL 32
+#define SYS_SOCKET 33
+#define SYS_BIND 34
+#define SYS_SENDTO 35
+#define SYS_RECVFROM 36
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

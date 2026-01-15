@@ -1,136 +1,95 @@
-#include "net/arp.h"
-#include "net/helpers.h"
-#include "net/icmp.h"
-#include "net/network.h"
+#include <net/helpers.h>
+#include <net/icmp.h>
+#include <net/network.h>
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <arpa/inet.h>
+#include <net/socket.h>
 
-const char* icmp_request_payload = "osdev icmp request payload";
-
-void icmp_send_echo_reply(uint8_t* packet, const uint16_t len)
+void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
+                          const size_t ip_len, const size_t ip_header_len)
 {
+    constexpr size_t eth_len = sizeof(struct ether_header);
+    if (len < eth_len + ip_header_len) return;
+    if (ip_len < ip_header_len + sizeof(struct icmp_header)) return;
+    if (len < eth_len + ip_len) return;
+
+    const uint8_t* my_mac = network_get_my_mac_address();
+    const uint8_t* my_ip = network_get_my_ip_address();
+    if (!my_mac || !my_ip) return;
+
     const struct ether_header* ether_header = (struct ether_header*)packet;
-    const struct ipv4_header* ipv4_header = (struct ipv4_header*)(packet + sizeof(struct ether_header));
-    struct icmp_header* icmp_header =
-        (struct icmp_header*)(packet + sizeof(struct ether_header) + sizeof(struct ipv4_header));
-    void* payload =
-        (void*)(packet + sizeof(struct ether_header) + sizeof(struct ipv4_header) + sizeof(struct icmp_header));
+    const struct ipv4_header* ipv4_header = (struct ipv4_header*)(packet + eth_len);
+    const uint8_t* icmp_data = packet + eth_len + ip_header_len;
+    const size_t icmp_len = ip_len - ip_header_len;
+    constexpr size_t icmp_header_len = sizeof(struct icmp_header);
+    const size_t payload_len = icmp_len - icmp_header_len;
+    const uint8_t* payload = icmp_data + icmp_header_len;
 
-    struct icmp_packet* reply_packet = kzalloc(sizeof(struct icmp_packet));
-    reply_packet->payload = kzalloc(strlen(icmp_request_payload));
-    struct ether_header reply_ether_header;
-    memcpy(reply_ether_header.dest_host, ether_header->src_host, 6);
-    memcpy(reply_ether_header.src_host, network_get_my_mac_address(), 6);
-    reply_ether_header.ether_type = htons(ETHERTYPE_IP);
+    const size_t reply_len = eth_len + ip_len;
+    uint8_t* reply_packet = kmalloc(reply_len);
+    if (!reply_packet) return;
 
-    reply_packet->ether_header = reply_ether_header;
+    auto const reply_ether_header = (struct ether_header*)reply_packet;
+    memcpy(reply_ether_header->dest_host, ether_header->src_host, 6);
+    memcpy(reply_ether_header->src_host, my_mac, 6);
+    reply_ether_header->ether_type = htons(ETHERTYPE_IP);
 
-    struct ipv4_header reply_ipv4_header;
-    reply_ipv4_header.version = 4;
-    reply_ipv4_header.ihl = 0x05;
-    reply_ipv4_header.dscp_ecn = 0;
-    reply_ipv4_header.total_length = ntohs(len - sizeof(struct ether_header));
-    reply_ipv4_header.flags_fragment_offset = 0x0;
-    reply_ipv4_header.ttl = 64;
-    reply_ipv4_header.protocol = IP_PROTOCOL_ICMP;
-    reply_ipv4_header.header_checksum = 0;
-    memcpy(reply_ipv4_header.source_ip, network_get_my_ip_address(), 4);
-    memcpy(reply_ipv4_header.dest_ip, ipv4_header->source_ip, 4);
+    uint8_t* reply_ip_base = reply_packet + eth_len;
+    memcpy(reply_ip_base, ipv4_header, ip_header_len);
+    auto const reply_ipv4_header = (struct ipv4_header*)reply_ip_base;
+    reply_ipv4_header->version = 4;
+    reply_ipv4_header->ihl = (uint8_t)(ip_header_len / 4);
+    reply_ipv4_header->dscp_ecn = 0;
+    reply_ipv4_header->total_length = htons((uint16_t)ip_len);
+    reply_ipv4_header->identification = 0;
+    reply_ipv4_header->flags_fragment_offset = 0;
+    reply_ipv4_header->ttl = 64;
+    reply_ipv4_header->protocol = IP_PROTOCOL_ICMP;
+    reply_ipv4_header->header_checksum = 0;
+    memcpy(reply_ipv4_header->source_ip, my_ip, 4);
+    memcpy(reply_ipv4_header->dest_ip, ipv4_header->source_ip, 4);
+    reply_ipv4_header->header_checksum = checksum(reply_ipv4_header, (int)ip_header_len, 0);
 
-    reply_ipv4_header.header_checksum = checksum((void*)&reply_ipv4_header, reply_ipv4_header.ihl * 4, 0);
+    uint8_t* reply_icmp_data = reply_packet + eth_len + ip_header_len;
+    auto const reply_icmp_header = (struct icmp_header*)reply_icmp_data;
+    memcpy(reply_icmp_header, icmp_data, icmp_header_len);
+    reply_icmp_header->type = ICMP_REPLY;
+    reply_icmp_header->code = 0;
+    if (payload_len > 0)
+        memcpy(reply_icmp_data + icmp_header_len, payload, payload_len);
+    reply_icmp_header->checksum = 0;
+    reply_icmp_header->checksum = checksum(reply_icmp_data, (int)icmp_len, 0);
 
-    reply_packet->ip_header = reply_ipv4_header;
-
-    icmp_header->type = ICMP_REPLY;
-    icmp_header->checksum = 0;
-    icmp_header->checksum = checksum(icmp_header,
-                                     len - (int)sizeof(struct ether_header) - (int)sizeof(struct ipv4_header), 0);
-
-    struct icmp_header reply_icmp_header;
-    memcpy(&reply_icmp_header, icmp_header, sizeof(struct icmp_header));
-
-    reply_packet->icmp_header = reply_icmp_header;
-    memcpy(reply_packet->payload,
-           payload,
-           len - sizeof(struct ether_header) - sizeof(struct ipv4_header) - sizeof(struct icmp_header));
-
-    network_send_packet(reply_packet, len);
-    kfree(reply_packet->payload);
+    network_send_packet(reply_packet, (uint16_t)reply_len);
     kfree(reply_packet);
 }
 
-void icmp_receive(uint8_t* packet, const uint16_t len)
+void icmp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, const size_t ip_header_len)
 {
-    struct icmp_header* icmp_header =
-        (struct icmp_header*)(packet + sizeof(struct ether_header) + sizeof(struct ipv4_header));
+    constexpr size_t eth_len = sizeof(struct ether_header);
+    if (len < eth_len + ip_header_len) return;
+    if (ip_len < ip_header_len + sizeof(struct icmp_header)) return;
+    if (len < eth_len + ip_len) return;
+
+    auto const ip_header = (struct ipv4_header*)(packet + eth_len);
+    auto icmp_header = (struct icmp_header*)(packet + eth_len + ip_header_len);
 
     switch (icmp_header->type)
     {
     case ICMP_V4_ECHO:
         {
-            icmp_send_echo_reply(packet, len);
-            // icmp_send_echo_request((uint8_t[]){192, 168, 0, 1}, icmp_header->sequence);
+            icmp_send_echo_reply(packet, len, ip_len, ip_header_len);
             break;
         }
     case ICMP_REPLY:
         {
-            // icmp_receive_echo_reply(packet, len);
+            const uint8_t* icmp_data = packet + eth_len + ip_header_len;
+            const size_t icmp_len = ip_len - ip_header_len;
+            socket_deliver_icmp(ip_header->dest_ip, ip_header->source_ip, icmp_data, icmp_len);
             break;
         }
     default:
         break;
     }
-}
-
-void icmp_send_echo_request(const uint8_t dest_ip[static 4], const uint16_t sequence)
-{
-    const struct arp_cache_entry entry = arp_cache_find(dest_ip);
-    if (entry.ip[0] == 0)
-    {
-        arp_send_request(dest_ip);
-        return;
-    }
-
-    struct icmp_packet* packet = kzalloc(sizeof(struct icmp_packet));
-    packet->payload = kzalloc(strlen(icmp_request_payload));
-    struct ether_header ether_header;
-    memcpy(ether_header.dest_host, entry.mac, 6);
-    memcpy(ether_header.src_host, network_get_my_mac_address(), 6);
-    ether_header.ether_type = htons(ETHERTYPE_IP);
-
-    packet->ether_header = ether_header;
-
-    struct ipv4_header ipv4_header;
-    ipv4_header.version = 4;
-    ipv4_header.ihl = 0x05;
-    ipv4_header.dscp_ecn = 0;
-    ipv4_header.total_length =
-        htons(sizeof(struct ipv4_header) + sizeof(struct icmp_header) + strlen(icmp_request_payload));
-    ipv4_header.flags_fragment_offset = 0x0;
-    ipv4_header.ttl = 64;
-    ipv4_header.protocol = IP_PROTOCOL_ICMP;
-    ipv4_header.header_checksum = 0;
-    memcpy(ipv4_header.source_ip, network_get_my_ip_address(), 4);
-    memcpy(ipv4_header.dest_ip, dest_ip, 4);
-
-    ipv4_header.header_checksum = checksum((void*)&ipv4_header, ipv4_header.ihl * 4, 0);
-
-    packet->ip_header = ipv4_header;
-
-    struct icmp_header icmp_header;
-    icmp_header.type = ICMP_V4_ECHO;
-    icmp_header.code = 0;
-    icmp_header.checksum = 0;
-    icmp_header.id = 0;
-    icmp_header.sequence = htons(sequence);
-    memcpy(packet->payload, icmp_request_payload, strlen(icmp_request_payload));
-    packet->icmp_header = icmp_header;
-
-    packet->icmp_header.checksum =
-        checksum(&packet->icmp_header, (int)sizeof(struct icmp_header) + (int)strlen(icmp_request_payload), 0);
-
-    network_send_packet(packet, sizeof(struct icmp_packet) + strlen(icmp_request_payload));
-    kfree(packet->payload);
-    kfree(packet);
 }
