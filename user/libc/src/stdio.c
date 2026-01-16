@@ -160,6 +160,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         }
         p++;
         bool left_align = false;
+        bool zero_pad = false;
         int width = 0;
         int precision = -1;
         enum
@@ -172,6 +173,11 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
         if (*p == '-')
         {
             left_align = true;
+            p++;
+        }
+        if (*p == '0')
+        {
+            zero_pad = true;
             p++;
         }
         while (*p >= '0' && *p <= '9')
@@ -236,9 +242,11 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             len = format_uint(numbuf, sizeof numbuf, abs, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
             int total_len = len + pad_zero + (val < 0 ? 1 : 0);
+            if (zero_pad && val < 0)
+                out_char(ctx, '-');
             if (!left_align)
-                out_padding(ctx, width, total_len, ' ');
-            if (val < 0)
+                out_padding(ctx, width, total_len, zero_pad ? '0' : ' ');
+            if (!zero_pad && val < 0)
                 out_char(ctx, '-');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
@@ -270,7 +278,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
             if (!left_align)
-                out_padding(ctx, width, len + pad_zero, ' ');
+                out_padding(ctx, width, len + pad_zero, zero_pad ? '0' : ' ');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
             for (int i = 0; i < len; i++)
@@ -301,7 +309,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
             int pad_zero = (precision > len) ? (precision - len) : 0;
             if (!left_align)
-                out_padding(ctx, width, len + pad_zero, ' ');
+                out_padding(ctx, width, len + pad_zero, zero_pad ? '0' : ' ');
             while (pad_zero-- > 0)
                 out_char(ctx, '0');
             for (int i = 0; i < len; i++)
