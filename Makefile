@@ -39,10 +39,9 @@ QEMU_DRIVES :=  \
 	-drive if=ide,file=$(IDE_DISK),format=raw,index=1
 
 # User-mode networking (has built-in DHCP server)
-QEMU_NETWORK_USER=-netdev user,id=net0 -device e1000,netdev=net0
-# TAP networking (requires DHCP server on the network)
+QEMU_NETWORK_USER=-netdev user,id=net0,hostfwd=tcp::8080-:80 -device e1000,netdev=net0
 QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap1,script=no,downscript=no -device e1000,netdev=net0
-# Default to user-mode networking
+QEMU_NETWORK_BRIDGE=-netdev bridge,id=n0,br=br0 -device e1000,netdev=n0
 QEMU_NETWORK=$(QEMU_NETWORK_USER)
 
 override CFLAGS += \
@@ -142,6 +141,11 @@ qemu-nobuild:
 run: clean
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+
+.PHONY: run-nox
+run-nox: clean
+	$(MAKE) image.hdd
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
 .PHONY: run-tap
 run-tap: clean
