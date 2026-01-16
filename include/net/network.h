@@ -2,6 +2,15 @@
 
 #include <stdint.h>
 
+struct netinfo
+{
+    uint8_t mac[6];
+    uint32_t ip;
+    uint32_t subnet_mask;
+    uint32_t default_gateway;
+    uint32_t dns_server;
+};
+
 void network_receive(uint8_t *packet, uint16_t len);
 int network_send_packet(const void *data, uint16_t len);
 void network_set_mac(const uint8_t mac_addr[static 6]);
@@ -17,3 +26,5 @@ void network_set_my_ip_address(const uint8_t ip[static 4]);
 void network_set_subnet_mask(const uint8_t ip[static 4]);
 void network_set_default_gateway(const uint8_t ip[static 4]);
 void network_set_state(bool state);
+uint32_t* network_get_dns_servers(void);
+uint32_t network_get_dns_server_count(void);

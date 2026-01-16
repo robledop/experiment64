@@ -17,5 +17,18 @@ struct winsize
 #define FB_IOCTL_GET_FBADDR 0x4602
 #define FB_IOCTL_GET_PITCH 0x4603
 
-// Keyboard ioctls
+// Keyboard ioctl
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers
+
+
+struct netinfo
+{
+    uint8_t mac[6];
+    uint32_t ip;
+    uint32_t subnet_mask;
+    uint32_t default_gateway;
+    uint32_t dns_server;
+};
+
+// Network ioctl
+#define GETNETINFO 0x4090

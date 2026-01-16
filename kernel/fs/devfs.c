@@ -54,7 +54,7 @@ void devfs_register_device(const char *name, vfs_inode_t *device_node)
     if (device_count >= MAX_DEVICES || !name || !device_node)
         return;
 
-    // Insert in lexicographic order to keep stable directory listing.
+    // Insert in lexicographic order to keep a stable directory listing.
     int idx = 0;
     for (; idx < device_count; idx++)
     {

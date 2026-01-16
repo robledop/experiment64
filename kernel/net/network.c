@@ -122,6 +122,16 @@ uint8_t* network_get_my_mac_address(void)
     return mac;
 }
 
+uint32_t* network_get_dns_servers(void)
+{
+    return dns_servers;
+}
+
+uint32_t network_get_dns_server_count(void)
+{
+    return dns_servers ? *dns_servers : 0;
+}
+
 const char* find_ether_type(const uint16_t ether_type)
 {
     for (size_t i = 0; i < sizeof(ether_types) / sizeof(struct ether_type); i++)
