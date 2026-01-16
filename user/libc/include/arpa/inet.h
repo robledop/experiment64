@@ -76,3 +76,5 @@ void inet_ntoa_r(uint32_t addr, char* buf);
  * @param out Buffer to store the byte array representation of the IPv4 address.
  */
 void ip_to_bytes(uint32_t ip, uint8_t out[4]);
+
+void bytes_to_ip(const uint8_t bytes[4], uint32_t* out);

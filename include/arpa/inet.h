@@ -69,3 +69,9 @@ uint32_t inet_addr(const char *cp);
  */
 void inet_ntoa_r(uint32_t addr, char *buf);
 
+/**
+ * Convert a binary representation of an IPv4 address to its byte array form.
+ * @param ip The binary representation of the IPv4 address.
+ * @param out Buffer to store the byte array representation of the IPv4 address.
+ */
+void ip_to_bytes(uint32_t ip, uint8_t out[4]);
