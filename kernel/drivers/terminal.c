@@ -283,7 +283,7 @@ void terminal_scroll(int rows)
 
     cursor_restore();
 
-    const int char_height = FONT_HEIGHT + LINE_SPACING;
+    constexpr int char_height = FONT_HEIGHT + LINE_SPACING;
     int scroll_px = rows * char_height;
     const int fb_height = (int)terminal_fb->height;
     if (scroll_px > fb_height)

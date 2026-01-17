@@ -302,12 +302,12 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
     close(fd);
 
     const uint32_t dns_server = netinfo.dns_server;
-    uint8_t ip_bytes[4];
-    ip_to_bytes(dns_server, ip_bytes);
+    uint8_t dns_ip_bytes[4];
+    ip_to_bytes(dns_server, dns_ip_bytes);
     struct sockaddr_in dest = {0};
     dest.sin_family = AF_INET;
     dest.sin_port = htons(53);
-    memcpy(dest.sin_addr, ip_bytes, sizeof(dest.sin_addr));
+    memcpy(dest.sin_addr, dns_ip_bytes, sizeof(dest.sin_addr));
 
     const int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0)
@@ -336,7 +336,7 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
     message->questions[0].qclass = htons(1);
     strcpy(message->questions[0].qname, name);
 
-    int packet_size = pack_message(message, question_count, (char (*)[512])packet);
+    const int packet_size = pack_message(message, question_count, (char (*)[512])packet);
     send_with_retry(sockfd, &dest, packet, packet_size);
 
     struct dns_message message_out = {0};
