@@ -123,11 +123,11 @@ uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LE
         }
         else if (option_code == DHCP_OPT_PAD)
         {
-            continue; // Pad option, skip to next byte
+            continue; // Pad option, skip to the next byte
         }
         else
         {
-            // Ensure there's enough space for length field
+            // Ensure there's enough space for the length field
             if (offset >= DHCP_OPTIONS_LEN)
             {
                 // Malformed packet

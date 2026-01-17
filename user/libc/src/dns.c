@@ -301,6 +301,7 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
     ioctl(fd, GETNETINFO, &netinfo);
     close(fd);
 
+
     const uint32_t dns_server = netinfo.dns_server;
     uint8_t dns_ip_bytes[4];
     ip_to_bytes(dns_server, dns_ip_bytes);
@@ -312,6 +313,11 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
     const int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0)
         panic("socket failed\n");
+
+    struct sockaddr_in own_addr = {0};
+    own_addr.sin_family = AF_INET;
+    if (bind(sockfd, (struct sockaddr*)&own_addr, sizeof(own_addr)) == -1)
+        panic("bind failed\n");
 
     uint8_t packet[512];
     struct dns_message* message = calloc(sizeof(struct dns_message), 1);
