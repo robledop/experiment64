@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <dns.h>
 
 #define ICMP_ECHO 8
 #define ICMP_REPLY 0
@@ -56,7 +57,7 @@ static int send_with_retry(int sockfd, const struct sockaddr_in* dest,
     for (int attempt = 0; attempt < 10; attempt++)
     {
         const ssize_t sent = sendto(sockfd, packet, packet_len, 0,
-                              (const struct sockaddr*)dest, sizeof(*dest));
+                                    (const struct sockaddr*)dest, sizeof(*dest));
         if (sent >= 0) return 0;
         usleep(10000);
     }
@@ -74,12 +75,22 @@ int main(int argc, char** argv)
     int count = 4;
     if (argc >= 3)
     {
-        count = atoi(argv[2]);
-        if (count <= 0)
+        char* end = nullptr;
+        const long parsed = strtol(argv[2], &end, 10);
+        if (end == argv[2] || *end != '\0' || parsed <= 0 || parsed > 0x7fffffffL)
             count = 4;
+        else
+            count = (int)parsed;
     }
 
-    const uint32_t ip = inet_addr(argv[1]);
+    uint32_t ip = inet_addr(argv[1]);
+    if (ip == 0)
+    {
+        struct sockaddr_in resolved_address = {0};
+        gethostbyname(argv[1], &resolved_address);
+        bytes_to_ip(resolved_address.sin_addr, &ip);
+    }
+
     if (ip == 0 && strcmp(argv[1], "0.0.0.0") != 0)
     {
         printf("ping: invalid address '%s'\n", argv[1]);
@@ -139,7 +150,7 @@ int main(int argc, char** argv)
             struct sockaddr_in src = {0};
             socklen_t srclen = sizeof(src);
             const ssize_t n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), MSG_DONTWAIT,
-                                 (struct sockaddr*)&src, &srclen);
+                                       (struct sockaddr*)&src, &srclen);
             if (n > 0)
             {
                 if ((size_t)n < sizeof(struct icmp_header))
