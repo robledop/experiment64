@@ -80,9 +80,7 @@ static int decode_domain_name_internal(const char* base, size_t base_len,
 static struct q_name* decode_domain_name(const char* base, size_t base_len,
                                          const char* buffer)
 {
-    struct q_name* q_name = malloc(sizeof(struct q_name));
-    memset(q_name, 0, sizeof(struct q_name));
-    memset(q_name->name, 0, 256);
+    struct q_name* q_name = calloc(sizeof(struct q_name), 1);
 
     if (!base || !buffer || buffer < base)
         return q_name;
@@ -104,8 +102,7 @@ struct dns_record* parse_answers(char* buffer, size_t buffer_len,
                                  int questions_length, int ancount,
                                  int* answers_length)
 {
-    struct dns_record* answers = malloc(sizeof(struct dns_record) * ancount);
-    memset(answers, 0, sizeof(struct dns_record) * ancount);
+    struct dns_record* answers = calloc(sizeof(struct dns_record), ancount);
 
     for (int i = 0; i < ancount; i++)
     {
@@ -161,8 +158,7 @@ struct dns_record* parse_answers(char* buffer, size_t buffer_len,
 struct dns_question* parse_questions(char* buffer, size_t buffer_len,
                                      int qdcount, int* questions_length)
 {
-    struct dns_question* questions = malloc(sizeof(struct dns_question) * qdcount);
-    memset(questions, 0, sizeof(struct dns_question) * qdcount);
+    struct dns_question* questions = calloc(sizeof(struct dns_question), qdcount);
 
     for (int i = 0; i < qdcount; i++)
     {
@@ -253,7 +249,6 @@ int parse_message(char* buffer, size_t buffer_len, struct dns_message* message_o
 int pack_message(const struct dns_message* message, int question_count,
                  char (*output)[512])
 {
-    memset(output, 0, 512);
     memcpy(*output, &(message->header), sizeof(struct dns_header));
 
     int questions_length = 0;
@@ -263,8 +258,7 @@ int pack_message(const struct dns_message* message, int question_count,
     {
         for (int i = 0; i < question_count; i++)
         {
-            char* encoded_domain_name = malloc(256);
-            memset(encoded_domain_name, 0, 256);
+            char* encoded_domain_name = calloc(256, 1);
 
             const int size = encode_question(
                 message->questions[i].qname,
@@ -320,25 +314,24 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
         panic("socket failed\n");
 
     uint8_t packet[512];
-    struct dns_message* message = malloc(sizeof(struct dns_message));
+    struct dns_message* message = calloc(sizeof(struct dns_message), 1);
     if (!message)
     {
         close(sockfd);
         return -1;
     }
-    memset(message, 0, sizeof(struct dns_message));
     message->header.id = htons(1);
     message->header.flags = htons(DNS_FLAG_RD);
     constexpr int question_count = 1;
     message->header.qdcount = htons(question_count);
-    message->questions = malloc(sizeof(struct dns_question) * question_count);
+    message->questions = calloc(sizeof(struct dns_question), question_count);
     if (!message->questions)
     {
+        free(message->questions);
         free(message);
         close(sockfd);
         return -1;
     }
-    memset(message->questions, 0, sizeof(struct dns_question));
     message->questions[0].qtype = htons(1);
     message->questions[0].qclass = htons(1);
     strcpy(message->questions[0].qname, name);
