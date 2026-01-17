@@ -43,14 +43,6 @@ static uint16_t icmp_checksum(const void* data, size_t len)
     return (uint16_t)(~sum);
 }
 
-static uint64_t now_ms(void)
-{
-    struct timeval tv;
-    if (gettimeofday(&tv, nullptr) != 0)
-        return 0;
-    return (uint64_t)tv.tv_sec * 1000ull + (uint64_t)(tv.tv_usec / 1000u);
-}
-
 static int send_with_retry(int sockfd, const struct sockaddr_in* dest,
                            const void* packet, size_t packet_len)
 {

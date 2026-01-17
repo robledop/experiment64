@@ -182,3 +182,11 @@ time_t time(long long int *time)
         *time = (long long int)tv.tv_sec;
     return (time_t)tv.tv_sec;
 }
+
+uint64_t now_ms(void)
+{
+    struct timeval tv;
+    if (gettimeofday(&tv, nullptr) != 0)
+        return 0;
+    return (uint64_t)tv.tv_sec * 1000ull + (uint64_t)(tv.tv_usec / 1000u);
+}

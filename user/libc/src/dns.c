@@ -5,15 +5,6 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <stdio.h>
-#include <sys/time.h>
-
-static uint64_t now_ms(void)
-{
-    struct timeval tv;
-    if (gettimeofday(&tv, nullptr) != 0)
-        return 0;
-    return (uint64_t)tv.tv_sec * 1000ull + (uint64_t)(tv.tv_usec / 1000u);
-}
 
 static int encode_question(
     const char domain_name[256],
@@ -356,8 +347,9 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
     send_with_retry(sockfd, &dest, packet, packet_size);
 
     struct dns_message message_out = {0};
+    constexpr uint64_t timeout = 2000;
     const uint64_t start = now_ms();
-    const uint64_t deadline = start + 5000;
+    const uint64_t deadline = start + timeout;
 
     while (now_ms() < deadline)
     {

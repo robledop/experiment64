@@ -21,7 +21,6 @@ struct tm
 
 // Convert UNIX timestamp (seconds since 1970-01-01 UTC) to struct tm (UTC).
 void unix_timestamp_to_tm(uint32_t timestamp, struct tm *out);
-
-// Minimal strftime implementation supporting common specifiers (%Y, %m, %d, %H, %M, %S, %B, %b).
 size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t max);
 time_t time(long long int *time);
+uint64_t now_ms(void);
