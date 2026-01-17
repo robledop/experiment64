@@ -27,13 +27,13 @@ void _Exit(int status)
     __exit_impl(status);
 }
 
-int system([[maybe_unused]] const char *command)
+int system([[maybe_unused]] const char* command)
 {
     // No shell; stub returns failure.
     return -1;
 }
 
-int atoi(const char *nptr)
+int atoi(const char* nptr)
 {
     int res = 0;
     int sign = 1;
@@ -56,9 +56,9 @@ int abs(int x)
     return x < 0 ? -x : x;
 }
 
-long strtol(const char *nptr, char **endptr, int base)
+long strtol(const char* nptr, char** endptr, int base)
 {
-    const char *p = nptr;
+    const char* p = nptr;
     while (*p == ' ' || *p == '\t')
         p++;
 
@@ -96,12 +96,12 @@ long strtol(const char *nptr, char **endptr, int base)
     else if (actual_base != 8 && actual_base != 10)
     {
         if (endptr)
-            *endptr = (char *)nptr;
+            *endptr = (char*)nptr;
         return 0;
     }
 
     long result = 0;
-    const char *start_digits = p;
+    const char* start_digits = p;
     while (*p)
     {
         int digit;
@@ -124,17 +124,17 @@ long strtol(const char *nptr, char **endptr, int base)
     if (p == start_digits)
     {
         if (endptr)
-            *endptr = (char *)nptr;
+            *endptr = (char*)nptr;
         return 0;
     }
 
     if (endptr)
-        *endptr = (char *)p;
+        *endptr = (char*)p;
 
     return result * sign;
 }
 
-double atof(const char *nptr)
+double atof(const char* nptr)
 {
     if (!nptr)
         return 0.0;
@@ -164,7 +164,7 @@ double atof(const char *nptr)
     return result * sign;
 }
 
-void panic(const char *s)
+[[noreturn]] void panic(const char* s)
 {
     printf("panic: %s\n", s);
     exit(1);
