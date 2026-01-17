@@ -213,6 +213,8 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             len_mod = LEN_SIZE;
             p++;
         }
+        if (len_mod == LEN_SIZE)
+            len_mod = LEN_LONG;
 
         switch (*p)
         {
@@ -223,17 +225,23 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             switch (len_mod)
             {
             case LEN_LLONG:
-                val = va_arg(args, long long);
+            {
+                long long tmp = va_arg(args, long long);
+                val = tmp;
                 break;
+            }
             case LEN_LONG:
-                val = va_arg(args, long);
+            {
+                long tmp = va_arg(args, long);
+                val = tmp;
                 break;
-            case LEN_SIZE:
-                val = va_arg(args, ssize_t);
-                break;
+            }
             default:
-                val = va_arg(args, int);
+            {
+                int tmp = va_arg(args, int);
+                val = tmp;
                 break;
+            }
             }
             char numbuf[32];
             int len = 0;
@@ -262,17 +270,23 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             switch (len_mod)
             {
             case LEN_LLONG:
-                val = va_arg(args, unsigned long long);
+            {
+                unsigned long long tmp = va_arg(args, unsigned long long);
+                val = tmp;
                 break;
+            }
             case LEN_LONG:
-                val = va_arg(args, unsigned long);
+            {
+                unsigned long tmp = va_arg(args, unsigned long);
+                val = tmp;
                 break;
-            case LEN_SIZE:
-                val = va_arg(args, size_t);
-                break;
+            }
             default:
-                val = va_arg(args, unsigned int);
+            {
+                unsigned int tmp = va_arg(args, unsigned int);
+                val = tmp;
                 break;
+            }
             }
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 10, true);
@@ -293,17 +307,23 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             switch (len_mod)
             {
             case LEN_LLONG:
-                val = va_arg(args, unsigned long long);
+            {
+                unsigned long long tmp = va_arg(args, unsigned long long);
+                val = tmp;
                 break;
+            }
             case LEN_LONG:
-                val = va_arg(args, unsigned long);
+            {
+                unsigned long tmp = va_arg(args, unsigned long);
+                val = tmp;
                 break;
-            case LEN_SIZE:
-                val = va_arg(args, size_t);
-                break;
+            }
             default:
-                val = va_arg(args, unsigned int);
+            {
+                unsigned int tmp = va_arg(args, unsigned int);
+                val = tmp;
                 break;
+            }
             }
             char numbuf[32];
             int len = format_uint(numbuf, sizeof numbuf, val, 16, true);
