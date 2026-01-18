@@ -27,6 +27,7 @@ struct stat
     int i_gid;
     int i_flags;
 };
+typedef struct stat stat_t;
 
 struct vfs_inode;
 
