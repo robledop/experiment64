@@ -16,6 +16,28 @@
 static volatile uint32_t g_seen_cpu_mask = 0;
 static volatile int g_threads_completed = 0;
 
+static bool smp_wait_for_any_ap_ready(uint32_t cpu_count)
+{
+    if (cpu_count <= 1)
+        return true;
+
+    for (int i = 0; i < 200000; i++)
+    {
+        for (uint32_t idx = 1; idx < cpu_count; idx++)
+        {
+            cpu_t* cpu = smp_get_cpu_by_index(idx);
+            if (!cpu)
+                continue;
+            thread_t* active = __atomic_load_n(&cpu->active_thread, __ATOMIC_ACQUIRE);
+            if (active)
+                return true;
+        }
+        yield();
+    }
+
+    return false;
+}
+
 static void smp_worker_entry(void)
 {
     cpu_t* cpu = get_cpu();
@@ -37,6 +59,12 @@ TEST_PRIO(test_smp_aps_execute_threads, 5)
     // If only BSP present, nothing to prove.
     if (cpu_count <= 1)
         return true;
+
+    if (!smp_wait_for_any_ap_ready(cpu_count))
+    {
+        printk("SMP sched: APs not online before test (cpu_count=%u)\n", cpu_count);
+        return false;
+    }
 
     g_seen_cpu_mask = 0;
     g_threads_completed = 0;
@@ -200,6 +228,12 @@ TEST_PRIO(test_smp_user_threads_execute_on_any_cpu, 6)
     const uint32_t cpu_count = smp_get_cpu_count();
     if (cpu_count <= 1)
         return true;
+
+    if (!smp_wait_for_any_ap_ready(cpu_count))
+    {
+        printk("SMP user: APs not online before test (cpu_count=%u)\n", cpu_count);
+        return false;
+    }
 
     g_user_cpu_mask = 0;
     g_user_exit_count = 0;
