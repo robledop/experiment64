@@ -1135,9 +1135,8 @@ int64_t sys_sbrk(int64_t increment)
 int sys_socket(const int domain, const int type, int protocol)
 {
     if (domain != PF_INET) return -1;
-    if (type == SOCK_STREAM) return -1;
-    if (type != SOCK_DGRAM && type != SOCK_RAW) return -1;
-    if (protocol == 0) protocol = (type == SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_ICMP;
+    if (protocol == 0)
+        protocol = (type == SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_ICMP;
 
     if ((type == SOCK_DGRAM && protocol != IPPROTO_UDP) ||
         (type == SOCK_RAW && protocol != IPPROTO_ICMP))
