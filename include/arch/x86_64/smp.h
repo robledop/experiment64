@@ -1,7 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <stdbool.h>
-#include <limine.h>
 #include <arch/x86_64/cpu.h>
 
 void smp_init_cpu0(void);

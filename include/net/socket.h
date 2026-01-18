@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <lib/list.h>
 #include <task/spinlock.h>
+#include <fs/vfs.h>
 
 // Domain
 #define PF_INET 1 // IPv4
@@ -105,3 +106,5 @@ int socket_deliver_tcp(const uint8_t dest_ip[static 4], uint16_t dest_port,
 int socket_deliver_icmp(const uint8_t dest_ip[static 4], const uint8_t src_ip[static 4],
                         const uint8_t* payload, size_t payload_len);
 socket_rx_packet_t* socket_rx_pop(socket_t* sock, bool block);
+
+extern struct inode_operations socket_iops;

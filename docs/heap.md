@@ -1,5 +1,10 @@
 # Kernel Heap Allocator (`heap.c`)
 
+
+https://en.wikipedia.org/wiki/Slab_allocation \
+https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwick_slab.pdf \
+https://hammertux.github.io/slab-allocator 
+
 The kernel heap provides dynamic allocations via `kmalloc`/`kfree`. It is a
 hybrid allocator:
 
