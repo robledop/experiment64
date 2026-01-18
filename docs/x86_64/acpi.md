@@ -36,12 +36,3 @@ Example usage (from APIC init):
 ```c
 struct madt *madt = acpi_find_table("APIC");
 ```
-
----
-
-## Current Limitations
-
-- No checksum validation on RSDP/XSDT/RSDT/SDTs.
-- No AML interpreter; DSDT/SSDT are ignored.
-- No caching; each call walks the XSDT/RSDT again.
-- Only used to locate MADT today.

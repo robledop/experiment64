@@ -104,11 +104,3 @@ bucket size, then frees the old block. Shrinks are no-ops.
 
 All heap operations acquire `heap_lock` with IRQ save/restore. The allocator is
 single-lock and does not use per-CPU caches.
-
----
-
-## Current Limitations
-
-- No per-CPU slabs or NUMA awareness.
-- No in-place shrink for `krealloc`.
-- Large allocations are contiguous only; no virtual-only scatter allocations.

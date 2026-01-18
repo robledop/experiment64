@@ -112,5 +112,6 @@ void ip_to_bytes(uint32_t ip, uint8_t out[4])
 
 void bytes_to_ip(const uint8_t bytes[4], uint32_t* out)
 {
-    *out = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+    *out = ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
+        ((uint32_t)bytes[2] << 8) | (uint32_t)bytes[3];
 }

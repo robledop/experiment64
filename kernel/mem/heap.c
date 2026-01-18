@@ -56,9 +56,6 @@ typedef struct slab_header
 
 static list_item_t slab_caches[CACHE_COUNT];
 static bool slab_guard_valid(slab_header_t *slab);
-#ifdef HEAP_TRACE
-static void slab_hexdump(slab_header_t *slab, size_t bytes);
-#endif
 static inline bool range_overlaps(uintptr_t start, uintptr_t end, uintptr_t region_start, uintptr_t region_end)
 {
     return !(end <= region_start || start >= region_end);
@@ -174,29 +171,6 @@ static bool slab_guard_valid(slab_header_t *slab)
     }
     return true;
 }
-
-#ifdef HEAP_TRACE
-static void slab_hexdump(slab_header_t *slab, size_t bytes)
-{
-    uint8_t *base = (uint8_t *)slab;
-    size_t limit = (bytes > PAGE_SIZE) ? PAGE_SIZE : bytes;
-    char line[3 * 16 + 1];
-    for (size_t i = 0; i < limit; i += 16)
-    {
-        size_t chunk = (i + 16 <= limit) ? 16 : (limit - i);
-        char *p = line;
-        for (size_t j = 0; j < chunk; j++)
-        {
-            unsigned v = base[i + j];
-            *p++ = "0123456789abcdef"[(v >> 4) & 0xF];
-            *p++ = "0123456789abcdef"[v & 0xF];
-            *p++ = ' ';
-        }
-        *p = '\0';
-        boot_message(INFO, "heap: slab dump %p+0x%zx: %s", slab, i, line);
-    }
-}
-#endif
 
 #define SLOT_USER_PTR(slot) (slot)
 #define SLOT_BASE_FROM_USER(ptr) ((uint8_t *)(ptr))
@@ -348,10 +322,6 @@ static void *alloc_slab(int index)
                 slab_fill(slot + link_size, POISON_FREE, payload_size);
             }
         }
-
-#ifdef HEAP_TRACE
-        boot_message(INFO, "heap: new slab cache=%d slab=%p obj=%zu count=%zu", index, slab, slab->obj_size, max_objects);
-#endif
 
         list_add(&slab->list, &slab_caches[index]);
     }

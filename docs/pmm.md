@@ -52,11 +52,3 @@ Frees a contiguous range. Accepts a physical address or HHDM pointer.
 
 The heap tracks slab backing pages. PMM allocation/free checks
 `heap_is_slab_page()` to avoid handing out or freeing slab-backed memory.
-
----
-
-## Current Limitations
-
-- No per-zone or NUMA awareness.
-- No coalescing or best-fit; contiguous allocations use a simple first-fit scan.
-- No validation that freed ranges are within allocator-managed memory.

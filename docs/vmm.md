@@ -65,11 +65,3 @@ vmm_map_page(pml4, 0x400000, (uint64_t)phys,
 // Switch into it
 vmm_switch_pml4(pml4);
 ```
-
----
-
-## Current Limitations
-
-- No locking inside VMM; callers must serialize concurrent edits to a page table.
-- `vmm_unmap_page()` does not free intermediate tables.
-- No support for huge pages beyond preserving existing kernel huge mappings.
