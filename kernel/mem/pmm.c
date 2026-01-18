@@ -1,10 +1,8 @@
 #include <mem/pmm.h>
-#include "limine.h"
+#include <limine.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
-#include <stdbool.h>
 #include <stdint.h>
-
 #include <mem/heap.h>
 #include <debug.h>
 #include <task/spinlock.h>

@@ -1,9 +1,14 @@
+// ReSharper disable CppDFAConstantParameter
 #include <mem/heap.h>
 #include <mem/pmm.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
 #include <lib/list.h>
 #include <task/spinlock.h>
+
+// https://en.wikipedia.org/wiki/Slab_allocation
+// https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwick_slab.pdf
+// https://hammertux.github.io/slab-allocator
 
 #define HEAP_MAGIC 0xC0FFEE1234567890
 #define SLAB_MIN_SIZE 32
@@ -13,16 +18,14 @@
 #define SLAB_GUARD 0x5A
 #define SLAB_GUARD_LEN 64
 
-static inline void slab_fill(void *dst, int c, size_t n)
+static inline void slab_fill(void* dst, const int c, size_t n)
 {
-    uint8_t *p = dst;
+    uint8_t* p = dst;
     while (n--)
-    {
         *p++ = (uint8_t)c;
-    }
 }
 
-static inline size_t align_up_size(size_t val, size_t align)
+static inline size_t align_up_size(const size_t val, const size_t align)
 {
     return (val + align - 1) & ~(align - 1);
 }
@@ -31,20 +34,20 @@ extern uint64_t g_hhdm_offset;
 static spinlock_t heap_lock;
 // Track slab backing pages to detect accidental pmm frees
 #define SLAB_TRACK_MAX 4096
-static void *slab_pages[SLAB_TRACK_MAX];
+static void* slab_pages[SLAB_TRACK_MAX];
 static size_t slab_pages_count = 0;
 
 typedef struct slab_header
 {
     uint64_t magic;
-    uint64_t guard_magic;
+    uint64_t guard_magic; // For redundancy
     uint8_t is_slab;
     uint8_t padding[7]; // Align
     // Slab specific
     list_item_t list;
     size_t obj_size;
     size_t free_count;
-    void *free_list;
+    void* free_list;
     // Big alloc specific
     size_t page_count;
 } __attribute__((aligned(16))) slab_header_t;
@@ -55,8 +58,10 @@ typedef struct slab_header
 #define CACHE_COUNT 7
 
 static list_item_t slab_caches[CACHE_COUNT];
-static bool slab_guard_valid(slab_header_t *slab);
-static inline bool range_overlaps(uintptr_t start, uintptr_t end, uintptr_t region_start, uintptr_t region_end)
+static bool slab_guard_valid(slab_header_t* slab);
+
+static inline bool range_overlaps(const uintptr_t start, const uintptr_t end, const uintptr_t region_start,
+                                  const uintptr_t region_end)
 {
     return !(end <= region_start || start >= region_end);
 }
@@ -73,17 +78,17 @@ static size_t slab_guard_size(void)
     return slab_data_offset() - sizeof(slab_header_t);
 }
 
-static void slab_track_add(void *slab_virt)
+static void slab_track_add(void* slab_virt)
 {
     if (slab_pages_count >= SLAB_TRACK_MAX)
         return;
-    void *phys = (void *)((uint64_t)slab_virt - g_hhdm_offset);
+    auto phys = (void*)((uint64_t)slab_virt - g_hhdm_offset);
     slab_pages[slab_pages_count++] = phys;
 }
 
-static void slab_track_remove(void *slab_virt)
+static void slab_track_remove(void* slab_virt)
 {
-    void *phys = (void *)((uint64_t)slab_virt - g_hhdm_offset);
+    const void* phys = (void*)((uint64_t)slab_virt - g_hhdm_offset);
     for (size_t i = 0; i < slab_pages_count; i++)
     {
         if (slab_pages[i] == phys)
@@ -94,7 +99,7 @@ static void slab_track_remove(void *slab_virt)
     }
 }
 
-bool heap_is_slab_page(void *phys)
+bool heap_is_slab_page(const void* phys)
 {
     for (size_t i = 0; i < slab_pages_count; i++)
     {
@@ -104,18 +109,18 @@ bool heap_is_slab_page(void *phys)
     return false;
 }
 
-bool heap_is_slab_range(const void *virt_ptr, size_t len)
+bool heap_is_slab_range(const void* virt_ptr, const size_t len)
 {
     if (!virt_ptr || len == 0)
         return false;
 
-    uintptr_t start = (uintptr_t)virt_ptr;
-    uintptr_t end = start + len;
+    const uintptr_t start = (uintptr_t)virt_ptr;
+    const uintptr_t end = start + len;
 
     for (size_t i = 0; i < slab_pages_count; i++)
     {
-        uintptr_t slab_virt = (uintptr_t)slab_pages[i] + g_hhdm_offset;
-        uintptr_t slab_end = slab_virt + PAGE_SIZE;
+        const uintptr_t slab_virt = (uintptr_t)slab_pages[i] + g_hhdm_offset;
+        const uintptr_t slab_end = slab_virt + PAGE_SIZE;
         if (!(end <= slab_virt || start >= slab_end))
         {
             return true;
@@ -124,32 +129,32 @@ bool heap_is_slab_range(const void *virt_ptr, size_t len)
     return false;
 }
 
-bool heap_is_slab_header_range(const void *virt_ptr, size_t len)
+bool heap_is_slab_header_range(const void* virt_ptr, const size_t len)
 {
     if (!virt_ptr || len == 0)
         return false;
 
-    uintptr_t start = (uintptr_t)virt_ptr;
+    const uintptr_t start = (uintptr_t)virt_ptr;
     uintptr_t end = start + len;
     if (end < start)
     {
         end = UINTPTR_MAX; // Overflow wrap
     }
-    size_t header_span = slab_data_offset();
+    const size_t header_span = slab_data_offset();
 
     for (size_t i = 0; i < slab_pages_count; i++)
     {
-        uintptr_t slab_phys = (uintptr_t)slab_pages[i];
+        const uintptr_t slab_phys = (uintptr_t)slab_pages[i];
 
-        uintptr_t slab_virt = slab_phys + g_hhdm_offset;
-        uintptr_t slab_head_end = slab_virt + header_span;
+        const uintptr_t slab_virt = slab_phys + g_hhdm_offset;
+        const uintptr_t slab_head_end = slab_virt + header_span;
         if (range_overlaps(start, end, slab_virt, slab_head_end))
         {
             return true;
         }
 
-        uintptr_t slab_identity = slab_phys;
-        uintptr_t slab_identity_end = slab_identity + header_span;
+        const uintptr_t slab_identity = slab_phys;
+        const uintptr_t slab_identity_end = slab_identity + header_span;
         if (range_overlaps(start, end, slab_identity, slab_identity_end))
         {
             return true;
@@ -158,10 +163,10 @@ bool heap_is_slab_header_range(const void *virt_ptr, size_t len)
     return false;
 }
 
-static bool slab_guard_valid(slab_header_t *slab)
+static bool slab_guard_valid(slab_header_t* slab)
 {
-    uint8_t *guard = (uint8_t *)slab + sizeof(slab_header_t);
-    size_t guard_len = slab_guard_size();
+    const uint8_t* guard = (uint8_t*)slab + sizeof(slab_header_t);
+    const size_t guard_len = slab_guard_size();
     for (size_t i = 0; i < guard_len; i++)
     {
         if (guard[i] != SLAB_GUARD)
@@ -172,11 +177,7 @@ static bool slab_guard_valid(slab_header_t *slab)
     return true;
 }
 
-#define SLOT_USER_PTR(slot) (slot)
-#define SLOT_BASE_FROM_USER(ptr) ((uint8_t *)(ptr))
-#define SLOT_USER_SIZE(slot_size) (slot_size)
-
-static int get_cache_index(size_t size)
+static int get_cache_index(const size_t size)
 {
     if (size <= 32)
         return 0;
@@ -195,7 +196,7 @@ static int get_cache_index(size_t size)
     return -1;
 }
 
-static size_t get_cache_size(int index)
+static size_t get_cache_size(const int index)
 {
     return 32 << index;
 }
@@ -217,17 +218,16 @@ void heap_init(uint64_t hhdm_offset)
     boot_message(INFO, "Heap Initialized. HHDM Offset: 0x%lx", g_hhdm_offset);
 }
 
-static void *alloc_big(size_t size)
+static void* alloc_big(const size_t size)
 {
-    size_t total_size = size + sizeof(slab_header_t);
-    size_t pages = (total_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    const size_t total_size = size + sizeof(slab_header_t);
+    const size_t pages = (total_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
-    void *phys = pmm_alloc_pages(pages);
-    if (!phys)
-        return nullptr;
+    void* phys = pmm_alloc_pages(pages);
+    if (!phys) return nullptr;
 
-    void *virt = (void *)((uint64_t)phys + g_hhdm_offset);
-    slab_header_t *header = (slab_header_t *)virt;
+    auto virt = (void*)((uint64_t)phys + g_hhdm_offset);
+    auto header = (slab_header_t*)virt;
 
     header->magic = HEAP_MAGIC;
     header->guard_magic = HEAP_MAGIC;
@@ -235,22 +235,27 @@ static void *alloc_big(size_t size)
     header->page_count = pages;
     header->obj_size = size;
 
-    uint8_t *base = (uint8_t *)virt + sizeof(slab_header_t);
-    void *user = base;
+    uint8_t* base = (uint8_t*)virt + sizeof(slab_header_t);
+    void* user = base;
     return user;
 }
 
-static void *alloc_slab(int index)
+static void* alloc_slab(const int index)
 {
-    slab_header_t *slab = nullptr;
-    slab_header_t *iter;
+    slab_header_t* slab = nullptr;
+    slab_header_t* iter;
 
     // Find a slab with free objects
     list_foreach_entry(iter, &slab_caches[index], list)
     {
+        // Perform several validation checks
         if (iter->magic != HEAP_MAGIC || iter->guard_magic != HEAP_MAGIC || !iter->is_slab)
         {
-            boot_message(ERROR, "heap: slab header corrupt cache=%d slab=%p magic=%lx guard=%lx is_slab=%u free_list=%p obj=%zu free_count=%zu", index, iter, iter->magic, iter->guard_magic, iter->is_slab, iter->free_list, iter->obj_size, iter->free_count);
+            boot_message(
+                ERROR,
+                "heap: slab header corrupt cache=%d slab=%p magic=%lx guard=%lx is_slab=%u free_list=%p obj=%zu free_count=%zu",
+                index, iter, iter->magic, iter->guard_magic, iter->is_slab, iter->free_list, iter->obj_size,
+                iter->free_count);
             return nullptr;
         }
 
@@ -260,10 +265,11 @@ static void *alloc_slab(int index)
             return nullptr;
         }
 
-        size_t expected_size = get_cache_size(index);
+        const size_t expected_size = get_cache_size(index);
         if (iter->obj_size != expected_size)
         {
-            boot_message(ERROR, "heap: slab obj_size mismatch cache=%d slab=%p obj=%zu expected=%zu", index, iter, iter->obj_size, expected_size);
+            boot_message(ERROR, "heap: slab obj_size mismatch cache=%d slab=%p obj=%zu expected=%zu", index, iter,
+                         iter->obj_size, expected_size);
             continue;
         }
 
@@ -273,6 +279,7 @@ static void *alloc_slab(int index)
             continue;
         }
 
+        // Actually find a free slab
         if (iter->free_count > 0)
         {
             slab = iter;
@@ -280,14 +287,13 @@ static void *alloc_slab(int index)
         }
     }
 
-    if (!slab)
+    if (!slab) // Slab not found, allocate a new one
     {
-        void *phys = pmm_alloc_page();
-        if (!phys)
-            return nullptr;
+        void* phys = pmm_alloc_page();
+        if (!phys) return nullptr;
 
-        void *virt = (void *)((uint64_t)phys + g_hhdm_offset);
-        slab = (slab_header_t *)virt;
+        auto virt = (void*)((uint64_t)phys + g_hhdm_offset);
+        slab = (slab_header_t*)virt;
 
         slab->magic = HEAP_MAGIC;
         slab->guard_magic = HEAP_MAGIC;
@@ -295,77 +301,77 @@ static void *alloc_slab(int index)
         slab->obj_size = get_cache_size(index);
         list_init_head(&slab->list);
 
-        // Initialize guard region between metadata and payload
-        slab_fill((uint8_t *)slab + sizeof(slab_header_t), SLAB_GUARD, slab_guard_size());
+        // Initialize a guard region between metadata and payload
+        slab_fill((uint8_t*)slab + sizeof(slab_header_t), SLAB_GUARD, slab_guard_size());
 
-        // Track backing page to catch accidental pmm frees
+        // Track the backing page to catch accidental pmm frees
         slab_track_add(slab);
 
-        // Initialize free list
-        size_t available_size = PAGE_SIZE - slab_data_offset();
-        size_t max_objects = available_size / slab->obj_size;
+        // Initialize the free list
+        const size_t available_size = PAGE_SIZE - slab_data_offset();
+        const size_t max_objects = available_size / slab->obj_size;
         slab->free_count = max_objects;
 
-        uint8_t *base = (uint8_t *)virt + slab_data_offset();
+        uint8_t* base = (uint8_t*)virt + slab_data_offset();
         slab->free_list = base;
 
-        // Link free objects and poison payload (skip link pointer)
-        size_t link_size = sizeof(void *);
-        size_t payload_size = (slab->obj_size > link_size) ? (slab->obj_size - link_size) : 0;
+        // Link free objects and poison payload (skip the link pointer)
+        constexpr size_t link_size = sizeof(void*);
+        const size_t payload_size = (slab->obj_size > link_size) ? (slab->obj_size - link_size) : 0;
         for (size_t i = 0; i < max_objects; i++)
         {
-            uint8_t *slot = base + i * slab->obj_size;
-            void **obj = (void **)slot;
+            uint8_t* slot = base + i * slab->obj_size;
+            auto obj = (void**)slot;
             *obj = (i + 1 < max_objects) ? (slot + slab->obj_size) : nullptr;
             if (payload_size)
-            {
                 slab_fill(slot + link_size, POISON_FREE, payload_size);
-            }
         }
 
         list_add(&slab->list, &slab_caches[index]);
     }
 
-    uint8_t *slot = slab->free_list;
+    uint8_t* slot = slab->free_list;
     if (slab->magic != HEAP_MAGIC || !slab->is_slab)
     {
         boot_message(ERROR, "heap: slab header corrupt (magic/is_slab)");
         return nullptr;
     }
 
-    uint8_t *page_start = (uint8_t *)slab;
-    uint8_t *page_end = page_start + PAGE_SIZE;
-    uint8_t *slot_min = page_start + slab_data_offset();
+    auto page_start = (uint8_t*)slab;
+    uint8_t* page_end = page_start + PAGE_SIZE;
+    const uint8_t* slot_min = page_start + slab_data_offset();
     if (slot < slot_min || slot >= page_end)
     {
-        boot_message(ERROR, "heap: free_list pointer out of range (slot=%p start=%p end=%p)", slot, page_start, page_end);
+        boot_message(ERROR, "heap: free_list pointer out of range (slot=%p start=%p end=%p)", slot, page_start,
+                     page_end);
         return nullptr;
     }
 
-    slab->free_list = *(void **)slot;
+    slab->free_list = *(void**)slot;
     slab->free_count--;
 
     // Detect overwrite of a freed slot before reuse (payload only)
-    size_t link_size = sizeof(void *);
-    size_t payload_size = (slab->obj_size > link_size) ? (slab->obj_size - link_size) : 0;
+    constexpr size_t link_size = sizeof(void*);
+    const size_t payload_size = (slab->obj_size > link_size) ? (slab->obj_size - link_size) : 0;
     if (payload_size)
     {
-        uint8_t *payload = slot + link_size;
+        uint8_t* payload = slot + link_size;
         for (size_t i = 0; i < payload_size; i++)
         {
             if (payload[i] != POISON_FREE)
             {
-                boot_message(ERROR, "heap: slot poison mismatch (cache=%d slab=%p slot=%p idx=%zu val=0x%x)", index, slab, slot, i + link_size, payload[i]);
+                boot_message(ERROR, "heap: slot poison mismatch (cache=%d slab=%p slot=%p idx=%zu val=0x%x)", index,
+                             slab, slot, i + link_size, payload[i]);
                 break;
             }
         }
         slab_fill(payload, POISON_ALLOC, payload_size);
     }
 
-    return SLOT_USER_PTR(slot);
+    return slot;
 }
 
-void *kmalloc(size_t size)
+void* kmalloc(size_t size)
 {
     if (size == 0)
         return nullptr;
@@ -373,7 +379,7 @@ void *kmalloc(size_t size)
     uint64_t flags;
     SPIN_LOCK_INT_SAVE(heap_lock, flags);
 
-    void *result = nullptr;
+    void* result;
     int index = get_cache_index(size);
     if (index >= 0)
     {
@@ -389,20 +395,16 @@ void *kmalloc(size_t size)
     return result;
 }
 
-void *kzalloc(size_t size)
+void* kzalloc(const size_t size)
 {
-    void *ptr = kmalloc(size);
-    if (ptr)
-    {
-        memset(ptr, 0, size);
-    }
+    void* ptr = kmalloc(size);
+    if (ptr) memset(ptr, 0, size);
     return ptr;
 }
 
-void kfree(void *ptr)
+void kfree(void* ptr)
 {
-    if (!ptr)
-        return;
+    if (!ptr) return;
 
     uint64_t flags;
     SPIN_LOCK_INT_SAVE(heap_lock, flags);
@@ -410,21 +412,22 @@ void kfree(void *ptr)
     // Find page start
     uint64_t addr = (uint64_t)ptr;
     uint64_t page_start = addr & ~(PAGE_SIZE - 1);
-    slab_header_t *header = (slab_header_t *)page_start;
+    auto header = (slab_header_t*)page_start;
 
     if (header->magic != HEAP_MAGIC || header->guard_magic != HEAP_MAGIC)
     {
-        printk("kfree: Invalid pointer (magic/guard mismatch) %p magic=%lx guard=%lx\n", ptr, header->magic, header->guard_magic);
+        printk("kfree: Invalid pointer (magic/guard mismatch) %p magic=%lx guard=%lx\n", ptr, header->magic,
+               header->guard_magic);
         SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
         return;
     }
 
     if (header->is_slab)
     {
-        uint8_t *slot_base = SLOT_BASE_FROM_USER(ptr);
-        uint8_t *page_start = (uint8_t *)header;
-        uint8_t *page_end = page_start + PAGE_SIZE;
-        uint8_t *slot_min = page_start + slab_data_offset();
+        auto slot_base = (uint8_t*)(ptr);
+        auto p_start = (uint8_t*)header;
+        auto page_end = p_start + PAGE_SIZE;
+        auto slot_min = p_start + slab_data_offset();
 
         int index = get_cache_index(header->obj_size);
         if (index < 0)
@@ -436,24 +439,25 @@ void kfree(void *ptr)
 
         if (slot_base < slot_min || slot_base >= page_end)
         {
-            boot_message(ERROR, "heap: kfree slot out of range (slot=%p start=%p end=%p)", slot_base, page_start, page_end);
+            boot_message(ERROR, "heap: kfree slot out of range (slot=%p start=%p end=%p)", slot_base, p_start,
+                         page_end);
             SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
             return;
         }
 
-        *(void **)slot_base = header->free_list;
+        *(void**)slot_base = header->free_list;
         header->free_list = slot_base;
         header->free_count++;
 
-        // Re-poison freed slot payload (skip link pointer)
-        size_t link_size = sizeof(void *);
+        // Re-poison the freed slot payload (skip the link pointer)
+        size_t link_size = sizeof(void*);
         size_t payload_size = (header->obj_size > link_size) ? (header->obj_size - link_size) : 0;
         if (payload_size)
         {
             slab_fill(slot_base + link_size, POISON_FREE, payload_size);
         }
 
-        // If slab is completely free, release the page.
+        // If the slab is completely free, release the page.
         size_t capacity = (PAGE_SIZE - slab_data_offset()) / header->obj_size;
         if (header->free_count == capacity)
         {
@@ -466,8 +470,8 @@ void kfree(void *ptr)
 
             list_del(&header->list);
             slab_track_remove(header);
-            uintptr_t phys_addr = (uintptr_t)page_start - g_hhdm_offset;
-            void *phys = (void *)phys_addr;
+            uintptr_t phys_addr = (uintptr_t)p_start - g_hhdm_offset;
+            auto phys = (void*)phys_addr;
             pmm_free_pages(phys, 1);
             SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
             return;
@@ -477,26 +481,25 @@ void kfree(void *ptr)
     {
         // Big allocation
         uintptr_t phys_addr = (uintptr_t)page_start - g_hhdm_offset;
-        void *phys = (void *)phys_addr;
+        auto phys = (void*)phys_addr;
         pmm_free_pages(phys, header->page_count);
     }
 
     SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
 }
 
-void *krealloc(void *ptr, size_t new_size)
+void* krealloc(void* ptr, const size_t new_size)
 {
-    if (!ptr)
-        return kmalloc(new_size);
+    if (!ptr) return kmalloc(new_size);
     if (new_size == 0)
     {
         kfree(ptr);
         return nullptr;
     }
 
-    uint64_t addr = (uint64_t)ptr;
-    uint64_t page_start = addr & ~(PAGE_SIZE - 1);
-    slab_header_t *header = (slab_header_t *)page_start;
+    const uint64_t addr = (uint64_t)ptr;
+    const uint64_t page_start = addr & ~(PAGE_SIZE - 1);
+    const slab_header_t* header = (slab_header_t*)page_start;
 
     if (header->magic != HEAP_MAGIC)
     {
@@ -504,14 +507,10 @@ void *krealloc(void *ptr, size_t new_size)
         return nullptr;
     }
 
-    size_t old_size = header->obj_size;
+    const size_t old_size = header->obj_size;
+    if (new_size <= old_size) return ptr; // Can reuse
 
-    if (new_size <= old_size)
-    {
-        return ptr; // Can reuse
-    }
-
-    void *new_ptr = kmalloc(new_size);
+    void* new_ptr = kmalloc(new_size);
     if (new_ptr)
     {
         memcpy(new_ptr, ptr, old_size);

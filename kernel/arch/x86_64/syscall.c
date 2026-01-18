@@ -1634,25 +1634,20 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
 static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
 {
     (void)offset;
-    if (!node || !buffer)
-        return 0;
-    if (size == 0)
-        return 0;
+    if (!node || !buffer) return 0;
+    if (size == 0) return 0;
 
-    socket_t* sock = (socket_t*)node->device;
-    if (!sock)
-        return 0;
+    auto sock = (socket_t*)node->device;
+    if (!sock) return 0;
 
     socket_rx_packet_t* pkt = socket_rx_pop(sock, true);
-    if (!pkt)
-        return 0;
+    if (!pkt) return 0;
 
     const size_t copy_len = (pkt->len < size) ? pkt->len : size;
     if (copy_len > 0)
         memcpy(buffer, pkt->data, copy_len);
 
-    if (pkt->data)
-        kfree(pkt->data);
+    if (pkt->data) kfree(pkt->data);
     kfree(pkt);
     return copy_len;
 }
@@ -1660,7 +1655,7 @@ static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint
 static void socket_inode_close(vfs_inode_t* node)
 {
     if (!node) return;
-    socket_t* sock = (socket_t*)node->device;
+    auto sock = (socket_t*)node->device;
     if (sock)
     {
         socket_unregister(sock);
@@ -1790,7 +1785,7 @@ int sys_read(int fd, char* buf, size_t count)
 
     file_descriptor_t* desc = current_process->fd_table[fd];
 
-    // Handle stdin (fd 0) specially only if it's the console device or not set up
+    // Handle stdin (fd 0) especially only if it's the console device or not set up
     if (fd == 0)
     {
         // If fd 0 has a real descriptor with an inode, use it
