@@ -25,11 +25,11 @@ INCLUDE = -I../libc/include -I../include -I../../include
 BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx -Wa,--noexecstack
 
 # CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
-CFLAGS = $(BASE_CFLAGS)
-CFLAGS += $(INCLUDE)
+DOOM_CFLAGS = $(BASE_CFLAGS) $(INCLUDE)
 ASFLAGS += $(INCLUDE)
-CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
+DOOM_CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
           -D__bool_true_false_are_defined=1
+override CFLAGS := $(DOOM_CFLAGS) $(CFLAGS)
 
 LDFLAGS += -static -Ttext=0x400000 --build-id=none
 

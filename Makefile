@@ -112,10 +112,11 @@ limine:
 # Userland
 USER_BUILD_DIR = user/build
 LIBC_A = user/build/libc/libc.a
+USERLAND_FLAGS = $(filter -DDEBUG -DTEST_MODE,$(CFLAGS))
 
 .PHONY: userland
 userland:
-	$(MAKE) -C user
+	$(MAKE) -C user CFLAGS="$(USERLAND_FLAGS)"
 
 $(LIBC_A): userland
 
@@ -123,7 +124,7 @@ $(LIBC_A): userland
 doom: $(DOOM_BIN)
 
 $(DOOM_BIN): $(LIBC_A)
-	$(MAKE) -C user/doom
+	$(MAKE) -C user/doom CFLAGS="$(USERLAND_FLAGS)"
 
 image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
@@ -154,12 +155,12 @@ run-tap: clean
 
 .PHONY: vbox
 vbox: clean
-	$(MAKE) image.hdd
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
 	./scripts/start_vbox.sh
 
 .PHONY: run-gdb
 run-gdb: clean
-	$(MAKE) image.hdd
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
