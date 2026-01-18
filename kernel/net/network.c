@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <stddef.h>
 
+#include "user/libc/include/arpa/inet.h"
+
 bool network_ready = false;
 uint8_t* my_ip_address = nullptr;
 uint8_t* default_gateway = nullptr;
@@ -195,7 +197,11 @@ void network_receive(uint8_t* packet, const uint16_t len)
                 break;
             case IP_PROTOCOL_UDP:
                 {
-                    udp_receive(packet, len, ip_len, ip_header_len);
+                    uint32_t dest_ip = 0;
+                    bytes_to_ip(ipv4_header->dest_ip, &dest_ip);
+                    if (dest_ip == IP_BROADCAST_ADDRESS || (my_ip_address && network_compare_ip_addresses(
+                        ipv4_header->dest_ip, my_ip_address)))
+                        udp_receive(packet, len, ip_len, ip_header_len);
                     break;
                 }
             default:

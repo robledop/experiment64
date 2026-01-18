@@ -6,6 +6,8 @@
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
 
+#define IP_BROADCAST_ADDRESS 0xFFFFFFFF
+
 struct ipv4_header
 {
     // 4 bits IHL (Internet Header Length)
