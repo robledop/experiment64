@@ -17,6 +17,8 @@ void arp_init(void)
 
 void arp_cache_remove_expired_entries(void)
 {
+    if (!arp_cache)
+        return;
     const uint32_t current_time = scheduler_ticks;
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (arp_cache[i].ip[0] != 0 && current_time - arp_cache[i].timestamp > ARP_CACHE_TIMEOUT) {
@@ -29,6 +31,8 @@ void arp_cache_remove_expired_entries(void)
 
 struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
 {
+    if (!arp_cache)
+        return (struct arp_cache_entry){0};
     arp_cache_remove_expired_entries();
 
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
@@ -41,6 +45,8 @@ struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
 
 void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
 {
+    if (!arp_cache)
+        return;
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (arp_cache[i].ip[0] == 0) {
             memcpy(arp_cache[i].ip, ip, 4);
