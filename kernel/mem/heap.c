@@ -6,6 +6,8 @@
 #include <lib/list.h>
 #include <task/spinlock.h>
 
+// A SIMPLE SLAB ALLOCATOR
+
 // https://en.wikipedia.org/wiki/Slab_allocation
 // https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwick_slab.pdf
 // https://hammertux.github.io/slab-allocator
@@ -18,24 +20,14 @@
 #define SLAB_GUARD 0x5A
 #define SLAB_GUARD_LEN 64
 
-static inline void slab_fill(void* dst, const int c, size_t n)
+typedef struct
 {
-    uint8_t* p = dst;
-    while (n--)
-        *p++ = (uint8_t)c;
-}
-
-static inline size_t align_up_size(const size_t val, const size_t align)
-{
-    return (val + align - 1) & ~(align - 1);
-}
-
-extern uint64_t g_hhdm_offset;
-static spinlock_t heap_lock;
-// Track slab backing pages to detect accidental pmm frees
-#define SLAB_TRACK_MAX 4096
-static void* slab_pages[SLAB_TRACK_MAX];
-static size_t slab_pages_count = 0;
+    uint8_t* page_start;
+    uint8_t* page_end;
+    uint8_t* slot_min;
+    size_t capacity;
+    size_t payload_size;
+} slab_layout_t;
 
 typedef struct slab_header
 {
@@ -52,6 +44,13 @@ typedef struct slab_header
     size_t page_count;
 } __attribute__((aligned(16))) slab_header_t;
 
+extern uint64_t g_hhdm_offset;
+static spinlock_t heap_lock;
+// Track slab backing pages to detect accidental pmm frees
+#define SLAB_TRACK_MAX 4096
+static void* slab_pages[SLAB_TRACK_MAX];
+static size_t slab_pages_count = 0;
+
 // Cache for each size
 // Sizes: 32, 64, 128, 256, 512, 1024, 2048
 // Indices: 0, 1, 2, 3, 4, 5, 6
@@ -60,6 +59,19 @@ static const size_t slab_cache_sizes[] = {32, 64, 128, 256, 512, 1024, 2048};
 
 static list_item_t slab_caches[CACHE_COUNT];
 static bool slab_guard_valid(slab_header_t* slab);
+
+static inline void slab_fill(void* dst, const int c, size_t n)
+{
+    uint8_t* p = dst;
+    while (n--)
+        *p++ = (uint8_t)c;
+}
+
+static inline size_t align_up_size(const size_t val, const size_t align)
+{
+    return (val + align - 1) & ~(align - 1);
+}
+
 
 static inline bool range_overlaps(const uintptr_t start, const uintptr_t end, const uintptr_t region_start,
                                   const uintptr_t region_end)
@@ -89,14 +101,6 @@ static inline void* virt_to_phys(const void* virt)
     return (void*)((uintptr_t)virt - g_hhdm_offset);
 }
 
-typedef struct
-{
-    uint8_t* page_start;
-    uint8_t* page_end;
-    uint8_t* slot_min;
-    size_t capacity;
-    size_t payload_size;
-} slab_layout_t;
 
 static inline size_t slab_payload_size(const size_t obj_size)
 {
