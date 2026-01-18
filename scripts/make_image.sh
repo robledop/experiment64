@@ -80,6 +80,7 @@ cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI build/rootfs_esp/EFI/BOOT/
 
 # Populate RootFS (Ext2)
 mkdir -p build/rootfs_ext2/var
+mkdir -p build/rootfs_ext2/var/log
 cp -v assets/logo.bmp build/rootfs_ext2/var/logo.bmp
 if [ -f assets/wpaper.bmp ]; then
     cp -v assets/wpaper.bmp build/rootfs_ext2/var/wpaper.bmp

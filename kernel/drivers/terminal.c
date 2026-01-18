@@ -4,6 +4,8 @@
 #include <lib/string.h>
 #include <drivers/framebuffer.h>
 #include <lib/ansi.h>
+#include <fs/vfs.h>
+#include <mem/heap.h>
 #include <stdarg.h>
 #include <limits.h>
 
@@ -21,7 +23,10 @@ static bool cursor_overlay_enabled = true; // Enable framebuffer cursor overlay
 static bool cursor_batch = false;
 static char boot_log_buffer[8192];
 static size_t boot_log_len = 0;
+static size_t boot_log_flushed_len = 0;
 static bool boot_log_ready = false;
+static bool boot_log_flushing = false;
+static constexpr char boot_log_path[] = "/var/log/boot";
 
 // Get the active drawing surface (framebuffer)
 static inline uint8_t *get_draw_surface(void)
@@ -772,10 +777,24 @@ void printk(const char *format, ...)
 
 static bool boot_log_busy = false; // Prevent re-entrant boot log writes
 
+static vfs_inode_t *boot_log_open(void)
+{
+    if (!vfs_root)
+        return nullptr;
+
+    vfs_inode_t *node = vfs_resolve_path(boot_log_path);
+    if (!node)
+    {
+        if (vfs_mknod((char *)boot_log_path, VFS_FILE, 0) != 0)
+            return nullptr;
+        node = vfs_resolve_path(boot_log_path);
+    }
+    return node;
+}
+
 static void boot_log_record(const char *line)
 {
     // Keep boot logs buffered during tests to avoid disk I/O interference.
-    boot_log_ready = false;
     if (!line)
         return;
 
@@ -787,8 +806,6 @@ static void boot_log_record(const char *line)
     if (len > sizeof(boot_log_buffer) - 1)
         len = sizeof(boot_log_buffer) - 1;
 
-    // Disabled direct-to-disk writes for now to avoid boot-time VFS churn; just buffer.
-    boot_log_ready = false;
     if (boot_log_len + len < sizeof(boot_log_buffer))
     {
         memcpy(boot_log_buffer + boot_log_len, line, len);
@@ -797,12 +814,53 @@ static void boot_log_record(const char *line)
     }
 
     boot_log_busy = false;
+
+#ifndef TEST_MODE
+    if (!boot_log_flushing)
+        boot_log_flush();
+#endif
 }
 
 void boot_log_flush(void)
 {
-    // Skip flushing to disk to avoid hangs; keep buffering only.
-    boot_log_ready = false;
+#ifdef TEST_MODE
+    return;
+#endif
+    if (boot_log_flushing)
+        return;
+    if (!vfs_root)
+        return;
+
+    boot_log_flushing = true;
+
+    vfs_inode_t *node = boot_log_open();
+    if (!node)
+    {
+        boot_log_flushing = false;
+        return;
+    }
+
+    if (!boot_log_ready)
+    {
+        vfs_truncate(node);
+        boot_log_flushed_len = 0;
+        boot_log_ready = true;
+    }
+
+    while (boot_log_flushed_len < boot_log_len)
+    {
+        size_t pending = boot_log_len - boot_log_flushed_len;
+        uint64_t written = vfs_write(node, boot_log_flushed_len, pending,
+                                     (uint8_t *)(boot_log_buffer + boot_log_flushed_len));
+        if (written != pending)
+            break;
+        boot_log_flushed_len += pending;
+    }
+
+    vfs_close(node);
+    kfree(node);
+
+    boot_log_flushing = false;
 }
 
 void boot_message(boot_log_level_t level, const char *fmt, ...)
