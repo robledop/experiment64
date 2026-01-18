@@ -82,6 +82,7 @@ int sys_kill(int pid, int sig);
 void sys_shutdown();
 void sys_reboot();
 static void socket_inode_close(vfs_inode_t* node);
+static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer);
 int sys_bind(int fd, const struct sockaddr* addr, size_t addrlen);
 int sys_listen(int fd, int backlog);
 int sys_accept(int fd, struct sockaddr* addr, size_t addrlen);
@@ -91,7 +92,7 @@ int sys_recvfrom(int fd, void* buf, size_t len, int flags,
                  struct sockaddr* src_addr, socklen_t* addrlen);
 
 static struct inode_operations socket_iops = {
-    .read = nullptr,
+    .read = socket_inode_read,
     .write = nullptr,
     .truncate = nullptr,
     .open = nullptr,
@@ -1624,6 +1625,32 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
     if (pkt->data) kfree(pkt->data);
     kfree(pkt);
     return clamp_to_int(copy_len);
+}
+
+static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
+{
+    (void)offset;
+    if (!node || !buffer)
+        return 0;
+    if (size == 0)
+        return 0;
+
+    socket_t* sock = (socket_t*)node->device;
+    if (!sock)
+        return 0;
+
+    socket_rx_packet_t* pkt = socket_rx_pop(sock, true);
+    if (!pkt)
+        return 0;
+
+    const size_t copy_len = (pkt->len < size) ? pkt->len : size;
+    if (copy_len > 0)
+        memcpy(buffer, pkt->data, copy_len);
+
+    if (pkt->data)
+        kfree(pkt->data);
+    kfree(pkt);
+    return copy_len;
 }
 
 static void socket_inode_close(vfs_inode_t* node)
