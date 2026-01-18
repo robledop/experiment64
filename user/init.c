@@ -6,17 +6,41 @@
 {
     printf("Init process started (PID %d)\n", getpid());
 
+    printf("Starting httpd...\n");
+    const int pid_httpd = fork();
+    if (pid_httpd == 0)
+    {
+        exec("/bin/httpd");
+        printf("Failed to exec httpd\n");
+        exit(1);
+    }
+
+    // printf("Starting window manager...\n");
+    // const int pid_wm = fork();
+    // if (pid_wm == 0)
+    // {
+    //     exec("/bin/wm");
+    //     printf("Failed to exec wm\n");
+    //     exit(1);
+    // }
+    // else if (pid_wm > 0)
+    // {
+    //     int status;
+    //     wait(&status);
+    //     printf("Window manager exited with status %d\n", status);
+    // }
+
     while (1)
     {
         printf("Starting shell...\n");
-        const int pid = fork();
-        if (pid == 0)
+        const int pid_sh = fork();
+        if (pid_sh == 0)
         {
             exec("/bin/sh");
             printf("Failed to exec shell\n");
             exit(1);
         }
-        else if (pid > 0)
+        else if (pid_sh > 0)
         {
             int status;
             wait(&status);
