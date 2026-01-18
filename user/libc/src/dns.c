@@ -208,6 +208,7 @@ int parse_message(char* buffer, size_t buffer_len, struct dns_message* message_o
                                          ntohs(message_out->header.ancount),
                                          &reply_answers_length);
 
+#ifdef DEBUG
     printf("ID: %d, ", ntohs(message_out->header.id));
     printf("QDCount: %d, ", ntohs(message_out->header.qdcount));
     printf("ANCount: %d\n", ntohs(message_out->header.ancount));
@@ -242,6 +243,7 @@ int parse_message(char* buffer, size_t buffer_len, struct dns_message* message_o
             printf("RData: <non-A>\n");
         }
     }
+#endif
 
     return HEADER_SIZE + reply_questions_length + reply_answers_length;
 }
@@ -360,6 +362,7 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
         {
             if ((size_t)n < sizeof(struct dns_header))
                 continue;
+#ifdef DEBUG
             const struct dns_header* rh = (struct dns_header*)recvbuf;
             const uint16_t flags = ntohs(rh->flags);
             printf("id: %d\n", ntohs(rh->id));
@@ -408,6 +411,7 @@ uint32_t gethostbyname(const char* name, struct sockaddr_in* address)
             }
             printf("qdcount: %d\n", ntohs(rh->qdcount));
             printf("ancount: %d\n", ntohs(rh->ancount));
+#endif
 
             if (parse_message((char*)recvbuf, (size_t)n, &message_out) < 0)
                 break;
