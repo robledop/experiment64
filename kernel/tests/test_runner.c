@@ -18,7 +18,7 @@ volatile bool g_test_failed = false;
 volatile uint64_t g_current_test_start_ns = 0;
 
 #ifndef TEST_PROGRESS_LOGGING
-#define TEST_PROGRESS_LOGGING 1
+#define TEST_PROGRESS_LOGGING 0
 #endif
 
 void test_mark_failure(const char *file, int line, const char *expr)
@@ -86,7 +86,7 @@ void run_tests(void)
         printk("[TEST %lu/%lu] Starting: %s (entering...)\n", (unsigned long)(i + 1), (unsigned long)count, t->name);
 #endif
         uint64_t test_start_ns = tsc_nanos();
-        const bool capture_enabled = false;
+        const bool capture_enabled = true;
         if (capture_enabled)
             test_capture_begin();
 

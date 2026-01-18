@@ -7,7 +7,7 @@ APIC/IOAPIC setup). There is no AML/DSDT parsing or power-management support.
 
 ## Data Structures
 
-The ACPI table headers and pointer structures live in `include/acpi.h`:
+The ACPI table headers and pointer structures live in `include/drivers/acpi.h`:
 
 - `rsdp` / `xsdp`: Root System Description Pointer (ACPI 1.0 vs 2.0+).
 - `sdt_header`: common header for all ACPI tables.

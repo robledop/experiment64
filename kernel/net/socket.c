@@ -11,8 +11,7 @@ static uint16_t socket_next_ephemeral_port = 49152;
 
 static void socket_lock_init_once(void)
 {
-    if (socket_lock_ready)
-        return;
+    if (socket_lock_ready) return;
     spinlock_init(&socket_lock);
     socket_lock_ready = true;
 }
@@ -22,7 +21,7 @@ static bool socket_addr_is_any(const uint8_t ip[static 4])
     return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
 }
 
-static bool socket_port_conflict_locked(uint16_t port, const uint8_t ip[static 4], int protocol, const socket_t* skip)
+static bool socket_port_conflict_locked(const uint16_t port, const uint8_t ip[static 4], const int protocol, const socket_t* skip)
 {
     socket_t* s;
     list_foreach_entry(s, &socket_list, list)
@@ -44,8 +43,6 @@ static bool socket_port_conflict_locked(uint16_t port, const uint8_t ip[static 4
 
 static void socket_rx_purge(socket_t* sock)
 {
-    if (!sock) return;
-
     spinlock_acquire(&sock->rx_lock);
     while (!list_empty(&sock->rx_queue))
     {
@@ -178,7 +175,7 @@ int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requ
     return found ? 0 : -1;
 }
 
-static int socket_enqueue_rx(socket_t* sock, const uint8_t* payload, size_t payload_len, const socket_addr_t* from)
+static int socket_enqueue_rx(socket_t* sock, const uint8_t* payload, const size_t payload_len, const socket_addr_t* from)
 {
     if (!sock || !from) return -1;
 
@@ -215,7 +212,7 @@ static int socket_enqueue_rx(socket_t* sock, const uint8_t* payload, size_t payl
     return 0;
 }
 
-socket_rx_packet_t* socket_rx_pop(socket_t* sock, bool block)
+socket_rx_packet_t* socket_rx_pop(socket_t* sock, const bool block)
 {
     if (!sock) return nullptr;
 

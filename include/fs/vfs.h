@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <lib/path.h>
 
 #define VFS_FILE 0x01
 #define VFS_DIRECTORY 0x02

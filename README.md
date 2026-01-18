@@ -23,7 +23,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny she
 - `make image.hdd` – build kernel + userland and assemble disk images
 - `make run` – boot the kernel in QEMU with the generated image
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
-- `make check` – formatting/lint/static-analysis wrapper (clangd + clang-tidy)
+- `make check` – lint/static-analysis wrapper (clangd + clang-tidy)
 - `make clangd-check` / `make clang-tidy` – language server / lint helpers (no .S files)
 
 ## Tests
@@ -59,7 +59,7 @@ To ensure code quality and consistency, run the following checks:
 make check
 ```
 
-This command will run formatting checks, linting, and static analysis on the codebase. Run it after making changes to
+This command will run linting and static analysis on the codebase. Run it after making changes to
 ensure everything adheres to the project's coding standards.
 
 ## Running
@@ -95,4 +95,3 @@ It has the *beginnings* of a GUI, with a simple window manager and basic graphic
 I also ported DOOM. It only runs full screen, not inside a window.
 
 ![DOOM screenshot](docs/img/doom.png)
-

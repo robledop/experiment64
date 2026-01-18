@@ -2,6 +2,7 @@
 #include <tests/test_util.h>
 #include <fs/vfs.h>
 #include <lib/string.h>
+#include <lib/path.h>
 #include <drivers/terminal.h>
 #include <mem/heap.h>
 

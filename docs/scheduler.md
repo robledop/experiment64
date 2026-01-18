@@ -57,11 +57,13 @@ stack via `switch_to()` and never returns.
 
 ```asm
 push rbx, rbp, r12..r15
-mov [rdi + 16], rsp   ; prev->rsp
-mov rsp, [rsi + 16]   ; next->rsp
+mov [rdi + THREAD_RSP_OFFSET], rsp   ; prev->rsp
+mov rsp, [rsi + THREAD_RSP_OFFSET]   ; next->rsp
 pop r15..rbx
 ret
 ```
+
+`THREAD_RSP_OFFSET` is defined in `switch.S` to match the current `thread_t` layout.
 
 New threads start at `thread_trampoline`, which enables interrupts, calls the
 thread entrypoint, and falls back to `sys_exit(0)` if the entry returns.
@@ -132,10 +134,9 @@ calls `wait` and the process is safe to reap.
 
 ## Idle Threads and Fallbacks
 
-Idle threads are **not** part of the runnable set. They are used as safe
-`active_thread` fallbacks when destroying processes or cleaning up stale thread
-pointers. When no runnable threads exist, the scheduler switches to the per-CPU
-idle thread, which executes `hlt` in a loop.
+Idle threads are **not** part of the runnable set. When no runnable threads
+exist, the scheduler switches to the per-CPU idle thread, which executes `hlt`
+in a loop.
 
 ---
 

@@ -6,7 +6,8 @@
 #include <stddef.h>
 #include <drivers/gpt.h>
 #include <mem/heap.h>
-#include <debug.h>
+#include <lib/path.h>
+
 
 vfs_inode_t *vfs_root = nullptr;
 
