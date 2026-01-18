@@ -1,13 +1,16 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <drivers/terminal.h>
 #include <fs/vfs.h>
+#include <lib/string.h>
 #include <task/process.h>
 
 extern void (*syscall_exit_hook)(int);
 
 #ifdef TEST_MODE
-#include <drivers/terminal.h>
 #define TEST_SYSCALL_LOG(fmt, ...)            \
     do                                        \
     {                                         \

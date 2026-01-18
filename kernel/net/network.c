@@ -11,8 +11,6 @@
 #include <arpa/inet.h>
 #include <stddef.h>
 
-#include "user/libc/include/arpa/inet.h"
-
 bool network_ready = false;
 uint8_t* my_ip_address = nullptr;
 uint8_t* default_gateway = nullptr;

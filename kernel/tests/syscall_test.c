@@ -19,29 +19,6 @@
 #include <drivers/tsc.h>
 #endif
 
-// Direct syscall implementations from kernel/arch/x86_64/syscall.c
-int sys_open(const char* path, int flags);
-int sys_close(int fd);
-int sys_read(int fd, char* buf, size_t count);
-int sys_write(int fd, const char* buf, size_t count);
-int sys_chdir(const char* path);
-int sys_exec(const char* path, syscall_regs_t* regs);
-int sys_getcwd(char* buf, size_t size);
-int sys_unlink(const char* path);
-int sys_stat(const char* path, stat_t* st);
-int sys_fstat(int fd, stat_t* st);
-int sys_link(const char* oldpath, const char* newpath);
-int sys_readdir(int fd, vfs_dirent_t* dent);
-int sys_mknod(const char* path, int mode, int dev);
-int sys_usleep(uint64_t usec);
-int sys_kill(int pid, int sig);
-void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset);
-int sys_munmap(void* addr, size_t length);
-int sys_socket(int domain, int type, int protocol);
-int sys_bind(int fd, const sockaddr_t* addr, size_t addrlen);
-int sys_listen(int fd, int backlog);
-int sys_accept(int fd, sockaddr_t* addr, size_t addrlen);
-
 // Buffer for setjmp/longjmp
 static void* test_env[64];
 static volatile int test_exit_code = 0;
@@ -1091,8 +1068,6 @@ TEST(test_syscall_exec_nonexistent_path)
 }
 
 // Pipe syscall declaration
-int sys_pipe(int pipefd[2]);
-
 TEST(test_syscall_pipe_basic)
 {
     int pipefd[2] = {-1, -1};
@@ -1153,9 +1128,6 @@ TEST(test_syscall_pipe_null_arg)
 }
 
 // lseek and dup syscall declarations
-long sys_lseek(int fd, long offset, int whence);
-int sys_dup(int oldfd);
-
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2

@@ -6,7 +6,6 @@
 #include <mem/heap.h>
 #include <drivers/terminal.h>
 
-// Forward declaration for AVX-optimized copy
 static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n);
 
 static long long read_signed_arg(va_list *args, int length_mod)

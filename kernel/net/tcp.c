@@ -9,6 +9,7 @@
 #include <task/process.h>
 #include <mem/heap.h>
 #include <lib/string.h>
+#include <attributes.h>
 
 struct tcp_pseudo_header
 {
@@ -32,7 +33,7 @@ static bool tcp_ip_is_zero(const uint8_t ip[static 4])
     return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
 }
 
-static void tcp_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
+static void NONNULL tcp_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
 {
     const uint8_t* my_ip = network_get_my_ip_address();
     const uint8_t* mask = network_get_subnet_mask();
@@ -57,13 +58,10 @@ static void tcp_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[sta
     memcpy(out, next, 4);
 }
 
-int tcp_send_segment(socket_t* sock, const uint8_t dest_ip[static 4], const uint16_t dest_port,
+int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], const uint16_t dest_port,
                      const uint32_t seq_num, const uint32_t ack_num, const uint8_t flags,
                      const uint8_t* payload, const size_t payload_len, const uint8_t* dest_mac)
 {
-    if (!sock)
-        return -1;
-
     const uint8_t* my_ip = network_get_my_ip_address();
     const uint8_t* my_mac = network_get_my_mac_address();
     if (!my_ip || !my_mac)
@@ -161,7 +159,7 @@ int tcp_send_segment(socket_t* sock, const uint8_t dest_ip[static 4], const uint
     return res;
 }
 
-void tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, const size_t ip_header_len)
+void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, const size_t ip_header_len)
 {
     constexpr size_t eth_len = sizeof(struct ether_header);
     if (len < eth_len + ip_header_len) return;
@@ -207,7 +205,7 @@ void tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, const
         if (backlog_full)
             return;
 
-        socket_t* child = (socket_t*)kzalloc(sizeof(socket_t));
+        auto child = (socket_t*)kzalloc(sizeof(socket_t));
         if (!child)
             return;
         child->domain = listener->domain;

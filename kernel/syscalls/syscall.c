@@ -6,7 +6,7 @@
 #include <net/socket.h>
 #include <sys/time.h>
 #include <task/process.h>
-#include <syscall_common.h>
+#include "syscall_common.h"
 
 extern void syscall_entry(void);
 
