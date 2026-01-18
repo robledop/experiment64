@@ -15,6 +15,8 @@ struct ether_header {
     uint16_t ether_type;                /* packet type ID field*/
 } __attribute__((__packed__));
 
+typedef struct ether_header ether_header_t;
+
 /* Ethernet protocol ID's */
 #define ETHERTYPE_PUP 0x0200      /* Xerox PUP */
 #define ETHERTYPE_SPRITE 0x0500   /* Sprite */

@@ -57,6 +57,7 @@ struct sockaddr
     sa_family_t sa_family;
     char sa_data[14];
 };
+typedef struct sockaddr sockaddr_t;
 
 struct sockaddr_in
 {
@@ -65,6 +66,7 @@ struct sockaddr_in
     uint8_t sin_addr[4];
     uint8_t sin_zero[8];
 };
+typedef struct sockaddr_in sockaddr_in_t;
 
 typedef struct
 {

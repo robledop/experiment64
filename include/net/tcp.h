@@ -33,6 +33,8 @@ struct tcp_header
     // ...
 } __attribute__((packed));
 
+typedef struct tcp_header tcp_header_t;
+
 void tcp_receive(uint8_t* packet, uint16_t len, size_t ip_len, size_t ip_header_len);
 int tcp_send_segment(socket_t* sock, const uint8_t dest_ip[static 4], uint16_t dest_port,
                      uint32_t seq_num, uint32_t ack_num, uint8_t flags,

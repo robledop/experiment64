@@ -30,3 +30,6 @@ struct ipv4_header
     uint8_t source_ip[4];
     uint8_t dest_ip[4];
 } __attribute__((packed));
+
+
+typedef struct ipv4_header ipv4_header_t;

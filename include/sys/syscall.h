@@ -9,6 +9,8 @@ struct syscall_regs
     uint64_t rcx, r11;
 };
 
+typedef struct syscall_regs syscall_regs_t;
+
 #define SYS_WRITE 0
 #define SYS_READ 1
 #define SYS_EXEC 2

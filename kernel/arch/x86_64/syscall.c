@@ -107,16 +107,20 @@ static struct inode_operations socket_iops = {
     .stat = nullptr,
 };
 
+/**
+ * Check if a user pointer is writable within the current thread's context.
+ * Returns true if the pointer is valid and writable, false otherwise.
+ */
 static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
 {
     if (!dst)
         return false;
-    thread_t* t = get_current_thread();
+    const thread_t* t = get_current_thread();
     const bool userish = (t != nullptr && t->is_user);
     if (!userish)
         return true;
-    uintptr_t addr = (uintptr_t)dst;
-    uintptr_t end = addr + size;
+    const uintptr_t addr = (uintptr_t)dst;
+    const uintptr_t end = addr + size;
     if (end < addr)
         return false;
 
@@ -129,7 +133,7 @@ static bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
 
     if (in_kernel || in_kstack)
     {
-        process_t* p = get_current_process();
+        const process_t* p = get_current_process();
         printk("%s: bad dst=%p size=%zu pid=%d tid=%d in_kernel=%d in_kstack=%d ret=%p\n",
                op ? op : "user_ptr_write",
                dst,
