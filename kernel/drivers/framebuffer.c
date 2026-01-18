@@ -72,6 +72,22 @@ static uint64_t framebuffer_dev_write(vfs_inode_t* node, uint64_t offset, uint64
     return to_copy;
 }
 
+static int framebuffer_copy_u32(void* arg, uint32_t value)
+{
+    if (!arg)
+        return -1;
+    memcpy(arg, &value, sizeof(value));
+    return 0;
+}
+
+static int framebuffer_copy_u64(void* arg, uint64_t value)
+{
+    if (!arg)
+        return -1;
+    memcpy(arg, &value, sizeof(value));
+    return 0;
+}
+
 static int framebuffer_dev_ioctl(vfs_inode_t* node, int request, void* arg)
 {
     struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
@@ -83,25 +99,13 @@ static int framebuffer_dev_ioctl(vfs_inode_t* node, int request, void* arg)
     switch (request)
     {
     case FB_IOCTL_GET_WIDTH:
-        if (!arg)
-            return -1;
-        *(uint32_t*)arg = (uint32_t)fb->width;
-        return 0;
+        return framebuffer_copy_u32(arg, (uint32_t)fb->width);
     case FB_IOCTL_GET_HEIGHT:
-        if (!arg)
-            return -1;
-        *(uint32_t*)arg = (uint32_t)fb->height;
-        return 0;
+        return framebuffer_copy_u32(arg, (uint32_t)fb->height);
     case FB_IOCTL_GET_PITCH:
-        if (!arg)
-            return -1;
-        *(uint32_t*)arg = fb->pitch;
-        return 0;
+        return framebuffer_copy_u32(arg, fb->pitch);
     case FB_IOCTL_GET_FBADDR:
-        if (!arg)
-            return -1;
-        *(uint64_t*)arg = (uint64_t)fb->address;
-        return 0;
+        return framebuffer_copy_u64(arg, (uint64_t)fb->address);
     default:
         return -1;
     }

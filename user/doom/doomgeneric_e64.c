@@ -301,17 +301,15 @@ void DG_Init()
             exit();
         }
 
-        uint32_t fb_addr = 0;
-        ioctl(FrameBufferFd, FB_IOCTL_GET_FBADDR, &fb_addr);
         ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_ScreenPitch);
         printf("Screen pitch: %d bytes\n", s_ScreenPitch);
 
         size_t fb_map_size = (size_t)s_ScreenPitch * (size_t)s_ScreenHeight;
 
-        FrameBuffer = mmap((void *)fb_addr,
+        FrameBuffer = mmap(NULL,
                            fb_map_size,
                            PROT_READ | PROT_WRITE,
-                           MAP_SHARED | MAP_FIXED,
+                           MAP_SHARED,
                            FrameBufferFd,
                            0);
 
