@@ -2,7 +2,7 @@
 #include <drivers/gpt.h>
 #include <drivers/terminal.h>
 
-static void partition_callback(partition_info_t *part)
+static void partition_callback(const partition_info_t *part)
 {
     printk("  Partition: Start LBA: %lu, End LBA: %lu, Name: %s, Type: %s\n",
            part->start_lba, part->end_lba, part->name, gpt_get_guid_name(part->type_guid));

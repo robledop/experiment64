@@ -18,7 +18,7 @@ static const uint8_t LINUX_FILESYSTEM_GUID[16] = {
     0xAF, 0x3D, 0xC6, 0x0F, 0x83, 0x84, 0x72, 0x47,
     0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4};
 
-const char *gpt_get_guid_name(const uint8_t *type_guid)
+const char* gpt_get_guid_name(const uint8_t* type_guid)
 {
     if (memcmp(type_guid, EFI_SYSTEM_PARTITION_GUID, 16) == 0)
         return "EFI System Partition";
@@ -29,17 +29,17 @@ const char *gpt_get_guid_name(const uint8_t *type_guid)
     return "Unknown";
 }
 
-void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
+void gpt_read_partitions(const uint8_t drive, const partition_callback_t callback)
 {
     // Read GPT Header (LBA 1)
-    buffer_head_t *bh = bread(drive, 1);
+    buffer_head_t* bh = bread(drive, 1);
     if (!bh)
     {
         printk("GPT: Failed to read LBA 1 on drive %d\n", drive);
         return;
     }
 
-    gpt_header_t *header = (gpt_header_t *)bh->data;
+    auto header = (gpt_header_t*)bh->data;
 
     if (header->signature != GPT_SIGNATURE)
     {
@@ -95,7 +95,6 @@ void gpt_read_partitions(uint8_t drive, partition_callback_t callback)
 
     for (uint32_t i = 0; i < num_entries; i++)
     {
-        gpt_entry_t *entry = (gpt_entry_t *)(entries_buf + i * entry_size);
 
         // Check if entry is used (Type GUID is not zero)
         int empty = 1;

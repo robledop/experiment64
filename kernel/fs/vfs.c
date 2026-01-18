@@ -73,7 +73,7 @@ static bool mnt_found = false;
 static bool boot_found = false;
 static bool disk1_found = false;
 
-static void mount_disk1_callback(partition_info_t *part)
+static void mount_disk1_callback(const partition_info_t *part)
 {
     const char *type = gpt_get_guid_name(part->type_guid);
     if (strcmp(type, "Linux Filesystem") == 0)
@@ -84,7 +84,7 @@ static void mount_disk1_callback(partition_info_t *part)
     }
 }
 
-static void mount_callback(partition_info_t *part)
+static void mount_callback(const partition_info_t *part)
 {
     const char *type = gpt_get_guid_name(part->type_guid);
     // Check for Microsoft Basic Data (FAT32) or EFI System Partition
