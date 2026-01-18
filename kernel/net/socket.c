@@ -64,6 +64,30 @@ static void socket_rx_purge(socket_t* sock)
     spinlock_release(&sock->rx_lock);
 }
 
+static void socket_accept_purge(socket_t* sock)
+{
+    if (!sock) return;
+
+    while (true)
+    {
+        spinlock_acquire(&sock->accept_lock);
+        if (list_empty(&sock->accept_queue))
+        {
+            spinlock_release(&sock->accept_lock);
+            break;
+        }
+
+        socket_t* child = list_entry(sock->accept_queue.next, socket_t, accept_list);
+        list_del(&child->accept_list);
+        if (sock->accept_queue_len > 0)
+            sock->accept_queue_len--;
+        spinlock_release(&sock->accept_lock);
+
+        socket_unregister(child);
+        kfree(child);
+    }
+}
+
 void socket_register(socket_t* sock)
 {
     if (!sock) return;
@@ -71,8 +95,13 @@ void socket_register(socket_t* sock)
     socket_lock_init_once();
     list_init_head(&sock->list);
     list_init_head(&sock->rx_queue);
+    list_init_head(&sock->accept_queue);
+    list_init_head(&sock->accept_list);
     spinlock_init(&sock->rx_lock);
+    spinlock_init(&sock->accept_lock);
     sock->rx_queue_len = 0;
+    sock->accept_queue_len = 0;
+    sock->backlog = 0;
 
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
@@ -92,6 +121,7 @@ void socket_unregister(socket_t* sock)
     sock->state = SOCKET_STATE_CLOSED;
     SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
 
+    socket_accept_purge(sock);
     socket_rx_purge(sock);
     thread_wakeup(sock);
 }
@@ -103,7 +133,8 @@ int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requ
 {
     if (!sock || !out_port) return -1;
 
-    if (sock->protocol != IPPROTO_UDP)
+    const bool needs_port_check = (sock->protocol == IPPROTO_UDP || sock->protocol == IPPROTO_TCP);
+    if (!needs_port_check)
     {
         *out_port = requested_port;
         return 0;
@@ -140,7 +171,8 @@ int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requ
             break;
         }
         candidate = (candidate == 65535) ? 49152 : (uint16_t)(candidate + 1);
-    } while (candidate != start);
+    }
+    while (candidate != start);
 
     SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
     return found ? 0 : -1;

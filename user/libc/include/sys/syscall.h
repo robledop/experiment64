@@ -37,6 +37,8 @@
 #define SYS_BIND 34
 #define SYS_SENDTO 35
 #define SYS_RECVFROM 36
+#define SYS_LISTEN 37
+#define SYS_ACCEPT 38
 
 static inline long syscall0(long n)
 {

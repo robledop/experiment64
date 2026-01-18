@@ -270,6 +270,29 @@ int bind(int sockfd, const struct sockaddr* addr, size_t addrlen)
 }
 
 /**
+ * @brief Mark a socket as listening for incoming connections
+ * @param sockfd The socket file descriptor
+ * @param backlog The maximum pending connection queue length
+ * @return 0 on success, or -1 on error
+ */
+int listen(int sockfd, int backlog)
+{
+    return clamp_signed_to_int(syscall2(SYS_LISTEN, sockfd, backlog));
+}
+
+/**
+ * @brief Accept an incoming connection on a listening socket
+ * @param sockfd The listening socket file descriptor
+ * @param addr The buffer to receive the peer address
+ * @param addrlen The size of the address buffer
+ * @return A new socket descriptor, or -1 on error
+ */
+int accept(int sockfd, struct sockaddr* addr, socklen_t addrlen)
+{
+    return clamp_signed_to_int(syscall3(SYS_ACCEPT, sockfd, (long)addr, (long)addrlen));
+}
+
+/**
  * @brief Send data to a specific address using a socket
  * @param sockfd The socket file descriptor
  * @param buf The buffer containing the data to send

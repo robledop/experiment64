@@ -46,6 +46,8 @@ struct syscall_regs
 #define SYS_BIND 34
 #define SYS_SENDTO 35
 #define SYS_RECVFROM 36
+#define SYS_LISTEN 37
+#define SYS_ACCEPT 38
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

@@ -9,6 +9,12 @@
 #include <fs/vfs.h>
 #include <sys/mman.h>
 #include <tests/test_util.h>
+#include <net/socket.h>
+#include <net/tcp.h>
+#include <net/network.h>
+#include <net/ethernet.h>
+#include <net/ipv4.h>
+#include <arpa/inet.h>
 #ifdef TEST_MODE
 #include <drivers/tsc.h>
 #endif
@@ -31,6 +37,10 @@ int sys_usleep(uint64_t usec);
 int sys_kill(int pid, int sig);
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
 int sys_munmap(void *addr, size_t length);
+int sys_socket(int domain, int type, int protocol);
+int sys_bind(int fd, const struct sockaddr *addr, size_t addrlen);
+int sys_listen(int fd, int backlog);
+int sys_accept(int fd, struct sockaddr *addr, size_t addrlen);
 
 // Buffer for setjmp/longjmp
 static void *test_env[64];
@@ -1632,5 +1642,147 @@ TEST(test_syscall_mknod_invalid_path)
 {
     TEST_ASSERT(sys_mknod(nullptr, VFS_CHARDEVICE, 0) == -1);
     TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -1);
+    return true;
+}
+
+// ============================================================================
+// Tests for listen syscall
+// ============================================================================
+
+TEST(test_syscall_listen_basic)
+{
+    const int fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    TEST_ASSERT(fd >= 0);
+
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(8080);
+
+    TEST_ASSERT(sys_bind(fd, (const struct sockaddr *)&addr, sizeof(addr)) == 0);
+    TEST_ASSERT(sys_listen(fd, 8) == 0);
+    TEST_ASSERT(sys_close(fd) == 0);
+    return true;
+}
+
+static bool syscall_test_build_tcp_packet(uint8_t* packet, const size_t packet_len,
+                                          const uint8_t src_mac[static 6], const uint8_t dest_mac[static 6],
+                                          const uint8_t src_ip[static 4], const uint8_t dest_ip[static 4],
+                                          const uint16_t src_port, const uint16_t dest_port,
+                                          const uint32_t seq_num, const uint32_t ack_num, const uint8_t flags,
+                                          const uint8_t* payload, const size_t payload_len)
+{
+    constexpr size_t eth_len = sizeof(struct ether_header);
+    constexpr size_t ip_header_len = sizeof(struct ipv4_header);
+    constexpr size_t tcp_header_len = sizeof(struct tcp_header);
+    const size_t ip_len = ip_header_len + tcp_header_len + payload_len;
+    if (packet_len < eth_len + ip_len)
+        return false;
+
+    memset(packet, 0, packet_len);
+
+    auto const eth = (struct ether_header*)packet;
+    memcpy(eth->dest_host, dest_mac, 6);
+    memcpy(eth->src_host, src_mac, 6);
+    eth->ether_type = htons(ETHERTYPE_IP);
+
+    auto const ip = (struct ipv4_header*)(packet + eth_len);
+    ip->version = 4;
+    ip->ihl = (uint8_t)(ip_header_len / 4);
+    ip->dscp_ecn = 0;
+    ip->total_length = htons((uint16_t)ip_len);
+    ip->identification = 0;
+    ip->flags_fragment_offset = 0;
+    ip->ttl = 64;
+    ip->protocol = IP_PROTOCOL_TCP;
+    ip->header_checksum = 0;
+    memcpy(ip->source_ip, src_ip, 4);
+    memcpy(ip->dest_ip, dest_ip, 4);
+
+    auto const tcp = (struct tcp_header*)(packet + eth_len + ip_header_len);
+    tcp->src_port = src_port;
+    tcp->dst_port = dest_port;
+    tcp->seq_num = htonl(seq_num);
+    tcp->ack_num = htonl(ack_num);
+    tcp->data_offset_reserved = (uint8_t)((tcp_header_len / 4) << 4);
+    tcp->flags = flags;
+    tcp->window = htons(4096);
+    tcp->checksum = 0;
+    tcp->urgent_ptr = 0;
+
+    if (payload_len > 0)
+        memcpy(packet + eth_len + ip_header_len + tcp_header_len, payload, payload_len);
+    return true;
+}
+
+// ============================================================================
+// Tests for accept syscall
+// ============================================================================
+
+TEST(test_syscall_accept_basic)
+{
+    const uint8_t my_ip[4] = {10, 0, 2, 15};
+    const uint8_t my_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
+    const uint8_t remote_ip[4] = {10, 0, 2, 2};
+    const uint8_t remote_mac[6] = {0x52, 0x54, 0x00, 0xAB, 0xCD, 0xEF};
+    const uint16_t local_port = htons(9090);
+    const uint16_t remote_port = htons(12345);
+    const uint32_t remote_seq = 500;
+
+    network_set_my_ip_address(my_ip);
+    network_set_mac(my_mac);
+
+    const int listen_fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    TEST_ASSERT(listen_fd >= 0);
+
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = local_port;
+
+    TEST_ASSERT(sys_bind(listen_fd, (const struct sockaddr*)&addr, sizeof(addr)) == 0);
+    TEST_ASSERT(sys_listen(listen_fd, 4) == 0);
+
+    constexpr size_t ip_header_len = sizeof(struct ipv4_header);
+    const size_t syn_ip_len = ip_header_len + sizeof(struct tcp_header);
+    const size_t syn_len = sizeof(struct ether_header) + syn_ip_len;
+    uint8_t syn_packet[syn_len];
+    TEST_ASSERT(syscall_test_build_tcp_packet(syn_packet, sizeof(syn_packet),
+                                              remote_mac, my_mac,
+                                              remote_ip, my_ip,
+                                              remote_port, local_port,
+                                              remote_seq, 0, TCP_FLAG_SYN,
+                                              nullptr, 0));
+    tcp_receive(syn_packet, (uint16_t)sizeof(syn_packet), syn_ip_len, ip_header_len);
+
+    socket_t* pending = socket_find_tcp_connected(my_ip, local_port, remote_ip, remote_port);
+    TEST_ASSERT(pending != nullptr);
+
+    const size_t ack_ip_len = ip_header_len + sizeof(struct tcp_header);
+    const size_t ack_len = sizeof(struct ether_header) + ack_ip_len;
+    uint8_t ack_packet[ack_len];
+    TEST_ASSERT(syscall_test_build_tcp_packet(ack_packet, sizeof(ack_packet),
+                                              remote_mac, my_mac,
+                                              remote_ip, my_ip,
+                                              remote_port, local_port,
+                                              remote_seq + 1, pending->tcp_send_next, TCP_FLAG_ACK,
+                                              nullptr, 0));
+    tcp_receive(ack_packet, (uint16_t)sizeof(ack_packet), ack_ip_len, ip_header_len);
+
+    struct sockaddr_in client = {0};
+    const int conn_fd = sys_accept(listen_fd, (struct sockaddr*)&client, sizeof(client));
+    TEST_ASSERT(conn_fd >= 0);
+    TEST_ASSERT(conn_fd != listen_fd);
+    TEST_ASSERT(client.sin_family == AF_INET);
+    TEST_ASSERT(client.sin_port == remote_port);
+    TEST_ASSERT(memcmp(client.sin_addr, remote_ip, sizeof(client.sin_addr)) == 0);
+
+    file_descriptor_t* conn_desc = current_process->fd_table[conn_fd];
+    TEST_ASSERT(conn_desc != nullptr);
+    TEST_ASSERT(conn_desc->inode != nullptr);
+    socket_t* conn_sock = (socket_t*)conn_desc->inode->device;
+    TEST_ASSERT(conn_sock != nullptr);
+    TEST_ASSERT((conn_sock->flags & SOCKET_FLAG_TCP_ESTABLISHED) != 0);
+
+    TEST_ASSERT(sys_close(conn_fd) == 0);
+    TEST_ASSERT(sys_close(listen_fd) == 0);
     return true;
 }

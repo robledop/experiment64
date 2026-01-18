@@ -46,7 +46,7 @@ typedef struct socket_rx_packet
     list_item_t list;
     socket_addr_t from;
     size_t len;
-    uint8_t *data;
+    uint8_t* data;
 } socket_rx_packet_t;
 
 typedef uint16_t sa_family_t;
@@ -77,6 +77,12 @@ typedef struct
     uint32_t flags;
     uint32_t ref;
     uint32_t tcp_send_next;
+    uint32_t tcp_recv_next;
+    list_item_t accept_queue;
+    list_item_t accept_list;
+    size_t accept_queue_len;
+    int backlog;
+    spinlock_t accept_lock;
     list_item_t list;
     list_item_t rx_queue;
     size_t rx_queue_len;
@@ -95,4 +101,5 @@ int socket_deliver_udp(const uint8_t dest_ip[static 4], uint16_t dest_port,
 int socket_deliver_tcp(const uint8_t dest_ip[static 4], uint16_t dest_port,
                        const uint8_t src_ip[static 4], uint16_t src_port, const uint8_t* payload, size_t payload_len);
 int socket_deliver_icmp(const uint8_t dest_ip[static 4], const uint8_t src_ip[static 4],
-                        const uint8_t *payload, size_t payload_len);
+                        const uint8_t* payload, size_t payload_len);
+socket_rx_packet_t* socket_rx_pop(socket_t* sock, bool block);
