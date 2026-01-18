@@ -4,7 +4,10 @@
 #include "net/dhcp.h"
 #include "net/ethernet.h"
 #include "net/ipv4.h"
+#include "net/tcp.h"
 #include "net/udp.h"
+#include "net/socket.h"
+#include <mem/heap.h>
 #include <lib/string.h>
 #include <arpa/inet.h>
 
@@ -381,3 +384,134 @@ TEST(test_dhcp_header_size)
     return true;
 }
 
+static bool tcp_test_build_packet(uint8_t* packet, const size_t packet_len,
+                                  const uint8_t src_mac[static 6], const uint8_t dest_mac[static 6],
+                                  const uint8_t src_ip[static 4], const uint8_t dest_ip[static 4],
+                                  const uint16_t src_port, const uint16_t dest_port,
+                                  const uint32_t seq_num, const uint32_t ack_num, const uint8_t flags,
+                                  const uint8_t* payload, const size_t payload_len)
+{
+    constexpr size_t eth_len = sizeof(struct ether_header);
+    constexpr size_t ip_header_len = sizeof(struct ipv4_header);
+    constexpr size_t tcp_header_len = sizeof(struct tcp_header);
+    const size_t ip_len = ip_header_len + tcp_header_len + payload_len;
+    if (packet_len < eth_len + ip_len)
+        return false;
+
+    memset(packet, 0, packet_len);
+
+    auto const eth = (struct ether_header*)packet;
+    memcpy(eth->dest_host, dest_mac, 6);
+    memcpy(eth->src_host, src_mac, 6);
+    eth->ether_type = htons(ETHERTYPE_IP);
+
+    auto const ip = (struct ipv4_header*)(packet + eth_len);
+    ip->version = 4;
+    ip->ihl = (uint8_t)(ip_header_len / 4);
+    ip->dscp_ecn = 0;
+    ip->total_length = htons((uint16_t)ip_len);
+    ip->identification = 0;
+    ip->flags_fragment_offset = 0;
+    ip->ttl = 64;
+    ip->protocol = IP_PROTOCOL_TCP;
+    ip->header_checksum = 0;
+    memcpy(ip->source_ip, src_ip, 4);
+    memcpy(ip->dest_ip, dest_ip, 4);
+
+    auto const tcp = (struct tcp_header*)(packet + eth_len + ip_header_len);
+    tcp->src_port = src_port;
+    tcp->dst_port = dest_port;
+    tcp->seq_num = htonl(seq_num);
+    tcp->ack_num = htonl(ack_num);
+    tcp->data_offset_reserved = (uint8_t)((tcp_header_len / 4) << 4);
+    tcp->flags = flags;
+    tcp->window = htons(4096);
+    tcp->checksum = 0;
+    tcp->urgent_ptr = 0;
+
+    if (payload_len > 0)
+        memcpy(packet + eth_len + ip_header_len + tcp_header_len, payload, payload_len);
+    return true;
+}
+
+// ============================================================================
+// TCP receive tests
+// ============================================================================
+
+TEST(test_tcp_receive_basic)
+{
+    const uint8_t my_ip[4] = {10, 0, 2, 15};
+    const uint8_t my_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
+    const uint8_t remote_ip[4] = {10, 0, 2, 2};
+    const uint8_t remote_mac[6] = {0x52, 0x54, 0x00, 0xAB, 0xCD, 0xEF};
+    const uint16_t local_port = htons(8080);
+    const uint16_t remote_port = htons(12345);
+    const uint32_t remote_seq = 1000;
+
+    network_set_my_ip_address(my_ip);
+    network_set_mac(my_mac);
+
+    socket_t sock = {};
+    sock.domain = AF_INET;
+    sock.type = SOCK_STREAM;
+    sock.protocol = IPPROTO_TCP;
+    sock.state = SOCKET_STATE_LISTENING;
+    sock.local.port = local_port;
+    socket_register(&sock);
+
+    constexpr size_t ip_header_len = sizeof(struct ipv4_header);
+
+    const size_t syn_ip_len = ip_header_len + sizeof(struct tcp_header);
+    const size_t syn_len = sizeof(struct ether_header) + syn_ip_len;
+    uint8_t syn_packet[syn_len];
+    TEST_ASSERT(tcp_test_build_packet(syn_packet, sizeof(syn_packet),
+                                      remote_mac, my_mac,
+                                      remote_ip, my_ip,
+                                      remote_port, local_port,
+                                      remote_seq, 0, TCP_FLAG_SYN,
+                                      nullptr, 0));
+    tcp_receive(syn_packet, (uint16_t)sizeof(syn_packet), syn_ip_len, ip_header_len);
+
+    TEST_ASSERT(sock.state == SOCKET_STATE_LISTENING);
+    socket_t* child = socket_find_tcp_connected(my_ip, local_port, remote_ip, remote_port);
+    TEST_ASSERT(child != nullptr);
+    TEST_ASSERT((child->flags & SOCKET_FLAG_TCP_SYN_RCVD) != 0);
+    TEST_ASSERT(child->tcp_recv_next == remote_seq + 1);
+
+    const size_t ack_ip_len = ip_header_len + sizeof(struct tcp_header);
+    const size_t ack_len = sizeof(struct ether_header) + ack_ip_len;
+    uint8_t ack_packet[ack_len];
+    TEST_ASSERT(tcp_test_build_packet(ack_packet, sizeof(ack_packet),
+                                      remote_mac, my_mac,
+                                      remote_ip, my_ip,
+                                      remote_port, local_port,
+                                      remote_seq + 1, child->tcp_send_next, TCP_FLAG_ACK,
+                                      nullptr, 0));
+    tcp_receive(ack_packet, (uint16_t)sizeof(ack_packet), ack_ip_len, ip_header_len);
+
+    TEST_ASSERT((child->flags & SOCKET_FLAG_TCP_ESTABLISHED) != 0);
+
+    const char payload[] = "hi";
+    const size_t data_ip_len = ip_header_len + sizeof(struct tcp_header) + sizeof(payload) - 1;
+    const size_t data_len = sizeof(struct ether_header) + data_ip_len;
+    uint8_t data_packet[data_len];
+    TEST_ASSERT(tcp_test_build_packet(data_packet, sizeof(data_packet),
+                                      remote_mac, my_mac,
+                                      remote_ip, my_ip,
+                                      remote_port, local_port,
+                                      child->tcp_recv_next, child->tcp_send_next,
+                                      (uint8_t)(TCP_FLAG_ACK | TCP_FLAG_PSH),
+                                      (const uint8_t*)payload, sizeof(payload) - 1));
+    tcp_receive(data_packet, (uint16_t)sizeof(data_packet), data_ip_len, ip_header_len);
+
+    socket_rx_packet_t* pkt = socket_rx_pop(child, false);
+    TEST_ASSERT(pkt != nullptr);
+    TEST_ASSERT(pkt->len == sizeof(payload) - 1);
+    TEST_ASSERT(memcmp(pkt->data, payload, sizeof(payload) - 1) == 0);
+    if (pkt->data)
+        kfree(pkt->data);
+    kfree(pkt);
+
+    socket_unregister(&sock);
+    return true;
+}

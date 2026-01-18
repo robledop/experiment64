@@ -206,6 +206,106 @@ socket_rx_packet_t* socket_rx_pop(socket_t* sock, bool block)
     return pkt;
 }
 
+socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t dest_port)
+{
+    socket_lock_init_once();
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(socket_lock, rflags);
+    socket_t* s;
+    list_foreach_entry(s, &socket_list, list)
+    {
+        if (!s)
+            continue;
+        if (s->protocol != IPPROTO_TCP || s->type != SOCK_STREAM)
+            continue;
+        if (s->state != SOCKET_STATE_LISTENING)
+            continue;
+        if (s->local.port != dest_port)
+            continue;
+        if (!socket_addr_is_any(s->local.ip) &&
+            memcmp(s->local.ip, dest_ip, sizeof(s->local.ip)) != 0)
+            continue;
+
+        SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+        return s;
+    }
+    SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+    return nullptr;
+}
+
+socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t dest_port,
+                                    const uint8_t src_ip[static 4], uint16_t src_port)
+{
+    socket_lock_init_once();
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(socket_lock, rflags);
+    socket_t* s;
+    list_foreach_entry(s, &socket_list, list)
+    {
+        if (!s)
+            continue;
+        if (s->protocol != IPPROTO_TCP || s->type != SOCK_STREAM)
+            continue;
+        if (s->state != SOCKET_STATE_CONNECTED)
+            continue;
+        if (s->local.port != dest_port)
+            continue;
+        if (!socket_addr_is_any(s->local.ip) &&
+            memcmp(s->local.ip, dest_ip, sizeof(s->local.ip)) != 0)
+            continue;
+        if (!socket_addr_is_any(s->remote.ip) &&
+            memcmp(s->remote.ip, src_ip, sizeof(s->remote.ip)) != 0)
+            continue;
+        if (s->remote.port != 0 && s->remote.port != src_port)
+            continue;
+
+        SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+        return s;
+    }
+    SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+    return nullptr;
+}
+
+int socket_deliver_tcp(const uint8_t dest_ip[static 4], uint16_t dest_port,
+                       const uint8_t src_ip[static 4], uint16_t src_port, const uint8_t* payload, size_t payload_len)
+{
+    socket_lock_init_once();
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(socket_lock, rflags);
+    socket_t* s;
+    list_foreach_entry(s, &socket_list, list)
+    {
+        if (!s)
+            continue;
+        if (s->protocol != IPPROTO_TCP || s->type != SOCK_STREAM)
+            continue;
+        if (s->state != SOCKET_STATE_CONNECTED)
+            continue;
+        if (s->local.port != dest_port)
+            continue;
+        if (!socket_addr_is_any(s->local.ip) &&
+            memcmp(s->local.ip, dest_ip, sizeof(s->local.ip)) != 0)
+            continue;
+        if (s->state == SOCKET_STATE_CONNECTED)
+        {
+            if (!socket_addr_is_any(s->remote.ip) &&
+                memcmp(s->remote.ip, src_ip, sizeof(s->remote.ip)) != 0)
+                continue;
+            if (s->remote.port != 0 && s->remote.port != src_port)
+                continue;
+        }
+
+        socket_addr_t from = {};
+        memcpy(from.ip, src_ip, sizeof(from.ip));
+        from.port = src_port;
+        int res = socket_enqueue_rx(s, payload, payload_len, &from);
+        SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+        return res;
+    }
+    SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
+    return -1;
+}
+
 int socket_deliver_udp(const uint8_t dest_ip[static 4], uint16_t dest_port,
                        const uint8_t src_ip[static 4], uint16_t src_port,
                        const uint8_t* payload, size_t payload_len)

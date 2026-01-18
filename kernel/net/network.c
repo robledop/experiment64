@@ -5,6 +5,7 @@
 #include <net/icmp.h>
 #include <net/ipv4.h>
 #include <net/network.h>
+#include <net/tcp.h>
 #include <net/udp.h>
 #include <lib/string.h>
 #include <arpa/inet.h>
@@ -184,16 +185,17 @@ void network_receive(uint8_t* packet, const uint16_t len)
             const size_t ip_len = ntohs(ipv4_header->total_length);
             if (ip_len < ip_header_len || ip_len > len - eth_len) return;
 
+
             const uint8_t protocol = ipv4_header->protocol;
             switch (protocol)
             {
             case IP_PROTOCOL_ICMP:
                 if (my_ip_address && network_compare_ip_addresses(ipv4_header->dest_ip, my_ip_address))
-                {
                     icmp_receive(packet, len, ip_len, ip_header_len);
-                }
                 break;
             case IP_PROTOCOL_TCP:
+                if (my_ip_address && network_compare_ip_addresses(ipv4_header->dest_ip, my_ip_address))
+                    tcp_receive(packet, len, ip_len, ip_header_len);
                 break;
             case IP_PROTOCOL_UDP:
                 {
