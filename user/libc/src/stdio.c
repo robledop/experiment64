@@ -499,6 +499,38 @@ int sscanf(const char *str, const char *format, ...)
             continue;
         }
 
+        int width = 0;
+        bool have_width = false;
+        while (isdigit((unsigned char)*f))
+        {
+            have_width = true;
+            width = width * 10 + (*f - '0');
+            f++;
+        }
+
+        if (*f == 's')
+        {
+            while (isspace((unsigned char)*s))
+                s++;
+            if (*s == '\0')
+                break;
+
+            char *out = va_arg(args, char *);
+            int copied = 0;
+            bool limit = have_width && width > 0;
+            while (*s && !isspace((unsigned char)*s) && (!limit || copied < width))
+            {
+                if (out)
+                    out[copied] = *s;
+                s++;
+                copied++;
+            }
+            if (out)
+                out[copied] = '\0';
+            assigned++;
+            continue;
+        }
+
         int base = 10;
         bool is_unsigned = false;
         switch (*f)
