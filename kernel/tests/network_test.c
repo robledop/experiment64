@@ -11,13 +11,8 @@
 #include <lib/string.h>
 #include <arpa/inet.h>
 
-// ============================================================================
-// Byte order conversion tests
-// ============================================================================
-
 TEST(test_htons)
 {
-    // 0x1234 in host order should become 0x3412 in network order (big-endian)
     TEST_ASSERT(htons(0x1234) == 0x3412);
     TEST_ASSERT(htons(0x0000) == 0x0000);
     TEST_ASSERT(htons(0xFFFF) == 0xFFFF);
@@ -27,7 +22,6 @@ TEST(test_htons)
 
 TEST(test_ntohs)
 {
-    // ntohs should be the inverse of htons
     TEST_ASSERT(ntohs(0x3412) == 0x1234);
     TEST_ASSERT(ntohs(htons(0xABCD)) == 0xABCD);
     TEST_ASSERT(ntohs(0x0000) == 0x0000);
@@ -36,7 +30,6 @@ TEST(test_ntohs)
 
 TEST(test_htonl)
 {
-    // 0x12345678 should become 0x78563412
     TEST_ASSERT(htonl(0x12345678) == 0x78563412);
     TEST_ASSERT(htonl(0x00000000) == 0x00000000);
     TEST_ASSERT(htonl(0xFFFFFFFF) == 0xFFFFFFFF);
@@ -59,15 +52,11 @@ TEST(test_byte_order_roundtrip)
     return true;
 }
 
-// ============================================================================
-// Checksum tests
-// ============================================================================
-
 TEST(test_checksum_zeros)
 {
     uint8_t data[10] = {0};
     const uint16_t cs = checksum(data, sizeof(data), 0);
-    // Checksum of all zeros should be 0xFFFF (ones complement of 0)
+    // Checksum of all zeros should be 0xFFFF (one's complement of 0)
     TEST_ASSERT(cs == 0xFFFF);
     return true;
 }
@@ -76,7 +65,7 @@ TEST(test_checksum_ones)
 {
     uint8_t data[4] = {0xFF, 0xFF, 0xFF, 0xFF};
     const uint16_t cs = checksum(data, sizeof(data), 0);
-    // Checksum should be 0 (ones complement of 0xFFFF + 0xFFFF with carry)
+    // Checksum should be 0 (one's complement of 0xFFFF + 0xFFFF with carry)
     TEST_ASSERT(cs == 0x0000);
     return true;
 }
@@ -100,10 +89,6 @@ TEST(test_checksum_odd_length)
     TEST_ASSERT(cs == 0xFEFD);
     return true;
 }
-
-// ============================================================================
-// IP/MAC comparison tests
-// ============================================================================
 
 TEST(test_compare_ip_addresses_equal)
 {
@@ -152,10 +137,6 @@ TEST(test_compare_mac_addresses_broadcast)
     return true;
 }
 
-// ============================================================================
-// MAC address string formatting tests
-// ============================================================================
-
 TEST(test_get_mac_address_string)
 {
     const uint8_t mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
@@ -180,10 +161,6 @@ TEST(test_get_mac_address_string_broadcast)
     return true;
 }
 
-// ============================================================================
-// IP string conversion tests
-// ============================================================================
-
 TEST(test_inet_addr)
 {
     TEST_ASSERT(inet_addr("0.0.0.0") == 0);
@@ -199,14 +176,10 @@ TEST(test_inet_addr_invalid)
     // Values >= 256 should return 0
     TEST_ASSERT(inet_addr("256.0.0.0") == 0);
     TEST_ASSERT(inet_addr("0.256.0.0") == 0);
-    // Invalid characters in middle octets should return 0
+    // Invalid characters in the middle octets should return 0
     TEST_ASSERT(inet_addr("1.a.3.4") == 0);
     return true;
 }
-
-// ============================================================================
-// DHCP options parsing tests
-// ============================================================================
 
 TEST(test_dhcp_options_get_ip_option_subnet)
 {
@@ -314,13 +287,8 @@ TEST(test_dhcp_options_with_padding)
     return true;
 }
 
-// ============================================================================
-// Ethernet header tests
-// ============================================================================
-
 TEST(test_ether_header_size)
 {
-    // Ethernet header should be exactly 14 bytes
     TEST_ASSERT(sizeof(struct ether_header) == 14);
     return true;
 }
@@ -333,13 +301,8 @@ TEST(test_ether_type_constants)
     return true;
 }
 
-// ============================================================================
-// IPv4 header tests
-// ============================================================================
-
 TEST(test_ipv4_header_size)
 {
-    // IPv4 header (without options) should be 20 bytes
     TEST_ASSERT(sizeof(struct ipv4_header) == 20);
     return true;
 }
@@ -352,19 +315,11 @@ TEST(test_ip_protocol_constants)
     return true;
 }
 
-// ============================================================================
-// UDP header tests
-// ============================================================================
-
 TEST(test_udp_header_size)
 {
     TEST_ASSERT(sizeof(struct udp_header) == 8);
     return true;
 }
-
-// ============================================================================
-// DHCP constants tests
-// ============================================================================
 
 TEST(test_dhcp_constants)
 {
@@ -434,19 +389,15 @@ static bool tcp_test_build_packet(uint8_t* packet, const size_t packet_len,
     return true;
 }
 
-// ============================================================================
-// TCP receive tests
-// ============================================================================
-
 TEST(test_tcp_receive_basic)
 {
-    const uint8_t my_ip[4] = {10, 0, 2, 15};
+    constexpr uint8_t my_ip[4] = {10, 0, 2, 15};
     const uint8_t my_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
-    const uint8_t remote_ip[4] = {10, 0, 2, 2};
+    constexpr uint8_t remote_ip[4] = {10, 0, 2, 2};
     const uint8_t remote_mac[6] = {0x52, 0x54, 0x00, 0xAB, 0xCD, 0xEF};
     const uint16_t local_port = htons(8080);
     const uint16_t remote_port = htons(12345);
-    const uint32_t remote_seq = 1000;
+    constexpr uint32_t remote_seq = 1000;
 
     network_set_my_ip_address(my_ip);
     network_set_mac(my_mac);
@@ -461,8 +412,8 @@ TEST(test_tcp_receive_basic)
 
     constexpr size_t ip_header_len = sizeof(struct ipv4_header);
 
-    const size_t syn_ip_len = ip_header_len + sizeof(struct tcp_header);
-    const size_t syn_len = sizeof(struct ether_header) + syn_ip_len;
+    constexpr size_t syn_ip_len = ip_header_len + sizeof(struct tcp_header);
+    constexpr size_t syn_len = sizeof(struct ether_header) + syn_ip_len;
     uint8_t syn_packet[syn_len];
     TEST_ASSERT(tcp_test_build_packet(syn_packet, sizeof(syn_packet),
                                       remote_mac, my_mac,
@@ -478,8 +429,8 @@ TEST(test_tcp_receive_basic)
     TEST_ASSERT((child->flags & SOCKET_FLAG_TCP_SYN_RCVD) != 0);
     TEST_ASSERT(child->tcp_recv_next == remote_seq + 1);
 
-    const size_t ack_ip_len = ip_header_len + sizeof(struct tcp_header);
-    const size_t ack_len = sizeof(struct ether_header) + ack_ip_len;
+    constexpr size_t ack_ip_len = ip_header_len + sizeof(struct tcp_header);
+    constexpr size_t ack_len = sizeof(struct ether_header) + ack_ip_len;
     uint8_t ack_packet[ack_len];
     TEST_ASSERT(tcp_test_build_packet(ack_packet, sizeof(ack_packet),
                                       remote_mac, my_mac,
@@ -491,9 +442,9 @@ TEST(test_tcp_receive_basic)
 
     TEST_ASSERT((child->flags & SOCKET_FLAG_TCP_ESTABLISHED) != 0);
 
-    const char payload[] = "hi";
-    const size_t data_ip_len = ip_header_len + sizeof(struct tcp_header) + sizeof(payload) - 1;
-    const size_t data_len = sizeof(struct ether_header) + data_ip_len;
+    constexpr char payload[] = "hi";
+    constexpr size_t data_ip_len = ip_header_len + sizeof(struct tcp_header) + sizeof(payload) - 1;
+    constexpr size_t data_len = sizeof(struct ether_header) + data_ip_len;
     uint8_t data_packet[data_len];
     TEST_ASSERT(tcp_test_build_packet(data_packet, sizeof(data_packet),
                                       remote_mac, my_mac,

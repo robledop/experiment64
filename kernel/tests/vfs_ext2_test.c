@@ -3,9 +3,6 @@
 #include <fs/vfs.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
-#include <mem/heap.h>
-
-// Tests for EXT2 Root Filesystem
 
 TEST(test_vfs_ext2_open)
 {
@@ -97,7 +94,6 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
         return false;
     }
 
-    // Test finddir
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
@@ -105,10 +101,8 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
         return false;
     }
 
-    // Test open
     vfs_open(file);
 
-    // Test read
     char buffer[32] = {0};
     const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
@@ -119,10 +113,6 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
         return false;
     }
 
-    // "WriteTest" might be there if test_vfs_ext2_write ran first.
-    // But if we run basic first, it should be "Hello Ext2"
-    // We should probably reset the file or check for either.
-
     if (strncmp(buffer, "Hello Ext2", 10) != 0 && strncmp(buffer, "WriteTest", 9) != 0)
     {
         printk("VFS: Read wrong data: '%s'\n", buffer);
@@ -130,10 +120,9 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
         return false;
     }
 
-    // Test close
     vfs_close(file);
 
-    printk("VFS: Basic test passed. Read: %s", buffer); // buffer has newline
+    printk("VFS: Basic test passed. Read: %s", buffer);
     vfs_release(file);
     return true;
 }

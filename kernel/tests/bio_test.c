@@ -6,7 +6,7 @@ TEST(bio_test)
 {
     printk("BIO Test: Starting...\n");
 
-    // Test 1: Read a block
+    // Read a block
     buffer_head_t *bh = bread(0, 0);
     if (!bh)
     {
@@ -15,7 +15,7 @@ TEST(bio_test)
     }
     printk("BIO Test: Read block 0 successfully\n");
 
-    // Test 2: Modify the block and write it back
+    // Modify the block and write it back
     bh->data[0] = 0xAA;
     bh->data[1] = 0x55;
     bwrite(bh);
@@ -24,7 +24,7 @@ TEST(bio_test)
     // Release the buffer before reading it again
     brelse(bh);
 
-    // Test 3: Read the block again and verify the data is cached
+    // Read the block again and verify the data is cached
     buffer_head_t *bh2 = bread(0, 0);
     if (!bh2)
     {

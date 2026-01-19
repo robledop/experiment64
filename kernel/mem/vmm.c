@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <debug.h>
 #include <drivers/terminal.h>
-#include <drivers/tsc.h>
 
 uint64_t g_hhdm_offset = 0;
 

@@ -1,22 +1,14 @@
 # experiment 64
 
-An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny shell for exercising the kernel interfaces. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
+An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny shell. The tree builds with a cross-compiling `x86_64-elf-gcc` toolchain and runs under QEMU.
 
 ![Kernel splash](https://pazotto.com/img/experiment64/Screenshot2.png)
-
-## Layout (high level)
-
-- `kernel/` core kernel code, arch bring-up, drivers, mm, fs, scheduler, syscalls, tests
-- `user/` simple libc (`user/libc`) and sample programs (`init`, `sh`, `ls`, etc.)
-- `include/` shared headers
-- `docs/` design notes
-- `scripts/` build helpers (disk image generation, etc.)
 
 ## Toolchain and build requirements
 
 - Cross toolchain: `x86_64-elf-gcc` and binutils in `PATH`
 - QEMU for running and for `make tests` / `make run`
-- Optional: `clangd` / `clang-tidy` if you use the provided targets
+- Optional: `clangd` / `clang-tidy` if you use the provided Makefile targets
 
 ## Common targets
 
@@ -28,7 +20,6 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny she
 
 ## Tests
 
-Always run tests after making changes to the codebase.
 To run the tests, use the following command:
 
 ```bash
@@ -40,8 +31,6 @@ the tests.
 The tests run with a timeout of 120 seconds to prevent hanging. If you see that a timeout has occurred, it means the last
 test did not complete successfully within the allotted time.
 To know the tests completed, you need to see either "ALL TESTS PASSED" or "SOME TESTS FAILED" messages at the end.
-
-Always add new tests for every new feature/bug fix, if possible.
 
 ### Custom test framework
 

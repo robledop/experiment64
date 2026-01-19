@@ -10,6 +10,8 @@
 #define AHCI_SECTOR_SIZE 512u
 
 // AHCI register layout definitions based on the AHCI specification, section 3.3.
+// https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf
+
 struct ahci_port
 {
     uint32_t clb;      // 0x00, command list base address

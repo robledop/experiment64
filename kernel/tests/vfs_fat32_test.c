@@ -21,7 +21,6 @@ TEST_PRIO(test_vfs_fat32_mount_lookup, 10)
     if (!vfs_root)
         return false;
 
-    // Resolve /mnt
     vfs_inode_t *mnt = vfs_resolve_path("/mnt");
     if (!mnt)
     {
@@ -29,7 +28,6 @@ TEST_PRIO(test_vfs_fat32_mount_lookup, 10)
         return false;
     }
 
-    // Try to find DATA_T~1.TXT in /mnt
     vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
     if (file)
     {

@@ -2,9 +2,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <limits.h>
-
 #include <mem/heap.h>
-#include <drivers/terminal.h>
 
 static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n);
 
@@ -97,7 +95,7 @@ void *memmove(void *dst, const void *src, size_t n)
     return memcpy_forward_impl(dst, src, n);
 }
 
-// Forward memory copy - compiler will auto-vectorize due to restrict qualifiers
+// Forward memory copy - compiler should auto-vectorize due to restrict qualifiers
 static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n)
 {
     unsigned char *d = dst;

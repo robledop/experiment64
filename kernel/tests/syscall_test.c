@@ -46,9 +46,9 @@ static inline void syscall_test_restore_interrupts(void)
 
 static void enter_user_mode(uint64_t rip, uint64_t rsp)
 {
-    const uint64_t user_cs = 0x20 | 3;
-    const uint64_t user_ss = 0x18 | 3;
-    const uint64_t rflags = 0x202;
+    constexpr uint64_t user_cs = 0x20 | 3;
+    constexpr uint64_t user_ss = 0x18 | 3;
+    constexpr uint64_t rflags = 0x202;
 
 
     __asm__ volatile(
@@ -1102,9 +1102,9 @@ TEST(test_syscall_pipe_multiple_writes)
     TEST_ASSERT(sys_pipe(pipefd) == 0);
 
     // Multiple writes
-    const char* msgs[] = {"one", "two", "three"};
     for (int i = 0; i < 3; i++)
     {
+        const char* msgs[] = {"one", "two", "three"};
         int written = sys_write(pipefd[1], msgs[i], strlen(msgs[i]));
         TEST_ASSERT(written == (int)strlen(msgs[i]));
     }
@@ -1315,10 +1315,6 @@ TEST(test_syscall_dup_ref_counting)
     return true;
 }
 
-// ============================================================================
-// Tests for stat/fstat syscalls
-// ============================================================================
-
 TEST(test_syscall_stat_basic)
 {
     // Create a test file with known content
@@ -1385,10 +1381,6 @@ TEST(test_syscall_fstat_invalid_fd)
     return true;
 }
 
-// ============================================================================
-// Tests for link/unlink syscalls
-// ============================================================================
-
 TEST(test_syscall_link_basic)
 {
     // Create a file
@@ -1441,10 +1433,6 @@ TEST(test_syscall_unlink_nonexistent)
     return true;
 }
 
-// ============================================================================
-// Tests for readdir syscall
-// ============================================================================
-
 TEST(test_syscall_readdir_basic)
 {
     int fd = sys_open("/", O_RDONLY);
@@ -1473,10 +1461,6 @@ TEST(test_syscall_readdir_invalid_fd)
     return true;
 }
 
-// ============================================================================
-// Tests for usleep syscall
-// ============================================================================
-
 TEST(test_syscall_usleep_basic)
 {
     // usleep should return 0 on success
@@ -1487,19 +1471,14 @@ TEST(test_syscall_usleep_basic)
 
 TEST(test_syscall_usleep_zero)
 {
-    // usleep(0) should succeed
     int rc = sys_usleep(0);
     TEST_ASSERT(rc == 0);
     return true;
 }
 
-// ============================================================================
-// Tests for mmap/munmap syscalls
-// ============================================================================
-
 TEST(test_syscall_mmap_anonymous)
 {
-    // Note: Current mmap implementation only supports shared framebuffer mappings.
+    // Note: The current mmap implementation only supports shared framebuffer mappings.
     // Anonymous mappings are not yet implemented.
     // Map anonymous memory
     void* addr = sys_mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
@@ -1507,7 +1486,7 @@ TEST(test_syscall_mmap_anonymous)
     // Anonymous mmap is not supported - expect failure
     if (addr == MAP_FAILED)
     {
-        // Expected behavior for current implementation
+        // Expected behavior for the current implementation
         return true;
     }
 
@@ -1537,7 +1516,7 @@ TEST(test_syscall_mmap_overlap_handling)
     if (fd < 0)
         return false;
 
-    const size_t len = PAGE_SIZE;
+    constexpr size_t len = PAGE_SIZE;
     void* first = sys_mmap((void*)0x4000000000ull, len, PROT_READ | PROT_WRITE,
                            MAP_SHARED, fd, 0);
     if (first == MAP_FAILED)
@@ -1574,13 +1553,8 @@ TEST(test_syscall_munmap_invalid)
     return true;
 }
 
-// ============================================================================
-// Tests for kill syscall
-// ============================================================================
-
 TEST(test_syscall_kill_invalid_pid)
 {
-    // Kill non-existent process should fail
     TEST_ASSERT(sys_kill(99999, 9) == -1);
     return true;
 }
@@ -1593,16 +1567,9 @@ TEST(test_syscall_kill_protected_pids)
     return true;
 }
 
-// ============================================================================
-// Tests for mknod syscall
-// ============================================================================
-
 TEST(test_syscall_mknod_basic)
 {
-    // Try to create a character device node (may not be fully supported)
     int rc = sys_mknod("/dev/testdev", VFS_CHARDEVICE, 0);
-    // If the filesystem supports mknod, it should succeed or fail gracefully
-    // We just check it doesn't crash
     (void)rc;
     return true;
 }
@@ -1613,10 +1580,6 @@ TEST(test_syscall_mknod_invalid_path)
     TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -1);
     return true;
 }
-
-// ============================================================================
-// Tests for listen syscall
-// ============================================================================
 
 TEST(test_syscall_listen_basic)
 {
@@ -1682,10 +1645,6 @@ static bool syscall_test_build_tcp_packet(uint8_t* packet, const size_t packet_l
         memcpy(packet + eth_len + ip_header_len + tcp_header_len, payload, payload_len);
     return true;
 }
-
-// ============================================================================
-// Tests for accept syscall
-// ============================================================================
 
 TEST(test_syscall_accept_basic)
 {

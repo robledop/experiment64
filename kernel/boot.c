@@ -1,5 +1,4 @@
 #include <limine.h>
-#include <stddef.h>
 #include <drivers/terminal.h>
 #include <arch/x86_64/cpu.h>
 

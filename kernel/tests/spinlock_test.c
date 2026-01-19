@@ -25,7 +25,6 @@ static volatile bool g_thread_done = false;
 static void contention_thread(void)
 {
     printk("Thread: Starting...\n");
-    // Try to acquire lock
     spinlock_acquire(&g_lock);
     printk("Thread: Acquired lock!\n");
     g_counter++;
@@ -42,7 +41,6 @@ TEST(test_spinlock_contention)
     g_thread_done = false;
 
     printk("Main: Creating process...\n");
-    // Create a kernel process/thread for testing
     process_t *proc = process_create("spinlock_test_proc");
     TEST_ASSERT(proc != nullptr);
 
@@ -54,7 +52,7 @@ TEST(test_spinlock_contention)
         return false;
     }
 
-    // Acquire lock in main thread
+    // Acquire lock in the main thread
     spinlock_acquire(&g_lock);
     printk("Main: Acquired lock.\n");
 
@@ -69,7 +67,6 @@ TEST(test_spinlock_contention)
     // We still hold the lock, so the other thread should not have incremented counter
     TEST_ASSERT(g_counter == 0);
 
-    // Release lock
     spinlock_release(&g_lock);
     printk("Main: Released lock.\n");
 

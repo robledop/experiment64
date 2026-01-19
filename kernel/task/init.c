@@ -38,7 +38,6 @@ void init_process_entry(void)
     }
     current_process->heap_end = max_vaddr;
 
-    // Open /dev/console for stdin, stdout, stderr
     vfs_inode_t *console = vfs_resolve_path("/dev/console");
     if (console)
     {

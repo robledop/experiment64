@@ -15,7 +15,7 @@ TEST(test_pmm_alloc_free)
     pmm_free_page(page1);
     pmm_free_page(page2);
 
-    // Ideally we would check if they are free, but that's hard without exposing internals.
+    // Ideally, we would check if they are free, but that's hard without exposing internals.
     // Re-allocating might give back the same pages (LIFO/Stack) or different (Bitmap scan).
     // For now just checking it doesn't crash is good.
     return true;
@@ -36,7 +36,7 @@ TEST(test_pmm_alloc_pages_contiguous)
 
     pmm_free_pages(block, 3);
 
-    // Allocate again and ensure we still get something valid (not necessarily same block).
+    // Allocate again and ensure we still get something valid (not necessarily the same block).
     void *block2 = pmm_alloc_pages(3);
     TEST_ASSERT(block2 != nullptr);
     pmm_free_pages(block2, 3);

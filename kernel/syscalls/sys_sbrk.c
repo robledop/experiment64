@@ -28,7 +28,7 @@ int64_t sys_sbrk(int64_t increment)
     else if (increment < 0)
     {
         // Shrinking heap
-        // We could unmap pages here if we wanted to be thorough
+        // TODO: We could unmap pages here if we wanted to be thorough
     }
 
     current_process->heap_end = new_brk;

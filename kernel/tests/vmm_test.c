@@ -28,7 +28,7 @@ TEST(test_vmm_copy_preserves_user_mapping)
     void* phys = pmm_alloc_page();
     TEST_ASSERT(phys != nullptr);
 
-    // Fill source page so we can verify the clone gets a deep copy.
+    // Fill the source page so we can verify the clone gets a deep copy.
     memset((void*)((uint64_t)phys + g_hhdm_offset), 0xA5, PAGE_SIZE);
 
     vmm_map_page(original, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE);
@@ -47,11 +47,11 @@ TEST(test_vmm_copy_preserves_user_mapping)
         TEST_ASSERT(clone_ptr[i] == 0xA5);
     }
 
-    // Mutate clone copy; original should remain unchanged.
+    // Mutate clone copy, the original should remain unchanged.
     clone_ptr[0] = 0x3C;
     TEST_ASSERT(orig_ptr[0] == 0xA5);
 
-    // Unmap in the clone only; original should stay mapped.
+    // Unmap in the clone only, the original should stay mapped.
     vmm_unmap_page(clone, virt);
     TEST_ASSERT(vmm_virt_to_phys(clone, virt) == 0);
     TEST_ASSERT(vmm_virt_to_phys(original, virt) == (uint64_t)phys);
@@ -93,7 +93,7 @@ TEST(test_vmm_remap_overwrites_translation)
     vmm_map_page(pml4, virt, (uint64_t)phys1, PTE_PRESENT | PTE_WRITABLE);
     TEST_ASSERT(vmm_virt_to_phys(pml4, virt) == (uint64_t)phys1);
 
-    // Remap same virtual address to a new physical page.
+    // Remap the same virtual address to a new physical page.
     vmm_map_page(pml4, virt, (uint64_t)phys2, PTE_PRESENT | PTE_WRITABLE);
     TEST_ASSERT(vmm_virt_to_phys(pml4, virt) == (uint64_t)phys2);
 

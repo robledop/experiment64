@@ -6,7 +6,7 @@
 #include <lib/list.h>
 #include <task/spinlock.h>
 
-// A SIMPLE SLAB ALLOCATOR
+// A SIMPLE (naive) SLAB ALLOCATOR
 
 // https://en.wikipedia.org/wiki/Slab_allocation
 // https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwick_slab.pdf

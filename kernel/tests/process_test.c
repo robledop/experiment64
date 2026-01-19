@@ -83,10 +83,9 @@ static void scheduler_thread_entry(void)
 {
     thread_ran = 1;
     printk("Scheduler thread running!\n");
-    // Yield back to main thread
+    // Yield back to the main thread
     yield();
 
-    // Exit thread
     printk("Scheduler thread exiting.\n");
     scheduler_thread_done = true;
 }

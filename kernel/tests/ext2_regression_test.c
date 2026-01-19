@@ -22,7 +22,6 @@
 #include <fs/vfs.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
-#include <mem/heap.h>
 
 /**
  * Test: Multi-device superblock isolation
@@ -61,7 +60,7 @@ TEST(test_ext2_multi_device_isolation)
     char buf1[64] = {0};
     char buf2[64] = {0};
 
-    // Re-read from root partition - this should still work correctly
+    // Re-read from the root partition - this should still work correctly
     vfs_inode_t* rf2 = vfs_resolve_path(root_file);
     TEST_ASSERT(rf2 != nullptr);
     TEST_ASSERT(vfs_read(rf2, 0, strlen(root_data), (uint8_t *)buf1) == strlen(root_data));
@@ -99,13 +98,13 @@ TEST(test_ext2_many_file_allocations)
         return false;
 
     const char* base_path = "/disk1/alloc_test";
-    constexpr int num_files = 8; // Reduced to fit in test disk
+    constexpr int num_files = 8; // Reduced to fit in the test disk
     constexpr uint64_t data_size = 1024; // 1KB per file to use actual blocks
     char path[128];
     char data[1024];
     char readback[1024];
 
-    // Fill data buffer with a pattern
+    // Fill the data buffer with a pattern
     for (uint64_t i = 0; i < data_size; i++)
     {
         data[i] = (char)('A' + (i % 26));
@@ -122,7 +121,7 @@ TEST(test_ext2_many_file_allocations)
         vfs_inode_t* file = vfs_resolve_path(path);
         TEST_ASSERT(file != nullptr);
 
-        // Write unique data (modify first byte to identify file)
+        // Write unique data (modify the first byte to identify the file)
         data[0] = (char)('0' + (i % 10));
         TEST_ASSERT(vfs_write(file, 0, data_size, (uint8_t *)data) == data_size);
 
@@ -217,7 +216,7 @@ TEST(test_ext2_interleaved_device_ops)
 
         memset(buf, 0, sizeof(buf));
 
-        // Read from root
+        // Read from the root
         vfs_inode_t* rf = vfs_resolve_path(root_files[i]);
         TEST_ASSERT(rf != nullptr);
         TEST_ASSERT(vfs_read(rf, 0, strlen(root_data[i]), (uint8_t *)buf) == strlen(root_data[i]));
@@ -252,7 +251,7 @@ TEST(test_ext2_rapid_lifecycle)
             "Short",
             "Medium length payload for testing",
             "A somewhat longer payload that spans more bytes in the file system",
-            "X" // Very short
+            "X"
         };
         const char* path = "/disk1/rapid_lifecycle.txt";
         const char* payload = payloads[cycle % 4];
@@ -312,7 +311,7 @@ TEST(test_ext2_large_file)
     char write_buf[1024];
     for (int b = 0; b < num_blocks; b++)
     {
-        // Fill block with a pattern based on block number
+        // Fill a block with a pattern based on the block number
         for (uint64_t i = 0; i < block_size; i++)
         {
             write_buf[i] = (char)((b * 7 + i) & 0xFF);

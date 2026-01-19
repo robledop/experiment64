@@ -20,12 +20,9 @@ TEST(test_fat32_stress)
     char *dirname = "/mnt/STRESS";
     printk("Creating stress directory %s...\n", dirname);
 
-    // Try to create directory, ignore if it exists (though VFS might error)
+    // Try to create a directory, ignore if it exists
     if (vfs_mknod(dirname, VFS_DIRECTORY, 0) != 0)
     {
-        // If it fails, it might already exist, which is fine for stress test re-runs
-        // But for clean test, we assume it succeeds, or we check if it exists.
-        // For now, let's assume failure is bad unless we can check existence.
         vfs_inode_t *dir = vfs_resolve_path(dirname);
         if (!dir)
         {
@@ -55,7 +52,6 @@ TEST(test_fat32_stress)
         char filename[64];
         snprintk(filename, sizeof(filename), "%s/FILE%d.TXT", dirname, i);
 
-        // Create file
         if (vfs_mknod(filename, VFS_FILE, 0) != 0)
         {
             printk("Failed to create file %s\n", filename);
@@ -71,7 +67,7 @@ TEST(test_fat32_stress)
 
         vfs_open(node);
 
-        // Fill buffer with pattern based on index
+        // Fill the buffer with a pattern based on the index
         memset(write_buf, (i % 255), STRESS_FILE_SIZE);
 
         uint64_t written = vfs_write(node, 0, STRESS_FILE_SIZE, write_buf);

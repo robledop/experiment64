@@ -161,7 +161,6 @@ retry:
 // Return a locked buffer with the contents of the indicated block.
 buffer_head_t *bread(uint8_t device, uint32_t block)
 {
-
     if (bio_lock_initialized)
         spinlock_acquire(&bio_lock);
 
@@ -181,13 +180,10 @@ buffer_head_t *bread(uint8_t device, uint32_t block)
 
     sleeplock_acquire(&bh->lock);
 
-
     // Check if we need to read from disk
     if (!(bh->flags & BIO_FLAG_VALID))
     {
-
         int rc = storage_read(device, block, 1, bh->data);
-
 
         if (rc != 0)
         {
@@ -227,13 +223,10 @@ void bwrite(buffer_head_t *bh)
 // Release a buffer - unlocks it and decrements ref_count.
 void brelse(buffer_head_t *bh)
 {
-    if (!bh)
-        return;
-
+    if (!bh) return;
 
     // Release the sleeplock first
     sleeplock_release(&bh->lock);
-
 
     // Then update ref_count under spinlock
     if (bio_lock_initialized)

@@ -220,7 +220,7 @@ static thread_t* create_scheduler_thread(uint32_t cpu_idx)
 
     uint64_t stack_ptr = thread->kstack_top - KSTACK_SYSCALL_HEADROOM;
     stack_ptr -= sizeof(struct context);
-    // Align for direct C entry (scheduler_loop); SysV expects 16B alignment at call sites.
+    // Align for direct C entry (scheduler_loop). SysV expects 16B alignment at call sites.
     stack_ptr &= ~0xFULL;
     struct context* ctx = (struct context*)stack_ptr;
     memset(ctx, 0, sizeof(struct context));
@@ -714,7 +714,6 @@ static void process_destroy_now(process_t* proc)
             // Last reference to this descriptor - close the inode
             if (desc->inode && desc->inode != vfs_root)
             {
-                // Only close and free inode when its ref count reaches 0
                 if (desc->inode->ref <= 1)
                 {
                     vfs_close(desc->inode);
@@ -731,7 +730,6 @@ static void process_destroy_now(process_t* proc)
 
     vm_area_clear(proc);
 
-    // Free address space
     if (proc->pml4 && proc->pid != 1)
     {
         vmm_destroy_pml4(proc->pml4);
@@ -776,7 +774,7 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
 
     memset(ctx, 0, sizeof(struct context));
     ctx->rip = (uint64_t)thread_trampoline;
-    ctx->r12 = (uint64_t)entry; // R12 holds entry point
+    ctx->r12 = (uint64_t)entry;
 
     thread->context = ctx;
     thread->rsp = (uint64_t)ctx;

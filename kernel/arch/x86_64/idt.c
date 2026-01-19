@@ -7,7 +7,6 @@
 #include <task/process.h>
 #include <kernel.h>
 #include <debug.h>
-#include <mem/vmm.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00

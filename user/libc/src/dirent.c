@@ -2,7 +2,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
-#include <stddef.h>
 
 // Internal syscall wrapper; not part of the public libc API.
 extern int sys_readdir(int fd, void *dent);

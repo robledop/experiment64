@@ -6,7 +6,7 @@ TEST(test_kmalloc_small)
 {
     void *ptr = kmalloc(16);
     TEST_ASSERT(ptr != nullptr);
-    TEST_ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least pointer aligned
+    TEST_ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least pointer-aligned
     memset(ptr, 0xAA, 16);
     kfree(ptr);
     return true;
@@ -17,7 +17,7 @@ TEST(test_kmalloc_large)
     // Larger than slab max (2048)
     void *ptr = kmalloc(4096);
     TEST_ASSERT(ptr != nullptr);
-    TEST_ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least word aligned
+    TEST_ASSERT(((uintptr_t)ptr & (sizeof(void *) - 1)) == 0); // at least word-aligned
     memset(ptr, 0xBB, 4096);
     kfree(ptr);
     return true;
@@ -109,7 +109,7 @@ TEST(test_krealloc_shrink_in_place)
     memset(ptr, 0xCD, 64);
 
     char *same = krealloc(ptr, 32);
-    TEST_ASSERT(same == ptr); // should reuse existing slab slot
+    TEST_ASSERT(same == ptr); // should reuse the existing slab slot
     for (int i = 0; i < 32; i++)
     {
         TEST_ASSERT(same[i] == (char)0xCD);
@@ -135,14 +135,14 @@ TEST(test_krealloc_grow_crossing_slab_limit)
 
 TEST(test_kmalloc_reuses_freed_slot)
 {
-    // Use smallest slab size to exercise free list reuse ordering.
+    // Use the smallest slab size to exercise free list reuse ordering.
     void *first = kmalloc(16);
     void *second = kmalloc(16);
     TEST_ASSERT(first != nullptr && second != nullptr && first != second);
 
     kfree(first);
     void *third = kmalloc(16);
-    TEST_ASSERT(third == first); // recently freed slot should be first out
+    TEST_ASSERT(third == first); // the recently freed slot should be first out
 
     kfree(second);
     kfree(third);

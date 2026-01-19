@@ -183,7 +183,7 @@ void pmm_free_page(void *ptr)
     {
         boot_message(ERROR, "pmm_free_page: attempt to free slab page phys=%p", (void *)phys_ptr);
         SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
-        return; // Ignore to avoid reusing active slab backing page
+        return; // Ignore to avoid reusing an active slab backing page
     }
 
     bitmap_unset(page);

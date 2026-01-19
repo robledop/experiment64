@@ -30,7 +30,6 @@ TEST(test_fat32_directories)
         }
     }
 
-    // Create File in Directory
     printk("Writing file %s...\n", filename);
     if (fat32_write_file(&test_fs, filename, (uint8_t *)content, len) != 0)
     {
@@ -38,7 +37,6 @@ TEST(test_fat32_directories)
         return false;
     }
 
-    // Read File from Directory
     printk("Reading file %s...\n", filename);
     uint8_t buffer[512] = {0};
     if (fat32_read_file(&test_fs, filename, buffer, 512) != 0)
@@ -53,11 +51,9 @@ TEST(test_fat32_directories)
         return false;
     }
 
-    // List Directory
     printk("Listing directory %s...\n", dirname);
     fat32_list_dir(&test_fs, dirname);
 
-    // Delete File
     printk("Deleting file %s...\n", filename);
     if (fat32_delete_file(&test_fs, filename) != 0)
     {
@@ -86,7 +82,7 @@ TEST(test_fat32_directory_cluster_spill_and_delete)
     fat32_create_dir(&test_fs, dirname);
 
     char filename[32];
-    constexpr int file_count = 24; // >16 entries to spill into next cluster
+    constexpr int file_count = 24; // >16 entries to spill into the next cluster
     // Clean directory from previous runs
     for (int i = 0; i < file_count; i++)
     {

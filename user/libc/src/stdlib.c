@@ -1,6 +1,5 @@
 #include <stdlib.h>
-
-#include "stdio.h"
+#include <stdio.h>
 
 static void (*atexit_handlers[32])(void);
 static int atexit_count = 0;

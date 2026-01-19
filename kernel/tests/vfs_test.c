@@ -99,7 +99,6 @@ TEST(test_vfs_generic_basic)
         return false;
     }
 
-    // Test finddir
     vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
     if (!file)
     {
@@ -107,10 +106,8 @@ TEST(test_vfs_generic_basic)
         return false;
     }
 
-    // Test open
     vfs_open(file);
 
-    // Test read
     char buffer[32] = {0};
     const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
@@ -121,7 +118,6 @@ TEST(test_vfs_generic_basic)
         return false;
     }
 
-    // Test close
     vfs_close(file);
 
     printk("VFS: Basic test passed. Read: %s", buffer);

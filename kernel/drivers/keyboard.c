@@ -6,7 +6,6 @@
 #include <fs/vfs.h>
 #include <mem/heap.h>
 #include <lib/string.h>
-#include <drivers/terminal.h>
 
 // US QWERTY Scancode Set 1
 static constexpr char scancode_to_char[SCANCODE_TABLE_SIZE] = {
@@ -363,7 +362,6 @@ static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t* node, int request, [
         raw_read_ptr = 0;
         return 0;
     }
-    // No special configuration supported yet; accept requests for compatibility.
     return 0;
 }
 

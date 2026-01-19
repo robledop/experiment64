@@ -2,6 +2,7 @@
 #include <tests/test_util.h>
 #include <fs/vfs.h>
 #include <drivers/mouse.h>
+
 // These tests are intentionally "non-interactive": we can't rely on PS/2 hardware events
 // during automated runs. We only validate devfs wiring and that basic APIs don't crash.
 

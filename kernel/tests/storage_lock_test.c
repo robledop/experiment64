@@ -22,7 +22,6 @@ static void storage_reader_thread0(void)
         return;
     }
 
-    // One read is enough to validate forward progress.
     g_storage_thread_rc[0] = storage_read(0, 0, 1, buf);
 
     kfree(buf);
@@ -39,7 +38,6 @@ static void storage_reader_thread1(void)
         return;
     }
 
-    // One read is enough to validate forward progress.
     g_storage_thread_rc[1] = storage_read(1, 0, 1, buf);
 
     kfree(buf);
@@ -100,8 +98,6 @@ TEST(test_storage_per_device_lock_progress)
     // Device 0 must succeed.
     TEST_ASSERT(g_storage_thread_rc[0] == 0);
 
-    // Device 1 is expected to exist in the test image. If it doesn't, let the test
-    // pass rather than flaking across environments.
     if (g_storage_thread_rc[1] != 0)
     {
         printk("storage lock progress: device1 read rc=%d (continuing)\n", g_storage_thread_rc[1]);

@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include "debug.h"
+
 static struct inode_operations fat32_iops;
 static int fat32_vfs_unlink(vfs_inode_t* parent, const char* name);
 
@@ -687,6 +689,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t* node, uint64_t offset, uint64_t siz
 
 static void fat32_vfs_open([[maybe_unused]] const vfs_inode_t* node)
 {
+    printk("fat32_vfs_open not implemented");
 }
 
 static void fat32_vfs_close(vfs_inode_t* node)
@@ -949,7 +952,6 @@ static int fat32_vfs_truncate(vfs_inode_t* node)
     if (cluster == 0)
         return -1;
 
-    // Free existing chain.
     fat32_free_chain(fs, cluster);
 
     // Allocate a fresh cluster for the truncated file.
@@ -1082,8 +1084,7 @@ int fat32_read_file(fat32_fs_t* fs, const char* filename, uint8_t* buffer, uint3
     if (info.attributes & ATTR_DIRECTORY)
         return 4; // Is a directory
 
-    vfs_inode_t temp_node;
-    memset(&temp_node, 0, sizeof(vfs_inode_t));
+    vfs_inode_t temp_node = {0};
 
     fat32_inode_data_t data;
     data.fs = fs;

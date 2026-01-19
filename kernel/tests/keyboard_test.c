@@ -1,6 +1,5 @@
 #include <tests/test.h>
 #include <drivers/keyboard.h>
-#include <lib/string.h>
 
 // Helper scancodes (set 1)
 #define SC_A 0x1E
@@ -22,7 +21,7 @@ TEST(test_keyboard_basic_and_modifiers)
     TEST_ASSERT(keyboard_get_char() == 'a');
     TEST_ASSERT(keyboard_get_char() == 'b');
 
-    // CapsLock toggles case for letters.
+    // CapsLock toggles casing for letters.
     keyboard_inject_scancode(SC_CAPSLOCK);
     keyboard_inject_scancode(SC_A);
     TEST_ASSERT(keyboard_get_char() == 'A');
@@ -46,7 +45,7 @@ TEST(test_keyboard_buffer_wraparound)
 {
     keyboard_reset_state_for_test();
 
-    // Fill buffer with 100 'a's
+    // Fill the buffer with 100 'a's
     for (int i = 0; i < 100; i++)
     {
         keyboard_inject_scancode(SC_A);
@@ -63,7 +62,7 @@ TEST(test_keyboard_buffer_wraparound)
         keyboard_inject_scancode(SC_B);
     }
 
-    // Consume remaining 110 chars: 50 'a' + 60 'b'
+    // Consume the remaining 110 chars: 50 'a' + 60 'b'
     for (int i = 0; i < 50; i++)
     {
         TEST_ASSERT(keyboard_get_char() == 'a');

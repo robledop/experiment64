@@ -86,7 +86,6 @@ TEST(test_fat32_write_delete)
         return false;
     }
 
-    // Delete
     if (fat32_delete_file(&test_fs, filename) != 0)
     {
         printk("Failed to delete NEW.TXT\n");

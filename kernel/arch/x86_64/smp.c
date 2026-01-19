@@ -6,7 +6,6 @@
 #include <arch/x86_64/idt.h>
 #include <arch/x86_64/apic.h>
 #include <sys/syscall.h>
-#include <task/process.h>
 
 #define MAX_CPUS 32
 

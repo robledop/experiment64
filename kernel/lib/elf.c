@@ -5,7 +5,6 @@
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
-#include <drivers/tsc.h>
 
 static bool elf_validate_header(const elf64_ehdr* header)
 {
@@ -44,7 +43,6 @@ static Elf64_Phdr* elf_read_program_headers(vfs_inode_t* node, const elf64_ehdr*
 
 static bool elf_load_segment(vfs_inode_t* node, const Elf64_Phdr* ph, pml4_t pml4, uint64_t* max_vaddr)
 {
-
     // Align start and end to page boundaries
     uint64_t start_addr = ph->p_vaddr;
     uint64_t end_addr = ph->p_vaddr + ph->p_memsz;
@@ -82,7 +80,7 @@ static bool elf_load_segment(vfs_inode_t* node, const Elf64_Phdr* ph, pml4_t pml
 
     for (uint64_t addr = page_start; addr < page_end; addr += PAGE_SIZE)
     {
-        // Check if already mapped?
+        // TODO: Check if already mapped?
         // For now, just allocate new page.
         void* phys = pmm_alloc_page();
         if (!phys)

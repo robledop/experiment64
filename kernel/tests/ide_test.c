@@ -1,13 +1,14 @@
 #include <tests/test.h>
 #include <drivers/ide.h>
 #include <lib/string.h>
-#include <drivers/terminal.h> // For printk if needed
+#include <drivers/terminal.h>
 
 static bool ide_initialized = false;
 
 TEST(test_ide_read_write)
 {
-    // IDE is already initialized during boot; avoid re-initializing unless needed.
+    // IDE is already initialized during boot.
+    // Avoid re-initializing unless needed.
     if (!ide_initialized)
     {
         for (int i = 0; i < 4; i++)
@@ -51,11 +52,8 @@ TEST(test_ide_read_write)
     }
 
     // Use a sector that is likely safe.
-    // Sector 2000 (1MB is 2048 sectors).
-    // Let's use sector 20000 (10MB).
     constexpr uint32_t lba = 20000;
 
-    // Write
     int res = ide_write_sectors(drive, lba, 1, write_buf);
     if (res != 0)
     {
@@ -63,7 +61,6 @@ TEST(test_ide_read_write)
         return false;
     }
 
-    // Clear read buffer
     memset(read_buf, 0, 512);
 
     // Read back

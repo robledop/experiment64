@@ -3,7 +3,6 @@
 #include <lib/string.h>
 #include <stdint.h>
 
-// GPT header signature.
 static constexpr char gpt_sig[8] = {'E', 'F', 'I', ' ', 'P', 'A', 'R', 'T'};
 
 TEST(test_storage_disk0_gpt_signature)

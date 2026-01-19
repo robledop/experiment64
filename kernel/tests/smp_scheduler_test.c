@@ -48,8 +48,6 @@ static void smp_worker_entry(void)
     }
 
     __atomic_fetch_add(&g_threads_completed, 1, __ATOMIC_SEQ_CST);
-
-    // Return immediately; keeping this short reduces test flakiness.
 }
 
 TEST_PRIO(test_smp_aps_execute_threads, 5)
@@ -146,9 +144,9 @@ static void smp_user_exit_hook([[maybe_unused]] int code)
 
 static void smp_enter_user_mode(uint64_t rip, uint64_t rsp)
 {
-    const uint64_t user_cs = 0x20 | 3;
-    const uint64_t user_ss = 0x18 | 3;
-    const uint64_t rflags = 0x202;
+    constexpr uint64_t user_cs = 0x20 | 3;
+    constexpr uint64_t user_ss = 0x18 | 3;
+    constexpr uint64_t rflags = 0x202;
 
     __asm__ volatile(
         "cli\n"

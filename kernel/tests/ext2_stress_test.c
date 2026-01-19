@@ -3,7 +3,6 @@
 #include <fs/vfs.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
-#include <mem/heap.h>
 
 // Helper to construct paths
 static void make_path(char *buffer, const char *base, const char *sub, int index)
@@ -29,12 +28,8 @@ TEST(test_ext2_stress)
     const char *dirname = "/disk1/stress_ext2";
     printk("Creating EXT2 stress directory %s...\n", dirname);
 
-    // Create directory
     if (vfs_mknod((char *)dirname, VFS_DIRECTORY, 0) != 0)
     {
-        // It might already exist from previous run, try to continue
-        // But vfs_mknod returns -1 if exists.
-        // We can check if it exists.
         vfs_inode_t *node = vfs_resolve_path(dirname);
         if (!node)
         {
@@ -73,7 +68,7 @@ TEST(test_ext2_stress)
             make_path(filepath, path, "file", j);
             strcat(filepath, ".txt");
 
-            // Create file
+            // Create a file
             if (vfs_mknod(filepath, VFS_FILE, 0) != 0)
             {
                 // Check if exists
