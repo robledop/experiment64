@@ -1,6 +1,7 @@
 #include <lib/string.h>
 #include <mem/heap.h>
 #include <net/socket.h>
+#include <net/tcp.h>
 #include <sys/fcntl.h>
 #include <task/process.h>
 
@@ -25,12 +26,38 @@ static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint
     return copy_len;
 }
 
+static bool socket_ip_is_zero(const uint8_t ip[static 4])
+{
+    return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
+}
+
+static void socket_send_tcp_fin(socket_t* sock)
+{
+    if (!sock)
+        return;
+    if (sock->protocol != IPPROTO_TCP || sock->type != SOCK_STREAM)
+        return;
+    if ((sock->flags & SOCKET_FLAG_TCP_ESTABLISHED) == 0)
+        return;
+    if (sock->flags & SOCKET_FLAG_TCP_FIN_SENT)
+        return;
+    if (socket_ip_is_zero(sock->remote.ip) || sock->remote.port == 0)
+        return;
+
+    tcp_send_segment(sock, sock->remote.ip, sock->remote.port,
+                     sock->tcp_send_next, sock->tcp_recv_next,
+                     (uint8_t)(TCP_FLAG_FIN | TCP_FLAG_ACK), nullptr, 0, nullptr);
+    sock->tcp_send_next += 1;
+    sock->flags |= SOCKET_FLAG_TCP_FIN_SENT;
+}
+
 static void socket_inode_close(vfs_inode_t* node)
 {
     if (!node) return;
     auto sock = (socket_t*)node->device;
     if (sock)
     {
+        socket_send_tcp_fin(sock);
         socket_unregister(sock);
         node->device = nullptr;
         kfree(sock);
