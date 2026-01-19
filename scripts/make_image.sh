@@ -73,6 +73,8 @@ mkdir -p build/rootfs_ext2/boot
 mkdir -p build/rootfs_data/test_dir
 mkdir -p build/rootfs_data/docs
 
+cp -r assets/web build/rootfs_ext2/web/
+
 # Populate ESP
 cp -v "$KERNEL" build/rootfs_esp/boot/
 cp -v limine.conf limine/limine-bios.sys build/rootfs_esp/boot/limine/
