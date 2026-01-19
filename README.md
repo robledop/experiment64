@@ -86,7 +86,7 @@ make run
 
 ## GUI
 
-It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives.
+It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives based on https://github.com/JMarlin/wsbe
 
 ![GUI screenshot](docs/img/gui.png)
 
