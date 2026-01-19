@@ -359,7 +359,7 @@ static void vformat(struct out_ctx *ctx, const char *format, va_list args)
             char *s = va_arg(args, char *);
             if (!s)
                 s = "(null)";
-            int len = strnlen_s(s, 1024);
+            int len = (int)strlen(s);
             if (precision >= 0 && precision < len)
                 len = precision;
             if (!left_align)

@@ -95,3 +95,9 @@ It has the *beginnings* of a GUI, with a simple window manager and basic graphic
 I also ported DOOM. It only runs full screen, not inside a window.
 
 ![DOOM screenshot](docs/img/doom.png)
+
+## Web server
+
+A small web server is also included.
+
+![Web server screenshot](docs/img/webserver.png)

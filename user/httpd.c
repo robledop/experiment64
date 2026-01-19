@@ -16,7 +16,6 @@ typedef struct http_request
 
 http_request_t parse_http_request(const char* buf)
 {
-    printf("Parsing HTTP request: %s\n", buf);
     http_request_t request = {0};
     sscanf(buf, "%7s %255s %15s", request.method, request.path, request.protocol);
     return request;
@@ -25,11 +24,11 @@ http_request_t parse_http_request(const char* buf)
 ssize_t send_200ok(const int sockfd, const char* page, struct sockaddr_in client_addr)
 {
     char response[2048] = {0};
-    snprintf(response, sizeof(response), "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s", strlen(page), page);
+    snprintf(response, sizeof(response), OK"Connection: close\r\nContent-Length: %d\r\n\r\n%s", strlen(page), page);
     return sendto(sockfd, response, strlen(response), 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
 }
 
-int main()
+[[noreturn]] int main()
 {
     const int fd = open("/dev/eth0", O_RDONLY);
     struct netinfo netinfo;
@@ -51,6 +50,9 @@ int main()
 
     listen(sockfd, 10);
 
+    FILE* log_file = fopen("/var/log/httpd", "a");
+    if (log_file == nullptr) panic("failed to open log file\n");
+
     while (1)
     {
         struct sockaddr_in client_addr = {0};
@@ -61,8 +63,7 @@ int main()
         char client_ip_buf[16];
         uint32_t client_ip = 0;
         bytes_to_ip(client_addr.sin_addr, &client_ip);
-        inet_ntoa_r(client_ip, client_ip_buf);
-        printf("client connected from %s\n", client_ip_buf);
+        inet_ntoa_r(ntohl(client_ip), client_ip_buf);
 
         char buf[2048] = {0};
         const ssize_t req_len = read(connfd, buf, sizeof(buf) - 1);
@@ -72,10 +73,10 @@ int main()
             continue;
         }
         buf[req_len] = '\0';
-        printf("%s\n", (char*)buf);
 
         http_request_t request = parse_http_request(buf);
-        printf("METHOD: %s PATH: %s PROTOCOL: %s\n", request.method, request.path, request.protocol);
+        fprintf(log_file, "request from %s: %s %s %s\n", client_ip_buf, request.method,
+                request.path, request.protocol);
 
         if (strcmp(request.method, "GET") != 0)
         {
@@ -112,8 +113,4 @@ int main()
 
         close(connfd);
     }
-
-    close(sockfd);
-
-    return 0;
 }
