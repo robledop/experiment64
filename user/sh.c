@@ -314,7 +314,6 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
 int main(void)
 {
     int fd;
-    int child_pid = -1;
 
     // Ensure that three file descriptors are open.
     while ((fd = open("/dev/console", O_RDWR)) >= 0)
@@ -388,23 +387,11 @@ int main(void)
             continue;
         }
 
-        bool return_immediately = false;
-        return_immediately = ends_with((char *)buf, " &");
-
-        if (return_immediately)
-        {
-            buf[strlen((char *)buf) - 2] = 0x00;
-        }
-
-        child_pid = fork1();
-        if (child_pid == 0)
+        if (fork1() == 0)
         {
             runcmd(parsecmd(buf));
         }
-        if (!return_immediately)
-        {
-            wait(nullptr);
-        }
+        wait(nullptr);
     }
 }
 
