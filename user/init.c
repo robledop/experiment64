@@ -42,9 +42,19 @@
         }
         else if (pid_sh > 0)
         {
+            // Only restart the shell, not other child processes, but wait() all child processes to reap them.
             int status;
-            wait(&status);
-            printf("Shell exited with status %d\n", status);
+            for (;;)
+            {
+                const int pid = wait(&status);
+                if (pid < 0)
+                    break;
+                if (pid == pid_sh)
+                {
+                    printf("Shell exited with status %d\n", status);
+                    break;
+                }
+            }
         }
         else
         {
