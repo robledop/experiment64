@@ -12,7 +12,7 @@ struct defer_action
     void *arg;
 };
 
-static inline void defer_cleanup(struct defer_action *action)
+static inline void defer_cleanup(const struct defer_action *action)
 {
     if (action && action->func)
         action->func(action->arg);

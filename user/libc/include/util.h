@@ -3,13 +3,14 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <attributes.h>
 
-static inline int clamp_to_int(uint64_t value)
+static inline UNUSED int clamp_to_int(const uint64_t value)
 {
     return (value > (uint64_t)INT_MAX) ? INT_MAX : (int)value;
 }
 
-static inline int clamp_signed_to_int(int64_t value)
+static inline UNUSED int clamp_signed_to_int(int64_t value)
 {
     if (value > INT_MAX)
         return INT_MAX;
@@ -18,15 +19,15 @@ static inline int clamp_signed_to_int(int64_t value)
     return (int)value;
 }
 
-typedef void (*defer_func_t)(void *);
+typedef void (*defer_func_t)(void*);
 
 struct defer_action
 {
     defer_func_t func;
-    void *arg;
+    void* arg;
 };
 
-static inline void defer_cleanup(struct defer_action *action)
+static inline UNUSED void defer_cleanup(const struct defer_action* action)
 {
     if (action && action->func)
         action->func(action->arg);
@@ -36,13 +37,13 @@ static inline void defer_cleanup(struct defer_action *action)
 #define DEFER(base, line) DEFER_NAME(base, line)
 #define defer(func, arg) __attribute__((cleanup(defer_cleanup))) struct defer_action DEFER(_defer_, __LINE__) = {func, arg}
 
-static inline void cleanup_free(void *ptr)
+static inline UNUSED void cleanup_free(void* ptr)
 {
     if (!ptr)
     {
         return;
     }
-    auto p = (void **)ptr;
+    auto p = (void**)ptr;
     if (*p)
     {
         free(*p);
