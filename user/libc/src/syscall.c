@@ -293,6 +293,19 @@ int accept(int sockfd, struct sockaddr* addr, socklen_t addrlen)
 }
 
 /**
+ * @brief Send data on a connected socket
+ * @param sockfd The socket file descriptor
+ * @param buf The buffer containing the data to send
+ * @param len The length of the data to send
+ * @param flags Flags for the send operation
+ * @return The number of bytes sent, or -1 on error
+ */
+ssize_t send(int sockfd, const void* buf, size_t len, int flags)
+{
+    return sendto(sockfd, buf, len, flags, nullptr, 0);
+}
+
+/**
  * @brief Send data to a specific address using a socket
  * @param sockfd The socket file descriptor
  * @param buf The buffer containing the data to send
