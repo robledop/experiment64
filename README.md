@@ -67,7 +67,8 @@ make run
 - **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, e1000 NIC, framebuffer device `/dev/fb0`
 - **Networking**: e1000 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/`, FAT32 mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`
-- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
+- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.); the shell supports pipes/redirection/background `&` (see `docs/shell.md`)
+- **Signals**: basic POSIX-style signal handling (`kill`, `sigaction`, `sigreturn`) with user-mode delivery; see `docs/signals.md`
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture
