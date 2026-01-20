@@ -10,17 +10,17 @@ static inline sigset_t signal_valid_mask(void)
     return (SIG_MAX == 64) ? ~((sigset_t)0) : (((sigset_t)1 << SIG_MAX) - 1);
 }
 
-static inline sigset_t signal_bit(int sig)
+static inline sigset_t signal_bit(const int sig)
 {
     return (sigset_t)1 << (sig - 1);
 }
 
-static bool signal_default_ignore(int sig)
+static bool signal_default_ignore(const int sig)
 {
     return sig == SIGCHLD || sig == SIGCONT;
 }
 
-static bool signal_uncatchable(int sig)
+static bool signal_uncatchable(const int sig)
 {
     return sig == SIGKILL || sig == SIGSTOP;
 }
@@ -32,8 +32,7 @@ static bool signal_default_terminate(int sig)
 
 static void signal_mark_threads_ready(process_t* target)
 {
-    if (!target)
-        return;
+    if (!target) return;
 
     thread_t* t;
     list_foreach_entry(t, &target->threads, list)
@@ -45,8 +44,7 @@ static void signal_mark_threads_ready(process_t* target)
 
 static void signal_terminate_locked(process_t* target, int sig, process_t** parent_out)
 {
-    if (!target)
-        return;
+    if (!target) return;
 
     target->exit_code = 128 + sig;
     target->terminated = true;
@@ -64,19 +62,16 @@ static void signal_terminate_locked(process_t* target, int sig, process_t** pare
         if (p && p->parent == target)
         {
             p->parent = new_parent;
-            if (p->terminated)
-                thread_wakeup(new_parent);
+            if (p->terminated) thread_wakeup(new_parent);
         }
     }
 
-    if (parent_out)
-        *parent_out = target->parent;
+    if (parent_out) *parent_out = target->parent;
 }
 
 void signal_init_process(process_t* proc)
 {
-    if (!proc)
-        return;
+    if (!proc) return;
 
     memset(proc->sigactions, 0, sizeof(proc->sigactions));
     proc->sig_mask = 0;
@@ -103,8 +98,7 @@ void signal_reset_exec(process_t* proc)
 
 void signal_copy_on_fork(process_t* child, const process_t* parent)
 {
-    if (!child || !parent)
-        return;
+    if (!child || !parent) return;
 
     memcpy(child->sigactions, parent->sigactions, sizeof(child->sigactions));
     child->sig_mask = parent->sig_mask;
@@ -114,15 +108,13 @@ void signal_copy_on_fork(process_t* child, const process_t* parent)
 
 static int signal_claim_pending_locked(process_t* proc, sigaction_t* action_out, sigset_t* bit_out)
 {
-    if (!proc)
-        return 0;
+    if (!proc) return 0;
 
     sigset_t pending = proc->sig_pending & ~proc->sig_mask;
     for (int sig = 1; sig <= SIG_MAX; sig++)
     {
         sigset_t bit = signal_bit(sig);
-        if ((pending & bit) == 0)
-            continue;
+        if ((pending & bit) == 0) continue;
 
         sigaction_t action = proc->sigactions[sig - 1];
         if (action.sa_handler == SIG_IGN || (action.sa_handler == SIG_DFL && signal_default_ignore(sig)))
@@ -133,10 +125,8 @@ static int signal_claim_pending_locked(process_t* proc, sigaction_t* action_out,
         }
 
         proc->sig_pending &= ~bit;
-        if (action_out)
-            *action_out = action;
-        if (bit_out)
-            *bit_out = bit;
+        if (action_out) *action_out = action;
+        if (bit_out) *bit_out = bit;
         return sig;
     }
     return 0;
@@ -145,9 +135,7 @@ static int signal_claim_pending_locked(process_t* proc, sigaction_t* action_out,
 static bool signal_setup_user_frame(uint64_t user_rsp, const sigcontext_t* ctx,
                                     uint64_t restorer, uint64_t* out_rsp)
 {
-    if (!ctx || restorer == 0 || !out_rsp)
-        return false;
-
+    if (!ctx || restorer == 0 || !out_rsp) return false;
     if (user_rsp < sizeof(sigcontext_t) + sizeof(uint64_t))
         return false;
 
@@ -234,8 +222,7 @@ int signal_send_pid(int pid, int sig)
 
     spinlock_release(&scheduler_lock);
 
-    if (parent)
-        thread_wakeup(parent);
+    if (parent) thread_wakeup(parent);
 
     if (killed_self)
     {
@@ -251,10 +238,9 @@ int signal_send_pid(int pid, int sig)
     return 0;
 }
 
-bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
+bool signal_deliver_syscall(struct syscall_regs* regs, const uint64_t* ret)
 {
-    if (!regs || !ret)
-        return false;
+    if (!regs || !ret) return false;
 
     process_t* proc = current_process;
     thread_t* t = current_thread;
@@ -284,8 +270,7 @@ bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, sig, &parent);
         spinlock_release(&scheduler_lock);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         if (flags & RFLAGS_IF)
             __asm__ volatile("sti");
@@ -297,8 +282,7 @@ bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, SIGSEGV, &parent);
         spinlock_release(&scheduler_lock);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         if (flags & RFLAGS_IF)
             __asm__ volatile("sti");
@@ -343,8 +327,7 @@ bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, SIGSEGV, &parent);
         spinlock_release(&scheduler_lock);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         if (flags2 & RFLAGS_IF)
             __asm__ volatile("sti");
@@ -353,8 +336,7 @@ bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
 
     regs->rcx = (uint64_t)action.sa_handler;
     regs->rdi = sig;
-    if (cpu)
-        cpu->user_rsp = new_rsp;
+    if (cpu) cpu->user_rsp = new_rsp;
     t->saved_user_rsp = new_rsp;
 
     return true;
@@ -362,11 +344,8 @@ bool signal_deliver_syscall(struct syscall_regs* regs, uint64_t* ret)
 
 bool signal_deliver_interrupt(struct interrupt_frame* frame)
 {
-    if (!frame)
-        return false;
-
-    if ((frame->cs & 0x3) == 0)
-        return false;
+    if (!frame) return false;
+    if ((frame->cs & 0x3) == 0) return false;
 
     process_t* proc = current_process;
     thread_t* t = current_thread;
@@ -396,8 +375,7 @@ bool signal_deliver_interrupt(struct interrupt_frame* frame)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, sig, &parent);
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         return true;
     }
@@ -407,8 +385,7 @@ bool signal_deliver_interrupt(struct interrupt_frame* frame)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, SIGSEGV, &parent);
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         return true;
     }
@@ -448,8 +425,7 @@ bool signal_deliver_interrupt(struct interrupt_frame* frame)
         process_t* parent = nullptr;
         signal_terminate_locked(proc, SIGSEGV, &parent);
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags2);
-        if (parent)
-            thread_wakeup(parent);
+        if (parent) thread_wakeup(parent);
         schedule();
         return true;
     }
@@ -458,8 +434,7 @@ bool signal_deliver_interrupt(struct interrupt_frame* frame)
     frame->rdi = sig;
     frame->rsp = new_rsp;
     cpu_t* cpu = get_cpu();
-    if (cpu)
-        cpu->user_rsp = new_rsp;
+    if (cpu) cpu->user_rsp = new_rsp;
     t->saved_user_rsp = new_rsp;
 
     return true;

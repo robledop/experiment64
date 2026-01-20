@@ -4,14 +4,11 @@
 
 int sys_sigaction(int signum, const sigaction_t* act, sigaction_t* oldact)
 {
-    if (!current_process)
-        return -1;
-    if (signum <= 0 || signum > SIG_MAX)
-        return -1;
+    if (!current_process) return -1;
+    if (signum <= 0 || signum > SIG_MAX) return -1;
     if (signum == SIGKILL || signum == SIGSTOP)
     {
-        if (act)
-            return -1;
+        if (act) return -1;
     }
 
     sigaction_t new_action = {};
