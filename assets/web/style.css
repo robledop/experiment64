@@ -7,7 +7,9 @@
     --shadow: rgba(0, 0, 0, 0.08);
 }
 
-* { box-sizing: border-box; }
+* {
+    box-sizing: border-box;
+}
 
 body {
     margin: 0;
@@ -35,7 +37,9 @@ h1 {
     letter-spacing: 0.5px;
 }
 
-p { line-height: 1.6; }
+p {
+    line-height: 1.6;
+}
 
 nav {
     display: flex;
@@ -53,8 +57,19 @@ a {
     font-weight: 600;
 }
 
-a:hover { background: rgba(37, 99, 235, 0.1); }
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 32px auto;
+}
+
+a:hover {
+    background: rgba(37, 99, 235, 0.1);
+}
 
 @media (max-width: 600px) {
-    main { padding: 32px 24px; }
+    main {
+        padding: 32px 24px;
+    }
 }
