@@ -39,7 +39,10 @@
 #define SYS_RECVFROM 36
 #define SYS_LISTEN 37
 #define SYS_ACCEPT 38
+#define SYS_SIGACTION 39
+#define SYS_SIGRETURN 40
 
+#ifndef __ASSEMBLER__
 static inline long syscall0(long n)
 {
     long ret;
@@ -80,3 +83,4 @@ static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5,
                          : "rcx", "r11", "memory");
     return ret;
 }
+#endif
