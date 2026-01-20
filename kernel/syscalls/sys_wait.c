@@ -34,10 +34,8 @@ int sys_wait(int* status)
         if (found)
         {
             int code = found->exit_code;
-            if (status && (uint64_t)status < 0x800000000000)
-            {
+            if (status)
                 copy_to_user(status, &code, sizeof(int));
-            }
             int pid = found->pid;
 
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
