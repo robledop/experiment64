@@ -1,4 +1,4 @@
-#include "syscall_common.h"
+#include <syscall_common.h>
 
 #include <fs/pipe.h>
 #include <mem/heap.h>

@@ -1,4 +1,4 @@
-#include "syscall_common.h"
+#include <syscall_common.h>
 
 int sys_link(const char* oldpath, const char* newpath)
 {

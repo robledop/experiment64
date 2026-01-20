@@ -1,4 +1,4 @@
-#include "syscall_common.h"
+#include <syscall_common.h>
 
 #include <arch/x86_64/apic.h>
 #include <drivers/tsc.h>

@@ -1,4 +1,4 @@
-#include "syscall_common.h"
+#include <syscall_common.h>
 
 #include <drivers/keyboard.h>
 #include <lib/util.h>

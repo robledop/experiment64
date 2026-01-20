@@ -1,4 +1,4 @@
-#include "syscall_common.h"
+#include <syscall_common.h>
 #include <lib/path.h>
 #include <lib/string.h>
 #include <mem/vmm.h>
