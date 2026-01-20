@@ -3,6 +3,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <string.h>
 
 #define OK "HTTP/1.1 200 OK\r\n"
 #define NOT_FOUND "HTTP/1.1 404 Not Found\r\nContent-Length: 18\r\n\r\n<h1>Not found</h1>"
@@ -21,11 +23,59 @@ http_request_t parse_http_request(const char* buf)
     return request;
 }
 
-ssize_t send_200ok(const int sockfd, const char* page, struct sockaddr_in client_addr)
+static ssize_t send_all(const int sockfd, const void* buf, const size_t len)
 {
-    char response[2048] = {0};
-    snprintf(response, sizeof(response), OK"Connection: close\r\nContent-Length: %d\r\n\r\n%s", strlen(page), page);
-    return sendto(sockfd, response, strlen(response), 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
+    auto data = (const char*)buf;
+    size_t sent_total = 0;
+    while (sent_total < len)
+    {
+        const ssize_t sent = send(sockfd, data + sent_total, len - sent_total, 0);
+        if (sent <= 0) return sent;
+        sent_total += (size_t)sent;
+    }
+    return (ssize_t)sent_total;
+}
+
+static const char* get_content_type(const char* path)
+{
+    const char* ext = strrchr(path, '.');
+    if (ext == nullptr) return "application/octet-stream";
+    if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0)
+        return "text/html";
+    if (strcmp(ext, ".css") == 0) return "text/css";
+    if (strcmp(ext, ".png") == 0) return "image/png";
+    if (strcmp(ext, ".jpg") == 0) return "image/jpg";
+
+    return "application/octet-stream";
+}
+
+static int send_file_response(const int sockfd, const int fd, const char* content_type)
+{
+    struct stat st = {0};
+    if (fstat(fd, &st) < 0) return -1;
+
+    char header[256] = {0};
+    const int header_len = snprintf(
+        header,
+        sizeof(header),
+        OK "Connection: close\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n",
+        content_type,
+        (long)st.size);
+
+    if (header_len <= 0) return -1;
+
+    if (send_all(sockfd, header, (size_t)header_len) <= 0)
+        return -1;
+
+    char buf[4096];
+
+    ssize_t nread = 0;
+    while ((nread = read(fd, buf, sizeof(buf))) > 0)
+    {
+        if (send_all(sockfd, buf, (size_t)nread) <= 0)
+            return -1;
+    }
+    return 0;
 }
 
 [[noreturn]] int main()
@@ -88,10 +138,15 @@ ssize_t send_200ok(const int sockfd, const char* page, struct sockaddr_in client
         if (strcmp(request.path, "/") == 0)
         {
             const int homefd = open("/web/index.html", O_RDONLY);
-            char homebuf[2048] = {0};
-            read(homefd, homebuf, sizeof(homebuf));
-            send_200ok(connfd, homebuf, client_addr);
-            close(homefd);
+            if (homefd < 0)
+            {
+                send(connfd, NOT_FOUND, sizeof(NOT_FOUND), 0);
+            }
+            else
+            {
+                send_file_response(connfd, homefd, "text/html");
+                close(homefd);
+            }
         }
         else
         {
@@ -100,13 +155,11 @@ ssize_t send_200ok(const int sockfd, const char* page, struct sockaddr_in client
             const int pagefd = open(path, O_RDONLY);
             if (pagefd < 0)
             {
-                sendto(connfd, NOT_FOUND, sizeof(NOT_FOUND), 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
+                send(connfd, NOT_FOUND, sizeof(NOT_FOUND), 0);
             }
             else
             {
-                char pagebuf[2048] = {0};
-                read(pagefd, pagebuf, sizeof(pagebuf));
-                send_200ok(connfd, pagebuf, client_addr);
+                send_file_response(connfd, pagefd, get_content_type(path));
                 close(pagefd);
             }
         }
