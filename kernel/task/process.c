@@ -1,4 +1,5 @@
 #include <task/process.h>
+#include <task/signal.h>
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
@@ -408,6 +409,7 @@ void process_init(void)
     kernel_process->cwd[0] = '/';
     kernel_process->cwd[1] = '\0';
     vm_area_init(kernel_process);
+    signal_init_process(kernel_process);
 
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
@@ -494,6 +496,7 @@ process_t* process_create(const char* name)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
     vm_area_init(proc);
+    signal_init_process(proc);
 
     spinlock_acquire(&scheduler_lock);
     proc->pid = next_pid++;

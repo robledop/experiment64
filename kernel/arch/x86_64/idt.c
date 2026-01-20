@@ -5,6 +5,7 @@
 #include <arch/x86_64/apic.h>
 #include <drivers/ide.h>
 #include <task/process.h>
+#include <task/signal.h>
 #include <kernel.h>
 #include <debug.h>
 
@@ -314,6 +315,9 @@ void interrupt_handler(struct interrupt_frame *frame)
 #endif
         hcf();
     }
+
+    if (frame->int_no >= 32)
+        signal_deliver_interrupt(frame);
 }
 
 void idt_init(void)

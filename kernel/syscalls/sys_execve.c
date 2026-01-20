@@ -4,6 +4,7 @@
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <sys/syscall.h>
+#include <task/signal.h>
 
 #define EXEC_MAX_ARGS 16
 #define EXEC_MAX_ARG_LEN 128
@@ -72,8 +73,7 @@ static void setup_user_stack(uint64_t stack_top,
 int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] const char* const envp[],
                struct syscall_regs* regs)
 {
-    if (!path || !*path)
-        return -1;
+    if (!path || !*path) return -1;
 
     TEST_SYSCALL_LOG("sys_execve: enter pid=%d path_ptr=%p argv_ptr=%p envp_ptr=%p\n",
                      current_process ? current_process->pid : -1,
@@ -145,6 +145,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
 
     current_process->heap_end = max_vaddr;
     set_process_name_from_path(current_process, abs_path);
+    signal_reset_exec(current_process);
     regs->rcx = entry_point;
     get_cpu()->user_rsp = user_rsp;
 

@@ -3,6 +3,7 @@
 #include <lib/string.h>
 #include <mem/vmm.h>
 #include <sys/syscall.h>
+#include <task/signal.h>
 
 extern void fork_child_trampoline(void);
 
@@ -28,6 +29,7 @@ int sys_fork(struct syscall_regs* regs)
     child_proc->pml4 = child_pml4;
     child_proc->parent = current_process;
     child_proc->heap_end = current_process->heap_end;
+    signal_copy_on_fork(child_proc, current_process);
 
     process_copy_fds(child_proc, current_process);
     vm_area_clone(child_proc, current_process);

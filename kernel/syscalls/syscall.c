@@ -6,7 +6,8 @@
 #include <net/socket.h>
 #include <sys/time.h>
 #include <task/process.h>
-#include "syscall_common.h"
+#include <task/signal.h>
+#include <syscall_common.h>
 
 extern void syscall_entry(void);
 
@@ -85,96 +86,143 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     uint64_t arg5 = regs ? regs->r8 : 0;
     uint64_t arg6 = regs ? regs->r9 : 0;
 
+    uint64_t ret = 0;
     switch (syscall_number)
     {
     case SYS_WRITE:
-        return sys_write((int)arg1, (const char*)arg2, (size_t)arg3);
+        ret = sys_write((int)arg1, (const char*)arg2, (size_t)arg3);
+        break;
     case SYS_EXIT:
         sys_exit((int)arg1);
         return 0;
     case SYS_EXEC:
-        sys_exec((const char*)arg1, regs);
-        return 0;
+        ret = sys_exec((const char*)arg1, regs);
+        break;
     case SYS_EXECVE:
-        return sys_execve((const char*)arg1, (const char*const *)arg2, (const char*const *)arg3, regs);
+        ret = sys_execve((const char*)arg1, (const char*const *)arg2, (const char*const *)arg3, regs);
+        break;
     case SYS_FORK:
-        return sys_fork(regs);
+        ret = sys_fork(regs);
+        break;
     case SYS_SPAWN:
-        return sys_spawn((const char*)arg1);
+        ret = sys_spawn((const char*)arg1);
+        break;
     case SYS_WAIT:
-        return sys_wait((int*)arg1);
+        ret = sys_wait((int*)arg1);
+        break;
     case SYS_GETPID:
-        return sys_getpid();
+        ret = sys_getpid();
+        break;
     case SYS_YIELD:
         yield();
-        return 0;
+        ret = 0;
+        break;
     case SYS_READ:
-        return sys_read((int)arg1, (char*)arg2, (size_t)arg3);
+        ret = sys_read((int)arg1, (char*)arg2, (size_t)arg3);
+        break;
     case SYS_SBRK:
-        return sys_sbrk((int64_t)arg1);
+        ret = sys_sbrk((int64_t)arg1);
+        break;
     case SYS_OPEN:
-        return sys_open((const char*)arg1, (int)arg2);
+        ret = sys_open((const char*)arg1, (int)arg2);
+        break;
     case SYS_CLOSE:
-        return sys_close((int)arg1);
+        ret = sys_close((int)arg1);
+        break;
     case SYS_READDIR:
-        return sys_readdir((int)arg1, (vfs_dirent_t*)arg2);
+        ret = sys_readdir((int)arg1, (vfs_dirent_t*)arg2);
+        break;
     case SYS_CHDIR:
-        return sys_chdir((const char*)arg1);
+        ret = sys_chdir((const char*)arg1);
+        break;
     case SYS_SLEEP:
-        return sys_sleep(arg1);
+        ret = sys_sleep(arg1);
+        break;
     case SYS_USLEEP:
-        return sys_usleep(arg1);
+        ret = sys_usleep(arg1);
+        break;
     case SYS_MKNOD:
-        return sys_mknod((const char*)arg1, (int)arg2, (int)arg3);
+        ret = sys_mknod((const char*)arg1, (int)arg2, (int)arg3);
+        break;
     case SYS_IOCTL:
-        return sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
+        ret = sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
+        break;
     case SYS_MMAP:
-        return (uint64_t)sys_mmap((void*)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
+        ret = (uint64_t)sys_mmap((void*)arg1, (size_t)arg2, (int)arg3, (int)arg4, (int)arg5, (size_t)arg6);
+        break;
     case SYS_MUNMAP:
-        return (uint64_t)sys_munmap((void*)arg1, (size_t)arg2);
+        ret = (uint64_t)sys_munmap((void*)arg1, (size_t)arg2);
+        break;
     case SYS_STAT:
-        return sys_stat((const char*)arg1, (struct stat*)arg2);
+        ret = sys_stat((const char*)arg1, (struct stat*)arg2);
+        break;
     case SYS_FSTAT:
-        return sys_fstat((int)arg1, (struct stat*)arg2);
+        ret = sys_fstat((int)arg1, (struct stat*)arg2);
+        break;
     case SYS_LINK:
-        return sys_link((const char*)arg1, (const char*)arg2);
+        ret = sys_link((const char*)arg1, (const char*)arg2);
+        break;
     case SYS_UNLINK:
-        return sys_unlink((const char*)arg1);
+        ret = sys_unlink((const char*)arg1);
+        break;
     case SYS_GETCWD:
-        return sys_getcwd((char*)arg1, (size_t)arg2);
+        ret = sys_getcwd((char*)arg1, (size_t)arg2);
+        break;
     case SYS_GETTIMEOFDAY:
-        return sys_gettimeofday((struct timeval*)arg1, (struct timezone*)arg2);
+        ret = sys_gettimeofday((struct timeval*)arg1, (struct timezone*)arg2);
+        break;
     case SYS_PIPE:
-        return sys_pipe((int*)arg1);
+        ret = sys_pipe((int*)arg1);
+        break;
     case SYS_LSEEK:
-        return sys_lseek((int)arg1, (long)arg2, (int)arg3);
+        ret = sys_lseek((int)arg1, (long)arg2, (int)arg3);
+        break;
     case SYS_DUP:
-        return sys_dup((int)arg1);
+        ret = sys_dup((int)arg1);
+        break;
     case SYS_SHUTDOWN:
         sys_shutdown();
-        return 0;
+        ret = 0;
+        break;
     case SYS_REBOOT:
         sys_reboot();
-        return 0;
+        ret = 0;
+        break;
     case SYS_KILL:
-        return sys_kill((int)arg1, (int)arg2);
+        ret = sys_kill((int)arg1, (int)arg2);
+        break;
     case SYS_SOCKET:
-        return sys_socket((int)arg1, (int)arg2, (int)arg3);
+        ret = sys_socket((int)arg1, (int)arg2, (int)arg3);
+        break;
     case SYS_BIND:
-        return sys_bind((int)arg1, (const struct sockaddr*)arg2, (size_t)arg3);
+        ret = sys_bind((int)arg1, (const struct sockaddr*)arg2, (size_t)arg3);
+        break;
     case SYS_LISTEN:
-        return sys_listen((int)arg1, (int)arg2);
+        ret = sys_listen((int)arg1, (int)arg2);
+        break;
     case SYS_ACCEPT:
-        return sys_accept((int)arg1, (struct sockaddr*)arg2, (size_t)arg3);
+        ret = sys_accept((int)arg1, (struct sockaddr*)arg2, (size_t)arg3);
+        break;
     case SYS_SENDTO:
-        return sys_sendto((int)arg1, (const void*)arg2, (size_t)arg3, (int)arg4,
-                          (const struct sockaddr*)arg5, (socklen_t)arg6);
+        ret = sys_sendto((int)arg1, (const void*)arg2, (size_t)arg3, (int)arg4,
+                         (const struct sockaddr*)arg5, (socklen_t)arg6);
+        break;
     case SYS_RECVFROM:
-        return sys_recvfrom((int)arg1, (void*)arg2, (size_t)arg3, (int)arg4,
-                            (struct sockaddr*)arg5, (socklen_t*)arg6);
+        ret = sys_recvfrom((int)arg1, (void*)arg2, (size_t)arg3, (int)arg4,
+                           (struct sockaddr*)arg5, (socklen_t*)arg6);
+        break;
+    case SYS_SIGACTION:
+        ret = sys_sigaction((int)arg1, (const sigaction_t*)arg2, (sigaction_t*)arg3);
+        break;
+    case SYS_SIGRETURN:
+        ret = sys_sigreturn((const sigcontext_t*)arg1, regs);
+        break;
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode
         __builtin_unreachable();
     }
+
+    signal_deliver_syscall(regs, &ret);
+    return ret;
 }

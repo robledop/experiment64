@@ -6,6 +6,7 @@
 #include <lib/path.h>
 #include <mem/vmm.h>
 #include <arch/x86_64/cpu.h>
+#include <sys/signal.h>
 
 #define KSTACK_SIZE 65536
 #define KSTACK_SYSCALL_HEADROOM 512
@@ -71,6 +72,10 @@ typedef struct Process
     struct Process* parent; // Parent process
     int exit_code;
     bool terminated;
+    sigaction_t sigactions[SIG_MAX];
+    sigset_t sig_mask;
+    sigset_t sig_pending;
+    int sig_inflight;
     uint64_t heap_end; // Current program break
     file_descriptor_t* fd_table[MAX_FDS];
     char cwd[PATH_MAX];
