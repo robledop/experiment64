@@ -46,11 +46,26 @@ bool user_ptr_write_ok(const void* dst, size_t size, const char* op)
     return true;
 }
 
+bool user_ptr_read_ok(const void* src, size_t size, const char* op)
+{
+    return user_ptr_write_ok(src, size, op ? op : "user_ptr_read");
+}
+
 bool copy_to_user(void* dst, const void* src, size_t size)
 {
     if (!dst || !src)
         return false;
     if (!user_ptr_write_ok(dst, size, "copy_to_user"))
+        return false;
+    memcpy(dst, src, size);
+    return true;
+}
+
+bool copy_from_user(void* dst, const void* src, size_t size)
+{
+    if (!dst || !src)
+        return false;
+    if (!user_ptr_read_ok(src, size, "copy_from_user"))
         return false;
     memcpy(dst, src, size);
     return true;
