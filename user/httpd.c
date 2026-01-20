@@ -7,8 +7,9 @@
 #include <string.h>
 #include <hashtable.h>
 
-#define OK "HTTP/1.1 200 OK\r\n"
-#define NOT_FOUND "HTTP/1.1 404 Not Found\r\nContent-Length: 18\r\n\r\n<h1>Not found</h1>"
+#define OK "HTTP/1.1 200 OK\r\nConnection: close\r\n"
+#define NOT_FOUND "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 18\r\n\r\n<h1>Not found</h1>"
+#define METHOD_NOT_ALLOWED "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\nContent-Length: 28\r\n\r\n<h1>Method Not Allowed</h1>"
 
 typedef struct http_request
 {
@@ -120,7 +121,7 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
     const int header_len = snprintf(
         header,
         sizeof(header),
-        OK "Connection: close\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n",
+        OK "Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
         content_type,
         (long)st.size);
 
@@ -192,7 +193,7 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
 
         if (strcmp(request.method, "GET") != 0)
         {
-            sendto(connfd, NOT_FOUND, sizeof(NOT_FOUND), 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
+            send(connfd, METHOD_NOT_ALLOWED, sizeof(METHOD_NOT_ALLOWED), 0);
             close(connfd);
             continue;
         }
