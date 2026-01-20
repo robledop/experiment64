@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 static inline int clamp_to_int(uint64_t value)
 {
