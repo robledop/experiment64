@@ -58,16 +58,35 @@ int tcp_sendto(const void* buf, const size_t len, const struct sockaddr* dest_ad
     if (dest_addr &&
         (memcmp(sock->remote.ip, in.sin_addr, sizeof(sock->remote.ip)) != 0 ||
             sock->remote.port != in.sin_port))
+    {
         return -1;
+    }
     if (len == 0) return 0;
 
-    constexpr uint8_t tcp_flags = (uint8_t)(TCP_FLAG_ACK | TCP_FLAG_PSH);
-    if (tcp_send_segment(sock, sock->remote.ip, sock->remote.port,
-                         sock->tcp_send_next, sock->tcp_recv_next,
-                         tcp_flags, (const uint8_t*)buf, len, nullptr) != 0)
-        return -1;
-    sock->tcp_send_next += (uint32_t)len;
-    return clamp_to_int(len);
+    constexpr size_t max_payload = ETH_DATA_LEN - sizeof(struct ipv4_header) - sizeof(struct tcp_header);
+    auto data = (const uint8_t*)buf;
+    size_t sent_total = 0;
+
+    while (sent_total < len)
+    {
+        size_t chunk = len - sent_total;
+        if (chunk > max_payload)
+            chunk = max_payload;
+
+        uint8_t flags = TCP_FLAG_ACK;
+        if (sent_total + chunk == len)
+            flags |= TCP_FLAG_PSH;
+
+        if (tcp_send_segment(sock, sock->remote.ip, sock->remote.port,
+                             sock->tcp_send_next, sock->tcp_recv_next,
+                             flags, data + sent_total, chunk, nullptr) != 0)
+            return (sent_total > 0) ? clamp_to_int(sent_total) : -1;
+
+        sock->tcp_send_next += (uint32_t)chunk;
+        sent_total += chunk;
+    }
+
+    return clamp_to_int(sent_total);
 }
 
 int udp_sendto(const void* buf, const size_t len, socket_t* const sock, struct sockaddr_in in, const uint8_t* my_ip,
