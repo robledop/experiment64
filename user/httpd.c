@@ -10,6 +10,7 @@
 #define OK "HTTP/1.1 200 OK\r\nConnection: close\r\n"
 #define NOT_FOUND "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 18\r\n\r\n<h1>Not found</h1>"
 #define METHOD_NOT_ALLOWED "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\nContent-Length: 28\r\n\r\n<h1>Method Not Allowed</h1>"
+#define INTERNAL_SERVER_ERROR "HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\nContent-Length: 28\r\n\r\n<h1>Internal Server Error</h1>"
 
 typedef struct http_request
 {
@@ -144,6 +145,7 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
 [[noreturn]] int main()
 {
     const int fd = open("/dev/eth0", O_RDONLY);
+    if (fd < 0) panic("httpd: cannot open /dev/eth0\n");
     struct netinfo netinfo;
     ioctl(fd, GETNETINFO, &netinfo);
     close(fd);
@@ -152,26 +154,25 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
     printf("running httpd on ip %s port %d\n", ip_buf, 80);
 
     const int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sockfd < 0) panic("socket failed\n");
+    if (sockfd < 0) panic("httpd: socket failed\n");
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(80);
 
     if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
-        panic("bind failed\n");
+        panic("httpd: bind failed\n");
 
-    listen(sockfd, 10);
+    if (listen(sockfd, 10) < 0) panic("httpd: listen failed\n");
 
     FILE* log_file = fopen("/var/log/httpd", "a");
-    if (log_file == nullptr) panic("failed to open log file\n");
+    if (log_file == nullptr) panic("httpd: failed to open log file\n");
 
     while (1)
     {
         struct sockaddr_in client_addr = {0};
         const int connfd = accept(sockfd, (struct sockaddr*)&client_addr, sizeof(client_addr));
-        if (connfd < 0)
-            continue;
+        if (connfd < 0) continue;
 
         char client_ip_buf[16];
         uint32_t client_ip = 0;
@@ -215,15 +216,15 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
         {
             char path[256] = {0};
             snprintf(path, sizeof(path), "/web%s", request.path);
-            const int pagefd = open(path, O_RDONLY);
-            if (pagefd < 0)
+            const int filefd = open(path, O_RDONLY);
+            if (filefd < 0)
             {
                 send(connfd, NOT_FOUND, sizeof(NOT_FOUND), 0);
             }
             else
             {
-                send_file_response(connfd, pagefd, get_content_type(path));
-                close(pagefd);
+                send_file_response(connfd, filefd, get_content_type(path));
+                close(filefd);
             }
         }
 
