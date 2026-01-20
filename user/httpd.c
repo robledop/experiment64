@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <hashtable.h>
 
 #define OK "HTTP/1.1 200 OK\r\n"
 #define NOT_FOUND "HTTP/1.1 404 Not Found\r\nContent-Length: 18\r\n\r\n<h1>Not found</h1>"
@@ -15,6 +16,11 @@ typedef struct http_request
     char path[256];
     char protocol[16];
 } http_request_t;
+
+#define MIME_TABLE_SIZE 64
+static ht_str_entry_t mime_table_entries[MIME_TABLE_SIZE];
+static ht_str_table_t mime_table;
+static int mime_table_ready = 0;
 
 http_request_t parse_http_request(const char* buf)
 {
@@ -36,17 +42,73 @@ static ssize_t send_all(const int sockfd, const void* buf, const size_t len)
     return (ssize_t)sent_total;
 }
 
+static void mime_table_init(void)
+{
+    static const ht_str_entry_t entries[] = {
+        {".html", "text/html"},
+        {".htm", "text/html"},
+        {".css", "text/css"},
+        {".js", "application/javascript"},
+        {".png", "image/png"},
+        {".jpg", "image/jpg"},
+        {".svg", "image/svg+xml"},
+        {".ttf", "application/x-font-ttf"},
+        {".woff", "application/font-woff"},
+        {".woff2", "application/font-woff2"},
+        {".eot", "application/vnd.ms-fontobject"},
+        {".otf", "font/otf"},
+        {".json", "application/json"},
+        {".wasm", "application/wasm"},
+        {".txt", "text/plain"},
+        {".ico", "image/x-icon"},
+        {".xml", "text/xml"},
+        {".pdf", "application/pdf"},
+        {".zip", "application/zip"},
+        {".gz", "application/gzip"},
+        {".mp3", "audio/mpeg"},
+        {".mp4", "video/mp4"},
+        {".ogg", "audio/ogg"},
+        {".wav", "audio/wav"},
+        {".avi", "video/avi"},
+        {".mov", "video/quicktime"},
+        {".flv", "video/x-flv"},
+        {".exe", "application/x-msdownload"},
+        {".bin", "application/octet-stream"},
+        {".torrent", "application/x-bittorrent"},
+        {".dmg", "application/x-apple-diskimage"},
+        {".iso", "application/x-iso9660-image"},
+        {".rar", "application/x-rar-compressed"},
+        {".7z", "application/x-7z-compressed"},
+        {".tar", "application/x-tar"},
+        {".bz2", "application/x-bzip2"},
+        {".xz", "application/x-xz"},
+        {".zst", "application/zstd"},
+    };
+
+    if (ht_str_init(&mime_table, mime_table_entries, MIME_TABLE_SIZE) != 0)
+    {
+        mime_table_ready = 1;
+        return;
+    }
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); ++i)
+        ht_str_insert(&mime_table, entries[i].key, entries[i].value);
+    mime_table_ready = 1;
+}
+
+static const char* mime_table_lookup(const char* ext)
+{
+    if (!mime_table_ready) mime_table_init();
+
+    return ht_str_get(&mime_table, ext);
+}
+
 static const char* get_content_type(const char* path)
 {
     const char* ext = strrchr(path, '.');
     if (ext == nullptr) return "application/octet-stream";
-    if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0)
-        return "text/html";
-    if (strcmp(ext, ".css") == 0) return "text/css";
-    if (strcmp(ext, ".png") == 0) return "image/png";
-    if (strcmp(ext, ".jpg") == 0) return "image/jpg";
 
-    return "application/octet-stream";
+    const char* type = mime_table_lookup(ext);
+    return type ? type : "application/octet-stream";
 }
 
 static int send_file_response(const int sockfd, const int fd, const char* content_type)
