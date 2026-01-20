@@ -63,6 +63,7 @@ int sys_spawn(const char* path)
     uint64_t stack_top = 0x7FFFFFFFF000;
     uint64_t stack_size = 4 * 4096;
     uint64_t stack_base = stack_top - stack_size;
+    uint64_t user_rsp = stack_top - 16;
 
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
     {
@@ -75,6 +76,16 @@ int sys_spawn(const char* path)
             return -1;
         }
         vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+    }
+
+    pml4_t old_pml4 = current_process ? current_process->pml4 : nullptr;
+    if (old_pml4)
+    {
+        vmm_switch_pml4(new_pml4);
+        uint64_t* stack_ptr = (uint64_t*)user_rsp;
+        stack_ptr[0] = 0;
+        stack_ptr[1] = 0;
+        vmm_switch_pml4(old_pml4);
     }
 
     process_t* proc = process_create(path);
@@ -98,7 +109,7 @@ int sys_spawn(const char* path)
         return -1;
     }
     thread->user_entry = entry_point;
-    thread->user_stack = stack_top;
+    thread->user_stack = user_rsp;
 
     TEST_SYSCALL_LOG("sys_spawn: created pid=%d tid=%d entry=%lx stack=%lx parent=%d\n",
                      proc->pid,
