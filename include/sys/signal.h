@@ -43,7 +43,7 @@ typedef uint64_t sigset_t;
 #define SIGCHLD 17
 // Continue if stopped.
 #define SIGCONT 18
-// Stop process (cannot be caught or ignored).
+// Stop the process (cannot be caught or ignored).
 #define SIGSTOP 19
 // Stop from keyboard (Ctrl+Z).
 #define SIGTSTP 20
