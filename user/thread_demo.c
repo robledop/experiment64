@@ -3,6 +3,7 @@
 
 static constexpr char k_thread_msg[] = "thread_demo: worker tick ";
 
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
 static void thread_entry(void* arg)
 {
     auto msg = (const char*)arg;
@@ -12,8 +13,7 @@ static void thread_entry(void* arg)
         sleep(100);
     }
 
-    for (;;)
-        yield();
+    thread_exit(0);
 }
 
 int main(void)

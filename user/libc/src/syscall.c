@@ -144,6 +144,12 @@ int thread_create(void (*entry)(void*), void* arg)
     return clamp_signed_to_int(syscall2(SYS_THREAD_CREATE, (long)entry, (long)arg));
 }
 
+[[noreturn]] void thread_exit(int status)
+{
+    syscall1(SYS_THREAD_EXIT, status);
+    while (1);
+}
+
 void* sbrk(intptr_t increment)
 {
     return (void*)syscall1(SYS_SBRK, (long)increment);
