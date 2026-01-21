@@ -220,6 +220,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_THREAD_CREATE:
         ret = sys_thread_create(arg1, arg2);
         break;
+    case SYS_THREAD_EXIT:
+        sys_thread_exit((int)arg1);
+        return 0;
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode
