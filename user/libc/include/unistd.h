@@ -20,6 +20,7 @@ int wait(int *status);
 int getpid(void);
 void yield(void);
 int spawn(const char *path);
+int thread_create(void (*entry)(void *), void *arg);
 void *sbrk(intptr_t increment);
 int open(const char *path, int flags);
 int close(int fd);

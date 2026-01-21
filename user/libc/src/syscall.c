@@ -139,6 +139,11 @@ int spawn(const char* path)
     return clamp_signed_to_int(syscall1(SYS_SPAWN, (long)path));
 }
 
+int thread_create(void (*entry)(void*), void* arg)
+{
+    return clamp_signed_to_int(syscall2(SYS_THREAD_CREATE, (long)entry, (long)arg));
+}
+
 void* sbrk(intptr_t increment)
 {
     return (void*)syscall1(SYS_SBRK, (long)increment);
