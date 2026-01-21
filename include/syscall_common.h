@@ -31,3 +31,6 @@ bool fd_can_write(const file_descriptor_t* desc);
 void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st);
 int resolve_user_path(const char* path, char* resolved, size_t size);
 void set_process_name_from_path(process_t* proc, const char* path);
+thread_t* find_thread_by_tid(process_t* proc, int tid);
+bool thread_active_on_any_cpu(thread_t* t);
+void free_thread_resources(thread_t* t);
