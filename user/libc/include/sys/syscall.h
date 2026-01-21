@@ -45,6 +45,8 @@
 #define SYS_THREAD_EXIT 42
 #define SYS_THREAD_JOIN 43
 #define SYS_GETTID 44
+#define SYS_FUTEX_WAIT 45
+#define SYS_FUTEX_WAKE 46
 
 #ifndef __ASSEMBLER__
 static inline long syscall0(long n)

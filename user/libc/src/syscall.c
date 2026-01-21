@@ -160,6 +160,14 @@ int thread_join(int tid, int* status)
     return clamp_signed_to_int(syscall2(SYS_THREAD_JOIN, tid, (long)status));
 }
 
+{
+    return clamp_signed_to_int(syscall2(SYS_FUTEX_WAIT, (long)addr, expected));
+}
+
+int futex_wake(volatile int* addr, int count)
+{
+    return clamp_signed_to_int(syscall2(SYS_FUTEX_WAKE, (long)addr, count));
+}
 void* sbrk(intptr_t increment)
 {
     return (void*)syscall1(SYS_SBRK, (long)increment);

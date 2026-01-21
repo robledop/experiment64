@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 static constexpr char k_thread_msg[] = "thread_demo: worker tick ";
+static volatile int g_futex_word = 0;
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static void thread_entry(void* arg)
@@ -9,8 +10,15 @@ static void thread_entry(void* arg)
     auto msg = (const char*)arg;
     for (int i = 0; i < 5; i++)
     {
+        const int wait_val = i * 2;
+        while (__atomic_load_n(&g_futex_word, __ATOMIC_ACQUIRE) != (i * 2 + 1))
+        {
+            futex_wait(&g_futex_word, wait_val);
+        }
+
         printf("%s%d\n", msg, i);
-        sleep(100);
+        __atomic_store_n(&g_futex_word, i * 2 + 2, __ATOMIC_RELEASE);
+        futex_wake(&g_futex_word, 1);
     }
 
     thread_exit(0);
@@ -30,7 +38,14 @@ int main(void)
     for (int i = 0; i < 5; i++)
     {
         printf("thread_demo: main tick %d\n", i);
-        sleep(120);
+        __atomic_store_n(&g_futex_word, i * 2 + 1, __ATOMIC_RELEASE);
+        futex_wake(&g_futex_word, 1);
+
+        const int wait_val = i * 2 + 1;
+        while (__atomic_load_n(&g_futex_word, __ATOMIC_ACQUIRE) != (i * 2 + 2))
+        {
+            futex_wait(&g_futex_word, wait_val);
+        }
     }
 
     int status = 0;

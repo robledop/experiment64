@@ -229,6 +229,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_GETTID:
         ret = sys_gettid();
         break;
+    case SYS_FUTEX_WAIT:
+        ret = sys_futex_wait((uint32_t*)arg1, (uint32_t)arg2);
+        break;
+    case SYS_FUTEX_WAKE:
+        ret = sys_futex_wake((uint32_t*)arg1, (int)arg2);
+        break;
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode

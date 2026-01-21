@@ -61,6 +61,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_THREAD_EXIT 42
 #define SYS_THREAD_JOIN 43
 #define SYS_GETTID 44
+#define SYS_FUTEX_WAIT 45
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -111,6 +112,9 @@ int sys_thread_create(uint64_t entry, uint64_t arg);
 void sys_thread_exit(int code);
 int sys_thread_join(int tid, int* status);
 int sys_gettid(void);
+int sys_futex_wait(uint32_t* uaddr, uint32_t expected);
+int sys_futex_wake(uint32_t* uaddr, int count);
+int sys_thread_detach(int tid);
 void sys_shutdown();
 void sys_reboot();
 

@@ -2,11 +2,7 @@
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
-
-int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
-int sys_ioctl(int fd, int request, void* arg);
-int sys_open(const char* path, int flags);
-int sys_close(int fd);
+#include <task/process.h>
 
 TEST(test_sys_thread_join_basic)
 {
@@ -42,6 +38,45 @@ TEST(test_sys_gettimeofday_basic)
     TEST_ASSERT(tv.tv_sec >= 0);
     TEST_ASSERT(tz.tz_minuteswest == 0);
     TEST_ASSERT(tz.tz_dsttime == 0);
+    return true;
+}
+
+static volatile uint32_t g_futex_word = 0;
+static volatile bool g_futex_done = false;
+
+static void futex_waker_entry(void)
+{
+    while (!g_futex_done)
+    {
+        if (__atomic_load_n(&g_futex_word, __ATOMIC_RELAXED) == 1)
+            sys_futex_wake((uint32_t*)&g_futex_word, 1);
+        yield();
+    }
+}
+
+TEST(test_sys_futex_wait_wake)
+{
+    g_futex_word = 0;
+    g_futex_done = false;
+
+    thread_t* t = thread_create(current_process, futex_waker_entry, false);
+    if (!t)
+        return false;
+    thread_make_ready(t);
+
+    __atomic_store_n(&g_futex_word, 1, __ATOMIC_RELAXED);
+    int rc = sys_futex_wait((uint32_t*)&g_futex_word, 1);
+    g_futex_done = true;
+
+    TEST_ASSERT(rc == 0);
+    return true;
+}
+
+TEST(test_sys_futex_wait_mismatch)
+{
+    g_futex_word = 0;
+    int rc = sys_futex_wait((uint32_t*)&g_futex_word, 1);
+    TEST_ASSERT(rc == -1);
     return true;
 }
 
