@@ -1,0 +1,205 @@
+#include <sys/syscall.h>
+#include <syscall_common.h>
+#include <lib/util.h>
+#include <mem/heap.h>
+#include <mem/pmm.h>
+#include <mem/vmm.h>
+#include <arch/x86_64/cpu.h>
+
+static constexpr uint64_t THREAD_STACK_PAGES = 4;
+static constexpr uint64_t THREAD_STACK_SIZE = THREAD_STACK_PAGES * PAGE_SIZE;
+static constexpr uint64_t THREAD_STACK_TOP_HINT = 0x7FFFFFFFF000ull;
+static constexpr uint64_t THREAD_STACK_LOW_LIMIT = 0x0000000000400000ull;
+
+static inline uint64_t align_down_u64(uint64_t val, uint64_t align)
+{
+    return val & ~(align - 1);
+}
+
+static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, uint64_t* out_start, uint64_t* out_end)
+{
+    if (!proc || !out_start || !out_end)
+        return false;
+
+    uint64_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
+    if (user_top <= PAGE_SIZE)
+        return false;
+
+    const uint64_t hint = top_hint != 0 ? top_hint : THREAD_STACK_TOP_HINT;
+    uint64_t limit = min(hint, user_top - PAGE_SIZE);
+    limit = align_down_u64(limit, PAGE_SIZE);
+
+    while (limit >= THREAD_STACK_LOW_LIMIT + size)
+    {
+        const uint64_t start = limit - size;
+        const uint64_t end = limit;
+        bool overlap = false;
+        uint64_t next_end = limit;
+
+        vm_area_t* area;
+        list_foreach_entry(area, &proc->vm_areas, list)
+        {
+            if (!(end <= area->start || start >= area->end))
+            {
+                overlap = true;
+                if (area->start < next_end)
+                    next_end = area->start;
+            }
+        }
+
+        if (!overlap)
+        {
+            *out_start = start;
+            *out_end = end;
+            return true;
+        }
+
+        if (next_end >= limit)
+            break;
+        limit = align_down_u64(next_end, PAGE_SIZE);
+    }
+
+    return false;
+}
+
+static bool map_stack_pages(uint64_t start, uint64_t end, void** pages, size_t page_count)
+{
+    uint64_t addr = start;
+    size_t idx = 0;
+    for (; addr < end && idx < page_count; addr += PAGE_SIZE, idx++)
+    {
+        void* phys = pmm_alloc_page();
+        if (!phys)
+            break;
+        pages[idx] = phys;
+        vmm_map_page(current_process->pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+    }
+
+    if (addr == end && idx == page_count)
+        return true;
+
+    for (size_t i = 0; i < idx; i++)
+    {
+        vmm_unmap_page(current_process->pml4, start + (i * PAGE_SIZE));
+        pmm_free_page(pages[i]);
+    }
+    return false;
+}
+
+static void unmap_stack_pages(uint64_t start, void** pages, size_t page_count)
+{
+    for (size_t i = 0; i < page_count; i++)
+    {
+        if (!pages[i])
+            continue;
+        vmm_unmap_page(current_process->pml4, start + (i * PAGE_SIZE));
+        pmm_free_page(pages[i]);
+    }
+}
+
+static void vm_area_remove(process_t* proc, vm_area_t* area)
+{
+    if (!proc || !area)
+        return;
+    list_del(&area->list);
+    if (proc->vm_area_count > 0)
+        proc->vm_area_count--;
+    kfree(area);
+}
+
+static void thread_user_trampoline(void)
+{
+    constexpr uint64_t user_cs = 0x20 | 3;
+    constexpr uint64_t user_ss = 0x18 | 3;
+    constexpr uint64_t rflags = 0x202;
+
+    thread_t* t = current_thread;
+    if (!t || !t->user_entry || !t->user_stack)
+    {
+        sys_exit(-1);
+        __builtin_unreachable();
+    }
+
+    const uint64_t entry = t->user_entry;
+    const uint64_t stack = t->user_stack;
+    const uint64_t arg = t->user_arg;
+
+    __asm__ volatile(
+        "cli\n"
+        "swapgs\n"
+        "mov ds, %0\n"
+        "mov es, %0\n"
+        "mov fs, %0\n"
+        "mov gs, %0\n"
+        "push %0\n"
+        "push %1\n"
+        "push %2\n"
+        "push %3\n"
+        "push %4\n"
+        "mov rdi, %5\n"
+        "xor rsi, rsi\n"
+        "iretq\n"
+        :
+        : "r"(user_ss), "r"(stack), "r"(rflags), "r"(user_cs), "r"(entry), "r"(arg)
+        : "memory", "rdi", "rsi");
+    __builtin_unreachable();
+}
+
+int sys_thread_create(uint64_t entry, uint64_t arg)
+{
+    if (!current_thread || !current_thread->is_user)
+        return -1;
+    if (entry == 0)
+        return -1;
+    if (!user_ptr_read_ok((void*)entry, 1, "sys_thread_create entry"))
+        return -1;
+
+    uint64_t top_hint = THREAD_STACK_TOP_HINT;
+    cpu_t* cpu = get_cpu();
+    if (cpu && cpu->user_rsp)
+    {
+        uint64_t rsp_hint = align_down_u64(cpu->user_rsp, PAGE_SIZE);
+        if (rsp_hint > THREAD_STACK_LOW_LIMIT + THREAD_STACK_SIZE)
+            top_hint = min(top_hint, rsp_hint - THREAD_STACK_SIZE);
+    }
+
+    uint64_t stack_start = 0;
+    uint64_t stack_end = 0;
+    if (!find_stack_range(current_process, THREAD_STACK_SIZE, top_hint, &stack_start, &stack_end))
+        return -1;
+
+    void* pages[THREAD_STACK_PAGES] = {nullptr};
+    if (!map_stack_pages(stack_start, stack_end, pages, THREAD_STACK_PAGES))
+        return -1;
+    vm_area_t* area = vm_area_add(current_process, stack_start, stack_end, VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK);
+    if (!area)
+    {
+        unmap_stack_pages(stack_start, pages, THREAD_STACK_PAGES);
+        return -1;
+    }
+
+    thread_t* thread = thread_create(current_process, thread_user_trampoline, true);
+    if (!thread)
+    {
+        vm_area_remove(current_process, area);
+        unmap_stack_pages(stack_start, pages, THREAD_STACK_PAGES);
+        return -1;
+    }
+
+    uint64_t user_stack = align_down_u64(stack_end - 16, 16);
+
+    thread->user_entry = entry;
+    thread->user_stack = user_stack;
+    thread->user_arg = arg;
+    thread->saved_user_rsp = user_stack;
+    thread_make_ready(thread);
+
+    TEST_SYSCALL_LOG("sys_thread_create: pid=%d tid=%d entry=0x%lx stack=0x%lx arg=0x%lx\n",
+                     current_process->pid,
+                     thread->tid,
+                     (unsigned long)entry,
+                     (unsigned long)user_stack,
+                     (unsigned long)arg);
+
+    return thread->tid;
+}
