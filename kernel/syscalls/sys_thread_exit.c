@@ -104,6 +104,8 @@ void sys_thread_exit(int code)
 
     spinlock_release(&scheduler_lock);
 
+    thread_wakeup(self);
+
     if (parent)
         thread_wakeup(parent);
 
