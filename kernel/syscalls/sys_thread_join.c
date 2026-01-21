@@ -33,7 +33,7 @@ static bool thread_active_on_any_cpu(thread_t* t)
     return false;
 }
 
-int sys_thread_join(int tid)
+int sys_thread_join(int tid, int* status)
 {
     if (!current_thread || !current_thread->is_user || !current_process)
         return -1;
@@ -72,9 +72,25 @@ int sys_thread_join(int tid)
             continue;
         }
 
+        const int exit_code = target->exit_code;
+
         list_del(&target->list);
         target->process = nullptr;
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+
+        if (status)
+        {
+            if (!copy_to_user(status, &exit_code, sizeof(exit_code)))
+            {
+                if (target->kstack_top != 0)
+                {
+                    void* kstack_base = (void*)(target->kstack_top - KSTACK_SIZE);
+                    kfree(kstack_base);
+                }
+                kfree(target);
+                return -1;
+            }
+        }
 
         if (target->kstack_top != 0)
         {

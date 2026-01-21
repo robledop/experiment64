@@ -100,6 +100,7 @@ typedef struct Thread
     list_item_t list; // Thread list node
     int tid;
     thread_state_t state;
+    int exit_code;
     bool is_idle; // Is this the idle thread?
     bool is_user; // Runs in user mode
 } thread_t;

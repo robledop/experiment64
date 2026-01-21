@@ -108,7 +108,7 @@ int sys_sigaction(int signum, const sigaction_t* act, sigaction_t* oldact);
 uint64_t sys_sigreturn(const sigcontext_t* user_ctx, struct syscall_regs* regs);
 int sys_thread_create(uint64_t entry, uint64_t arg);
 void sys_thread_exit(int code);
-int sys_thread_join(int tid);
+int sys_thread_join(int tid, int* status);
 void sys_shutdown();
 void sys_reboot();
 

@@ -150,9 +150,9 @@ int thread_create(void (*entry)(void*), void* arg)
     while (1);
 }
 
-int thread_join(int tid)
+int thread_join(int tid, int* status)
 {
-    return clamp_signed_to_int(syscall1(SYS_THREAD_JOIN, tid));
+    return clamp_signed_to_int(syscall2(SYS_THREAD_JOIN, tid, (long)status));
 }
 
 void* sbrk(intptr_t increment)

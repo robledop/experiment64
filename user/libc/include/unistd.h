@@ -22,7 +22,7 @@ void yield(void);
 int spawn(const char *path);
 int thread_create(void (*entry)(void *), void *arg);
 [[noreturn]] void thread_exit(int status);
-int thread_join(int tid);
+int thread_join(int tid, int *status);
 void *sbrk(intptr_t increment);
 int open(const char *path, int flags);
 int close(int fd);

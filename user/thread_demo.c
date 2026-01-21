@@ -33,13 +33,14 @@ int main(void)
         sleep(120);
     }
 
-    if (thread_join(tid) != 0)
+    int status = 0;
+    if (thread_join(tid, &status) != 0)
     {
         printf("thread_demo: thread_join failed\n");
         return 1;
     }
 
-    printf("thread_demo: joined tid=%d\n", tid);
+    printf("thread_demo: joined tid=%d status=%d\n", tid, status);
     printf("thread_demo: exiting\n");
     return 0;
 }

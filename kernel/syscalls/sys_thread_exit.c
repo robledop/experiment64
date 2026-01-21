@@ -68,6 +68,7 @@ void sys_thread_exit(int code)
 
     spinlock_acquire(&scheduler_lock);
 
+    self->exit_code = code;
     self->state = THREAD_TERMINATED;
 
     bool last_thread = true;
