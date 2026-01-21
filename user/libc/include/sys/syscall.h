@@ -43,6 +43,7 @@
 #define SYS_SIGRETURN 40
 #define SYS_THREAD_CREATE 41
 #define SYS_THREAD_EXIT 42
+#define SYS_THREAD_JOIN 43
 
 #ifndef __ASSEMBLER__
 static inline long syscall0(long n)
