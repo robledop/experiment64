@@ -110,6 +110,7 @@ int sys_spawn(const char* path)
     }
     thread->user_entry = entry_point;
     thread->user_stack = user_rsp;
+    thread_make_ready(thread);
 
     TEST_SYSCALL_LOG("sys_spawn: created pid=%d tid=%d entry=%lx stack=%lx parent=%d\n",
                      proc->pid,

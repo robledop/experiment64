@@ -217,6 +217,7 @@ static process_t* smp_create_user_exit_process(void)
 
     t->user_entry = user_base;
     t->user_stack = user_base + PAGE_SIZE - 16;
+    thread_make_ready(t);
 
     return proc;
 }
