@@ -1,11 +1,23 @@
 #include <tests/test.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <sys/time.h>
 
 int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
 int sys_ioctl(int fd, int request, void* arg);
 int sys_open(const char* path, int flags);
 int sys_close(int fd);
+
+TEST(test_sys_thread_join_basic)
+{
+    int pid = sys_spawn("/bin/thread_join_test");
+    TEST_ASSERT(pid > 1);
+    int status = -1;
+    int waited = sys_wait(&status);
+    TEST_ASSERT(waited == pid);
+    TEST_ASSERT(status == 0);
+    return true;
+}
 
 TEST(test_sys_gettimeofday_basic)
 {
