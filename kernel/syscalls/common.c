@@ -1,6 +1,7 @@
 #include <syscall_common.h>
 #include <lib/path.h>
 #include <lib/string.h>
+#include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <sys/fcntl.h>
 #include <drivers/terminal.h>
@@ -69,6 +70,50 @@ bool copy_from_user(void* dst, const void* src, size_t size)
         return false;
     memcpy(dst, src, size);
     return true;
+}
+
+bool map_user_anonymous_range(process_t* proc, pml4_t pml4, uint64_t start, uint64_t length, uint32_t vma_flags)
+{
+    if (!proc || !pml4 || length == 0)
+        return false;
+    if ((start & (PAGE_SIZE - 1)) != 0 || (length & (PAGE_SIZE - 1)) != 0)
+        return false;
+    const uint64_t end = start + length;
+    if (end < start)
+        return false;
+
+    uint64_t mapped_end = start;
+    for (uint64_t virt = start; virt < end; virt += PAGE_SIZE)
+    {
+        void* phys = pmm_alloc_page();
+        if (!phys)
+            goto fail;
+
+        memset((void*)((uint64_t)phys + g_hhdm_offset), 0, PAGE_SIZE);
+        vmm_map_page(pml4, virt, (uint64_t)phys, PTE_PRESENT | PTE_USER | PTE_WRITABLE);
+        if (vmm_virt_to_phys(pml4, virt) == 0)
+        {
+            pmm_free_page(phys);
+            goto fail;
+        }
+
+        mapped_end = virt + PAGE_SIZE;
+    }
+
+    if (!vm_area_add(proc, start, end, vma_flags))
+        goto fail;
+
+    return true;
+
+fail:
+    for (uint64_t virt = start; virt < mapped_end; virt += PAGE_SIZE)
+    {
+        uint64_t phys = vmm_virt_to_phys(pml4, virt);
+        if (phys)
+            pmm_free_page((void*)(phys & ~(PAGE_SIZE - 1)));
+        vmm_unmap_page(pml4, virt);
+    }
+    return false;
 }
 
 bool fd_can_read(const file_descriptor_t* desc)

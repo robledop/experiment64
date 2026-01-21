@@ -1,13 +1,13 @@
 #include <sys/syscall.h>
 #include <syscall_common.h>
 #include <lib/util.h>
-#include <mem/heap.h>
-#include <mem/pmm.h>
-#include <mem/vmm.h>
 #include <arch/x86_64/cpu.h>
 
 static constexpr uint64_t THREAD_STACK_PAGES = 4;
 static constexpr uint64_t THREAD_STACK_SIZE = THREAD_STACK_PAGES * PAGE_SIZE;
+static constexpr uint64_t THREAD_GUARD_PAGES = 1;
+static constexpr uint64_t THREAD_GUARD_SIZE = THREAD_GUARD_PAGES * PAGE_SIZE;
+static constexpr uint64_t THREAD_STACK_TOTAL_SIZE = THREAD_STACK_SIZE + THREAD_GUARD_SIZE;
 static constexpr uint64_t THREAD_STACK_TOP_HINT = 0x7FFFFFFFF000ull;
 static constexpr uint64_t THREAD_STACK_LOW_LIMIT = 0x0000000000400000ull;
 
@@ -62,51 +62,6 @@ static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, 
     return false;
 }
 
-static bool map_stack_pages(uint64_t start, uint64_t end, void** pages, size_t page_count)
-{
-    uint64_t addr = start;
-    size_t idx = 0;
-    for (; addr < end && idx < page_count; addr += PAGE_SIZE, idx++)
-    {
-        void* phys = pmm_alloc_page();
-        if (!phys)
-            break;
-        pages[idx] = phys;
-        vmm_map_page(current_process->pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-    }
-
-    if (addr == end && idx == page_count)
-        return true;
-
-    for (size_t i = 0; i < idx; i++)
-    {
-        vmm_unmap_page(current_process->pml4, start + (i * PAGE_SIZE));
-        pmm_free_page(pages[i]);
-    }
-    return false;
-}
-
-static void unmap_stack_pages(uint64_t start, void** pages, size_t page_count)
-{
-    for (size_t i = 0; i < page_count; i++)
-    {
-        if (!pages[i])
-            continue;
-        vmm_unmap_page(current_process->pml4, start + (i * PAGE_SIZE));
-        pmm_free_page(pages[i]);
-    }
-}
-
-static void vm_area_remove(process_t* proc, vm_area_t* area)
-{
-    if (!proc || !area)
-        return;
-    list_del(&area->list);
-    if (proc->vm_area_count > 0)
-        proc->vm_area_count--;
-    kfree(area);
-}
-
 static void thread_user_trampoline(void)
 {
     constexpr uint64_t user_cs = 0x20 | 3;
@@ -159,30 +114,35 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     if (cpu && cpu->user_rsp)
     {
         uint64_t rsp_hint = align_down_u64(cpu->user_rsp, PAGE_SIZE);
-        if (rsp_hint > THREAD_STACK_LOW_LIMIT + THREAD_STACK_SIZE)
-            top_hint = min(top_hint, rsp_hint - THREAD_STACK_SIZE);
+        if (rsp_hint > THREAD_STACK_LOW_LIMIT + THREAD_STACK_TOTAL_SIZE)
+            top_hint = min(top_hint, rsp_hint - THREAD_STACK_TOTAL_SIZE);
     }
 
-    uint64_t stack_start = 0;
-    uint64_t stack_end = 0;
-    if (!find_stack_range(current_process, THREAD_STACK_SIZE, top_hint, &stack_start, &stack_end))
+    uint64_t range_start = 0;
+    uint64_t range_end = 0;
+    if (!find_stack_range(current_process, THREAD_STACK_TOTAL_SIZE, top_hint, &range_start, &range_end))
         return -1;
 
-    void* pages[THREAD_STACK_PAGES] = {nullptr};
-    if (!map_stack_pages(stack_start, stack_end, pages, THREAD_STACK_PAGES))
+    uint64_t guard_start = range_start;
+    uint64_t stack_start = guard_start + THREAD_GUARD_SIZE;
+    uint64_t stack_end = range_end;
+
+    constexpr uint32_t stack_vma_flags = VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK | VMA_ANON;
+    if (!map_user_anonymous_range(current_process, current_process->pml4, stack_start, THREAD_STACK_SIZE,
+                                  stack_vma_flags))
         return -1;
-    vm_area_t* area = vm_area_add(current_process, stack_start, stack_end, VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK);
-    if (!area)
+
+    constexpr uint32_t guard_vma_flags = VMA_USER | VMA_STACK | VMA_ANON;
+    if (!vm_area_add(current_process, guard_start, stack_start, guard_vma_flags))
     {
-        unmap_stack_pages(stack_start, pages, THREAD_STACK_PAGES);
+        sys_munmap((void*)stack_start, THREAD_STACK_SIZE);
         return -1;
     }
 
     thread_t* thread = thread_create(current_process, thread_user_trampoline, true);
     if (!thread)
     {
-        vm_area_remove(current_process, area);
-        unmap_stack_pages(stack_start, pages, THREAD_STACK_PAGES);
+        sys_munmap((void*)guard_start, THREAD_STACK_TOTAL_SIZE);
         return -1;
     }
 
@@ -192,6 +152,8 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     thread->user_stack = user_stack;
     thread->user_arg = arg;
     thread->saved_user_rsp = user_stack;
+    thread->user_stack_base = guard_start;
+    thread->user_stack_top = stack_end;
     thread_make_ready(thread);
 
     TEST_SYSCALL_LOG("sys_thread_create: pid=%d tid=%d entry=0x%lx stack=0x%lx arg=0x%lx\n",

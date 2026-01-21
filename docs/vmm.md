@@ -77,4 +77,9 @@ User virtual memory areas (VMAs) track `mmap` ranges so they can be released lat
 - `MAP_ANONYMOUS` mappings backed by PMM pages and zeroed on map.
 
 Anonymous mappings are tagged with `VMA_ANON` so `sys_munmap` can free the
-backing pages before unmapping.
+backing pages before unmapping. `PROT_NONE` anonymous mappings reserve address
+space without backing pages, which is useful for guard pages.
+
+`sys_munmap` accepts stack VMAs (`VMA_STACK`) as well, which is how user thread
+stacks are released on `SYS_THREAD_EXIT`. It can also unmap subranges of a VMA,
+splitting or trimming the VMA as needed.

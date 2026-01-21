@@ -95,6 +95,8 @@ typedef struct Thread
     uint64_t user_stack; // For spawn
     uint64_t user_arg;
     uint64_t saved_user_rsp; // Saved user RSP during syscalls
+    uint64_t user_stack_base; // User stack mapping start
+    uint64_t user_stack_top; // User stack mapping end
     void* chan; // Sleep channel
     uint64_t ticks_remaining; // Time slice remaining
     uint64_t _align[2]; // Padding to keep list 16-byte aligned relative to start

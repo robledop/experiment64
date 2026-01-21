@@ -1,7 +1,6 @@
 #include <syscall_common.h>
 
 #include <lib/elf.h>
-#include <mem/pmm.h>
 #include <mem/vmm.h>
 
 static void spawn_trampoline(void)
@@ -60,33 +59,15 @@ int sys_spawn(const char* path)
         return -1;
     }
 
-    uint64_t stack_top = 0x7FFFFFFFF000;
-    uint64_t stack_size = 4 * 4096;
-    uint64_t stack_base = stack_top - stack_size;
-    uint64_t user_rsp = stack_top - 16;
-
-    for (uint64_t addr = stack_base; addr < stack_top; addr += 4096)
-    {
-        void* phys = pmm_alloc_page();
-        if (!phys)
-        {
-            TEST_SYSCALL_LOG("sys_spawn: pid=%d stack alloc failed path=%s\n",
-                             current_process ? current_process->pid : -1, abs_path);
-            vmm_destroy_pml4(new_pml4);
-            return -1;
-        }
-        vmm_map_page(new_pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-    }
-
-    pml4_t old_pml4 = current_process ? current_process->pml4 : nullptr;
-    if (old_pml4)
-    {
-        vmm_switch_pml4(new_pml4);
-        uint64_t* stack_ptr = (uint64_t*)user_rsp;
-        stack_ptr[0] = 0;
-        stack_ptr[1] = 0;
-        vmm_switch_pml4(old_pml4);
-    }
+    constexpr uint64_t stack_pages = 4;
+    constexpr uint64_t guard_pages = 1;
+    constexpr uint64_t stack_top = 0x7FFFFFFFF000;
+    constexpr uint64_t stack_size = stack_pages * PAGE_SIZE;
+    constexpr uint64_t guard_size = guard_pages * PAGE_SIZE;
+    constexpr uint64_t total_size = stack_size + guard_size;
+    constexpr uint64_t guard_start = stack_top - total_size;
+    constexpr uint64_t stack_base = guard_start + guard_size;
+    constexpr uint64_t user_rsp = stack_top - 16;
 
     process_t* proc = process_create(path);
     if (!proc)
@@ -100,7 +81,23 @@ int sys_spawn(const char* path)
     proc->heap_end = max_vaddr;
 
     process_copy_fds(proc, current_process);
-    vm_area_add(proc, stack_base, stack_top, VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK);
+    constexpr uint32_t stack_vma_flags = VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK | VMA_ANON;
+    if (!map_user_anonymous_range(proc, proc->pml4, stack_base, stack_size, stack_vma_flags))
+    {
+        TEST_SYSCALL_LOG("sys_spawn: pid=%d stack alloc failed path=%s\n",
+                         current_process ? current_process->pid : -1, abs_path);
+        process_destroy(proc);
+        return -1;
+    }
+
+    constexpr uint32_t guard_vma_flags = VMA_USER | VMA_STACK | VMA_ANON;
+    if (!vm_area_add(proc, guard_start, stack_base, guard_vma_flags))
+    {
+        TEST_SYSCALL_LOG("sys_spawn: pid=%d guard alloc failed path=%s\n",
+                         current_process ? current_process->pid : -1, abs_path);
+        process_destroy(proc);
+        return -1;
+    }
 
     thread_t* thread = thread_create(proc, spawn_trampoline, true);
     if (!thread)
@@ -110,6 +107,8 @@ int sys_spawn(const char* path)
     }
     thread->user_entry = entry_point;
     thread->user_stack = user_rsp;
+    thread->user_stack_base = guard_start;
+    thread->user_stack_top = stack_top;
     thread_make_ready(thread);
 
     TEST_SYSCALL_LOG("sys_spawn: created pid=%d tid=%d entry=%lx stack=%lx parent=%d\n",

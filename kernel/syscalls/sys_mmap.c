@@ -1,9 +1,8 @@
 #include <drivers/framebuffer.h>
-#include <lib/string.h>
 #include <lib/util.h>
-#include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <sys/mman.h>
+#include <syscall_common.h>
 #include <task/process.h>
 
 void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset)
@@ -110,39 +109,16 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
 
     if (is_anon)
     {
-        uint64_t mapped_end = base;
-        for (uint64_t virt = base; virt < base + total_len; virt += PAGE_SIZE)
+        if (prot == PROT_NONE)
         {
-            void* phys = pmm_alloc_page();
-            if (!phys)
-                goto anon_fail;
-
-            vmm_map_page(current_process->pml4, virt, (uint64_t)phys,
-                         PTE_PRESENT | PTE_USER | PTE_WRITABLE);
-            if (vmm_virt_to_phys(current_process->pml4, virt) == 0)
-            {
-                pmm_free_page(phys);
-                goto anon_fail;
-            }
-
-            memset((void*)virt, 0, PAGE_SIZE);
-            mapped_end = virt + PAGE_SIZE;
+            if (!vm_area_add(current_process, base, base + total_len, vma_flags))
+                return MAP_FAILED;
+            return (void*)(base + in_page_delta);
         }
 
-        if (!vm_area_add(current_process, base, base + total_len, vma_flags))
-            goto anon_fail;
-
+        if (!map_user_anonymous_range(current_process, current_process->pml4, base, total_len, vma_flags))
+            return MAP_FAILED;
         return (void*)(base + in_page_delta);
-
-anon_fail:
-        for (uint64_t virt = base; virt < mapped_end; virt += PAGE_SIZE)
-        {
-            uint64_t phys = vmm_virt_to_phys(current_process->pml4, virt);
-            if (phys)
-                pmm_free_page((void*)(phys & ~(PAGE_SIZE - 1)));
-            vmm_unmap_page(current_process->pml4, virt);
-        }
-        return MAP_FAILED;
     }
 
     uint64_t virt = base;

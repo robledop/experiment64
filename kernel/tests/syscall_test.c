@@ -1496,6 +1496,29 @@ TEST(test_syscall_mmap_anonymous)
     return true;
 }
 
+TEST(test_syscall_mmap_prot_none)
+{
+    void* addr = sys_mmap(nullptr, PAGE_SIZE, PROT_NONE,
+                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    TEST_ASSERT(addr != MAP_FAILED);
+    TEST_ASSERT(sys_munmap(addr, PAGE_SIZE) == 0);
+    return true;
+}
+
+TEST(test_syscall_munmap_partial)
+{
+    const size_t len = PAGE_SIZE * 3;
+    void* addr = sys_mmap(nullptr, len, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    TEST_ASSERT(addr != MAP_FAILED);
+
+    const uint64_t base = (uint64_t)addr & ~(PAGE_SIZE - 1);
+    TEST_ASSERT(sys_munmap((void*)(base + PAGE_SIZE), PAGE_SIZE) == 0);
+    TEST_ASSERT(sys_munmap((void*)base, PAGE_SIZE) == 0);
+    TEST_ASSERT(sys_munmap((void*)(base + 2 * PAGE_SIZE), PAGE_SIZE) == 0);
+    return true;
+}
+
 TEST(test_syscall_mmap_invalid_length)
 {
     void* addr = sys_mmap(nullptr, 0, PROT_READ | PROT_WRITE,

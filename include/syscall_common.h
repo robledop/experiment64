@@ -25,6 +25,7 @@ bool user_ptr_write_ok(const void* dst, size_t size, const char* op);
 bool user_ptr_read_ok(const void* src, size_t size, const char* op);
 bool copy_to_user(void* dst, const void* src, size_t size);
 bool copy_from_user(void* dst, const void* src, size_t size);
+bool map_user_anonymous_range(process_t* proc, pml4_t pml4, uint64_t start, uint64_t length, uint32_t vma_flags);
 bool fd_can_read(const file_descriptor_t* desc);
 bool fd_can_write(const file_descriptor_t* desc);
 void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st);
