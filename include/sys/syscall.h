@@ -60,6 +60,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_THREAD_CREATE 41
 #define SYS_THREAD_EXIT 42
 #define SYS_THREAD_JOIN 43
+#define SYS_GETTID 44
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -109,6 +110,7 @@ uint64_t sys_sigreturn(const sigcontext_t* user_ctx, struct syscall_regs* regs);
 int sys_thread_create(uint64_t entry, uint64_t arg);
 void sys_thread_exit(int code);
 int sys_thread_join(int tid, int* status);
+int sys_gettid(void);
 void sys_shutdown();
 void sys_reboot();
 

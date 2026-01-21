@@ -129,6 +129,11 @@ int getpid(void)
     return clamp_signed_to_int(syscall0(SYS_GETPID));
 }
 
+int gettid(void)
+{
+    return clamp_signed_to_int(syscall0(SYS_GETTID));
+}
+
 void yield(void)
 {
     syscall0(SYS_YIELD);

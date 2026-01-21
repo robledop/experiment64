@@ -18,6 +18,7 @@ int execve(const char *path, char *const argv[], char *const envp[]);
 int fork(void);
 int wait(int *status);
 int getpid(void);
+int gettid(void);
 void yield(void);
 int spawn(const char *path);
 int thread_create(void (*entry)(void *), void *arg);
