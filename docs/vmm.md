@@ -65,3 +65,16 @@ vmm_map_page(pml4, 0x400000, (uint64_t)phys,
 // Switch into it
 vmm_switch_pml4(pml4);
 ```
+
+---
+
+## User mappings and mmap
+
+User virtual memory areas (VMAs) track `mmap` ranges so they can be released later.
+`sys_mmap` supports:
+
+- `MAP_SHARED` framebuffer mappings (`/dev/fb0`).
+- `MAP_ANONYMOUS` mappings backed by PMM pages and zeroed on map.
+
+Anonymous mappings are tagged with `VMA_ANON` so `sys_munmap` can free the
+backing pages before unmapping.

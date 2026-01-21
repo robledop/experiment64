@@ -21,6 +21,7 @@
 #define VMA_USER (1u << 3)
 #define VMA_MMAP (1u << 4)
 #define VMA_STACK (1u << 5)
+#define VMA_ANON (1u << 6)
 
 typedef enum
 {

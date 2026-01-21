@@ -1,43 +1,80 @@
 #include <drivers/framebuffer.h>
+#include <lib/string.h>
 #include <lib/util.h>
+#include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <sys/mman.h>
 #include <task/process.h>
 
 void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t offset)
 {
-    (void)prot;
     if (length == 0)
         return MAP_FAILED;
 
-    // Only support shared mappings of /dev/fb0 for now.
-    if (!(flags & MAP_SHARED))
-        return MAP_FAILED;
+    const bool is_anon = (flags & MAP_ANONYMOUS) != 0;
+    const bool is_shared = (flags & MAP_SHARED) != 0;
+    const bool is_private = (flags & MAP_PRIVATE) != 0;
 
-    if (fd < 0 || fd >= MAX_FDS)
-        return MAP_FAILED;
+    uint32_t vma_flags = VMA_USER | VMA_MMAP;
+    if (prot & PROT_READ)
+        vma_flags |= VMA_READ;
+    if (prot & PROT_WRITE)
+        vma_flags |= VMA_WRITE;
+    if (prot & PROT_EXEC)
+        vma_flags |= VMA_EXEC;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
-    if (!desc || !desc->inode)
-        return MAP_FAILED;
+    uint64_t total_len = 0;
+    uint64_t in_page_delta = 0;
+    uint64_t phys_base = 0;
 
-    // Require this to be the framebuffer device.
-    struct limine_framebuffer* fb = framebuffer_current();
-    if (!fb || desc->inode->device != fb)
-        return MAP_FAILED;
+    if (is_anon)
+    {
+        if (!is_shared && !is_private)
+            return MAP_FAILED;
+        if (offset != 0)
+            return MAP_FAILED;
+        total_len = align_up(length, PAGE_SIZE);
+        if (total_len < length)
+            return MAP_FAILED;
+        vma_flags |= VMA_ANON;
+    }
+    else
+    {
+        // Only support shared mappings of /dev/fb0 for now.
+        if (!is_shared)
+            return MAP_FAILED;
 
-    uint64_t fb_size = (uint64_t)fb->pitch * fb->height;
-    if (offset >= fb_size)
-        return MAP_FAILED;
+        if (fd < 0 || fd >= MAX_FDS)
+            return MAP_FAILED;
 
-    uint64_t map_len = length;
-    if (offset + map_len > fb_size)
-        map_len = fb_size - offset;
+        file_descriptor_t* desc = current_process->fd_table[fd];
+        if (!desc || !desc->inode)
+            return MAP_FAILED;
 
-    uint64_t page_len = align_up(map_len, PAGE_SIZE);
-    uint64_t page_offset = offset & ~(PAGE_SIZE - 1);
-    uint64_t in_page_delta = offset - page_offset;
-    uint64_t total_len = page_len + in_page_delta;
+        // Require this to be the framebuffer device.
+        struct limine_framebuffer* fb = framebuffer_current();
+        if (!fb || desc->inode->device != fb)
+            return MAP_FAILED;
+
+        uint64_t fb_size = (uint64_t)fb->pitch * fb->height;
+        if (offset >= fb_size)
+            return MAP_FAILED;
+
+        uint64_t map_len = length;
+        if (offset + map_len > fb_size)
+            map_len = fb_size - offset;
+
+        uint64_t page_len = align_up(map_len, PAGE_SIZE);
+        uint64_t page_offset = offset & ~(PAGE_SIZE - 1);
+        in_page_delta = offset - page_offset;
+        total_len = page_len + in_page_delta;
+        if (total_len < map_len)
+            return MAP_FAILED;
+
+        uint64_t fb_addr = (uint64_t)fb->address;
+        phys_base = (fb_addr >= g_hhdm_offset) ? (fb_addr - g_hhdm_offset) : fb_addr;
+        phys_base += page_offset;
+    }
 
     // Choose a base address if none provided.
     uint64_t base = (uint64_t)addr;
@@ -45,6 +82,8 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
         base = 0x4000000000; // simple search base for mmaps
 
     base = align_up(base, PAGE_SIZE);
+    if (base + total_len < base)
+        return MAP_FAILED;
 
     // Ensure no overlap with existing VMAs.
     while (true)
@@ -66,11 +105,48 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
             return MAP_FAILED;
     }
 
-    uint64_t fb_addr = (uint64_t)fb->address;
-    uint64_t phys_base = (fb_addr >= g_hhdm_offset) ? (fb_addr - g_hhdm_offset) : fb_addr;
+    if (base + total_len > 0x7FFFFFFFF000)
+        return MAP_FAILED;
+
+    if (is_anon)
+    {
+        uint64_t mapped_end = base;
+        for (uint64_t virt = base; virt < base + total_len; virt += PAGE_SIZE)
+        {
+            void* phys = pmm_alloc_page();
+            if (!phys)
+                goto anon_fail;
+
+            vmm_map_page(current_process->pml4, virt, (uint64_t)phys,
+                         PTE_PRESENT | PTE_USER | PTE_WRITABLE);
+            if (vmm_virt_to_phys(current_process->pml4, virt) == 0)
+            {
+                pmm_free_page(phys);
+                goto anon_fail;
+            }
+
+            memset((void*)virt, 0, PAGE_SIZE);
+            mapped_end = virt + PAGE_SIZE;
+        }
+
+        if (!vm_area_add(current_process, base, base + total_len, vma_flags))
+            goto anon_fail;
+
+        return (void*)(base + in_page_delta);
+
+anon_fail:
+        for (uint64_t virt = base; virt < mapped_end; virt += PAGE_SIZE)
+        {
+            uint64_t phys = vmm_virt_to_phys(current_process->pml4, virt);
+            if (phys)
+                pmm_free_page((void*)(phys & ~(PAGE_SIZE - 1)));
+            vmm_unmap_page(current_process->pml4, virt);
+        }
+        return MAP_FAILED;
+    }
 
     uint64_t virt = base;
-    uint64_t phys = phys_base + page_offset;
+    uint64_t phys = phys_base;
     uint64_t bytes_mapped = 0;
 
     while (bytes_mapped < total_len)
@@ -81,7 +157,12 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
         bytes_mapped += PAGE_SIZE;
     }
 
-    vm_area_add(current_process, base, base + total_len, VMA_READ | VMA_WRITE | VMA_USER | VMA_MMAP);
+    if (!vm_area_add(current_process, base, base + total_len, vma_flags))
+    {
+        for (uint64_t unmap_va = base; unmap_va < base + total_len; unmap_va += PAGE_SIZE)
+            vmm_unmap_page(current_process->pml4, unmap_va);
+        return MAP_FAILED;
+    }
 
     return (void*)(base + in_page_delta);
 }

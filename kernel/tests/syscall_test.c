@@ -1478,26 +1478,20 @@ TEST(test_syscall_usleep_zero)
 
 TEST(test_syscall_mmap_anonymous)
 {
-    // Note: The current mmap implementation only supports shared framebuffer mappings.
-    // Anonymous mappings are not yet implemented.
-    // Map anonymous memory
-    void* addr = sys_mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
+    void* addr = sys_mmap(nullptr, PAGE_SIZE, PROT_READ | PROT_WRITE,
                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    // Anonymous mmap is not supported - expect failure
-    if (addr == MAP_FAILED)
-    {
-        // Expected behavior for the current implementation
-        return true;
-    }
+    TEST_ASSERT(addr != MAP_FAILED);
 
-    // If it somehow succeeds in the future, verify it works
-    char* p = (char*)addr;
+    volatile uint8_t* p = (volatile uint8_t*)addr;
+    for (size_t i = 0; i < 16; i++)
+        TEST_ASSERT(p[i] == 0);
+
     p[0] = 'A';
-    p[4095] = 'Z';
+    p[PAGE_SIZE - 1] = 'Z';
     TEST_ASSERT(p[0] == 'A');
-    TEST_ASSERT(p[4095] == 'Z');
+    TEST_ASSERT(p[PAGE_SIZE - 1] == 'Z');
 
-    int rc = sys_munmap(addr, 4096);
+    int rc = sys_munmap(addr, PAGE_SIZE);
     TEST_ASSERT(rc == 0);
     return true;
 }
