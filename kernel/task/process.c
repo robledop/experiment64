@@ -753,9 +753,9 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
     spinlock_release(&scheduler_lock);
 
     thread->process = process;
-    thread_state_store(thread, THREAD_READY);
     thread->is_user = is_user;
     thread->ticks_remaining = TIME_SLICE_TICKS;
+    thread_state_store(thread, THREAD_BLOCKED);
 
     init_fpu_state(&thread->fpu_state);
 
@@ -785,9 +785,21 @@ thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user)
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     list_add_tail(&thread->list, &process->threads);
+    if (!is_user)
+        thread_state_store(thread, THREAD_READY);
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     return thread;
+}
+
+void thread_make_ready(thread_t* thread)
+{
+    if (!thread)
+        return;
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    thread_state_store(thread, THREAD_READY);
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 }
 
 void smp_init_ap_scheduler(void)

@@ -41,6 +41,7 @@
 #define SYS_ACCEPT 38
 #define SYS_SIGACTION 39
 #define SYS_SIGRETURN 40
+#define SYS_THREAD_CREATE 41
 
 #ifndef __ASSEMBLER__
 static inline long syscall0(long n)

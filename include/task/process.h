@@ -92,6 +92,7 @@ typedef struct Thread
     uint64_t kstack_top; // Kernel stack top
     uint64_t user_entry; // For spawn
     uint64_t user_stack; // For spawn
+    uint64_t user_arg;
     uint64_t saved_user_rsp; // Saved user RSP during syscalls
     void* chan; // Sleep channel
     uint64_t ticks_remaining; // Time slice remaining
@@ -120,6 +121,7 @@ vm_area_t* vm_area_add(process_t* proc, uint64_t start, uint64_t end, uint32_t f
 void vm_area_clone(process_t* dest, const process_t* src);
 void vm_area_clear(process_t* proc);
 thread_t* thread_create(process_t* process, void (*entry)(void), bool is_user);
+void thread_make_ready(thread_t* thread);
 thread_t* get_current_thread(void);
 process_t* get_current_process(void);
 

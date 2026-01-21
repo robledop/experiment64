@@ -57,6 +57,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_ACCEPT 38
 #define SYS_SIGACTION 39
 #define SYS_SIGRETURN 40
+#define SYS_THREAD_CREATE 41
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -103,6 +104,7 @@ int sys_recvfrom(int fd, void* buf, size_t len, int flags,
                  struct sockaddr* src_addr, socklen_t* addrlen);
 int sys_sigaction(int signum, const sigaction_t* act, sigaction_t* oldact);
 uint64_t sys_sigreturn(const sigcontext_t* user_ctx, struct syscall_regs* regs);
+int sys_thread_create(uint64_t entry, uint64_t arg);
 void sys_shutdown();
 void sys_reboot();
 
