@@ -1,4 +1,3 @@
-#include <drivers/e1000.h>
 #include <mem/heap.h>
 #include <net/arp.h>
 #include <net/ethernet.h>
@@ -18,6 +17,8 @@ uint8_t* subnet_mask = nullptr;
 uint32_t* dns_servers;
 
 static uint8_t* mac = nullptr;
+static network_send_fn network_send;
+// static network_poll_fn network_poll;
 
 struct ether_type
 {
@@ -216,8 +217,32 @@ void network_receive(uint8_t* packet, const uint16_t len)
 
 int network_send_packet(const void* data, const uint16_t len)
 {
-    return e1000_send_packet(data, len);
+    if (!network_send) return -1;
+    return network_send(data, len);
 }
+
+void network_register_driver(network_send_fn send_fn)
+{
+    network_send = send_fn;
+    // network_poll = poll_fn;
+}
+
+void network_unregister_driver(network_send_fn send_fn)
+{
+    if (network_send == send_fn)
+    {
+        network_send = nullptr;
+        // network_poll = nullptr;
+    }
+}
+
+// void network_poll_rx(void)
+// {
+//     if (network_poll)
+//     {
+//         network_poll();
+//     }
+// }
 
 bool network_compare_ip_addresses(const uint8_t ip1[static 4], const uint8_t ip2[static 4])
 {

@@ -2,6 +2,7 @@
 #include <arch/x86_64/port_io.h>
 #include <drivers/terminal.h>
 #include <drivers/ahci.h>
+#include <drivers/atl1c.h>
 #include <drivers/e1000.h>
 #include <drivers/ide.h>
 #include <stddef.h>
@@ -184,8 +185,12 @@ struct pci_vendor vendors[] = {
     {0x80EE, "Oracle Corporation"},
     {0x1D00, "XenSource"},
     {0x1414, "Microsoft Corporation"},
-    {0x10EC, "Realtek Semiconductor Co."}
+    {0x10EC, "Realtek Semiconductor Co."},
+    {0x1969, "Qualcomm Atheros"}
 };
+
+#define PCI_TRACE_VENDOR_ID 0x1969
+#define PCI_TRACE_DEVICE_ID 0x1090
 
 static void pci_ide_init(struct pci_device device)
 {
@@ -198,6 +203,8 @@ struct pci_driver pci_drivers[] = {
     {.class = 0x01, .subclass = 0x01, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &pci_ide_init},
     // Intel e1000 network controller (QEMU, Bochs, VirtualBox)
     {.class = 0x02, .subclass = 0x00, .vendor_id = INTEL_VEND, .device_id = E1000_DEV, .init = &e1000_init},
+    // Qualcomm Atheros AR8162 Fast Ethernet
+    {.class = 0x02, .subclass = 0x00, .vendor_id = ATHEROS_VEND, .device_id = AR8162_DEV, .init = &atl1c_init},
 };
 
 /**
@@ -289,6 +296,190 @@ const char* pci_find_vendor(const uint16_t vendor_id)
     return "Unknown Vendor";
 }
 
+static const char* pci_cap_name(const uint8_t cap_id)
+{
+    switch (cap_id)
+    {
+        case 0x01:
+            return "Power Management";
+        case 0x05:
+            return "MSI";
+        case 0x10:
+            return "PCI Express";
+        case 0x11:
+            return "MSI-X";
+        default:
+            return "Unknown Capability";
+    }
+}
+
+static void pci_dump_bars(const struct pci_header *pci)
+{
+    bool logged = false;
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        const uint32_t bar = pci->bars[i];
+        if (bar == 0)
+        {
+            continue;
+        }
+
+        logged = true;
+        if (bar & PCI_BAR_IO)
+        {
+            boot_message(INFO,
+                         "  BAR%u: IO base=0x%08x raw=0x%08x",
+                         i,
+                         bar & ~0x3U,
+                         bar);
+            continue;
+        }
+
+        const uint8_t mem_type = (bar >> 1) & 0x3;
+        const bool prefetch = (bar & 0x8) != 0;
+        if (mem_type == PCI_BAR_MEMORY_TYPE_64 && i + 1 < 6)
+        {
+            const uint32_t bar_hi = pci->bars[i + 1];
+            const uint64_t base = ((uint64_t)bar_hi << 32) | (bar & ~0xFULL);
+            boot_message(INFO,
+                         "  BAR%u: MEM64 base=0x%016lx raw=0x%08x%08x prefetch=%u",
+                         i,
+                         (unsigned long)base,
+                         bar_hi,
+                         bar,
+                         prefetch ? 1U : 0U);
+            i++;
+            continue;
+        }
+
+        boot_message(INFO,
+                     "  BAR%u: MEM32 base=0x%08x raw=0x%08x prefetch=%u",
+                     i,
+                     bar & ~0xFULL,
+                     bar,
+                     prefetch ? 1U : 0U);
+    }
+
+    if (!logged)
+    {
+        boot_message(INFO, "  BARs: none");
+    }
+}
+
+static void pci_dump_capabilities(const uint8_t bus,
+                                  const uint8_t device,
+                                  const uint8_t function,
+                                  const struct pci_header *pci)
+{
+    if ((pci->status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+    {
+        boot_message(INFO, "  caps: none");
+        return;
+    }
+
+    uint8_t cap_ptr = pci->capabilities_pointer;
+    if (cap_ptr < 0x40 || cap_ptr >= 0x100)
+    {
+        boot_message(WARNING, "  caps: invalid pointer 0x%02x", cap_ptr);
+        return;
+    }
+
+    boot_message(INFO, "  caps:");
+    for (uint8_t i = 0; cap_ptr != 0 && i < 48; i++)
+    {
+        const uint16_t cap_header = pci_config_read_word(bus, device, function, cap_ptr);
+        const uint8_t cap_id = (uint8_t)(cap_header & 0xFF);
+        const uint8_t next_ptr = (uint8_t)((cap_header >> 8) & 0xFF);
+
+        boot_message(INFO,
+                     "    0x%02x %s (id=0x%02x)",
+                     cap_ptr,
+                     pci_cap_name(cap_id),
+                     cap_id);
+
+        if (next_ptr == cap_ptr)
+        {
+            boot_message(WARNING, "  caps: loop at 0x%02x", cap_ptr);
+            break;
+        }
+
+        if (next_ptr != 0 && next_ptr < 0x40)
+        {
+            boot_message(WARNING, "  caps: invalid next 0x%02x", next_ptr);
+            break;
+        }
+
+        cap_ptr = next_ptr;
+    }
+}
+
+static void pci_dump_config_space(const uint8_t bus, const uint8_t device, const uint8_t function)
+{
+    for (uint16_t offset = 0; offset < 0x100; offset += 0x10)
+    {
+        const uint16_t w0 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x0));
+        const uint16_t w1 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x2));
+        const uint16_t w2 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x4));
+        const uint16_t w3 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x6));
+        const uint16_t w4 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x8));
+        const uint16_t w5 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0xA));
+        const uint16_t w6 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0xC));
+        const uint16_t w7 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0xE));
+
+        boot_message(INFO,
+                     "  cfg[%02x]: %04x %04x %04x %04x %04x %04x %04x %04x",
+                     (unsigned)offset,
+                     w0,
+                     w1,
+                     w2,
+                     w3,
+                     w4,
+                     w5,
+                     w6,
+                     w7);
+    }
+}
+
+static void pci_dump_device_config(const struct pci_header *pci,
+                                   const uint8_t bus,
+                                   const uint8_t device,
+                                   const uint8_t function)
+{
+    boot_message(INFO,
+                 "PCI %02x:%02x.%u vendor=0x%04x device=0x%04x",
+                 bus,
+                 device,
+                 function,
+                 pci->vendor_id,
+                 pci->device_id);
+    boot_message(INFO,
+                 "  class=0x%02x subclass=0x%02x prog_if=0x%02x rev=0x%02x",
+                 pci->class,
+                 pci->subclass,
+                 pci->prog_if,
+                 pci->revision_id);
+    boot_message(INFO,
+                 "  command=0x%04x status=0x%04x header=0x%02x",
+                 pci->command,
+                 pci->status,
+                 pci->header_type);
+    boot_message(INFO,
+                 "  subsystem=0x%04x:0x%04x irq=0x%02x pin=0x%02x",
+                 pci->subsystem_vendor_id,
+                 pci->subsystem_id,
+                 pci->irq,
+                 pci->interrupt_pin);
+    boot_message(INFO,
+                 "  cache_line=%u latency=%u bist=0x%02x",
+                 pci->cache_line_size,
+                 pci->latency_timer,
+                 pci->BIST);
+
+    pci_dump_bars(pci);
+    pci_dump_capabilities(bus, device, function, pci);
+    pci_dump_config_space(bus, device, function);
+}
+
 // static void pci_log_device_info(const struct pci_header *pci, const uint8_t bus, const uint8_t device,
 //                                 const uint8_t function)
 // {
@@ -322,6 +513,11 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
         .irq = pci.irq,
     };
     memcpy(dev.bars, pci.bars, sizeof(dev.bars));
+
+    if (pci.vendor_id == PCI_TRACE_VENDOR_ID && pci.device_id == PCI_TRACE_DEVICE_ID)
+    {
+        pci_dump_device_config(&pci, bus, device, function);
+    }
 
     boot_message(INFO, "%s", pci_find_name(dev.class, dev.subclass));
 

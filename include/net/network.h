@@ -11,8 +11,14 @@ struct netinfo
     uint32_t dns_server;
 };
 
+typedef int (*network_send_fn)(const void *data, uint16_t len);
+// typedef void (*network_poll_fn)(void);
+
 void network_receive(uint8_t *packet, uint16_t len);
 int network_send_packet(const void *data, uint16_t len);
+void network_register_driver(network_send_fn send_fn);
+void network_unregister_driver(network_send_fn send_fn);
+// void network_poll_rx(void);
 void network_set_mac(const uint8_t mac_addr[static 6]);
 uint8_t *network_get_my_ip_address(void);
 uint8_t *network_get_subnet_mask(void);

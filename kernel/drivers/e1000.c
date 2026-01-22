@@ -55,23 +55,26 @@ static int eth_dev_ioctl([[maybe_unused]] vfs_inode_t* node, const int request, 
         if (!arg)
             return -1;
 
+        auto netinfo = (struct netinfo*)arg;
+        memset(netinfo, 0, sizeof(*netinfo));
+        memcpy(netinfo->mac, mac, 6);
+
         const uint32_t* ip = (uint32_t*)network_get_my_ip_address();
         const uint32_t* mask = (uint32_t*)network_get_subnet_mask();
         const uint32_t* gateway = (uint32_t*)network_get_default_gateway();
         const uint32_t* dns_servers = network_get_dns_servers();
         const uint32_t dns_server_count = network_get_dns_server_count();
 
-        auto netinfo = (struct netinfo*)arg;
-        memcpy(netinfo->mac, mac, 6);
-        netinfo->ip = *ip;
-        netinfo->subnet_mask = *mask;
-        netinfo->default_gateway = *gateway;
+        if (ip) netinfo->ip = *ip;
+        if (mask) netinfo->subnet_mask = *mask;
+        if (gateway) netinfo->default_gateway = *gateway;
 
-        uint8_t dns_server[4];
-        ip_to_bytes(*dns_servers, dns_server);
-
-        if (dns_server_count >= 1)
+        if (dns_servers && dns_server_count >= 1)
+        {
+            uint8_t dns_server[4];
+            ip_to_bytes(*dns_servers, dns_server);
             netinfo->dns_server = *(uint32_t*)dns_server;
+        }
 
         return 0;
     }
@@ -84,7 +87,7 @@ void wait_for_network(void)
     uint32_t budget = wait_for_network_timeout;
     while (!network_is_ready() && budget-- > 0)
     {
-        e1000_receive(); // poll RX ring while interrupts are unavailable
+        // network_poll_rx();
         tsc_sleep_ms(1); // ~1ms
     }
 
@@ -99,10 +102,7 @@ void wait_for_network(void)
  */
 static uintptr_t virt_to_phys(const void* virt)
 {
-    if (!virt)
-    {
-        return 0;
-    }
+    if (!virt) return 0;
     return (uintptr_t)virt - g_hhdm_offset;
 }
 
@@ -387,6 +387,7 @@ static bool e1000_start(void)
 
     // Mark as initialized before sending DHCP discover so e1000_send_packet works
     e1000_initialized = true;
+    network_register_driver(e1000_send_packet);
 
     dhcp_send_discover(mac);
 

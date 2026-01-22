@@ -5,6 +5,7 @@
 #include <lib/string.h>
 #include <arpa/inet.h>
 #include <net/socket.h>
+#include <drivers/terminal.h>
 
 void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
                           const size_t ip_len, const size_t ip_header_len)
@@ -61,7 +62,9 @@ void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
     reply_icmp_header->checksum = 0;
     reply_icmp_header->checksum = checksum(reply_icmp_data, (int)icmp_len, 0);
 
-    network_send_packet(reply_packet, (uint16_t)reply_len);
+    const int res = network_send_packet(reply_packet, (uint16_t)reply_len);
+    if (res != 0)
+        boot_message(WARNING, "ICMP reply send failed");
     kfree(reply_packet);
 }
 
