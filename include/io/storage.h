@@ -9,3 +9,4 @@
 void storage_init(void);
 int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t *buffer);
 int storage_write(uint8_t device, uint32_t lba, uint8_t count, const uint8_t *buffer);
+int storage_flush(uint8_t device);

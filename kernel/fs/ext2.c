@@ -480,15 +480,15 @@ struct ext2_inode* ext2fs_ialloc(uint32_t dev, short type)
         struct ext2_disk_inode* din = (struct ext2_disk_inode*)slot;
         if (type == T_DIR)
         {
-            din->i_mode = S_IFDIR;
+            din->i_mode = (uint16_t)(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         }
         else if (type == T_FILE)
         {
-            din->i_mode = S_IFREG;
+            din->i_mode = (uint16_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         }
         else if (type == T_DEV)
         {
-            din->i_mode = S_IFCHR;
+            din->i_mode = (uint16_t)(S_IFCHR | S_IRUSR | S_IWUSR);
         }
         bwrite(dinode_buff);
         bwrite(ibitmap_buff);
@@ -528,11 +528,11 @@ void ext2fs_iupdate(const struct ext2_inode* ip)
     struct ext2_disk_inode* din = (struct ext2_disk_inode*)(bp1->data + sector_byte_offset);
 
     if (ip->type == T_DIR)
-        din->i_mode = S_IFDIR;
+        din->i_mode = (uint16_t)(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     else if (ip->type == T_FILE)
-        din->i_mode = S_IFREG;
+        din->i_mode = (uint16_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     else if (ip->type == T_DEV)
-        din->i_mode = S_IFCHR;
+        din->i_mode = (uint16_t)(S_IFCHR | S_IRUSR | S_IWUSR);
 
     din->i_atime = ip->i_atime;
     din->i_ctime = ip->i_ctime;

@@ -14,6 +14,8 @@
 #define IDE_CMD_READ 0x20
 #define IDE_CMD_WRITE 0x30
 #define IDE_CMD_IDENTIFY 0xEC
+#define IDE_CMD_FLUSH_CACHE 0xE7
+#define IDE_CMD_FLUSH_CACHE_EXT 0xEA
 
 ide_device_t ide_devices[4];
 
@@ -253,6 +255,36 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
             spinlock_release(&ide_channel_lock[channel]);
             return 1;
         }
+    }
+
+    spinlock_release(&ide_channel_lock[channel]);
+    return 0;
+}
+
+int ide_flush_cache(uint8_t drive_index)
+{
+    if (drive_index >= 4 || !ide_devices[drive_index].exists || ide_devices[drive_index].type != IDE_ATA)
+        return -1;
+
+    uint8_t channel = ide_devices[drive_index].channel;
+    uint8_t slave = ide_devices[drive_index].drive;
+
+    spinlock_acquire(&ide_channel_lock[channel]);
+
+    if (ide_wait_ready(channel) != 0)
+    {
+        spinlock_release(&ide_channel_lock[channel]);
+        return -1;
+    }
+
+    outb(ide_channels[channel] + 6, 0xE0 | (slave << 4));
+    ide_delay(channel);
+    outb(ide_channels[channel] + 7, IDE_CMD_FLUSH_CACHE);
+
+    if (ide_wait_not_bsy(channel) != 0)
+    {
+        spinlock_release(&ide_channel_lock[channel]);
+        return -1;
     }
 
     spinlock_release(&ide_channel_lock[channel]);

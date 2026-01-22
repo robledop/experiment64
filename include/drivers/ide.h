@@ -23,4 +23,5 @@ extern ide_device_t ide_devices[4];
 void ide_init(void);
 int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *buffer);
 int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *buffer);
+int ide_flush_cache(uint8_t drive_index);
 void ide_irq_handler(uint8_t channel);

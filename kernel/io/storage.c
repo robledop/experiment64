@@ -81,6 +81,19 @@ static int storage_write_backend(const struct storage_device* dev, uint32_t lba,
     }
 }
 
+static int storage_flush_backend(const struct storage_device* dev)
+{
+    switch (dev->backend)
+    {
+    case STORAGE_BACKEND_AHCI:
+        return ahci_flush();
+    case STORAGE_BACKEND_IDE:
+        return ide_flush_cache(dev->port);
+    default:
+        return -1;
+    }
+}
+
 int storage_read(uint8_t device, uint32_t lba, uint8_t count, uint8_t* buffer)
 {
     if (device >= (sizeof(g_devices) / sizeof(g_devices[0])) || count == 0 || buffer == nullptr)
@@ -116,6 +129,28 @@ int storage_write(uint8_t device, uint32_t lba, uint8_t count, const uint8_t* bu
     }
 
     int result = storage_write_backend(&g_devices[device], lba, count, buffer);
+
+    if (storage_lock_initialized)
+    {
+        sleeplock_release(&storage_locks[device]);
+    }
+
+    return result;
+}
+
+int storage_flush(uint8_t device)
+{
+    if (device >= (sizeof(g_devices) / sizeof(g_devices[0])))
+    {
+        return -1;
+    }
+
+    if (storage_lock_initialized)
+    {
+        sleeplock_acquire(&storage_locks[device]);
+    }
+
+    int result = storage_flush_backend(&g_devices[device]);
 
     if (storage_lock_initialized)
     {

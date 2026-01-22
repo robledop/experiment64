@@ -83,6 +83,8 @@ struct ahci_memory
 #define AHCI_CMD_SLOT 0u
 #define AHCI_GENERIC_TIMEOUT 1000000u
 #define AHCI_MMIO_BYTES 0x1100u
+#define AHCI_CMD_FLUSH_CACHE 0xE7
+#define AHCI_CMD_FLUSH_CACHE_EXT 0xEA
 
 struct ahci_prdt_entry
 {
@@ -614,6 +616,61 @@ static int ahci_issue_dma(uint64_t lba, const uintptr_t buffer_phys, const uint3
     return 0;
 }
 
+static int ahci_issue_nodata(const uint8_t command)
+{
+    if (!active_port.configured) {
+        return -1;
+    }
+
+    volatile struct ahci_port *const port = active_port.port;
+
+    int status = ahci_port_wait(port, AHCI_TFD_BUSY | AHCI_TFD_DRQ);
+    if (status != 0) {
+        return status;
+    }
+
+    port->serr = 0xFFFFFFFF;
+    port->is   = 0xFFFFFFFF;
+
+    struct ahci_command_header *const header = &active_port.command_list[AHCI_CMD_SLOT];
+    struct ahci_command_table *const table   = active_port.command_table;
+
+    memset(table, 0, sizeof(*table));
+
+    header->flags = 5;
+    header->prdtl = 0;
+    header->prdbc = 0;
+
+    uint8_t *const cfis = table->cfis;
+    memset(cfis, 0, sizeof(table->cfis));
+
+    cfis[0] = 0x27;
+    cfis[1] = 1u << 7;
+    cfis[2] = command;
+
+    port->ci = 1u << AHCI_CMD_SLOT;
+
+    uint32_t timeout = AHCI_GENERIC_TIMEOUT;
+    while ((port->ci & (1u << AHCI_CMD_SLOT)) != 0 && timeout-- > 0) {
+        if (port->is & AHCI_PORT_IS_TFES) {
+            port->is = AHCI_PORT_IS_TFES;
+            return -1;
+        }
+    }
+
+    if (timeout == 0) {
+        port->is = 0xFFFFFFFF;
+        return -1;
+    }
+
+    if (port->tfd & AHCI_TFD_ERR) {
+        port->is = 0xFFFFFFFF;
+        return -1;
+    }
+
+    return 0;
+}
+
 int ahci_read(uint64_t lba, uint32_t sector_count, void *buffer)
 {
     if (!buffer || sector_count == 0) {
@@ -686,6 +743,23 @@ int ahci_write(uint64_t lba, uint32_t sector_count, const void *buffer)
         lba += chunk;
         byte_buffer_const += chunk * AHCI_SECTOR_SIZE;
         remaining -= chunk;
+    }
+
+    spinlock_release(&ahci_lock);
+    return result;
+}
+
+int ahci_flush(void)
+{
+    if (!active_port.configured) {
+        return -1;
+    }
+
+    spinlock_acquire(&ahci_lock);
+
+    int result = ahci_issue_nodata(AHCI_CMD_FLUSH_CACHE_EXT);
+    if (result != 0) {
+        result = ahci_issue_nodata(AHCI_CMD_FLUSH_CACHE);
     }
 
     spinlock_release(&ahci_lock);

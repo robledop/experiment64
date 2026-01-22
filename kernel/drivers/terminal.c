@@ -5,6 +5,7 @@
 #include <drivers/framebuffer.h>
 #include <lib/ansi.h>
 #include <fs/vfs.h>
+#include <io/storage.h>
 #include <mem/heap.h>
 #include <stdarg.h>
 #include <limits.h>
@@ -847,6 +848,7 @@ void boot_log_flush(void)
         boot_log_ready = true;
     }
 
+    const size_t flushed_before = boot_log_flushed_len;
     while (boot_log_flushed_len < boot_log_len)
     {
         size_t pending = boot_log_len - boot_log_flushed_len;
@@ -859,6 +861,11 @@ void boot_log_flush(void)
 
     vfs_close(node);
     kfree(node);
+
+    if (boot_log_flushed_len != flushed_before)
+    {
+        storage_flush(0);
+    }
 
     boot_log_flushing = false;
 }
