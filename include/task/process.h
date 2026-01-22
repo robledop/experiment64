@@ -106,6 +106,7 @@ typedef struct Thread
     int exit_code;
     bool is_idle; // Is this the idle thread?
     bool is_user; // Runs in user mode
+    bool detached; // User thread detached from join
 } thread_t;
 
 extern list_item_t process_list;
@@ -138,6 +139,7 @@ void schedule(void);
 void yield(void);
 void thread_sleep(void* chan, spinlock_t* lock);
 void thread_wakeup(void* chan);
+int thread_wakeup_n(void* chan, process_t* scope, int max_count);
 void switch_to(thread_t* prev, thread_t* next);
 
 void process_spawn_init(void);

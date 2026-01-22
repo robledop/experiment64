@@ -249,6 +249,39 @@ static inline void thread_state_store(thread_t* t, thread_state_t state)
     __atomic_store_n((uint32_t*)&t->state, (uint32_t)state, __ATOMIC_RELAXED);
 }
 
+/**
+ * Collect detached, terminated user threads into free_list.
+ * @warning Caller must hold scheduler_lock.
+ */
+static void collect_detached_terminated_threads(list_item_t* free_list)
+{
+    process_t* p;
+    list_foreach_entry(p, &process_list, list)
+    {
+        thread_t *t, *next_t;
+        list_foreach_entry_safe(t, next_t, &p->threads, list)
+        {
+            if (!t->is_user || !t->detached)
+                continue;
+
+            uint32_t raw_state = thread_state_load_raw(t);
+            if (!thread_state_valid_raw(raw_state))
+            {
+                thread_state_store(t, THREAD_TERMINATED);
+                raw_state = THREAD_TERMINATED;
+            }
+            if ((thread_state_t)raw_state != THREAD_TERMINATED)
+                continue;
+            if (thread_is_active_on_any_cpu(t))
+                continue;
+
+            list_del(&t->list);
+            t->process = nullptr;
+            list_add_tail(&t->list, free_list);
+        }
+    }
+}
+
 static bool process_in_list(const process_t* proc)
 {
     if (!proc)
@@ -995,6 +1028,8 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
     for (;;)
     {
         spinlock_acquire(&scheduler_lock);
+        list_item_t free_list = LIST_HEAD_INIT(free_list);
+        collect_detached_terminated_threads(&free_list);
         constexpr bool allow_user = true;
         thread_t* next = find_any_runnable_thread_rr(cpu, allow_user);
         if (!next)
@@ -1071,6 +1106,18 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
         next->ticks_remaining = TIME_SLICE_TICKS;
 
         spinlock_release(&scheduler_lock);
+
+        thread_t *free_t, *free_next;
+        list_foreach_entry_safe(free_t, free_next, &free_list, list)
+        {
+            list_del(&free_t->list);
+            if (free_t->kstack_top != 0)
+            {
+                void* kstack_base = (void*)(free_t->kstack_top - KSTACK_SIZE);
+                kfree(kstack_base);
+            }
+            kfree(free_t);
+        }
         switch_to(schedt, next);
 
         vmm_switch_pml4(kernel_process->pml4);
@@ -1188,6 +1235,73 @@ void thread_wakeup(void* chan)
         }
     }
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+}
+
+int thread_wakeup_n(void* chan, process_t* scope, int max_count)
+{
+    if (max_count <= 0)
+        return 0;
+
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+
+    int woken = 0;
+    if (scope)
+    {
+        thread_t* t;
+        list_foreach_entry(t, &scope->threads, list)
+        {
+            uint32_t raw_state = thread_state_load_raw(t);
+            if (!thread_state_valid_raw(raw_state))
+            {
+                boot_message(ERROR, "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
+                             scope->pid, t->tid, raw_state);
+                thread_state_store(t, THREAD_TERMINATED);
+                continue;
+            }
+
+            if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan)
+            {
+                thread_state_store(t, THREAD_READY);
+                t->chan = nullptr;
+                woken++;
+                if (woken >= max_count)
+                    break;
+            }
+        }
+        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        return woken;
+    }
+
+    process_t* p;
+    list_foreach_entry(p, &process_list, list)
+    {
+        thread_t* t;
+        list_foreach_entry(t, &p->threads, list)
+        {
+            uint32_t raw_state = thread_state_load_raw(t);
+            if (!thread_state_valid_raw(raw_state))
+            {
+                boot_message(ERROR, "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
+                             p->pid, t->tid, raw_state);
+                thread_state_store(t, THREAD_TERMINATED);
+                continue;
+            }
+
+            if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan)
+            {
+                thread_state_store(t, THREAD_READY);
+                t->chan = nullptr;
+                woken++;
+                if (woken >= max_count)
+                    goto out;
+            }
+        }
+    }
+
+out:
+    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    return woken;
 }
 
 void yield(void)

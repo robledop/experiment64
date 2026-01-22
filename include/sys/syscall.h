@@ -62,6 +62,8 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_THREAD_JOIN 43
 #define SYS_GETTID 44
 #define SYS_FUTEX_WAIT 45
+#define SYS_FUTEX_WAKE 46
+#define SYS_THREAD_DETACH 47
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));

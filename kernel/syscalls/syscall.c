@@ -226,6 +226,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_THREAD_JOIN:
         ret = sys_thread_join((int)arg1, (int*)arg2);
         break;
+    case SYS_THREAD_DETACH:
+        ret = sys_thread_detach((int)arg1);
+        break;
     case SYS_GETTID:
         ret = sys_gettid();
         break;
