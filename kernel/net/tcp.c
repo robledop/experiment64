@@ -10,6 +10,7 @@
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <attributes.h>
+#include <lib/util.h>
 
 struct tcp_pseudo_header
 {
@@ -28,11 +29,6 @@ static uint32_t tcp_generate_isn(void)
     return tcp_next_isn++;
 }
 
-static bool tcp_ip_is_zero(const uint8_t ip[static 4])
-{
-    return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
-}
-
 int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], const uint16_t dest_port,
                      const uint32_t seq_num, const uint32_t ack_num, const uint8_t flags,
                      const uint8_t* payload, const size_t payload_len, const uint8_t* dest_mac)
@@ -43,7 +39,7 @@ int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], cons
         return -1;
 
     uint8_t src_ip[4];
-    if (tcp_ip_is_zero(sock->local.ip))
+    if (ip_is_zero(sock->local.ip))
         memcpy(src_ip, my_ip, sizeof(src_ip));
     else
         memcpy(src_ip, sock->local.ip, sizeof(src_ip));
@@ -269,4 +265,44 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
                          sock->tcp_send_next, sock->tcp_recv_next,
                          TCP_FLAG_ACK, nullptr, 0, ether_header->src_host);
     }
+}
+
+int tcp_sendto(const void* buf, const size_t len, const struct sockaddr* dest_addr, socket_t* const sock,
+               struct sockaddr_in in)
+{
+    if (sock->state != SOCKET_STATE_CONNECTED) return -1;
+    if ((sock->flags & SOCKET_FLAG_TCP_ESTABLISHED) == 0) return -1;
+    if (ip_is_zero(sock->remote.ip) || sock->remote.port == 0) return -1;
+    if (dest_addr &&
+        (memcmp(sock->remote.ip, in.sin_addr, sizeof(sock->remote.ip)) != 0 ||
+            sock->remote.port != in.sin_port))
+    {
+        return -1;
+    }
+    if (len == 0) return 0;
+
+    constexpr size_t max_payload = ETH_DATA_LEN - sizeof(struct ipv4_header) - sizeof(struct tcp_header);
+    auto data = (const uint8_t*)buf;
+    size_t sent_total = 0;
+
+    while (sent_total < len)
+    {
+        size_t chunk = len - sent_total;
+        if (chunk > max_payload)
+            chunk = max_payload;
+
+        uint8_t flags = TCP_FLAG_ACK;
+        if (sent_total + chunk == len)
+            flags |= TCP_FLAG_PSH;
+
+        if (tcp_send_segment(sock, sock->remote.ip, sock->remote.port,
+                             sock->tcp_send_next, sock->tcp_recv_next,
+                             flags, data + sent_total, chunk, nullptr) != 0)
+            return (sent_total > 0) ? clamp_to_int(sent_total) : -1;
+
+        sock->tcp_send_next += (uint32_t)chunk;
+        sent_total += chunk;
+    }
+
+    return clamp_to_int(sent_total);
 }

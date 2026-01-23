@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <stddef.h>
 
+#include "drivers/terminal.h"
+
 bool network_ready = false;
 uint8_t* my_ip_address = nullptr;
 uint8_t* default_gateway = nullptr;
@@ -18,7 +20,6 @@ uint32_t* dns_servers;
 
 static uint8_t* mac = nullptr;
 static network_send_fn network_send;
-// static network_poll_fn network_poll;
 
 struct ether_type
 {
@@ -184,8 +185,8 @@ void network_receive(uint8_t* packet, const uint16_t len)
             const size_t ip_len = ntohs(ipv4_header->total_length);
             if (ip_len < ip_header_len || ip_len > len - eth_len) return;
 
-
             const uint8_t protocol = ipv4_header->protocol;
+
             switch (protocol)
             {
             case IP_PROTOCOL_ICMP:
@@ -206,11 +207,13 @@ void network_receive(uint8_t* packet, const uint16_t len)
                     break;
                 }
             default:
+                boot_message(WARNING, "Unknown IP protocol %d", protocol);
                 break;
             }
             break;
         }
     default:
+        boot_message(WARNING, "Unknown ether type %d", ether_type);
         break;
     }
 }
@@ -224,7 +227,6 @@ int network_send_packet(const void* data, const uint16_t len)
 void network_register_driver(network_send_fn send_fn)
 {
     network_send = send_fn;
-    // network_poll = poll_fn;
 }
 
 void network_unregister_driver(network_send_fn send_fn)
@@ -232,36 +234,20 @@ void network_unregister_driver(network_send_fn send_fn)
     if (network_send == send_fn)
     {
         network_send = nullptr;
-        // network_poll = nullptr;
     }
 }
 
-// void network_poll_rx(void)
-// {
-//     if (network_poll)
-//     {
-//         network_poll();
-//     }
-// }
-
 bool network_compare_ip_addresses(const uint8_t ip1[static 4], const uint8_t ip2[static 4])
 {
-    if (ip1 == ip2)
-    {
-        return true;
-    }
+    if (ip1 == ip2) return true;
     return memcmp(ip1, ip2, 4) == 0;
 }
 
 bool network_compare_mac_addresses(const uint8_t mac1[static 6], const uint8_t mac2[static 6])
 {
-    if (mac1 == mac2)
-    {
-        return true;
-    }
+    if (mac1 == mac2) return true;
     return memcmp(mac1, mac2, 6) == 0;
 }
-
 
 void network_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
 {
@@ -281,8 +267,7 @@ void network_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static
                 break;
             }
         }
-        if (!same)
-            next = gw;
+        if (!same) next = gw;
     }
 
     memcpy(out, next, 4);

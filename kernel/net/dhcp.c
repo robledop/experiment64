@@ -121,46 +121,40 @@ uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LE
         {
             break;
         }
-        else if (option_code == DHCP_OPT_PAD)
+        if (option_code == DHCP_OPT_PAD)
         {
             continue; // Pad option, skip to the next byte
         }
-        else
+        // Ensure there's enough space for the length field
+        if (offset >= DHCP_OPTIONS_LEN)
         {
-            // Ensure there's enough space for the length field
-            if (offset >= DHCP_OPTIONS_LEN)
-            {
-                // Malformed packet
-                return 0;
-            }
-
-            uint8_t option_length = options[offset++];
-
-            // Ensure there's enough space for the option data
-            if (offset + option_length > DHCP_OPTIONS_LEN)
-            {
-                // Malformed packet
-                return 0;
-            }
-
-            if (option_code == option)
-            {
-                if (option_length != 4)
-                {
-                    // Invalid subnet mask length
-                    return 0;
-                }
-                // Extract the subnet mask
-                const uint32_t subnet_mask = ((uint32_t)options[offset] << 24) | (options[offset + 1] << 16) |
-                    (options[offset + 2] << 8) | options[offset + 3];
-                return subnet_mask;
-            }
-            else
-            {
-                // Skip over the data for this option
-                offset += option_length;
-            }
+            // Malformed packet
+            return 0;
         }
+
+        uint8_t option_length = options[offset++];
+
+        // Ensure there's enough space for the option data
+        if (offset + option_length > DHCP_OPTIONS_LEN)
+        {
+            // Malformed packet
+            return 0;
+        }
+
+        if (option_code == option)
+        {
+            if (option_length != 4)
+            {
+                // Invalid subnet mask length
+                return 0;
+            }
+            // Extract the subnet mask
+            const uint32_t subnet_mask = ((uint32_t)options[offset] << 24) | (options[offset + 1] << 16) |
+                (options[offset + 2] << 8) | options[offset + 3];
+            return subnet_mask;
+        }
+        // Skip over the data for this option
+        offset += option_length;
     }
     return 0;
 }
@@ -187,7 +181,7 @@ void set_discover_dhcp_options(uint8_t* options)
 
 void dhcp_receive(uint8_t* packet)
 {
-    struct dhcp_header* dhcp_packet = (struct dhcp_header*)(packet + sizeof(struct ether_header) +
+    auto dhcp_packet = (struct dhcp_header*)(packet + sizeof(struct ether_header) +
         sizeof(struct ipv4_header) + sizeof(struct udp_header));
     const uint16_t dhcp_message_type = dhcp_packet->options[2];
 

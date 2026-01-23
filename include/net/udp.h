@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <net/socket.h>
 
 struct udp_header
 {
@@ -15,9 +16,11 @@ struct udp_pseudo_header
 {
     uint8_t src_ip[4];
     uint8_t dest_ip[4];
-    uint8_t zero;        // Always 0
-    uint8_t protocol;    // Protocol number (UDP is 17)
+    uint8_t zero; // Always 0
+    uint8_t protocol; // Protocol number (UDP is 17)
     uint16_t udp_length; // Length of UDP header + data
 };
 
 void udp_receive(uint8_t* packet, uint16_t len, size_t ip_len, size_t ip_header_len);
+int udp_sendto(const void* buf, size_t len, socket_t* sock, struct sockaddr_in in, const uint8_t* my_ip,
+               uint8_t src_ip[static 4]);

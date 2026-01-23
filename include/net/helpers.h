@@ -10,3 +10,4 @@ uint16_t checksum(void *addr, int count, int start_sum);
 // Format MAC address as "XX:XX:XX:XX:XX:XX" string
 // Returns pointer to static buffer (not thread-safe)
 char *get_mac_address_string(const uint8_t mac[static 6]);
+bool ip_is_zero(const uint8_t ip[static 4]);

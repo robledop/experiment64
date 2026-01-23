@@ -1,5 +1,4 @@
 #include <syscall_common.h>
-
 #include <drivers/terminal.h>
 #include <fs/vfs.h>
 #include <lib/util.h>

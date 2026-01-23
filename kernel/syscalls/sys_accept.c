@@ -14,7 +14,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     if (!desc || !desc->inode) return -1;
     if (desc->inode->iops != &socket_iops) return -1;
 
-    socket_t* listener = (socket_t*)desc->inode->device;
+    auto listener = (socket_t*)desc->inode->device;
     if (!listener) return -1;
     if (listener->type != SOCK_STREAM || listener->protocol != IPPROTO_TCP) return -1;
     if (listener->state != SOCKET_STATE_LISTENING) return -1;

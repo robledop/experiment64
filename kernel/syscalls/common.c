@@ -232,3 +232,14 @@ int resolve_user_path(const char* path, char* resolved, size_t size)
     path_build_absolute(base, path, resolved, size);
     return 0;
 }
+
+bool futex_addr_ok(const uint32_t* uaddr, const char* op)
+{
+    if (!uaddr)
+        return false;
+    if (((uintptr_t)uaddr & (sizeof(uint32_t) - 1)) != 0)
+        return false;
+    if (!user_ptr_read_ok(uaddr, sizeof(uint32_t), op))
+        return false;
+    return true;
+}

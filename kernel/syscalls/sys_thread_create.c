@@ -18,12 +18,10 @@ static inline uint64_t align_down_u64(uint64_t val, uint64_t align)
 
 static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, uint64_t* out_start, uint64_t* out_end)
 {
-    if (!proc || !out_start || !out_end)
-        return false;
+    if (!proc || !out_start || !out_end) return false;
 
     uint64_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
-    if (user_top <= PAGE_SIZE)
-        return false;
+    if (user_top <= PAGE_SIZE) return false;
 
     const uint64_t hint = top_hint != 0 ? top_hint : THREAD_STACK_TOP_HINT;
     uint64_t limit = min(hint, user_top - PAGE_SIZE);
@@ -54,8 +52,7 @@ static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, 
             return true;
         }
 
-        if (next_end >= limit)
-            break;
+        if (next_end >= limit) break;
         limit = align_down_u64(next_end, PAGE_SIZE);
     }
 

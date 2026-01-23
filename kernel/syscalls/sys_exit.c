@@ -21,7 +21,6 @@ void sys_exit(int code)
 
     __asm__ volatile("cli");
 
-    // Acquire scheduler lock before modifying thread/process state to prevent races
     spinlock_acquire(&scheduler_lock);
 
     thread_t* self = current_thread;

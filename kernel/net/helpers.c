@@ -1,18 +1,20 @@
 #include "net/helpers.h"
 
-uint16_t checksum(void *addr, int count, const int start_sum)
+uint16_t checksum(void* addr, int count, const int start_sum)
 {
     uint32_t sum = start_sum;
-    const uint8_t *ptr = (const uint8_t *)addr;
+    const uint8_t* ptr = (const uint8_t*)addr;
 
-    while (count > 1) {
+    while (count > 1)
+    {
         uint16_t word = (uint16_t)ptr[0] | ((uint16_t)ptr[1] << 8);
         sum += word;
         ptr += 2;
         count -= 2;
     }
 
-    if (count > 0) {
+    if (count > 0)
+    {
         sum += (uint16_t)ptr[0];
     }
 
@@ -22,12 +24,18 @@ uint16_t checksum(void *addr, int count, const int start_sum)
     return ~sum;
 }
 
-char *get_mac_address_string(const uint8_t mac[6])
+char* get_mac_address_string(const uint8_t mac[6])
 {
     static char result[18] = "00:00:00:00:00:00";
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++)
+    {
         result[i * 3] = "0123456789ABCDEF"[mac[i] / 16];
         result[i * 3 + 1] = "0123456789ABCDEF"[mac[i] % 16];
     }
     return result;
+}
+
+bool ip_is_zero(const uint8_t ip[static 4])
+{
+    return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
 }

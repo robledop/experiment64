@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <net/socket.h>
 #include <drivers/terminal.h>
+#include <lib/util.h>
+#include <net/arp.h>
 
 void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
                           const size_t ip_len, const size_t ip_header_len)
@@ -95,4 +97,53 @@ void icmp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, cons
     default:
         break;
     }
+}
+
+int icmp_sendto(const void* buf, const size_t len, struct sockaddr_in in, uint8_t src_ip[4])
+{
+    if (len < sizeof(struct icmp_header)) return -1;
+
+    uint8_t next_hop[4];
+    network_select_next_hop(in.sin_addr, next_hop);
+    const struct arp_cache_entry entry = arp_resolve(next_hop);
+    if (entry.ip[0] == 0) return -1;
+
+    const uint8_t* src_mac = network_get_my_mac_address();
+    if (!src_mac)
+        return -1;
+
+    const size_t total_len = sizeof(struct ether_header) + sizeof(struct ipv4_header) + len;
+    uint8_t* packet = kmalloc(total_len);
+    if (!packet)
+        return -1;
+
+    auto const eth = (struct ether_header*)packet;
+    memcpy(eth->dest_host, entry.mac, 6);
+    memcpy(eth->src_host, src_mac, 6);
+    eth->ether_type = htons(ETHERTYPE_IP);
+
+    auto const ip = (struct ipv4_header*)(packet + sizeof(struct ether_header));
+    ip->version = 4;
+    ip->ihl = 0x05;
+    ip->dscp_ecn = 0;
+    ip->total_length = htons(sizeof(struct ipv4_header) + len);
+    ip->identification = 0;
+    ip->flags_fragment_offset = 0;
+    ip->ttl = 64;
+    ip->protocol = IP_PROTOCOL_ICMP;
+    ip->header_checksum = 0;
+    memcpy(ip->source_ip, src_ip, 4);
+    memcpy(ip->dest_ip, in.sin_addr, 4);
+    ip->header_checksum = checksum(ip, (int)sizeof(struct ipv4_header), 0);
+
+    uint8_t* icmp_data = (uint8_t*)ip + sizeof(struct ipv4_header);
+    if (len > 0)
+        memcpy(icmp_data, buf, len);
+    auto const icmp = (struct icmp_header*)icmp_data;
+    icmp->checksum = 0;
+    icmp->checksum = checksum(icmp_data, (int)len, 0);
+
+    network_send_packet(packet, (uint16_t)total_len);
+    kfree(packet);
+    return clamp_to_int(len);
 }

@@ -39,3 +39,5 @@ void tcp_receive(uint8_t* packet, uint16_t len, size_t ip_len, size_t ip_header_
 int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], uint16_t dest_port,
                      uint32_t seq_num, uint32_t ack_num, uint8_t flags,
                      const uint8_t* payload, size_t payload_len, const uint8_t* dest_mac);
+int tcp_sendto(const void* buf, size_t len, const struct sockaddr* dest_addr, socket_t* sock,
+               struct sockaddr_in in);

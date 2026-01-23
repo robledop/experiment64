@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <net/ethernet.h>
 #include <net/ipv4.h>
+#include <net/socket.h>
 
 #define ICMP_REPLY 0x00
 #define ICMP_V4_ECHO 0x08
@@ -32,3 +33,4 @@ struct icmp_echo_reply
 };
 
 void icmp_receive(uint8_t* packet, uint16_t len, size_t ip_len, size_t ip_header_len);
+int icmp_sendto(const void* buf, size_t len, struct sockaddr_in in, uint8_t src_ip[4]);

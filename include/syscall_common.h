@@ -34,3 +34,4 @@ void set_process_name_from_path(process_t* proc, const char* path);
 thread_t* find_thread_by_tid(process_t* proc, int tid);
 bool thread_active_on_any_cpu(thread_t* t);
 void free_thread_resources(thread_t* t);
+bool futex_addr_ok(const uint32_t* uaddr, const char* op);
