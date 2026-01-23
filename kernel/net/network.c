@@ -261,3 +261,29 @@ bool network_compare_mac_addresses(const uint8_t mac1[static 6], const uint8_t m
     }
     return memcmp(mac1, mac2, 6) == 0;
 }
+
+
+void network_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
+{
+    const uint8_t* my_ip = network_get_my_ip_address();
+    const uint8_t* mask = network_get_subnet_mask();
+    const uint8_t* gw = network_get_default_gateway();
+
+    const uint8_t* next = dest_ip;
+    if (my_ip && mask && gw)
+    {
+        bool same = true;
+        for (int i = 0; i < 4; i++)
+        {
+            if ((dest_ip[i] & mask[i]) != (my_ip[i] & mask[i]))
+            {
+                same = false;
+                break;
+            }
+        }
+        if (!same)
+            next = gw;
+    }
+
+    memcpy(out, next, 4);
+}

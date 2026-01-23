@@ -34,3 +34,4 @@ void network_set_default_gateway(const uint8_t ip[static 4]);
 void network_set_state(bool state);
 uint32_t* network_get_dns_servers(void);
 uint32_t network_get_dns_server_count(void);
+void network_select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4]);

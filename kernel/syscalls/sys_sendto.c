@@ -18,37 +18,6 @@ static bool ip_is_zero(const uint8_t ip[static 4])
     return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
 }
 
-/**
- * Compare the destination IP address with the subnet mask and gateway to determine the next hop.
- */
-static void select_next_hop(const uint8_t dest_ip[static 4], uint8_t out[static 4])
-{
-    const uint8_t* my_ip = network_get_my_ip_address();
-    const uint8_t* mask = network_get_subnet_mask();
-    const uint8_t* gw = network_get_default_gateway();
-
-    const uint8_t* next = dest_ip;
-    if (my_ip && mask && gw)
-    {
-        bool same = true;
-        for (int i = 0; i < 4; i++)
-        {
-            // AND each octet of the destination IP with the subnet mask
-            // Do the same thing with our own IP
-            // Compare the two. If they are different, we need to use the gateway
-            // because we are not on the same subnet
-            if ((dest_ip[i] & mask[i]) != (my_ip[i] & mask[i]))
-            {
-                same = false;
-                break;
-            }
-        }
-        if (!same) next = gw;
-    }
-
-    memcpy(out, next, 4);
-}
-
 int tcp_sendto(const void* buf, const size_t len, const struct sockaddr* dest_addr, socket_t* const sock,
                struct sockaddr_in in)
 {
