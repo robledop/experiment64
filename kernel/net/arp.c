@@ -9,7 +9,7 @@
 
 uint8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-struct arp_cache_entry *arp_cache;
+struct arp_cache_entry* arp_cache;
 // static uint32_t arp_debug_left = 8;
 
 void arp_init(void)
@@ -22,8 +22,10 @@ void arp_cache_remove_expired_entries(void)
     if (!arp_cache)
         return;
     const uint32_t current_time = scheduler_ticks;
-    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
-        if (arp_cache[i].ip[0] != 0 && current_time - arp_cache[i].timestamp > ARP_CACHE_TIMEOUT) {
+    for (int i = 0; i < ARP_CACHE_SIZE; i++)
+    {
+        if (arp_cache[i].ip[0] != 0 && current_time - arp_cache[i].timestamp > ARP_CACHE_TIMEOUT)
+        {
             memset(arp_cache[i].ip, 0, 4);
             memset(arp_cache[i].mac, 0, 6);
             arp_cache[i].timestamp = 0;
@@ -37,8 +39,10 @@ struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
         return (struct arp_cache_entry){0};
     arp_cache_remove_expired_entries();
 
-    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
-        if (network_compare_ip_addresses(arp_cache[i].ip, ip)) {
+    for (int i = 0; i < ARP_CACHE_SIZE; i++)
+    {
+        if (network_compare_ip_addresses(arp_cache[i].ip, ip))
+        {
             return arp_cache[i];
         }
     }
@@ -49,8 +53,10 @@ void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
 {
     if (!arp_cache)
         return;
-    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
-        if (arp_cache[i].ip[0] == 0) {
+    for (int i = 0; i < ARP_CACHE_SIZE; i++)
+    {
+        if (arp_cache[i].ip[0] == 0)
+        {
             memcpy(arp_cache[i].ip, ip, 4);
             memcpy(arp_cache[i].mac, mac, 6);
             arp_cache[i].timestamp = scheduler_ticks;
@@ -67,19 +73,18 @@ void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
     }
 }
 
-void arp_receive_reply(uint8_t *packet)
+void arp_receive_reply(uint8_t* packet)
 {
-    struct arp_header *arp_header = (struct arp_header *)(packet + sizeof(struct ether_header));
+    auto arp_header = (struct arp_header*)(packet + sizeof(struct ether_header));
 
     struct arp_cache_entry cache_entry = arp_cache_find(arp_header->sender_protocol_addr);
-    if (cache_entry.ip[0] == 0) {
+    if (cache_entry.ip[0] == 0)
         arp_cache_add(arp_header->sender_protocol_addr, arp_header->sender_hw_addr);
-    }
 }
 
-void arp_receive(uint8_t *packet)
+void arp_receive(uint8_t* packet)
 {
-    const struct arp_header *arp = (struct arp_header *)(packet + sizeof(struct ether_header));
+    const struct arp_header* arp = (struct arp_header*)(packet + sizeof(struct ether_header));
     const uint16_t opcode = ntohs(arp->opcode);
     // if (arp_debug_left > 0)
     // {
@@ -95,16 +100,19 @@ void arp_receive(uint8_t *packet)
     //                  arp->target_protocol_addr[2],
     //                  arp->target_protocol_addr[3]);
     // }
-    switch (opcode) {
+    switch (opcode)
+    {
     case ARP_REQUEST:
         if (network_get_my_ip_address() &&
-            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address())) {
+            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address()))
+        {
             arp_send_reply(packet);
         }
         break;
     case ARP_REPLY:
         if (network_get_my_ip_address() &&
-            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address())) {
+            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address()))
+        {
             arp_receive_reply(packet);
         }
         break;
@@ -115,7 +123,7 @@ void arp_receive(uint8_t *packet)
 
 void arp_send_request(const uint8_t dest_ip[static 4])
 {
-    struct arp_packet *packet = kzalloc(sizeof(struct arp_packet));
+    struct arp_packet* packet = kzalloc(sizeof(struct arp_packet));
     struct ether_header ether_header;
     memcpy(ether_header.dest_host, broadcast_mac, 6);
     memcpy(ether_header.src_host, network_get_my_mac_address(), 6);
@@ -140,10 +148,10 @@ void arp_send_request(const uint8_t dest_ip[static 4])
     kfree(packet);
 }
 
-void arp_send_reply(const uint8_t *packet)
+void arp_send_reply(const uint8_t* packet)
 {
-    const struct ether_header *ether_header = (struct ether_header *)packet;
-    const struct arp_header *arp_header = (struct arp_header *)(packet + sizeof(struct ether_header));
+    const struct ether_header* ether_header = (struct ether_header*)packet;
+    const struct arp_header* arp_header = (struct arp_header*)(packet + sizeof(struct ether_header));
 
     struct ether_header reply_ether_header;
     memcpy(reply_ether_header.dest_host, ether_header->src_host, 6);
@@ -161,7 +169,7 @@ void arp_send_reply(const uint8_t *packet)
     memcpy(reply_arp_header.target_hw_addr, arp_header->sender_hw_addr, 6);
     memcpy(reply_arp_header.target_protocol_addr, arp_header->sender_protocol_addr, 4);
 
-    struct arp_packet *reply_packet = kzalloc(sizeof(struct arp_packet));
+    struct arp_packet* reply_packet = kzalloc(sizeof(struct arp_packet));
 
     reply_packet->ether_header = reply_ether_header;
     reply_packet->arp_packet = reply_arp_header;
@@ -170,4 +178,20 @@ void arp_send_reply(const uint8_t *packet)
     if (res != 0)
         boot_message(WARNING, "ARP reply send failed");
     kfree(reply_packet);
+}
+
+struct arp_cache_entry arp_resolve(const uint8_t ip[static 4])
+{
+    struct arp_cache_entry entry = arp_cache_find(ip);
+    if (entry.ip[0] != 0) return entry;
+
+    arp_send_request(ip);
+    const uint32_t start = scheduler_ticks;
+    while (scheduler_ticks - start < ARP_RESOLVE_TIMEOUT)
+    {
+        entry = arp_cache_find(ip);
+        if (entry.ip[0] != 0) return entry;
+        yield();
+    }
+    return (struct arp_cache_entry){0};
 }

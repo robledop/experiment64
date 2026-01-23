@@ -8,6 +8,7 @@
 
 #define ARP_CACHE_SIZE 256
 #define ARP_CACHE_TIMEOUT 60000 // ticks
+#define ARP_RESOLVE_TIMEOUT 1000 // ticks
 
 struct arp_header
 {
@@ -41,3 +42,4 @@ void arp_receive(uint8_t *packet);
 void arp_send_reply(const uint8_t *packet);
 void arp_send_request(const uint8_t dest_ip[static 4]);
 void arp_init(void);
+struct arp_cache_entry arp_resolve(const uint8_t ip[static 4]);

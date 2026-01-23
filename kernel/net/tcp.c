@@ -53,13 +53,10 @@ int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], cons
     if (!out_mac)
     {
         uint8_t next_hop[4];
-        tcp_select_next_hop(dest_ip, next_hop);
-        const struct arp_cache_entry entry = arp_cache_find(next_hop);
-        if (entry.ip[0] == 0)
-        {
-            arp_send_request(next_hop);
-            return -1;
-        }
+        network_select_next_hop(dest_ip, next_hop);
+        const struct arp_cache_entry entry = arp_resolve(next_hop);
+        if (entry.ip[0] == 0) return -1;
+
         memcpy(resolved_mac, entry.mac, sizeof(resolved_mac));
         out_mac = resolved_mac;
     }

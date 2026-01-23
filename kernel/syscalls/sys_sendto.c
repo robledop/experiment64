@@ -74,13 +74,9 @@ int udp_sendto(const void* buf, const size_t len, socket_t* const sock, struct s
     }
 
     uint8_t next_hop[4];
-    select_next_hop(in.sin_addr, next_hop);
-    const struct arp_cache_entry entry = arp_cache_find(next_hop);
-    if (entry.ip[0] == 0)
-    {
-        arp_send_request(next_hop);
-        return -1;
-    }
+    network_select_next_hop(in.sin_addr, next_hop);
+    const struct arp_cache_entry entry = arp_resolve(next_hop);
+    if (entry.ip[0] == 0) return -1;
 
     const uint8_t* src_mac = network_get_my_mac_address();
     if (!src_mac) return -1;
@@ -151,13 +147,9 @@ int icmp_sendto(const void* buf, const size_t len, struct sockaddr_in in, uint8_
     if (len < sizeof(struct icmp_header)) return -1;
 
     uint8_t next_hop[4];
-    select_next_hop(in.sin_addr, next_hop);
-    const struct arp_cache_entry entry = arp_cache_find(next_hop);
-    if (entry.ip[0] == 0)
-    {
-        arp_send_request(next_hop);
-        return -1;
-    }
+    network_select_next_hop(in.sin_addr, next_hop);
+    const struct arp_cache_entry entry = arp_resolve(next_hop);
+    if (entry.ip[0] == 0) return -1;
 
     const uint8_t* src_mac = network_get_my_mac_address();
     if (!src_mac)
