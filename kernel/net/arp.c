@@ -1,16 +1,17 @@
-#include "net/arp.h"
-#include "net/ethernet.h"
-#include "net/network.h"
+#include <net/arp.h>
+#include <net/ethernet.h>
+#include <net/network.h>
 #include <mem/heap.h>
 #include <task/process.h>
 #include <drivers/terminal.h>
 #include <lib/string.h>
 #include <arpa/inet.h>
 
+#include "debug.h"
+
 uint8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 struct arp_cache_entry* arp_cache;
-// static uint32_t arp_debug_left = 8;
 
 void arp_init(void)
 {
@@ -19,8 +20,8 @@ void arp_init(void)
 
 void arp_cache_remove_expired_entries(void)
 {
-    if (!arp_cache)
-        return;
+    if (!arp_cache) return;
+
     const uint32_t current_time = scheduler_ticks;
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
@@ -35,8 +36,8 @@ void arp_cache_remove_expired_entries(void)
 
 struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
 {
-    if (!arp_cache)
-        return (struct arp_cache_entry){0};
+    if (!arp_cache) return (struct arp_cache_entry){0};
+
     arp_cache_remove_expired_entries();
 
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
@@ -51,8 +52,8 @@ struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
 
 void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
 {
-    if (!arp_cache)
-        return;
+    if (!arp_cache) return;
+
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
         if (arp_cache[i].ip[0] == 0)
@@ -60,14 +61,6 @@ void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
             memcpy(arp_cache[i].ip, ip, 4);
             memcpy(arp_cache[i].mac, mac, 6);
             arp_cache[i].timestamp = scheduler_ticks;
-            // if (arp_debug_left > 0)
-            // {
-            //     boot_message(INFO,
-            //                  "ARP cache add %u.%u.%u.%u -> %02x:%02x:%02x:%02x:%02x:%02x",
-            //                  ip[0], ip[1], ip[2], ip[3],
-            //                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-            //     arp_debug_left--;
-            // }
             return;
         }
     }
@@ -86,37 +79,25 @@ void arp_receive(uint8_t* packet)
 {
     const struct arp_header* arp = (struct arp_header*)(packet + sizeof(struct ether_header));
     const uint16_t opcode = ntohs(arp->opcode);
-    // if (arp_debug_left > 0)
-    // {
-    //     boot_message(INFO,
-    //                  "ARP rx op=%u sender=%u.%u.%u.%u target=%u.%u.%u.%u",
-    //                  opcode,
-    //                  arp->sender_protocol_addr[0],
-    //                  arp->sender_protocol_addr[1],
-    //                  arp->sender_protocol_addr[2],
-    //                  arp->sender_protocol_addr[3],
-    //                  arp->target_protocol_addr[0],
-    //                  arp->target_protocol_addr[1],
-    //                  arp->target_protocol_addr[2],
-    //                  arp->target_protocol_addr[3]);
-    // }
+    uint8_t* my_ip_address = network_get_my_ip_address();
+
     switch (opcode)
     {
     case ARP_REQUEST:
-        if (network_get_my_ip_address() &&
-            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address()))
+
+        if (my_ip_address && network_compare_ip_addresses(arp->target_protocol_addr, my_ip_address))
         {
             arp_send_reply(packet);
         }
         break;
     case ARP_REPLY:
-        if (network_get_my_ip_address() &&
-            network_compare_ip_addresses(arp->target_protocol_addr, network_get_my_ip_address()))
+        if (my_ip_address && network_compare_ip_addresses(arp->target_protocol_addr, my_ip_address))
         {
             arp_receive_reply(packet);
         }
         break;
     default:
+        boot_message(WARNING, "Unknown ARP opcode");
         break;
     }
 }
@@ -175,8 +156,7 @@ void arp_send_reply(const uint8_t* packet)
     reply_packet->arp_packet = reply_arp_header;
 
     const int res = network_send_packet(reply_packet, sizeof(struct arp_packet));
-    if (res != 0)
-        boot_message(WARNING, "ARP reply send failed");
+    if (res != 0) boot_message(WARNING, "ARP reply send failed");
     kfree(reply_packet);
 }
 
