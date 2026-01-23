@@ -149,7 +149,21 @@ in a loop.
 
 ---
 
-## Current Limitations
+## User Thread Syscalls (WIP)
 
-- Global run queue (process list scan); no per-CPU run queues or priorities.
-- No CPU affinity or work-stealing.
+`SYS_THREAD_CREATE` spawns a user-mode thread in the current process. The caller
+provides a user entry address and an argument passed in `RDI`. The kernel
+allocates a fixed-size user stack (currently 4 pages plus a 1-page guard, same
+size as `spawn` uses) and uses an `iretq` trampoline to enter user mode.
+
+`SYS_THREAD_EXIT` terminates the calling thread. If it is the last live thread
+in the process, the process is marked terminated and the exit code is set from
+the syscall argument.
+
+`SYS_THREAD_JOIN` waits for a thread to terminate, stores its exit status to the
+user pointer (if provided), and reclaims its kernel stack and thread struct.
+
+`SYS_GETTID` returns the calling thread's TID.
+
+Libc exposes these as `thread_create()`, `thread_exit()`, `thread_join()`, and
+`gettid()` in `user/libc/include/unistd.h`.
