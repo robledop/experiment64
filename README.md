@@ -75,3 +75,27 @@ The project is MIT licensed except for the Atheros AR8162 driver files
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps (see docs/pci.md)
+
+## GUI
+
+It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives based on https://github.com/JMarlin/wsbe
+
+![GUI screenshot](docs/img/gui.png)
+
+## DOOM
+
+I also ported DOOM. It only runs full screen, not inside a window.
+
+![DOOM screenshot](docs/img/doom.png)
+
+## Web server
+
+A small web server is also included.
+
+![Web server screenshot](docs/img/webserver.png)
+
+## Real hardware
+
+The OS running on an old Lenovo laptop with an Atheros AR8162 NIC.
+
+![Real hardware](docs/img/real_hardware.jpg)

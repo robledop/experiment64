@@ -27,7 +27,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,))
 ROOTFS=rootfs
 
 override MEM ?= 64M
-override SMP ?= 8
+override SMP ?= 22
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
 
