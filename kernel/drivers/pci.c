@@ -378,7 +378,7 @@ static void pci_dump_capabilities(const uint8_t bus,
     }
 
     uint8_t cap_ptr = pci->capabilities_pointer;
-    if (cap_ptr < 0x40 || cap_ptr >= 0x100)
+    if (cap_ptr < 0x40)
     {
         boot_message(WARNING, "  caps: invalid pointer 0x%02x", cap_ptr);
         return;
