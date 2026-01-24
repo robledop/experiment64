@@ -144,11 +144,13 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
     uint64_t cr2 = 0;
     __asm__ volatile("mov %0, cr2" : "=r"(cr2));
 
-    printk("frame=%p int=%lu err=0x%lx\n",
+    printk(KBWHT "frame" KRESET "=%p " KBWHT "int" KRESET "=%lu " KBWHT "err" KRESET "=0x%lx\n",
            frame,
            (unsigned long)snapshot->int_no,
            snapshot->err_code);
-    printk("snapshot rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx cr2=0x%lx curr_rsp=0x%lx\n",
+    printk("snapshot " KBWHT "rip" KRESET "=0x%lx " KBWHT "cs" KRESET "=0x%lx " KBWHT "rflags" KRESET "=0x%lx " KBWHT
+           "rsp" KRESET "=0x%lx " KBWHT "ss" KRESET "=0x%lx " KBWHT "cr2" KRESET "=0x%lx " KBWHT "curr_rsp" KRESET
+           "=0x%lx\n",
            snapshot->rip,
            snapshot->cs,
            snapshot->rflags,
@@ -156,18 +158,23 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
            snapshot->ss,
            cr2,
            curr_rsp);
+
+
     if (frame->int_no != snapshot->int_no || frame->err_code != snapshot->err_code ||
         frame->rip != snapshot->rip || frame->cs != snapshot->cs || frame->rflags != snapshot->rflags ||
         frame->rsp != snapshot->rsp || frame->ss != snapshot->ss)
     {
-        printk("frame changed in handler int=%lu err=0x%lx rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx\n",
-               (unsigned long)frame->int_no,
-               frame->err_code,
-               frame->rip,
-               frame->cs,
-               frame->rflags,
-               frame->rsp,
-               frame->ss);
+        printk(
+            KBYEL "frame changed in handler" KBWHT " int" KRESET "=%lu " KBWHT "err" KRESET "=0x%lx " KBWHT "rip" KRESET
+            "=0x%lx " KBWHT "cs" KRESET "=0x%lx " KBWHT "rflags" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT
+            "ss" KRESET "=0x%lx\n",
+            (unsigned long)frame->int_no,
+            frame->err_code,
+            frame->rip,
+            frame->cs,
+            frame->rflags,
+            frame->rsp,
+            frame->ss);
     }
     if (!cpu)
     {
@@ -175,13 +182,15 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
         return;
     }
 
-    printk("cpu=%p idx=%d kernel_rsp=0x%lx user_rsp=0x%lx tss.rsp0=0x%lx active_thread=%p\n",
-           cpu,
-           cpu->cpu_index,
-           cpu->kernel_rsp,
-           cpu->user_rsp,
-           cpu->tss.rsp0,
-           cpu->active_thread);
+    printk(
+        KBWHT"cpu" KRESET "=%p " KBWHT "idx" KRESET "=%d " KBWHT "kernel_rsp" KRESET "=0x%lx " KBWHT "user_rsp" KRESET
+        "=0x%lx " KBWHT "tss.rsp0" KRESET "=0x%lx " KBWHT "active_thread" KRESET "=%p\n",
+        cpu,
+        cpu->cpu_index,
+        cpu->kernel_rsp,
+        cpu->user_rsp,
+        cpu->tss.rsp0,
+        cpu->active_thread);
 
     thread_t* t = cpu->active_thread;
     const uintptr_t t_addr = (uintptr_t)t;
@@ -194,7 +203,9 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
             pid = p->pid;
 
         printk(
-            "tid=%d state=%u is_user=%d is_idle=%d kstack_top=0x%lx rsp=0x%lx saved_user_rsp=0x%lx pid=%d process=%p\n",
+            KBWHT "tid" KRESET "=%d " KBWHT "state" KRESET "=%u " KBWHT "is_user" KRESET "=%d " KBWHT "is_idle" KRESET
+            "=%d " KBWHT "kstack_top" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT "saved_user_rsp" KRESET
+            "=0x%lx " KBWHT "pid" KRESET "=%d " KBWHT "process" KRESET "=%p\n",
             t->tid,
             (unsigned)t->state,
             t->is_user,
@@ -211,7 +222,7 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
             const uintptr_t ktop = t->kstack_top;
             const uintptr_t faddr = (uintptr_t)frame;
             const bool in_kstack = (faddr >= kbase && faddr < ktop);
-            printk("kstack=[0x%lx-0x%lx) frame_in_kstack=%d\n",
+            printk(KBWHT "kstack" KRESET "=[0x%lx-0x%lx) " KBWHT"frame_in_kstack" KRESET"=%d\n",
                    kbase,
                    ktop,
                    in_kstack);
@@ -219,14 +230,33 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
     }
     else
     {
-        printk("active_thread invalid or misaligned (ptr=%p)\n", t);
+        printk(KYEL "active_thread invalid or misaligned (ptr=%p)\n" KRESET, t);
     }
 
-    printk("frame cs=0x%lx ss=0x%lx rsp=0x%lx rflags=0x%lx\n",
-           snapshot->cs,
-           snapshot->ss,
-           snapshot->rsp,
-           snapshot->rflags);
+
+    if (t && t->is_user)
+    {
+        printk(KRESET "run " KBBLU "addr2line -e user/build/%s %p" KRESET " to get line numbers\n",current_process->name,
+               snapshot->rip);
+        printk(KRESET "run " KBBLU "objdump -d user/build/%s | grep %p -A 40 -B 40" KRESET " to see more.\n",
+               current_process->name,
+               snapshot->rip);
+    }
+    else
+    {
+        printk(KRESET "run " KBBLU "addr2line -e build/kernel.elf %p" KRESET " to get line numbers\n",
+               snapshot->rip);
+        printk(KRESET "run " KBBLU "objdump -d build/kernel.elf | grep %p -A 40 -B 40" KRESET " to see more.\n",
+               snapshot->rip);
+    }
+
+    printk(
+        KBWHT "frame cs" KRESET "=0x%lx " KBWHT "ss" KRESET "=0x%lx " KBWHT "rsp" KRESET"=0x%lx " KBWHT "rflags" KRESET
+        "=0x%lx\n",
+        snapshot->cs,
+        snapshot->ss,
+        snapshot->rsp,
+        snapshot->rflags);
 }
 
 void interrupt_handler(struct interrupt_frame* frame)
@@ -243,7 +273,8 @@ void interrupt_handler(struct interrupt_frame* frame)
         char* message = frame->int_no >= ARRAY_SIZE(exception_messages)
                             ? "Unknown"
                             : exception_messages[snap->int_no];
-        printk("PANIC: EXCEPTION OCCURRED! Vector: %d, %s\n", (int)snap->int_no, message);
+        printk(KRED "PANIC: EXCEPTION OCCURRED! " KYEL "%s" KRESET " (Vector %d)\n", message,
+               (int)snap->int_no);
 
         if (snap->int_no == 14)
         {
@@ -259,7 +290,7 @@ void interrupt_handler(struct interrupt_frame* frame)
                    cr2);
 
 #endif
-            printk("CR2 (Page Fault Address): 0x%lx\n", cr2);
+            printk(KBWHT "CR2 (Page Fault Address):" KRESET " 0x%lx\n", cr2);
             // If the fault came from user mode, treat it as a bad process and reap it
             // rather than panicking the whole kernel.
             const bool user_mode = (snap->cs & 0x3) != 0;
@@ -268,14 +299,16 @@ void interrupt_handler(struct interrupt_frame* frame)
             {
                 thread_t* t = current_thread;
                 process_t* p = current_process;
-                boot_message(ERROR,
-                             "Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
-                             p ? p->pid : -1,
-                             t ? t->tid : -1,
-                             snap->rip,
-                             snap->rsp,
-                             cr2,
-                             snap->err_code);
+                printk("Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
+                       p != nullptr ? p->pid : -1,
+                       t != nullptr ? t->tid : -1,
+                       snap->rip,
+                       snap->rsp,
+                       cr2,
+                       snap->err_code);
+
+                printk(KWHT "run " KBBLU "addr2line -e <binary> %p" KWHT " to get line numbers\n", snap->rip);
+                printk(KWHT "run " KBBLU "objdump -d <binary> | grep %p -A 40 -B 40" KWHT " to see more.\n", snap->rip);
 
                 // Acquire scheduler lock before modifying thread/process state to prevent races.
                 // Interrupts are already disabled by the interrupt gate.
