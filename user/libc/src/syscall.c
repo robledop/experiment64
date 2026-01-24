@@ -84,7 +84,7 @@ ssize_t read(int fd, void* buf, size_t count)
 
 int exec(const char* path)
 {
-    char* const argv[] = {(char*)path, nullptr};
+    const char* argv[] = {(char*)path, nullptr};
     return clamp_signed_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, 0));
 }
 

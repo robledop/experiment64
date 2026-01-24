@@ -28,7 +28,6 @@ void _Exit(int status)
 
 int system([[maybe_unused]] const char* command)
 {
-    // No shell; stub returns failure.
     return -1;
 }
 

@@ -555,7 +555,6 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
     return total;
 }
 
-// Helper struct for vsnprintk
 struct vsnprintk_ctx
 {
     char *buffer;
