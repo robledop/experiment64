@@ -143,7 +143,8 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
         return -1;
     }
 
-    uint64_t user_stack = align_down_u64(stack_end - 16, 16);
+    // Thread entry is reached via iretq (no call frame), keep %rsp 8 mod 16 for SysV ABI.
+    uint64_t user_stack = align_down_u64(stack_end, 16) - 8;
 
     thread->user_entry = entry;
     thread->user_stack = user_stack;
