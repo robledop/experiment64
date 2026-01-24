@@ -445,29 +445,45 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
     x += context->translate_x;
     y += context->translate_y;
 
-    character &= 0x7F;
+    int clip_left = bound_rect->left;
+    int clip_top = bound_rect->top;
+    int clip_right = bound_rect->right;
+    int clip_bottom = bound_rect->bottom;
 
-    if (x > bound_rect->right || (x + 8) <= bound_rect->left || y > bound_rect->bottom || (y + 12) <= bound_rect->top) {
+    const int max_x = (int)context->width - 1;
+    const int max_y = (int)context->height - 1;
+    if (clip_left < 0) clip_left = 0;
+    if (clip_top < 0) clip_top = 0;
+    if (clip_right > max_x) clip_right = max_x;
+    if (clip_bottom > max_y) clip_bottom = max_y;
+    if (clip_left > clip_right || clip_top > clip_bottom) {
         return;
     }
 
-    if (x < bound_rect->left) {
-        off_x = bound_rect->left - x;
+    character &= 0x7F;
+
+    if (x > clip_right || (x + 8) <= clip_left || y > clip_bottom || (y + 12) <= clip_top) {
+        return;
     }
 
-    if ((x + 8) > bound_rect->right) {
-        count_x = bound_rect->right - x + 1;
+    if (x < clip_left) {
+        off_x = clip_left - x;
     }
 
-    if (y < bound_rect->top) {
-        off_y = bound_rect->top - y;
+    if ((x + 8) > clip_right) {
+        count_x = clip_right - x + 1;
     }
 
-    if ((y + 12) > bound_rect->bottom) {
-        count_y = bound_rect->bottom - y + 1;
+    if (y < clip_top) {
+        off_y = clip_top - y;
+    }
+
+    if ((y + 12) > clip_bottom) {
+        count_y = clip_bottom - y + 1;
     }
 
     uint32_t pitch_bytes = context->pitch;
+    const int dst_x = x + off_x;
 
     for (int font_y = off_y; font_y < count_y; font_y++) {
         uint8_t row_bits = reverse_bits8(font8x12[font_y * 128 + character]);
@@ -482,10 +498,10 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
         if (active == 0) {
             continue;
         }
-        uint32_t *dst = (uint32_t *)((uint8_t *)context->buffer + (uint32_t)(y + font_y) * pitch_bytes + (uint32_t)x * 4U);
+        uint32_t *dst = (uint32_t *)((uint8_t *)context->buffer + (uint32_t)(y + font_y) * pitch_bytes + (uint32_t)dst_x * 4U);
         while (active) {
             int bit = __builtin_ctz(active);
-            dst[bit] = color;
+            dst[bit - off_x] = color;
             active &= active - 1;
         }
     }
@@ -516,4 +532,3 @@ void context_draw_text(const video_context_t *context, const char *string, int x
     for (; *string; x += VESA_CHAR_WIDTH)
         context_draw_char(context, *(string++), x, y, color);
 }
-

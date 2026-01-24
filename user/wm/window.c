@@ -120,10 +120,7 @@ static void window_draw_border(window_t* window)
 
 static void window_apply_bound_clipping(window_t* window, int in_recursion, list_t* dirty_regions)
 {
-    if (!window->context)
-    {
-        return;
-    }
+    if (!window->context) return;
 
     int screen_x = window_screen_x(window);
     int screen_y = window_screen_y(window);
@@ -141,6 +138,24 @@ static void window_apply_bound_clipping(window_t* window, int in_recursion, list
     else
     {
         temp_rect = rect_new(screen_y, screen_x, screen_y + window->height - 1, screen_x + window->width - 1);
+    }
+
+    const int max_x = (int)window->context->width - 1;
+    const int max_y = (int)window->context->height - 1;
+    if (temp_rect->left < 0)
+        temp_rect->left = 0;
+    if (temp_rect->top < 0)
+        temp_rect->top = 0;
+    if (temp_rect->right > max_x)
+        temp_rect->right = max_x;
+    if (temp_rect->bottom > max_y)
+        temp_rect->bottom = max_y;
+    if (temp_rect->left > temp_rect->right || temp_rect->top > temp_rect->bottom)
+    {
+        context_clear_clip_rects(window->context);
+        window->context->clipping_on = 1;
+        free(temp_rect);
+        return;
     }
 
     if (!window->parent)
