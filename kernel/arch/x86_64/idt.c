@@ -104,7 +104,7 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
 }
 
-static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     bool need_resched = scheduler_tick();
     apic_send_eoi();
@@ -112,31 +112,31 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
         schedule();
 }
 
-static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void keyboard_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     keyboard_handler_main();
     apic_send_eoi();
 }
 
-static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void ide_primary_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     ide_irq_handler(0);
     apic_send_eoi();
 }
 
-static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
+static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame* frame)
 {
     ide_irq_handler(1);
     apic_send_eoi();
 }
 
-static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame *frame)
+static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame* frame)
 {
     apic_send_eoi();
     schedule();
 }
 
-static void dump_panic_context(const struct interrupt_frame *frame, const struct interrupt_frame *snapshot)
+static void dump_panic_context(const struct interrupt_frame* frame, const struct interrupt_frame* snapshot)
 {
     cpu_t* cpu = get_cpu();
     uint64_t curr_rsp = 0;
@@ -229,7 +229,7 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
            snapshot->rflags);
 }
 
-void interrupt_handler(struct interrupt_frame *frame)
+void interrupt_handler(struct interrupt_frame* frame)
 {
     if (isr_handlers[frame->int_no])
     {
@@ -238,7 +238,7 @@ void interrupt_handler(struct interrupt_frame *frame)
     else if (frame->int_no < 32)
     {
         struct interrupt_frame snapshot = *frame;
-        const struct interrupt_frame *snap = &snapshot;
+        const struct interrupt_frame* snap = &snapshot;
 
         char* message = frame->int_no >= ARRAY_SIZE(exception_messages)
                             ? "Unknown"
@@ -266,8 +266,8 @@ void interrupt_handler(struct interrupt_frame *frame)
 
             if (user_mode)
             {
-                thread_t *t = current_thread;
-                process_t *p = current_process;
+                thread_t* t = current_thread;
+                process_t* p = current_process;
                 boot_message(ERROR,
                              "Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
                              p ? p->pid : -1,
@@ -308,7 +308,7 @@ void interrupt_handler(struct interrupt_frame *frame)
                 }
 
                 // Cache parent before releasing lock
-                process_t *parent = (p && p->parent) ? p->parent : nullptr;
+                process_t* parent = (p && p->parent) ? p->parent : nullptr;
 
                 spinlock_release(&scheduler_lock);
 

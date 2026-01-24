@@ -61,3 +61,5 @@ static inline uint64_t align_up(uint64_t val, uint64_t align)
 #ifndef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #endif
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))

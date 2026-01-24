@@ -15,8 +15,8 @@ int sigaction(const int signum, const struct sigaction* act, struct sigaction* o
 
 sighandler_t signal(const int signum, const sighandler_t handler)
 {
-    struct sigaction act = {0};
-    struct sigaction old = {0};
+    struct sigaction act = {nullptr};
+    struct sigaction old = {nullptr};
 
     act.sa_handler = handler;
     act.sa_mask = 0;

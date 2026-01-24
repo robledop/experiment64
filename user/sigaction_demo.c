@@ -13,7 +13,7 @@ static void sig_handler(const int sig)
 
 int main(void)
 {
-    struct sigaction sa = {0};
+    struct sigaction sa = {nullptr};
     sa.sa_handler = sig_handler;
 
     if (sigaction(SIGTERM, &sa, nullptr) < 0)

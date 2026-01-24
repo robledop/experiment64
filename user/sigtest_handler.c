@@ -11,7 +11,7 @@ static void sigtest_handler(const int sig)
 
 int main(void)
 {
-    struct sigaction sa = {0};
+    struct sigaction sa = {nullptr};
     sa.sa_handler = sigtest_handler;
     if (sigaction(SIGUSR1, &sa, nullptr) < 0)
     {

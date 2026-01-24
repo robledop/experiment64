@@ -12,8 +12,8 @@ struct pthread_start
 
 struct pthread_ret_entry
 {
-    int tid;
     void* value;
+    int tid;
     bool used;
 };
 
