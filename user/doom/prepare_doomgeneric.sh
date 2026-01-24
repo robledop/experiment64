@@ -5,7 +5,6 @@ ROOT_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 DOOMGENERIC_ROOT=${DOOMGENERIC_ROOT:-"$ROOT_DIR/third_party/doomgeneric"}
 UPSTREAM_URL="https://github.com/ozkl/doomgeneric"
 UPSTREAM_COMMIT="fc601639494e089702a1ada082eb51aaafc03722"
-#PATCH_DIR="$ROOT_DIR/user/doom/patches"
 
 mkdir -p "$(dirname "$DOOMGENERIC_ROOT")"
 
@@ -24,6 +23,7 @@ if [ ! -d "$DOOMGENERIC_ROOT/doomgeneric" ]; then
   exit 1
 fi
 
+#PATCH_DIR="$ROOT_DIR/user/doom/patches"
 #for patch in "$PATCH_DIR"/*.patch; do
 #  if [ ! -f "$patch" ]; then
 #    continue

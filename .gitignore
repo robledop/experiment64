@@ -14,5 +14,6 @@ AegrOS/
 compile_commands.json
 image.iso
 image.hdd
+image3.usb
 /image2.ide
 fbdoom

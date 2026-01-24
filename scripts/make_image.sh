@@ -10,6 +10,11 @@ SECOND_DISK="image2.ide"
 SECOND_EXT2_DISK_SIZE_MB=64
 SECOND_EXT2_PART_START_MB=1
 SECOND_EXT2_PART_SIZE_MB=31
+# Paths for USB disk with a single ext2 partition.
+USB_DISK="image3.usb"
+USB_EXT2_DISK_SIZE_MB=64
+USB_EXT2_PART_START_MB=1
+USB_EXT2_PART_SIZE_MB=31
 
 bytes_for_mb() {
     echo $(( $1 * 1024 * 1024 ))
@@ -54,7 +59,23 @@ check_secondary_disk() {
     check_ext2_superblock "$SECOND_DISK" "$part_offset_bytes"
 }
 
-rm -f image.hdd part.img "$SECOND_DISK" second_root.img
+check_usb_disk() {
+    local expected_bytes
+    expected_bytes=$(bytes_for_mb "$USB_EXT2_DISK_SIZE_MB")
+    local actual_bytes
+    actual_bytes=$(wc -c < "$USB_DISK" | tr -d '[:space:]')
+    if (( actual_bytes < expected_bytes )); then
+        echo "Sanity check failed: $USB_DISK is smaller than expected ($actual_bytes < $expected_bytes bytes)" >&2
+        exit 1
+    fi
+
+    check_gpt_signature "$USB_DISK" "USB disk"
+    local part_offset_bytes
+    part_offset_bytes=$(bytes_for_mb "$USB_EXT2_PART_START_MB")
+    check_ext2_superblock "$USB_DISK" "$part_offset_bytes"
+}
+
+rm -f image.hdd part.img "$SECOND_DISK" second_root.img "$USB_DISK" usb_root.img
 dd if=/dev/zero of=image.hdd bs=1M count=128
 parted -s image.hdd mklabel gpt
 parted -s image.hdd mkpart ESP fat32 1MiB 63MiB
@@ -154,6 +175,21 @@ dd if=/dev/zero of=second_root.img bs=1M count=$SECOND_EXT2_PART_SIZE_MB
 mkfs.ext2 -b 1024 -d build/rootfs_ext2_disk2 -r 1 -N 0 -m 0 -L "IDEEXT2" second_root.img
 dd if=second_root.img of="$SECOND_DISK" bs=1M seek=$SECOND_EXT2_PART_START_MB conv=notrunc
 
+# USB disk with a single ext2 partition starting at 1MiB.
+dd if=/dev/zero of="$USB_DISK" bs=1M count=$USB_EXT2_DISK_SIZE_MB
+parted -s "$USB_DISK" mklabel gpt
+parted -s "$USB_DISK" mkpart EXT2 ext2 "${USB_EXT2_PART_START_MB}MiB" "$((USB_EXT2_PART_START_MB + USB_EXT2_PART_SIZE_MB))MiB"
+
+# Build ext2 content for USB disk
+rm -rf build/rootfs_ext2_usb
+mkdir -p build/rootfs_ext2_usb
+echo "Hello from USB disk ext2" > build/rootfs_ext2_usb/hello.txt
+
+dd if=/dev/zero of=usb_root.img bs=1M count=$USB_EXT2_PART_SIZE_MB
+mkfs.ext2 -b 1024 -d build/rootfs_ext2_usb -r 1 -N 0 -m 0 -L "USBEXT2" usb_root.img
+dd if=usb_root.img of="$USB_DISK" bs=1M seek=$USB_EXT2_PART_START_MB conv=notrunc
+
 # Quick sanity checks to catch a bad image early instead of flaking in QEMU.
 check_gpt_signature image.hdd "primary disk image"
 check_secondary_disk
+check_usb_disk

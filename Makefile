@@ -30,13 +30,18 @@ override MEM ?= 64M
 override SMP ?= 22
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
+# USB disk image (ext2).
+USB_DISK := image3.usb
 
 QEMU_BASE := qemu-system-x86_64 -M pc -m $(MEM) -smp $(SMP)
 QEMU_DRIVES :=  \
 	-drive if=none,file=image.hdd,format=raw,id=ahcibase \
 	-device ahci,id=ahci \
 	-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
-	-drive if=ide,file=$(IDE_DISK),format=raw,index=1
+	-drive if=ide,file=$(IDE_DISK),format=raw,index=1 \
+	-device qemu-xhci,id=xhci \
+	-drive if=none,file=$(USB_DISK),format=raw,id=usbdrive \
+	-device usb-storage,bus=xhci.0,drive=usbdrive
 
 # User-mode networking (has built-in DHCP server)
 QEMU_NETWORK_USER=-netdev user,id=net0,hostfwd=tcp::8080-:80 -device e1000,netdev=net0
@@ -102,7 +107,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.vdi $(DOOM_BIN)
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.usb *.vdi $(DOOM_BIN)
 	$(MAKE) -C user clean
 
 limine:

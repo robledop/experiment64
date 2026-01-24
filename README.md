@@ -58,6 +58,12 @@ To actually run the OS inside QEMU, use the following command:
 make run
 ```
 
+## Disk images
+
+- `image.hdd`: GPT image with ESP (FAT32), root ext2, and data FAT32
+- `image2.ide`: secondary IDE disk with an ext2 partition
+- `image3.usb`: USB mass storage disk with an ext2 partition
+
 ## License note
 
 The project is MIT licensed except for the Atheros AR8162 driver files
