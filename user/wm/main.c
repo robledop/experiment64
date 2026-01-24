@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <wm/calculator.h>
 
+#include "pthread.h"
+
 static uint32_t* fb;
 static desktop_t* desktop;
 static bool wm_should_exit = false;
@@ -56,21 +58,31 @@ void exit_button_handler([[maybe_unused]] const button_t* button, [[maybe_unused
     wm_should_exit = true;
 }
 
+static void* wm_process_mouse_events([[maybe_unused]] void* arg)
+{
+    // ReSharper disable once CppDFALoopConditionNotUpdated
+    while (!wm_should_exit)
+    {
+        struct ps2_mouse_packet mp;
+        const ssize_t n = read(mousefd, &mp, sizeof(mp));
+        if (n == (ssize_t)sizeof(mp))
+        {
+            if (mp.x < 0) mp.x = 0;
+            if (mp.y < 0) mp.y = 0;
+            if (mp.x >= (int16_t)context->width) mp.x = (int16_t)(context->width - 1);
+            if (mp.y >= (int16_t)context->height) mp.y = (int16_t)(context->height - 1);
+            desktop_process_mouse(desktop, (uint16_t)mp.x, (uint16_t)mp.y, mp.flags);
+        }
+    }
+
+    close(mousefd);
+    pthread_exit(nullptr);
+}
+
 void wm_process_events(void)
 {
-    struct ps2_mouse_packet mp;
-    const ssize_t n = read(mousefd, &mp, sizeof(mp));
-    if (n == (ssize_t)sizeof(mp))
-    {
-        if (mp.x < 0) mp.x = 0;
-        if (mp.y < 0) mp.y = 0;
-        if (mp.x >= (int16_t)context->width) mp.x = (int16_t)(context->width - 1);
-        if (mp.y >= (int16_t)context->height) mp.y = (int16_t)(context->height - 1);
-        desktop_process_mouse(desktop, (uint16_t)mp.x, (uint16_t)mp.y, mp.flags);
-        // if (mp.flags & MOUSE_MIDDLE) {
-        //     wm_should_exit = true;
-        // }
-    }
+    pthread_t thread;
+    pthread_create(&thread, nullptr, wm_process_mouse_events, nullptr);
 }
 
 int main(int argc, char** argv)
@@ -146,12 +158,7 @@ int main(int argc, char** argv)
 
     window_paint((window_t*)desktop, nullptr, 1);
 
-    // ReSharper disable once CppDFALoopConditionNotUpdated
-    while (!wm_should_exit)
-    {
-        wm_process_events();
-    }
+    wm_process_events();
 
-    close(mousefd);
     return 0;
 }
