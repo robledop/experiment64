@@ -31,3 +31,19 @@ CompileFlags:
     - -g
     - -Wa,--noexecstack
     - --target=x86_64-pc-none-elf
+
+If:
+  PathMatch: "user/doom/.*"
+CompileFlags:
+  Add:
+    - -Iuser/libc/include
+    - -Ithird_party/doomgeneric/doomgeneric
+    - -nostdlib
+    - -static
+    - -fPIE
+    - -m64
+    - -march=x86-64
+    - -masm=intel
+    - -g
+    - -Wa,--noexecstack
+    - --target=x86_64-pc-none-elf

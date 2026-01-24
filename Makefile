@@ -177,7 +177,7 @@ tests-gdb: clean
 
 .PHONY: bear
 bear: clean
-	bear -- $(MAKE) $(KERNEL) userland -j22
+	bear -- $(MAKE) $(KERNEL) userland doom -j22
 
 .PHONY: clangd-check
 clangd-check:

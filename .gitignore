@@ -6,6 +6,7 @@
 *.vdi
 build/
 limine/
+third_party/doomgeneric/
 rootfs/
 AegrOS/
 .venv/

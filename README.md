@@ -88,6 +88,8 @@ I also ported DOOM. It only runs full screen, not inside a window.
 
 ![DOOM screenshot](docs/img/doom.png)
 
+Doomgeneric is cloned on demand and patched; see `docs/doom.md`.
+
 ## Web server
 
 A small web server is also included.

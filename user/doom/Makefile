@@ -16,10 +16,18 @@ endif
 PATH := $(HOME)/opt/cross/bin:$(PATH)
 TOOLPREFIX = x86_64-elf-
 
+ROOT_DIR := $(abspath $(CURDIR)/../..)
+DOOMGENERIC_ROOT ?= $(ROOT_DIR)/third_party/doomgeneric
+DOOMGENERIC_SRC := $(DOOMGENERIC_ROOT)/doomgeneric
+DOOMGENERIC_PATCH_DIR := $(ROOT_DIR)/user/doom/patches
+DOOMGENERIC_PREPARE := $(ROOT_DIR)/user/doom/prepare_doomgeneric.sh
+DOOMGENERIC_STAMP := $(DOOMGENERIC_ROOT)/.patched
+VPATH := $(DOOMGENERIC_SRC)
+
 CC = $(TOOLPREFIX)gcc
 AS = nasm
 LD = $(TOOLPREFIX)ld
-INCLUDE = -I../libc/include -I../include -I../../include
+INCLUDE = -I$(DOOMGENERIC_SRC) -I../libc/include -I../include -I../../include
 
 # Base flags for all code
 BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx -Wa,--noexecstack
@@ -58,10 +66,16 @@ $(OUTPUT):	$(OBJS) $(LIBC_A)
 	@echo [Size]
 	-$(CROSS_COMPILE)size $(OUTPUT)
 
-$(OBJS): | $(OBJDIR)
+$(OBJS): | $(OBJDIR) $(DOOMGENERIC_STAMP)
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
+
+PATCHES := $(wildcard $(DOOMGENERIC_PATCH_DIR)/*.patch)
+
+$(DOOMGENERIC_STAMP): $(DOOMGENERIC_PREPARE) $(PATCHES)
+	$(DOOMGENERIC_PREPARE)
+	@touch $@
 
 $(OBJDIR)/%.o:	%.c
 	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@

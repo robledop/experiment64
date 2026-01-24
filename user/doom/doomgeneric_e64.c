@@ -1,7 +1,3 @@
-#include "doomkeys.h"
-#include "m_argv.h"
-#include "doomgeneric.h"
-
 #include <stdio.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -12,6 +8,10 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <termios.h>
+
+#include "doomkeys.h"
+#include "m_argv.h"
+#include "doomgeneric.h"
 
 static int FrameBufferFd = -1;
 static int *FrameBuffer = 0;

@@ -63,3 +63,4 @@ $(WM_TARGET): $(WM_OBJ) $(LIBC_A)
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
+	#$(MAKE) -C doom clean
