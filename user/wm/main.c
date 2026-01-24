@@ -18,6 +18,7 @@ static uint32_t* fb;
 static desktop_t* desktop;
 static bool wm_should_exit = false;
 static int mousefd;
+static int keyboardfd;
 static video_context_t* context;
 calculator_t* calculator = {};
 
@@ -128,6 +129,13 @@ int main(int argc, char** argv)
     if (mousefd < 0)
     {
         printf("wm: cannot open /dev/mouse\n");
+        exit(1);
+    }
+
+    keyboardfd = open("/dev/keyboard", O_RDONLY);
+    if (keyboardfd < 0)
+    {
+        printf("wm: cannot open /dev/keyboard\n");
         exit(1);
     }
 
