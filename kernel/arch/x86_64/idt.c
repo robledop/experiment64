@@ -8,6 +8,7 @@
 #include <task/signal.h>
 #include <kernel.h>
 #include <debug.h>
+#include <lib/util.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -44,7 +45,42 @@ __attribute__((aligned(0x10))) static struct idt_entry idt[256];
 static struct idt_ptr idtr;
 static isr_handler_t isr_handlers[256];
 
-extern void *isr_stub_table[];
+extern void* isr_stub_table[];
+
+char* exception_messages[] = {
+    "Division By Zero",
+    "Debug",
+    "Non Maskable Interrupt",
+    "Breakpoint",
+    "Into Detected Overflow",
+    "Out of Bounds",
+    "Invalid Opcode",
+    "No Coprocessor",
+    "Double Fault",
+    "Coprocessor Segment Overrun",
+    "Bad TSS",
+    "Segment Not Present",
+    "Stack Fault",
+    "General Protection Fault",
+    "Page Fault",
+    "Unknown Interrupt",
+    "x87 FPU Floating-Point Error",
+    "Alignment Check",
+    "Machine Check",
+    "SIMD Floating-Point Exception",
+    "Virtualization Exception",
+    "Control Protection Exception",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Security Exception",
+    "Reserved"
+};
 
 void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
 {
@@ -108,11 +144,11 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
     uint64_t cr2 = 0;
     __asm__ volatile("mov %0, cr2" : "=r"(cr2));
 
-    printk("PANIC DEBUG: frame=%p int=%lu err=0x%lx\n",
+    printk("frame=%p int=%lu err=0x%lx\n",
            frame,
            (unsigned long)snapshot->int_no,
            snapshot->err_code);
-    printk("PANIC DEBUG: snapshot rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx cr2=0x%lx curr_rsp=0x%lx\n",
+    printk("snapshot rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx cr2=0x%lx curr_rsp=0x%lx\n",
            snapshot->rip,
            snapshot->cs,
            snapshot->rflags,
@@ -124,7 +160,7 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
         frame->rip != snapshot->rip || frame->cs != snapshot->cs || frame->rflags != snapshot->rflags ||
         frame->rsp != snapshot->rsp || frame->ss != snapshot->ss)
     {
-        printk("PANIC DEBUG: frame changed in handler int=%lu err=0x%lx rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx\n",
+        printk("frame changed in handler int=%lu err=0x%lx rip=0x%lx cs=0x%lx rflags=0x%lx rsp=0x%lx ss=0x%lx\n",
                (unsigned long)frame->int_no,
                frame->err_code,
                frame->rip,
@@ -135,11 +171,11 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
     }
     if (!cpu)
     {
-        printk("PANIC DEBUG: cpu=null\n");
+        printk("cpu=null\n");
         return;
     }
 
-    printk("PANIC DEBUG: cpu=%p idx=%d kernel_rsp=0x%lx user_rsp=0x%lx tss.rsp0=0x%lx active_thread=%p\n",
+    printk("cpu=%p idx=%d kernel_rsp=0x%lx user_rsp=0x%lx tss.rsp0=0x%lx active_thread=%p\n",
            cpu,
            cpu->cpu_index,
            cpu->kernel_rsp,
@@ -157,16 +193,17 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
         if (p && (((uintptr_t)p) % __alignof__(process_t)) == 0)
             pid = p->pid;
 
-        printk("PANIC DEBUG: tid=%d state=%u is_user=%d is_idle=%d kstack_top=0x%lx rsp=0x%lx saved_user_rsp=0x%lx pid=%d process=%p\n",
-               t->tid,
-               (unsigned)t->state,
-               t->is_user,
-               t->is_idle,
-               t->kstack_top,
-               t->rsp,
-               t->saved_user_rsp,
-               pid,
-               p);
+        printk(
+            "tid=%d state=%u is_user=%d is_idle=%d kstack_top=0x%lx rsp=0x%lx saved_user_rsp=0x%lx pid=%d process=%p\n",
+            t->tid,
+            (unsigned)t->state,
+            t->is_user,
+            t->is_idle,
+            t->kstack_top,
+            t->rsp,
+            t->saved_user_rsp,
+            pid,
+            p);
 
         if (t->kstack_top != 0)
         {
@@ -174,7 +211,7 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
             const uintptr_t ktop = t->kstack_top;
             const uintptr_t faddr = (uintptr_t)frame;
             const bool in_kstack = (faddr >= kbase && faddr < ktop);
-            printk("PANIC DEBUG: kstack=[0x%lx-0x%lx) frame_in_kstack=%d\n",
+            printk("kstack=[0x%lx-0x%lx) frame_in_kstack=%d\n",
                    kbase,
                    ktop,
                    in_kstack);
@@ -182,10 +219,10 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
     }
     else
     {
-        printk("PANIC DEBUG: active_thread invalid or misaligned (ptr=%p)\n", t);
+        printk("active_thread invalid or misaligned (ptr=%p)\n", t);
     }
 
-    printk("PANIC DEBUG: frame cs=0x%lx ss=0x%lx rsp=0x%lx rflags=0x%lx\n",
+    printk("frame cs=0x%lx ss=0x%lx rsp=0x%lx rflags=0x%lx\n",
            snapshot->cs,
            snapshot->ss,
            snapshot->rsp,
@@ -203,13 +240,10 @@ void interrupt_handler(struct interrupt_frame *frame)
         struct interrupt_frame snapshot = *frame;
         const struct interrupt_frame *snap = &snapshot;
 
-        printk("PANIC: EXCEPTION OCCURRED! Vector: %d\n", (int)snap->int_no);
-        printk("Error Code: 0x%lx\n", snap->err_code);
-        printk("RIP: 0x%lx\n", snap->rip);
-        printk("CS: 0x%lx\n", snap->cs);
-        printk("RFLAGS: 0x%lx\n", snap->rflags);
-        printk("RSP: 0x%lx\n", snap->rsp);
-        printk("SS: 0x%lx\n", snap->ss);
+        char* message = frame->int_no >= ARRAY_SIZE(exception_messages)
+                            ? "Unknown"
+                            : exception_messages[snap->int_no];
+        printk("PANIC: EXCEPTION OCCURRED! Vector: %d, %s\n", (int)snap->int_no, message);
 
         if (snap->int_no == 14)
         {
