@@ -225,31 +225,22 @@ static void cb_emit_string(const char *s, void *arg, printf_callback_t callback)
     }
 }
 
-static int cb_emit_unsigned(uint64_t value, unsigned base, bool uppercase, void *arg, printf_callback_t callback)
+static int build_unsigned(char *buf, size_t buf_size, unsigned long long value, unsigned base, bool uppercase)
 {
-    char tmp[32];
     int idx = 0;
     const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
     if (value == 0)
     {
-        tmp[idx++] = '0';
+        buf[idx++] = '0';
+        return idx;
     }
-    else
+    while (value && idx < (int)buf_size)
     {
-        while (value && idx < (int)sizeof(tmp))
-        {
-            tmp[idx++] = digits[value % base];
-            value /= base;
-        }
+        buf[idx++] = digits[value % base];
+        value /= base;
     }
-
-    int written = idx ? idx : 1;
-    while (idx-- > 0)
-    {
-        callback(tmp[idx], arg);
-    }
-    return written;
+    return idx;
 }
 
 int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list *args)
@@ -275,13 +266,20 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         }
 
         bool left_align = false;
+        bool zero_pad = false;
         int width = 0;
 
-        if (*format == '-')
+        while (*format == '-' || *format == '0')
         {
-            left_align = true;
+            if (*format == '-')
+                left_align = true;
+            else
+                zero_pad = true;
             format++;
         }
+
+        if (left_align)
+            zero_pad = false;
 
         while (*format >= '0' && *format <= '9')
         {
@@ -367,28 +365,36 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                                                ? (unsigned long long)(-(value + 1)) + 1
                                                : (unsigned long long)value;
 
-            int idx = 0;
-            if (magnitude == 0)
-                numbuf[idx++] = '0';
-            while (magnitude && idx < (int)sizeof(numbuf))
-            {
-                numbuf[idx++] = (char)('0' + (magnitude % 10));
-                magnitude /= 10;
-            }
-            if (negative && idx < (int)sizeof(numbuf))
-                numbuf[idx++] = '-';
+            int digits = build_unsigned(numbuf, sizeof(numbuf), magnitude, 10, false);
+            int prefix_len = negative ? 1 : 0;
+            int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
-            content_len = idx;
-            int pad = (width > content_len) ? (width - content_len) : 0;
-            if (!left_align)
+            if (!left_align && !zero_pad)
                 while (pad--)
                 {
                     callback(' ', arg);
                     total++;
                 }
-            while (idx-- > 0)
-                callback(numbuf[idx], arg);
-            total += content_len;
+
+            if (negative)
+            {
+                callback('-', arg);
+                total++;
+            }
+
+            if (!left_align && zero_pad)
+                while (pad--)
+                {
+                    callback('0', arg);
+                    total++;
+                }
+
+            while (digits-- > 0)
+            {
+                callback(numbuf[digits], arg);
+                total++;
+            }
+
             if (left_align)
                 while (pad--)
                 {
@@ -401,54 +407,35 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         {
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
-            int digits = cb_emit_unsigned(value, 10, false, arg, callback);
-            content_len = digits;
-            if (width > content_len && !left_align)
-            {
-                // Need to pad left; emit padding before digits
-                int pad = width - content_len;
-                // Move the digits output after padding:
-                // Simpler: re-render with padding using buffer.
-                // Build string in reverse then emit with padding.
-                int idx = 0;
-                unsigned long long tmp = value;
-                if (tmp == 0)
-                    numbuf[idx++] = '0';
-                while (tmp && idx < (int)sizeof(numbuf))
-                {
-                    numbuf[idx++] = (char)('0' + (tmp % 10));
-                    tmp /= 10;
-                }
-                // rewind the already emitted digits count
-                // We can't "unwrite"; emit padding first then digits now.
-                // Adjust total to include padding.
-                // Emit padding
-                for (int i = 0; i < pad; i++)
-                {
-                    callback(' ', arg);
-                    total++;
-                }
-                // emit digits
-                while (idx-- > 0)
-                {
-                    callback(numbuf[idx], arg);
-                }
-                total += content_len; // digits already counted
-            }
-            else if (width > content_len && left_align)
-            {
-                int pad = width - content_len;
-                total += content_len;
+            int digits = build_unsigned(numbuf, sizeof(numbuf), value, 10, false);
+            int pad = (width > digits) ? (width - digits) : 0;
+
+            if (!left_align && !zero_pad)
                 while (pad--)
                 {
                     callback(' ', arg);
                     total++;
                 }
-            }
-            else
+
+            if (!left_align && zero_pad)
+                while (pad--)
+                {
+                    callback('0', arg);
+                    total++;
+                }
+
+            while (digits-- > 0)
             {
-                total += content_len;
+                callback(numbuf[digits], arg);
+                total++;
             }
+
+            if (left_align)
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             break;
         }
         case 'x':
@@ -461,88 +448,78 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                                            ? (uintptr_t)va_arg(*args, void *)
                                            : read_unsigned_arg(args, length_mod);
 
-            int idx = 0;
-            if (value == 0)
-                numbuf[idx++] = '0';
-            while (value && idx < (int)sizeof(numbuf))
-            {
-                unsigned digit = (unsigned)(value % 16);
-                const char *table = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
-                numbuf[idx++] = (char)(unsigned char)table[digit];
-                value /= 16;
-            }
-
+            int digits = build_unsigned(numbuf, sizeof(numbuf), value, 16, uppercase);
             int prefix_len = is_pointer ? 2 : 0;
-            content_len = prefix_len + idx;
-            int pad = (width > content_len) ? (width - content_len) : 0;
+            int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
-            if (!left_align)
-            {
+            if (!left_align && !zero_pad)
                 while (pad-- > 0)
                 {
                     callback(' ', arg);
                     total++;
                 }
-            }
 
             if (is_pointer)
             {
                 callback('0', arg);
                 callback('x', arg);
+                total += 2;
             }
 
-            while (idx-- > 0)
-                callback(numbuf[idx], arg);
+            if (!left_align && zero_pad)
+                while (pad-- > 0)
+                {
+                    callback('0', arg);
+                    total++;
+                }
+
+            while (digits-- > 0)
+            {
+                callback(numbuf[digits], arg);
+                total++;
+            }
 
             if (left_align)
-            {
                 while (pad-- > 0)
                 {
                     callback(' ', arg);
                     total++;
                 }
-            }
-
-            total += content_len;
             break;
         }
         case 'o':
         {
             unsigned long long value = read_unsigned_arg(args, length_mod);
-            int digits = cb_emit_unsigned(value, 8, false, arg, callback);
-            content_len = digits;
-            int pad = (width > content_len) ? (width - content_len) : 0;
-            if (!left_align)
-            {
-                for (int i = 0; i < pad; i++)
-                {
-                    callback(' ', arg);
-                    total++;
-                }
-                // digits already emitted; nothing to rewind cleanly, so re-emit
-                int idx = 0;
-                unsigned long long tmp = value;
-                if (tmp == 0)
-                    numbuf[idx++] = '0';
-                while (tmp && idx < (int)sizeof(numbuf))
-                {
-                    numbuf[idx++] = (char)('0' + (tmp % 8));
-                    tmp /= 8;
-                }
-                while (idx-- > 0)
-                    callback(numbuf[idx], arg);
-            }
-            else
-            {
-                total += content_len;
+
+            int digits = build_unsigned(numbuf, sizeof(numbuf), value, 8, false);
+            int pad = (width > digits) ? (width - digits) : 0;
+
+            if (!left_align && !zero_pad)
                 while (pad--)
                 {
                     callback(' ', arg);
                     total++;
                 }
-                break;
+
+            if (!left_align && zero_pad)
+                while (pad--)
+                {
+                    callback('0', arg);
+                    total++;
+                }
+
+            while (digits-- > 0)
+            {
+                callback(numbuf[digits], arg);
+                total++;
             }
-            total += content_len;
+
+            if (left_align)
+                while (pad--)
+                {
+                    callback(' ', arg);
+                    total++;
+                }
             break;
         }
         default:

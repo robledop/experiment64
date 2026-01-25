@@ -150,3 +150,12 @@ TEST(test_snprintk_left_align_flag)
     TEST_ASSERT(strcmp(buf, "        hi") == 0);
     return true;
 }
+
+TEST(test_snprintk_zero_pad_flag)
+{
+    char buf[64];
+    int written = snprintk(buf, sizeof(buf), "0x%08x %08u %08d %08o", 0x1f, 23u, -23, 9u);
+    TEST_ASSERT(written == (int)strlen("0x0000001f 00000023 -0000023 00000011"));
+    TEST_ASSERT(strcmp(buf, "0x0000001f 00000023 -0000023 00000011") == 0);
+    return true;
+}
