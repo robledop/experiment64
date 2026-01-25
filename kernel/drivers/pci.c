@@ -94,7 +94,7 @@ struct pci_class classes[] = {
     {0x06, 0x01, "ISA Bridge"},
     {0x06, 0x02, "EISA Bridge"},
     {0x06, 0x03, "MCA Bridge"},
-    {0x06, 0x04, "PCI-to-PCI Brige"},
+    {0x06, 0x04, "PCI-to-PCI Bridge"},
     {0x06, 0x05, "PCMCIA Bridge"},
     {0x06, 0x06, "NuBus Bridge"},
     {0x06, 0x07, "CardBus Bridge"},
@@ -310,6 +310,27 @@ static const char* pci_cap_name(const uint8_t cap_id)
             return "MSI-X";
         default:
             return "Unknown Capability";
+    }
+}
+
+static const char* pci_usb_prog_if_name(const uint8_t prog_if)
+{
+    switch (prog_if)
+    {
+        case 0x00:
+            return "UHCI";
+        case 0x10:
+            return "OHCI";
+        case 0x20:
+            return "EHCI";
+        case 0x30:
+            return "XHCI";
+        case 0x80:
+            return "Unspecified";
+        case 0xFE:
+            return "USB Device";
+        default:
+            return "Unknown";
     }
 }
 
@@ -539,6 +560,15 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
                      pci_find_vendor(dev.vendor_id),
                      dev.vendor_id,
                      dev.device_id);
+    }
+
+    // {0x0C, 0x03, "USB Controller"},
+    if (dev.class == 0x0C && dev.subclass == 0x03)
+    {
+        boot_message(INFO,
+                     "USB controller interface: %s (prog_if=0x%02X)",
+                     pci_usb_prog_if_name(dev.prog_if),
+                     dev.prog_if);
     }
 
     for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++)
