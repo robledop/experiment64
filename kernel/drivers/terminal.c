@@ -22,7 +22,7 @@ static int cursor_last_y = 0;
 static uint32_t cursor_backing[8 + LINE_SPACING][8];
 static bool cursor_overlay_enabled = true; // Enable framebuffer cursor overlay
 static bool cursor_batch = false;
-static char boot_log_buffer[8192];
+static char boot_log_buffer[32768];
 static size_t boot_log_len = 0;
 static size_t boot_log_flushed_len = 0;
 static bool boot_log_ready = false;
