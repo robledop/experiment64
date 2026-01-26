@@ -87,7 +87,6 @@ void wait_for_network(void)
     uint32_t budget = wait_for_network_timeout;
     while (!network_is_ready() && budget-- > 0)
     {
-        // network_poll_rx();
         tsc_sleep_ms(1); // ~1ms
     }
 
