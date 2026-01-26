@@ -90,6 +90,7 @@ mkdir -p build/rootfs_esp/boot/limine
 mkdir -p build/rootfs_ext2/bin
 mkdir -p build/rootfs_ext2/mnt
 mkdir -p build/rootfs_ext2/disk1
+mkdir -p build/rootfs_ext2/usb
 mkdir -p build/rootfs_ext2/boot
 mkdir -p build/rootfs_data/test_dir
 mkdir -p build/rootfs_data/docs
