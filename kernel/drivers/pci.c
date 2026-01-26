@@ -178,6 +178,7 @@ struct pci_vendor vendors[] = {
     {0x1022, "Advanced Micro Devices, Inc."},
     {0x1002, "Advanced Micro Devices, Inc."},
     {0x1234, "QEMU"},
+    {0x46F4, "QEMU"},
     {0x1AF4, "Red Hat, Inc."},
     {0x1D6B, "Linux Foundation"},
     {0x80EE, "Oracle Corporation"},
@@ -186,7 +187,8 @@ struct pci_vendor vendors[] = {
     {0x1D00, "XenSource"},
     {0x1414, "Microsoft Corporation"},
     {0x10EC, "Realtek Semiconductor Co."},
-    {0x1969, "Qualcomm Atheros"}
+    {0x1969, "Qualcomm Atheros"},
+    {0x0781, "SanDisk Corp"},
 };
 
 #define PCI_TRACE_VENDOR_ID 0x1969
