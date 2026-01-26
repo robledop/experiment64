@@ -366,6 +366,8 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                                                : (unsigned long long)value;
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), magnitude, 10, false);
+            if (digits > (int)sizeof(numbuf))
+                digits = (int)sizeof(numbuf);
             int prefix_len = negative ? 1 : 0;
             int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
@@ -389,8 +391,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                     total++;
                 }
 
-            while (digits-- > 0)
+            while (digits > 0)
             {
+                digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
@@ -408,6 +411,8 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 10, false);
+            if (digits > (int)sizeof(numbuf))
+                digits = (int)sizeof(numbuf);
             int pad = (width > digits) ? (width - digits) : 0;
 
             if (!left_align && !zero_pad)
@@ -424,8 +429,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                     total++;
                 }
 
-            while (digits-- > 0)
+            while (digits > 0)
             {
+                digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
@@ -449,6 +455,8 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                                            : read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 16, uppercase);
+            if (digits > (int)sizeof(numbuf))
+                digits = (int)sizeof(numbuf);
             int prefix_len = is_pointer ? 2 : 0;
             int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
@@ -473,8 +481,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                     total++;
                 }
 
-            while (digits-- > 0)
+            while (digits > 0)
             {
+                digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
@@ -492,6 +501,8 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 8, false);
+            if (digits > (int)sizeof(numbuf))
+                digits = (int)sizeof(numbuf);
             int pad = (width > digits) ? (width - digits) : 0;
 
             if (!left_align && !zero_pad)
@@ -508,8 +519,9 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
                     total++;
                 }
 
-            while (digits-- > 0)
+            while (digits > 0)
             {
+                digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
