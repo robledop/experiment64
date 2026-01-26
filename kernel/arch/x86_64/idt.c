@@ -382,6 +382,10 @@ void interrupt_handler(struct interrupt_frame* frame)
 #endif
         hcf();
     }
+    else
+    {
+        apic_send_eoi();
+    }
 
     if (frame->int_no >= 32)
         signal_deliver_interrupt(frame);
