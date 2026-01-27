@@ -434,6 +434,15 @@ void xhci_init(struct pci_device device)
     xhci_write32(g_xhci.op_base, XHCI_OP_CONFIG, slots);
 
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
+    cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
+    cmd |= XHCI_USBCMD_RS;
+    xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
+    if (!xhci_wait_for(g_xhci.op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, false, XHCI_TIMEOUT_MS)) {
+        boot_message(WARNING, "[xHCI] Start timeout");
+    }
+    const uint32_t usbcmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
+    const uint32_t usbsts = xhci_read32(g_xhci.op_base, XHCI_OP_USBSTS);
+    boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
     struct xhci_trb cmd_trb = {0};
     cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
     const bool submit   = (g_xhci.context_size == 0u);
