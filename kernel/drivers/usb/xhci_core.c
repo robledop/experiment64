@@ -46,6 +46,7 @@
 #define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 #define XHCI_PORTSC_RWS_MASK (XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_PP | XHCI_PORTSC_INDICATOR_MASK | XHCI_PORTSC_WK_MASK) // Port read/write settable bits.
 
+
 #define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
 #define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
 #define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
@@ -103,6 +104,7 @@
 #define USB_DESC_TYPE_ENDPOINT 0x05u // USB endpoint descriptor type.
 #define USB_DESC_TYPE_SS_ENDPOINT_COMP 0x30u // USB SuperSpeed endpoint companion descriptor type.
 #define USB_REQ_GET_DESCRIPTOR 0x06u // USB standard GET_DESCRIPTOR request.
+#define USB_REQ_SET_CONFIGURATION 0x09u // USB standard SET_CONFIGURATION request.
 
 #define USB_CLASS_MASS_STORAGE 0x08u // USB mass storage device class code.
 #define USB_SUBCLASS_SCSI 0x06u // USB SCSI transparent subclass code.
@@ -196,45 +198,45 @@ struct usb_setup_packet
 
 struct usb_device_descriptor
 {
-    uint8_t b_length;            // Descriptor size in bytes.
-    uint8_t b_descriptor_type;   // Descriptor type code.
-    uint16_t bcd_usb;            // USB specification version.
-    uint8_t b_device_class;      // Device class code.
-    uint8_t b_device_subclass;   // Device subclass code.
-    uint8_t b_device_protocol;   // Device protocol code.
-    uint8_t b_max_packet_size0;  // EP0 max packet size.
-    uint16_t id_vendor;          // Vendor ID.
-    uint16_t id_product;         // Product ID.
-    uint16_t bcd_device;         // Device release number.
-    uint8_t i_manufacturer;      // Manufacturer string index.
-    uint8_t i_product;           // Product string index.
-    uint8_t i_serial_number;     // Serial number string index.
+    uint8_t b_length;             // Descriptor size in bytes.
+    uint8_t b_descriptor_type;    // Descriptor type code.
+    uint16_t bcd_usb;             // USB specification version.
+    uint8_t b_device_class;       // Device class code.
+    uint8_t b_device_subclass;    // Device subclass code.
+    uint8_t b_device_protocol;    // Device protocol code.
+    uint8_t b_max_packet_size0;   // EP0 max packet size.
+    uint16_t id_vendor;           // Vendor ID.
+    uint16_t id_product;          // Product ID.
+    uint16_t bcd_device;          // Device release number.
+    uint8_t i_manufacturer;       // Manufacturer string index.
+    uint8_t i_product;            // Product string index.
+    uint8_t i_serial_number;      // Serial number string index.
     uint8_t b_num_configurations; // Number of configurations.
 } __attribute__((packed));
 
 struct usb_config_descriptor
 {
-    uint8_t b_length;             // Descriptor size in bytes.
-    uint8_t b_descriptor_type;    // Descriptor type code.
-    uint16_t w_total_length;      // Total length of configuration data.
-    uint8_t b_num_interfaces;     // Number of interfaces.
+    uint8_t b_length;              // Descriptor size in bytes.
+    uint8_t b_descriptor_type;     // Descriptor type code.
+    uint16_t w_total_length;       // Total length of configuration data.
+    uint8_t b_num_interfaces;      // Number of interfaces.
     uint8_t b_configuration_value; // Configuration value.
-    uint8_t i_configuration;      // Configuration string index.
-    uint8_t bm_attributes;        // Configuration attributes.
-    uint8_t b_max_power;          // Max power consumption.
+    uint8_t i_configuration;       // Configuration string index.
+    uint8_t bm_attributes;         // Configuration attributes.
+    uint8_t b_max_power;           // Max power consumption.
 } __attribute__((packed));
 
 struct usb_interface_descriptor
 {
-    uint8_t b_length;            // Descriptor size in bytes.
-    uint8_t b_descriptor_type;   // Descriptor type code.
-    uint8_t b_interface_number;  // Interface number.
-    uint8_t b_alternate_setting; // Alternate setting index.
-    uint8_t b_num_endpoints;     // Number of endpoints.
-    uint8_t b_interface_class;   // Interface class code.
+    uint8_t b_length;             // Descriptor size in bytes.
+    uint8_t b_descriptor_type;    // Descriptor type code.
+    uint8_t b_interface_number;   // Interface number.
+    uint8_t b_alternate_setting;  // Alternate setting index.
+    uint8_t b_num_endpoints;      // Number of endpoints.
+    uint8_t b_interface_class;    // Interface class code.
     uint8_t b_interface_subclass; // Interface subclass code.
     uint8_t b_interface_protocol; // Interface protocol code.
-    uint8_t i_interface;         // Interface string index.
+    uint8_t i_interface;          // Interface string index.
 } __attribute__((packed));
 
 struct usb_endpoint_descriptor
@@ -249,10 +251,10 @@ struct usb_endpoint_descriptor
 
 struct usb_ss_ep_comp_descriptor
 {
-    uint8_t b_length;           // Descriptor size in bytes.
-    uint8_t b_descriptor_type;  // Descriptor type code.
-    uint8_t b_max_burst;        // Max packets per burst minus one.
-    uint8_t bm_attributes;      // Companion attributes bitmap.
+    uint8_t b_length;              // Descriptor size in bytes.
+    uint8_t b_descriptor_type;     // Descriptor type code.
+    uint8_t b_max_burst;           // Max packets per burst minus one.
+    uint8_t bm_attributes;         // Companion attributes bitmap.
     uint16_t w_bytes_per_interval; // Bytes per service interval.
 } __attribute__((packed));
 
@@ -501,8 +503,8 @@ static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     link.dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC;
     ring->enqueue        = trb_count - 1u;
     (void)xhci_ring_enqueue(ring, &link);
-    ring->enqueue        = 0;
-    ring->cycle          = true;
+    ring->enqueue = 0;
+    ring->cycle   = true;
 
     return true;
 }
@@ -963,6 +965,21 @@ static bool xhci_control_transfer(struct xhci_controller *xhci,
                                         false);
 }
 
+static bool xhci_set_configuration(struct xhci_controller *xhci,
+                                   struct xhci_device *dev,
+                                   const uint8_t config_value)
+{
+    struct usb_setup_packet setup = {
+        .bm_request_type = 0x00,
+        .b_request = USB_REQ_SET_CONFIGURATION,
+        .w_value = config_value,
+        .w_index = 0,
+        .w_length = 0,
+    };
+
+    return xhci_control_transfer(xhci, dev, &setup, 0, 0, false);
+}
+
 static bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     uintptr_t desc_phys = 0;
@@ -975,10 +992,10 @@ static bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci
     memset(desc_buf, 0, 64u);
     struct usb_setup_packet setup = {
         .bm_request_type = 0x80,
-        .b_request       = USB_REQ_GET_DESCRIPTOR,
-        .w_value         = (USB_DESC_TYPE_DEVICE << 8),
-        .w_index         = 0,
-        .w_length        = 18,
+        .b_request = USB_REQ_GET_DESCRIPTOR,
+        .w_value = (USB_DESC_TYPE_DEVICE << 8),
+        .w_index = 0,
+        .w_length = 18,
     };
 
     if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
@@ -1008,18 +1025,18 @@ static bool xhci_parse_msc_config(const struct xhci_device *dev,
         return false;
     }
 
-    auto buf = (const uint8_t *)cfg_buf;
-    const uint8_t *end = buf + total_len;
-    bool in_msc_interface = false;
-    bool saw_msc_interface = false;
-    uint8_t interface_number = 0;
-    uint8_t bulk_in_ep = 0;
-    uint8_t bulk_out_ep = 0;
-    uint16_t bulk_in_max_packet = 0;
+    auto buf                     = (const uint8_t *)cfg_buf;
+    const uint8_t *end           = buf + total_len;
+    bool in_msc_interface        = false;
+    bool saw_msc_interface       = false;
+    uint8_t interface_number     = 0;
+    uint8_t bulk_in_ep           = 0;
+    uint8_t bulk_out_ep          = 0;
+    uint16_t bulk_in_max_packet  = 0;
     uint16_t bulk_out_max_packet = 0;
-    uint8_t bulk_in_max_burst = 0;
-    uint8_t bulk_out_max_burst = 0;
-    uint8_t last_ep = 0;
+    uint8_t bulk_in_max_burst    = 0;
+    uint8_t bulk_out_max_burst   = 0;
+    uint8_t last_ep              = 0;
 
     while (buf + 2 <= end) {
         const uint8_t len  = buf[0];
@@ -1029,23 +1046,23 @@ static bool xhci_parse_msc_config(const struct xhci_device *dev,
         }
 
         if (type == USB_DESC_TYPE_INTERFACE) {
-            auto iface = (const struct usb_interface_descriptor *)buf;
+            auto iface       = (const struct usb_interface_descriptor *)buf;
             in_msc_interface = iface->b_interface_class == USB_CLASS_MASS_STORAGE &&
                 iface->b_interface_subclass == USB_SUBCLASS_SCSI &&
                 iface->b_interface_protocol == USB_PROTOCOL_BOT &&
                 iface->b_alternate_setting == 0;
             if (in_msc_interface) {
                 saw_msc_interface = true;
-                interface_number = iface->b_interface_number;
+                interface_number  = iface->b_interface_number;
             }
         } else if (type == USB_DESC_TYPE_ENDPOINT && in_msc_interface) {
             auto ep = (const struct usb_endpoint_descriptor *)buf;
             if ((ep->bm_attributes & USB_EP_ATTR_TYPE_MASK) == USB_EP_ATTR_TYPE_BULK) {
                 if (ep->b_endpoint_address & USB_EP_DIR_IN) {
-                    bulk_in_ep = ep->b_endpoint_address;
+                    bulk_in_ep         = ep->b_endpoint_address;
                     bulk_in_max_packet = ep->w_max_packet_size;
                 } else {
-                    bulk_out_ep = ep->b_endpoint_address;
+                    bulk_out_ep         = ep->b_endpoint_address;
                     bulk_out_max_packet = ep->w_max_packet_size;
                 }
                 last_ep = ep->b_endpoint_address;
@@ -1097,10 +1114,10 @@ static bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci
     memset(desc_buf, 0, 64u);
     struct usb_setup_packet setup = {
         .bm_request_type = 0x80,
-        .b_request       = USB_REQ_GET_DESCRIPTOR,
-        .w_value         = (USB_DESC_TYPE_CONFIGURATION << 8),
-        .w_index         = 0,
-        .w_length        = sizeof(struct usb_config_descriptor),
+        .b_request = USB_REQ_GET_DESCRIPTOR,
+        .w_value = (USB_DESC_TYPE_CONFIGURATION << 8),
+        .w_index = 0,
+        .w_length = sizeof(struct usb_config_descriptor),
     };
 
     if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
@@ -1145,7 +1162,14 @@ static bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci
         return false;
     }
 
-    (void)xhci_parse_msc_config(dev, full_buf, total_len);
+    const bool msc_ok = xhci_parse_msc_config(dev, full_buf, total_len);
+    if (msc_ok) {
+        const uint8_t config_value = ((const struct usb_config_descriptor *)full_buf)->b_configuration_value;
+        if (!xhci_set_configuration(xhci, dev, config_value)) {
+            boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -1206,13 +1230,15 @@ void xhci_init(struct pci_device device)
                  dboff,
                  rtsoff);
 
+    // Reset sequence for the xHCI controller.
+    // Set the RUN/STOP bit to 0.
     uint32_t cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     cmd          &= ~XHCI_USBCMD_RS;
     xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
     if (!xhci_wait_for(g_xhci.op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, true, XHCI_TIMEOUT_MS)) {
         boot_message(WARNING, "[xHCI] Stop timeout");
     }
-
+    // Set the HCRST bit to 1.
     cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     cmd |= XHCI_USBCMD_HCRST;
     xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
@@ -1226,6 +1252,7 @@ void xhci_init(struct pci_device device)
         return;
     }
 
+    // Wait for the controller to be ready.
     if (!xhci_wait_for(g_xhci.op_base,
                        XHCI_OP_USBSTS,
                        XHCI_USBSTS_CNR,
