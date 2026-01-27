@@ -55,9 +55,12 @@
 #define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
 #define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
 
+#define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
+#define USB_DESC_TYPE_CONFIGURATION 0x02u // USB configuration descriptor type.
 #define USB_DESC_TYPE_INTERFACE 0x04u // USB interface descriptor type.
 #define USB_DESC_TYPE_ENDPOINT 0x05u // USB endpoint descriptor type.
 #define USB_DESC_TYPE_SS_ENDPOINT_COMP 0x30u // USB SuperSpeed endpoint companion descriptor type.
+#define USB_REQ_GET_DESCRIPTOR 0x06u // USB standard GET_DESCRIPTOR request.
 #define USB_REQ_SET_CONFIGURATION 0x09u // USB standard SET_CONFIGURATION request.
 #define USB_CLASS_MASS_STORAGE 0x08u // USB mass storage device class code.
 #define USB_SUBCLASS_SCSI 0x06u // USB SCSI transparent subclass code.
@@ -368,6 +371,10 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
 bool xhci_set_configuration(struct xhci_controller *xhci,
                             struct xhci_device *dev,
                             uint8_t config_value);
+bool xhci_get_device_descriptor(struct xhci_controller *xhci,
+                                struct xhci_device *dev);
+bool xhci_get_config_descriptor(struct xhci_controller *xhci,
+                                struct xhci_device *dev);
 
 bool xhci_msc_parse_config(const struct xhci_device *dev,
                            const void *cfg_buf,
