@@ -17,6 +17,8 @@
 #define XHCI_OP_CRCR 0x18u // Command ring control register offset.
 #define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
 #define XHCI_OP_CONFIG 0x38u // Configure register offset.
+#define XHCI_OP_PORTSC_BASE 0x400u // Port status/control base offset.
+#define XHCI_OP_PORTSC_STRIDE 0x10u // Port status/control register stride.
 #define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
 #define XHCI_IMAN 0x00u // Interrupter management offset.
 #define XHCI_IMOD 0x04u // Interrupter moderation offset.
@@ -29,6 +31,15 @@
 #define XHCI_USBCMD_HCRST (1u << 1) // Host controller reset bit.
 #define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
 #define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
+
+#define XHCI_PORTSC_CCS (1u << 0) // Port current connect status bit.
+#define XHCI_PORTSC_PED (1u << 1) // Port enabled/disabled bit.
+#define XHCI_PORTSC_PR (1u << 4) // Port reset bit.
+#define XHCI_PORTSC_PLS_SHIFT 5u // Port link state field shift.
+#define XHCI_PORTSC_PLS_MASK (0xFu << XHCI_PORTSC_PLS_SHIFT) // Port link state field mask.
+#define XHCI_PORTSC_PP (1u << 9) // Port power bit.
+#define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
+#define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
@@ -47,6 +58,7 @@
 #define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
 #define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
+#define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
 
 struct xhci_trb
 {
@@ -101,6 +113,26 @@ struct xhci_controller
 };
 
 static struct xhci_controller g_xhci;
+
+static const char *xhci_speed_name(const uint32_t speed)
+{
+    switch (speed) {
+    case 0:
+        return "none";
+    case 1:
+        return "full";
+    case 2:
+        return "low";
+    case 3:
+        return "high";
+    case 4:
+        return "super";
+    case 5:
+        return "super+";
+    default:
+        return "unknown";
+    }
+}
 
 static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
 {
@@ -399,6 +431,46 @@ static bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
     return false;
 }
 
+static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
+{
+    const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+    const uint32_t portsc = xhci_read32(xhci->op_base, offset);
+    const uint32_t speed  = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+    const uint32_t pls    = (portsc & XHCI_PORTSC_PLS_MASK) >> XHCI_PORTSC_PLS_SHIFT;
+
+    boot_message(INFO,
+                 "[xHCI] Port %u status=0x%08x ccs=%u pp=%u ped=%u pr=%u pls=0x%x speed=%s",
+                 port,
+                 portsc,
+                 (portsc & XHCI_PORTSC_CCS) ? 1u : 0u,
+                 (portsc & XHCI_PORTSC_PP) ? 1u : 0u,
+                 (portsc & XHCI_PORTSC_PED) ? 1u : 0u,
+                 (portsc & XHCI_PORTSC_PR) ? 1u : 0u,
+                 pls,
+                 xhci_speed_name(speed));
+}
+
+static void xhci_dump_ports(struct xhci_controller *xhci)
+{
+    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
+        xhci_log_port_state(xhci, port);
+    }
+}
+
+static void xhci_power_ports(struct xhci_controller *xhci)
+{
+    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
+        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+        uint32_t portsc       = xhci_read32(xhci->op_base, offset);
+        if ((portsc & XHCI_PORTSC_PP) == 0) {
+            portsc |= XHCI_PORTSC_PP;
+            xhci_write32(xhci->op_base, offset, portsc);
+        }
+    }
+
+    tsc_sleep_ms(XHCI_PORT_POWER_DELAY_MS);
+}
+
 static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
 {
     auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
@@ -541,6 +613,8 @@ void xhci_init(struct pci_device device)
     const uint32_t usbcmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     const uint32_t usbsts = xhci_read32(g_xhci.op_base, XHCI_OP_USBSTS);
     boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
+    xhci_power_ports(&g_xhci);
+    xhci_dump_ports(&g_xhci);
     struct xhci_trb cmd_trb = {0};
     cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
     uint8_t slot_id         = 0;
