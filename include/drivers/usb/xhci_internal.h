@@ -1,10 +1,34 @@
 #pragma once
 
+#include <drivers/tsc.h>
+#include <lib/string.h>
+#include <mem/pmm.h>
+#include <mem/vmm.h>
 #include <stddef.h>
 #include <stdint.h>
 
+#define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
+#define XHCI_ERDP 0x18u // Event ring dequeue pointer offset.
+#define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
+#define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
+#define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
+#define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
+#define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12u // Configure Endpoint command TRB type.
+#define XHCI_TRB_TYPE_TRANSFER_EVENT 32u // Transfer event TRB type.
+#define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
+#define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
+#define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
+#define XHCI_COMPLETION_SHORT_PACKET 13u // Transfer completion short packet code.
+#define XHCI_COMPLETION_USB_TRANSACTION_ERROR 4u // Completion code for USB transaction error.
+#define XHCI_COMPLETION_STALL_ERROR 6u // Completion code for stall error.
+#define XHCI_COMPLETION_DATA_BUFFER_ERROR 7u // Completion code for data buffer error.
+#define XHCI_COMPLETION_CONTEXT_STATE_ERROR 19u // Completion code for context state error.
+#define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
+#define XHCI_TRANSFER_TIMEOUT_MS 1000u // Transfer timeout in ms.
+#define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
+#define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_EP_TYPE_CONTROL 4u // Endpoint type for control transfers.
 #define XHCI_EP_TYPE_BULK_OUT 2u // Endpoint type for bulk OUT transfers.
 #define XHCI_EP_TYPE_BULK_IN 6u // Endpoint type for bulk IN transfers.
@@ -35,10 +59,10 @@ struct xhci_trb
     {
         struct
         {
-            uint32_t cycle_bit : 1;
-            uint32_t rsvd0 : 9;
-            uint32_t trb_type : 6;
-            uint32_t rsvd1 : 16;
+            uint32_t cycle_bit : 1; // TRB cycle bit.
+            uint32_t rsvd0 : 9; // Reserved, must be zero.
+            uint32_t trb_type : 6; // TRB type field.
+            uint32_t rsvd1 : 16; // Reserved, must be zero.
         };
 
         uint32_t dword3; // TRB control and type dword.
@@ -217,6 +241,57 @@ struct xhci_controller
     struct xhci_event_ring event_ring; // Event ring state.
 };
 
+static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
+{
+    auto reg = (const volatile uint32_t *)(base + offset);
+    uint32_t value;
+    __asm__ volatile("mov %0, %1" : "=r"(value) : "m"(*reg));
+    return value;
+}
+
+static inline void xhci_write32(volatile uint8_t *base, const uint32_t offset, const uint32_t value)
+{
+    auto reg = (volatile uint32_t *)(base + offset);
+    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, const uint64_t value)
+{
+    auto reg = (volatile uint64_t *)(base + offset);
+    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline void xhci_mb(void)
+{
+    __asm__ volatile("" ::: "memory");
+}
+
+static inline void xhci_wait_relax(uint32_t *spins)
+{
+    if (*spins < XHCI_WAIT_SPIN_COUNT) {
+        __asm__ volatile("pause");
+        (*spins)++;
+    } else {
+        tsc_sleep_ns(XHCI_WAIT_SLEEP_NS);
+    }
+}
+
+static inline bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
+{
+    const size_t pages = (bytes + PAGE_SIZE - 1u) / PAGE_SIZE;
+    void *phys         = pmm_alloc_pages(pages);
+    if (!phys) {
+        return false;
+    }
+
+    void *virt = (void *)((uintptr_t)phys + g_hhdm_offset);
+    memset(virt, 0, pages * PAGE_SIZE);
+
+    *phys_out = (uintptr_t)phys;
+    *virt_out = virt;
+    return true;
+}
+
 static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
 {
     const size_t offset = (ctx_size == 64u) ? 64u : 32u;
@@ -240,9 +315,15 @@ static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
 
 bool xhci_ring_init(struct xhci_ring *ring, uint32_t trb_count);
 uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb);
+bool xhci_event_ring_init(struct xhci_event_ring *ring, uint32_t trb_count);
 bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
                                   uintptr_t cmd_phys,
                                   uint8_t *slot_id_out);
+bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
+                                  uintptr_t trb_phys,
+                                  uint8_t slot_id,
+                                  uint8_t ep_id,
+                                  bool require_ptr_match);
 void xhci_ring_doorbell(const struct xhci_controller *xhci,
                         uint8_t doorbell,
                         uint32_t value);

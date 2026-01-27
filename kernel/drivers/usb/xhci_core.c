@@ -20,12 +20,10 @@
 #define XHCI_OP_CONFIG 0x38u // Configure register offset.
 #define XHCI_OP_PORTSC_BASE 0x400u // Port status/control base offset.
 #define XHCI_OP_PORTSC_STRIDE 0x10u // Port status/control register stride.
-#define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
 #define XHCI_IMAN 0x00u // Interrupter management offset.
 #define XHCI_IMOD 0x04u // Interrupter moderation offset.
 #define XHCI_ERSTSZ 0x08u // Event ring segment table size offset.
 #define XHCI_ERSTBA 0x10u // Event ring segment table base address offset.
-#define XHCI_ERDP 0x18u // Event ring dequeue pointer offset.
 #define XHCI_MMIO_MAP_BYTES 0x100000u // MMIO mapping size.
 
 #define XHCI_USBCMD_RS (1u << 0) // Run/Stop bit.
@@ -52,13 +50,10 @@
 #define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
 #define XHCI_MAX_DEVICES 256u // Max device slots tracked.
 
-#define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
-#define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
 #define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
 #define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
 #define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
-#define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
 #define XHCI_TRB_TRT_SHIFT 16u // Transfer type field shift for setup stage.
 #define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
 #define XHCI_TRB_TRT_DATA_IN 3u // Setup stage transfer type: data in.
@@ -69,23 +64,12 @@
 #define XHCI_TRB_TYPE_SETUP_STAGE 2u // Setup stage TRB type.
 #define XHCI_TRB_TYPE_DATA_STAGE 3u // Data stage TRB type.
 #define XHCI_TRB_TYPE_STATUS_STAGE 4u // Status stage TRB type.
-#define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
 #define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE 11u // Address Device command TRB type.
-#define XHCI_TRB_TYPE_TRANSFER_EVENT 32u // Transfer event TRB type.
-#define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
-#define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
-#define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
-#define XHCI_COMPLETION_SHORT_PACKET 13u // Transfer completion short packet code.
-#define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
 #define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
-#define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
-#define XHCI_TRANSFER_TIMEOUT_MS 1000u // Transfer timeout in ms.
-#define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
-#define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
@@ -131,41 +115,6 @@ static struct xhci_device *xhci_device_from_slot(const uint8_t slot_id)
     }
 
     return &g_xhci_devices[slot_id];
-}
-
-static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
-{
-    auto reg = (const volatile uint32_t *)(base + offset);
-    uint32_t value;
-    __asm__ volatile("mov %0, %1" : "=r"(value) : "m"(*reg));
-    return value;
-}
-
-static inline void xhci_write32(volatile uint8_t *base, const uint32_t offset, const uint32_t value)
-{
-    auto reg = (volatile uint32_t *)(base + offset);
-    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
-}
-
-static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, const uint64_t value)
-{
-    auto reg = (volatile uint64_t *)(base + offset);
-    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
-}
-
-static inline void xhci_mb(void)
-{
-    __asm__ volatile("" ::: "memory");
-}
-
-static inline void xhci_wait_relax(uint32_t *spins)
-{
-    if (*spins < XHCI_WAIT_SPIN_COUNT) {
-        __asm__ volatile("pause");
-        (*spins)++;
-    } else {
-        tsc_sleep_ns(XHCI_WAIT_SLEEP_NS);
-    }
 }
 
 static bool xhci_wait_for(const volatile uint8_t *base,
@@ -233,22 +182,6 @@ static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_ou
     return true;
 }
 
-static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
-{
-    const size_t pages = (bytes + PAGE_SIZE - 1u) / PAGE_SIZE;
-    void *phys         = pmm_alloc_pages(pages);
-    if (!phys) {
-        return false;
-    }
-
-    auto virt = (void *)((uintptr_t)phys + g_hhdm_offset);
-    memset(virt, 0, pages * PAGE_SIZE);
-
-    *phys_out = (uintptr_t)phys;
-    *virt_out = virt;
-    return true;
-}
-
 static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
 {
     if (xhci->max_scratchpad == 0) {
@@ -274,81 +207,6 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     }
 
     xhci->dcbaa[0] = array_phys;
-    return true;
-}
-
-uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
-{
-    const uint32_t index  = ring->enqueue;
-    struct xhci_trb *dest = &ring->trbs[index];
-    *dest                 = *trb;
-    dest->dword3          |= ring->cycle ? XHCI_TRB_CYCLE : 0u;
-
-    ring->enqueue++;
-    if (ring->enqueue >= ring->trb_count - 1u) {
-        struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
-        link->dword3          = (link->dword3 & ~XHCI_TRB_CYCLE) | (ring->cycle ? XHCI_TRB_CYCLE : 0u);
-        ring->enqueue         = 0;
-        ring->cycle           = !ring->cycle;
-    }
-
-    return ring->phys + (index * sizeof(struct xhci_trb));
-}
-
-bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
-{
-    const size_t bytes = trb_count * sizeof(struct xhci_trb);
-    uintptr_t phys     = 0;
-    void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
-        return false;
-    }
-
-    ring->trbs      = (struct xhci_trb *)virt;
-    ring->trb_count = trb_count;
-    ring->enqueue   = 0;
-    ring->cycle     = true;
-    ring->phys      = phys;
-
-    struct xhci_trb link = {0};
-    link.dword0          = (uint32_t)phys;
-    link.dword1          = (uint32_t)(phys >> 32);
-    link.dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC;
-    ring->enqueue        = trb_count - 1u;
-    (void)xhci_ring_enqueue(ring, &link);
-    ring->enqueue = 0;
-    ring->cycle   = true;
-
-    return true;
-}
-
-static bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t trb_count)
-{
-    const size_t bytes = trb_count * sizeof(struct xhci_trb);
-    uintptr_t phys     = 0;
-    void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
-        return false;
-    }
-
-    uintptr_t erst_phys = 0;
-    void *erst_virt     = nullptr;
-    if (!xhci_alloc_pages(sizeof(struct xhci_erst_entry), &erst_phys, &erst_virt)) {
-        return false;
-    }
-
-    ring->trbs      = (struct xhci_trb *)virt;
-    ring->trb_count = trb_count;
-    ring->dequeue   = 0;
-    ring->cycle     = true;
-    ring->phys      = phys;
-    ring->erst      = (struct xhci_erst_entry *)erst_virt;
-    ring->erst_phys = erst_phys;
-
-    ring->erst[0].addr     = phys;
-    ring->erst[0].size     = trb_count;
-    ring->erst[0].reserved = 0;
-
     return true;
 }
 
@@ -456,135 +314,6 @@ static bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_
     return true;
 }
 
-static uint32_t xhci_trb_type(const struct xhci_trb *trb)
-{
-    return (trb->dword3 & XHCI_TRB_TYPE_MASK) >> XHCI_TRB_TYPE_SHIFT;
-}
-
-static void xhci_event_ring_advance(struct xhci_controller *xhci)
-{
-    struct xhci_event_ring *ring = &xhci->event_ring;
-    ring->dequeue++;
-    if (ring->dequeue >= ring->trb_count) {
-        ring->dequeue = 0;
-        ring->cycle   = !ring->cycle;
-    }
-
-    const uintptr_t erdp  = ring->phys + (ring->dequeue * sizeof(struct xhci_trb));
-    const uintptr_t value = erdp | XHCI_ERDP_EHB;
-    auto ir_base          = (volatile uint8_t *)(xhci->rt_base + XHCI_RT_IR_BASE);
-    xhci_write64(ir_base, XHCI_ERDP, value);
-}
-
-bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
-                                  const uintptr_t cmd_phys,
-                                  uint8_t *slot_id_out)
-{
-    constexpr uint64_t timeout_ns = (uint64_t)XHCI_TIMEOUT_MS * 1000000ull;
-    const uint64_t start          = tsc_nanos();
-    uint32_t spins                = 0;
-    while (tsc_nanos() - start < timeout_ns) {
-        struct xhci_event_ring *ring = &xhci->event_ring;
-        struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
-        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
-        if (cycle == ring->cycle) {
-            const uint32_t type = xhci_trb_type(trb);
-            if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
-                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
-                const uint32_t completion = trb->dword2 >> 24;
-                const uint8_t slot_id     = (uint8_t)(trb->dword3 >> 24);
-                xhci_event_ring_advance(xhci);
-
-                if (cmd_phys != 0 && ptr != cmd_phys) {
-                    boot_message(WARNING,
-                                 "[xHCI] Command completion mismatch ptr=0x%lx expected=0x%lx",
-                                 (unsigned long)ptr,
-                                 (unsigned long)cmd_phys);
-                    spins = 0;
-                    continue;
-                }
-
-                if (completion != XHCI_COMPLETION_SUCCESS) {
-                    boot_message(WARNING,
-                                 "[xHCI] Command completion failed code=%u",
-                                 completion);
-                    return false;
-                }
-
-                if (slot_id_out) {
-                    *slot_id_out = slot_id;
-                }
-                return true;
-            }
-
-            if (type == XHCI_TRB_TYPE_PORT_STATUS) {
-                xhci_event_ring_advance(xhci);
-                spins = 0;
-                continue;
-            }
-
-            xhci_event_ring_advance(xhci);
-            spins = 0;
-        } else {
-            xhci_wait_relax(&spins);
-        }
-    }
-
-    boot_message(WARNING, "[xHCI] Command completion timed out");
-    return false;
-}
-
-static bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
-                                         const uintptr_t trb_phys,
-                                         const uint8_t slot_id,
-                                         const uint8_t ep_id,
-                                         const bool require_ptr_match)
-{
-    constexpr uint64_t timeout_ns = (uint64_t)XHCI_TRANSFER_TIMEOUT_MS * 1000000ull;
-    const uint64_t start          = tsc_nanos();
-    uint32_t spins                = 0;
-    while (tsc_nanos() - start < timeout_ns) {
-        struct xhci_event_ring *ring = &xhci->event_ring;
-        struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
-        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
-        if (cycle == ring->cycle) {
-            const uint32_t type = xhci_trb_type(trb);
-            if (type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
-                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
-                const uint32_t completion = trb->dword2 >> 24;
-                const uint8_t event_slot  = (uint8_t)(trb->dword3 >> 24);
-                const uint8_t event_ep    = (uint8_t)((trb->dword3 >> 16) & 0x1Fu);
-                xhci_event_ring_advance(xhci);
-
-                const bool ep_match = event_ep == ep_id || (ep_id == 1u && event_ep == 0u);
-                if (event_slot != slot_id || !ep_match) {
-                    spins = 0;
-                    continue;
-                }
-
-                if (require_ptr_match && trb_phys != 0 && ptr != trb_phys) {
-                    spins = 0;
-                    continue;
-                }
-
-                if (completion != XHCI_COMPLETION_SUCCESS && completion != XHCI_COMPLETION_SHORT_PACKET) {
-                    return false;
-                }
-
-                return true;
-            }
-
-            xhci_event_ring_advance(xhci);
-            spins = 0;
-        } else {
-            xhci_wait_relax(&spins);
-        }
-    }
-
-    boot_message(WARNING, "[xHCI] Transfer completion timed out");
-    return false;
-}
-
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -684,13 +413,6 @@ static bool xhci_port_reset(const struct xhci_controller *xhci,
         *portsc_out = portsc;
     }
     return true;
-}
-
-void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
-{
-    auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
-    xhci_mb();
-    xhci_write32(db, 0, value);
 }
 
 static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
