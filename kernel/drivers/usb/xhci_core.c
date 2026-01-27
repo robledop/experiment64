@@ -200,6 +200,34 @@ static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **vir
     return true;
 }
 
+static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
+{
+    if (xhci->max_scratchpad == 0) {
+        return true;
+    }
+
+    const size_t array_bytes = xhci->max_scratchpad * sizeof(uint64_t);
+    uintptr_t array_phys     = 0;
+    void *array_virt         = nullptr;
+    if (!xhci_alloc_pages(array_bytes, &array_phys, &array_virt)) {
+        return false;
+    }
+
+    auto array = (uint64_t *)array_virt;
+    for (uint32_t i = 0; i < xhci->max_scratchpad; i++) {
+        void *scratch_phys = pmm_alloc_page();
+        if (!scratch_phys) {
+            return false;
+        }
+        auto scratch_virt = (void *)((uintptr_t)scratch_phys + g_hhdm_offset);
+        memset(scratch_virt, 0, PAGE_SIZE);
+        array[i] = (uint64_t)(uintptr_t)scratch_phys;
+    }
+
+    xhci->dcbaa[0] = array_phys;
+    return true;
+}
+
 static uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
 {
     const uint32_t index  = ring->enqueue;
@@ -379,6 +407,11 @@ void xhci_init(struct pci_device device)
     const size_t dcbaa_bytes = (g_xhci.max_slots + 1u) * sizeof(uint64_t);
     if (!xhci_alloc_pages(dcbaa_bytes, &g_xhci.dcbaa_phys, (void **)&g_xhci.dcbaa)) {
         boot_message(ERROR, "[xHCI] DCBAA alloc failed");
+        return;
+    }
+
+    if (!xhci_setup_scratchpads(&g_xhci)) {
+        boot_message(ERROR, "[xHCI] Scratchpad alloc failed");
         return;
     }
 
