@@ -503,6 +503,7 @@ void xhci_init(struct pci_device device)
         return;
     }
 
+    pci_enable_bus_mastering(device);
     xhci_map_mmio_range(mmio_phys, XHCI_MMIO_MAP_BYTES);
     g_xhci.mmio           = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
     const uint32_t cap    = xhci_read32(g_xhci.mmio, XHCI_CAPLENGTH);
