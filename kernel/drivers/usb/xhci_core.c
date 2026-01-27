@@ -41,6 +41,10 @@
 #define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
 #define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 
+#define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
+#define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
+#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
+
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
@@ -96,6 +100,22 @@ struct xhci_event_ring
     struct xhci_erst_entry *erst; // Virtual ERST base.
     uintptr_t erst_phys;          // Physical ERST base.
 };
+
+struct xhci_input_control_ctx
+{
+    uint32_t drop_flags;   // Contexts to drop in this update.
+    uint32_t add_flags;    // Contexts to add in this update.
+    uint32_t reserved[6];  // Reserved, must be zero.
+} __attribute__((packed));
+
+struct xhci_slot_ctx
+{
+    uint32_t dev_info;     // Slot state, speed, and context count.
+    uint32_t dev_info2;    // Root port and hub information.
+    uint32_t tt_info;      // Transaction translator info.
+    uint32_t dev_state;    // Slot state and device address.
+    uint32_t reserved[4];  // Reserved, must be zero.
+} __attribute__((packed));
 
 struct xhci_controller
 {
@@ -159,6 +179,12 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 static inline void xhci_mb(void)
 {
     __asm__ volatile("" ::: "memory");
+}
+
+static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
+{
+    const size_t offset = (ctx_size == 64u) ? 64u : 32u;
+    return (void *)((uint8_t *)base + offset + (index * ctx_size));
 }
 
 static inline void xhci_wait_relax(uint32_t *spins)
@@ -263,6 +289,64 @@ static bool xhci_alloc_device_context(struct xhci_controller *xhci, const uint8_
 
     xhci->dcbaa[slot_id] = phys;
     boot_message(INFO, "[xHCI] Slot %u device context=0x%lx", slot_id, (unsigned long)phys);
+    return true;
+}
+
+static bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
+{
+    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
+        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+        const uint32_t portsc = xhci_read32(xhci->op_base, offset);
+        if ((portsc & XHCI_PORTSC_CCS) == 0) {
+            continue;
+        }
+
+        if (port_out) {
+            *port_out = port;
+        }
+        if (speed_out) {
+            *speed_out = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+static bool xhci_prepare_slot_context(struct xhci_controller *xhci, const uint8_t slot_id)
+{
+    uint32_t port  = 0;
+    uint32_t speed = 0;
+    if (!xhci_find_connected_port(xhci, &port, &speed)) {
+        boot_message(WARNING, "[xHCI] No connected ports for slot %u", slot_id);
+        return false;
+    }
+
+    const size_t ctx_size     = xhci->context_size;
+    const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
+    const size_t input_bytes  = input_offset + (XHCI_MAX_CONTEXTS * ctx_size);
+    uintptr_t input_phys      = 0;
+    void *input_virt          = nullptr;
+    if (!xhci_alloc_pages(input_bytes, &input_phys, &input_virt)) {
+        return false;
+    }
+
+    memset(input_virt, 0, input_bytes);
+
+    auto ctrl       = (struct xhci_input_control_ctx *)input_virt;
+    ctrl->add_flags = 0x1u;
+
+    auto slot_ctx      = (struct xhci_slot_ctx *)xhci_input_context_ptr(input_virt, 0, (uint32_t)ctx_size);
+    slot_ctx->dev_info = (speed << XHCI_SLOT_CTX_SPEED_SHIFT) |
+        (1u << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
+    slot_ctx->dev_info2 = (port << XHCI_SLOT_CTX_ROOT_PORT_SHIFT);
+
+    boot_message(INFO,
+                 "[xHCI] Slot %u input context=0x%lx port=%u speed=%s",
+                 slot_id,
+                 (unsigned long)input_phys,
+                 port,
+                 xhci_speed_name(speed));
     return true;
 }
 
@@ -640,6 +724,9 @@ void xhci_init(struct pci_device device)
         boot_message(INFO, "[xHCI] Enable slot completed slot=%u", slot_id);
         if (!xhci_alloc_device_context(&g_xhci, slot_id)) {
             boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
+        }
+        if (!xhci_prepare_slot_context(&g_xhci, slot_id)) {
+            boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
         }
     } else {
         boot_message(WARNING, "[xHCI] Enable slot command failed");
