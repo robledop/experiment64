@@ -13,7 +13,9 @@
 #define XHCI_RTSOFF 0x18u // Runtime register space offset.
 #define XHCI_OP_USBCMD 0x00u // USBCMD operational register offset.
 #define XHCI_OP_USBSTS 0x04u // USBSTS operational register offset.
+#define XHCI_OP_PAGESIZE 0x08u // Page size register offset.
 #define XHCI_OP_CRCR 0x18u // Command ring control register offset.
+#define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
 #define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
 #define XHCI_IMAN 0x00u // Interrupter management offset.
 #define XHCI_IMOD 0x04u // Interrupter moderation offset.
@@ -80,6 +82,8 @@ struct xhci_controller
     uint32_t max_ports;                // Max root hub ports.
     uint32_t context_size;             // Context size in bytes.
     uint32_t max_scratchpad;           // Scratchpad buffer count.
+    uint64_t *dcbaa;                   // Virtual DCBAA base.
+    uintptr_t dcbaa_phys;              // Physical DCBAA base.
     volatile uint8_t *db_base;         // Doorbell array base.
     volatile uint8_t *rt_base;         // Runtime registers base.
     struct xhci_ring cmd_ring;         // Command ring state.
@@ -325,6 +329,15 @@ void xhci_init(struct pci_device device)
         boot_message(ERROR, "[xHCI] Controller not ready");
         return;
     }
+
+    const size_t dcbaa_bytes = (g_xhci.max_slots + 1u) * sizeof(uint64_t);
+    if (!xhci_alloc_pages(dcbaa_bytes, &g_xhci.dcbaa_phys, (void **)&g_xhci.dcbaa)) {
+        boot_message(ERROR, "[xHCI] DCBAA alloc failed");
+        return;
+    }
+
+    xhci_write32(g_xhci.op_base, XHCI_OP_PAGESIZE, 1u);
+    xhci_write64(g_xhci.op_base, XHCI_OP_DCBAAP, g_xhci.dcbaa_phys);
 
     if (!xhci_event_ring_init(&g_xhci.event_ring, XHCI_EVENT_RING_TRBS)) {
         boot_message(ERROR, "[xHCI] Event ring alloc failed");
