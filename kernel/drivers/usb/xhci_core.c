@@ -113,6 +113,11 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
 }
 
+static inline void xhci_mb(void)
+{
+    __asm__ volatile("" ::: "memory");
+}
+
 static bool xhci_wait_for(const volatile uint8_t *base,
                           const uint32_t offset,
                           const uint32_t mask,
@@ -194,6 +199,24 @@ static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **vir
     return true;
 }
 
+static uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
+{
+    const uint32_t index  = ring->enqueue;
+    struct xhci_trb *dest = &ring->trbs[index];
+    *dest                 = *trb;
+    dest->dword3          |= ring->cycle ? XHCI_TRB_CYCLE : 0u;
+
+    ring->enqueue++;
+    if (ring->enqueue >= ring->trb_count - 1u) {
+        struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
+        link->dword3          = (link->dword3 & ~XHCI_TRB_CYCLE) | (ring->cycle ? XHCI_TRB_CYCLE : 0u);
+        ring->enqueue         = 0;
+        ring->cycle           = !ring->cycle;
+    }
+
+    return ring->phys + (index * sizeof(struct xhci_trb));
+}
+
 static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
 {
     const size_t bytes = trb_count * sizeof(struct xhci_trb);
@@ -209,11 +232,14 @@ static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     ring->cycle     = true;
     ring->phys      = phys;
 
-    struct xhci_trb *link = &ring->trbs[trb_count - 1];
-    link->dword0          = (uint32_t)phys;
-    link->dword1          = (uint32_t)(phys >> 32);
-    link->dword2          = 0;
-    link->dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC | XHCI_TRB_CYCLE;
+    struct xhci_trb link = {0};
+    link.dword0          = (uint32_t)phys;
+    link.dword1          = (uint32_t)(phys >> 32);
+    link.dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC;
+    ring->enqueue        = trb_count - 1u;
+    (void)xhci_ring_enqueue(ring, &link);
+    ring->enqueue        = 0;
+    ring->cycle          = true;
 
     return true;
 }
@@ -244,6 +270,13 @@ static bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t tr
     ring->erst[0].reserved = 0;
 
     return true;
+}
+
+static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
+{
+    auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
+    xhci_mb();
+    xhci_write32(db, 0, value);
 }
 
 void xhci_init(struct pci_device device)
@@ -356,4 +389,5 @@ void xhci_init(struct pci_device device)
     xhci_write32(g_xhci.op_base, XHCI_OP_CONFIG, slots);
 
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
+    xhci_ring_doorbell(&g_xhci, 0, 0);
 }
