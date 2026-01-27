@@ -31,8 +31,21 @@ struct xhci_trb
     uint32_t dword0; // TRB payload dword 0.
     uint32_t dword1; // TRB payload dword 1.
     uint32_t dword2; // TRB payload dword 2.
-    uint32_t dword3; // TRB control and type dword.
+    union
+    {
+        struct
+        {
+            uint32_t cycle_bit : 1;
+            uint32_t rsvd0 : 9;
+            uint32_t trb_type : 6;
+            uint32_t rsvd1 : 16;
+        };
+
+        uint32_t dword3; // TRB control and type dword.
+    };
 } __attribute__((packed));
+
+static_assert(sizeof(struct xhci_trb) == sizeof(uint32_t) * 4);
 
 struct xhci_erst_entry
 {
@@ -172,19 +185,19 @@ struct usb_ss_ep_comp_descriptor
 
 struct xhci_msc_device
 {
-    struct xhci_device *dev;         // Associated xHCI device.
-    uint8_t config_value;            // Configuration value to select.
-    uint8_t interface_number;        // MSC interface number.
-    uint8_t bulk_in_ep;              // Bulk IN endpoint address.
-    uint8_t bulk_out_ep;             // Bulk OUT endpoint address.
-    uint8_t bulk_in_id;              // xHCI endpoint ID for bulk IN.
-    uint8_t bulk_out_id;             // xHCI endpoint ID for bulk OUT.
-    uint16_t bulk_in_max_packet;     // Bulk IN max packet size.
-    uint16_t bulk_out_max_packet;    // Bulk OUT max packet size.
-    uint8_t bulk_in_max_burst;       // Bulk IN max burst.
-    uint8_t bulk_out_max_burst;      // Bulk OUT max burst.
-    struct xhci_ring bulk_in_ring;   // Bulk IN transfer ring state.
-    struct xhci_ring bulk_out_ring;  // Bulk OUT transfer ring state.
+    struct xhci_device *dev;        // Associated xHCI device.
+    uint8_t config_value;           // Configuration value to select.
+    uint8_t interface_number;       // MSC interface number.
+    uint8_t bulk_in_ep;             // Bulk IN endpoint address.
+    uint8_t bulk_out_ep;            // Bulk OUT endpoint address.
+    uint8_t bulk_in_id;             // xHCI endpoint ID for bulk IN.
+    uint8_t bulk_out_id;            // xHCI endpoint ID for bulk OUT.
+    uint16_t bulk_in_max_packet;    // Bulk IN max packet size.
+    uint16_t bulk_out_max_packet;   // Bulk OUT max packet size.
+    uint8_t bulk_in_max_burst;      // Bulk IN max burst.
+    uint8_t bulk_out_max_burst;     // Bulk OUT max burst.
+    struct xhci_ring bulk_in_ring;  // Bulk IN transfer ring state.
+    struct xhci_ring bulk_out_ring; // Bulk OUT transfer ring state.
 };
 
 struct xhci_controller
