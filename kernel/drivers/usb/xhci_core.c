@@ -13,6 +13,7 @@
 #define XHCI_RTSOFF 0x18u
 #define XHCI_OP_USBCMD 0x00u
 #define XHCI_OP_USBSTS 0x04u
+#define XHCI_OP_CRCR 0x18u
 #define XHCI_MMIO_MAP_BYTES 0x100000u
 
 #define XHCI_USBCMD_RS (1u << 0)
@@ -73,6 +74,12 @@ static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t 
 static inline void xhci_write32(volatile uint8_t *base, const uint32_t offset, const uint32_t value)
 {
     auto reg = (volatile uint32_t *)(base + offset);
+    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, const uint64_t value)
+{
+    auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
 }
 
@@ -265,4 +272,6 @@ void xhci_init(struct pci_device device)
         boot_message(ERROR, "[xHCI] Controller not ready");
         return;
     }
+
+    xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
 }
