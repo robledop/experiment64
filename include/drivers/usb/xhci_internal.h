@@ -12,9 +12,25 @@
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
+#define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
+#define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
+#define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
+#define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
 #define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
+#define XHCI_TRB_TRT_SHIFT 16u // Transfer type field shift for setup stage.
+#define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
+#define XHCI_TRB_TRT_DATA_IN 3u // Setup stage transfer type: data in.
+#define XHCI_TRB_LEN_MASK 0x1FFFFu // TRB transfer length mask.
+#define XHCI_TRB_INTR_TARGET_SHIFT 22u // TRB interrupter target shift.
+#define XHCI_TRB_LEN(value) ((value) & XHCI_TRB_LEN_MASK) // TRB transfer length field.
+#define XHCI_TRB_INTR_TARGET(value) ((value) << XHCI_TRB_INTR_TARGET_SHIFT) // TRB interrupter target field.
+#define XHCI_TRB_TYPE_SETUP_STAGE 2u // Setup stage TRB type.
+#define XHCI_TRB_TYPE_DATA_STAGE 3u // Data stage TRB type.
+#define XHCI_TRB_TYPE_STATUS_STAGE 4u // Status stage TRB type.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
+#define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
+#define XHCI_TRB_TYPE_ADDRESS_DEVICE 11u // Address Device command TRB type.
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12u // Configure Endpoint command TRB type.
 #define XHCI_TRB_TYPE_TRANSFER_EVENT 32u // Transfer event TRB type.
 #define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
@@ -42,6 +58,7 @@
 #define USB_DESC_TYPE_INTERFACE 0x04u // USB interface descriptor type.
 #define USB_DESC_TYPE_ENDPOINT 0x05u // USB endpoint descriptor type.
 #define USB_DESC_TYPE_SS_ENDPOINT_COMP 0x30u // USB SuperSpeed endpoint companion descriptor type.
+#define USB_REQ_SET_CONFIGURATION 0x09u // USB standard SET_CONFIGURATION request.
 #define USB_CLASS_MASS_STORAGE 0x08u // USB mass storage device class code.
 #define USB_SUBCLASS_SCSI 0x06u // USB SCSI transparent subclass code.
 #define USB_PROTOCOL_BOT 0x50u // USB bulk-only transport protocol code.
@@ -60,9 +77,9 @@ struct xhci_trb
         struct
         {
             uint32_t cycle_bit : 1; // TRB cycle bit.
-            uint32_t rsvd0 : 9; // Reserved, must be zero.
-            uint32_t trb_type : 6; // TRB type field.
-            uint32_t rsvd1 : 16; // Reserved, must be zero.
+            uint32_t rsvd0 : 9;     // Reserved, must be zero.
+            uint32_t trb_type : 6;  // TRB type field.
+            uint32_t rsvd1 : 16;    // Reserved, must be zero.
         };
 
         uint32_t dword3; // TRB control and type dword.
@@ -77,6 +94,8 @@ struct xhci_erst_entry
     uint32_t size;     // TRB count in this segment.
     uint32_t reserved; // Reserved, must be zero.
 } __attribute__((packed));
+
+static_assert(sizeof(struct xhci_erst_entry) == sizeof(uint32_t) * 4);
 
 struct xhci_ring
 {
@@ -105,6 +124,8 @@ struct xhci_input_control_ctx
     uint32_t reserved[6]; // Reserved, must be zero.
 } __attribute__((packed));
 
+static_assert(sizeof(struct xhci_input_control_ctx) == sizeof(uint32_t) * 8);
+
 struct xhci_slot_ctx
 {
     uint32_t dev_info;    // Slot state, speed, and context count.
@@ -114,6 +135,8 @@ struct xhci_slot_ctx
     uint32_t reserved[4]; // Reserved, must be zero.
 } __attribute__((packed));
 
+static_assert(sizeof(struct xhci_slot_ctx) == sizeof(uint32_t) * 8);
+
 struct xhci_ep_ctx
 {
     uint32_t ep_info;     // Endpoint state and properties.
@@ -122,6 +145,8 @@ struct xhci_ep_ctx
     uint32_t tx_info;     // Endpoint transfer settings.
     uint32_t reserved[3]; // Reserved, must be zero.
 } __attribute__((packed));
+
+static_assert(sizeof(struct xhci_ep_ctx) == sizeof(uint32_t) * 8);
 
 struct xhci_device
 {
@@ -144,6 +169,8 @@ struct usb_setup_packet
     uint16_t w_index;        // Request index parameter.
     uint16_t w_length;       // Request data length.
 } __attribute__((packed));
+
+static_assert(sizeof(struct usb_setup_packet) == sizeof(uint32_t) * 2);
 
 struct usb_device_descriptor
 {
@@ -327,6 +354,20 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
 void xhci_ring_doorbell(const struct xhci_controller *xhci,
                         uint8_t doorbell,
                         uint32_t value);
+
+bool xhci_enable_slot(struct xhci_controller *xhci,
+                      uint8_t *slot_id_out);
+bool xhci_address_device(struct xhci_controller *xhci,
+                         struct xhci_device *dev);
+bool xhci_control_transfer(struct xhci_controller *xhci,
+                           struct xhci_device *dev,
+                           const struct usb_setup_packet *setup,
+                           uintptr_t data_phys,
+                           uint32_t data_len,
+                           bool data_in);
+bool xhci_set_configuration(struct xhci_controller *xhci,
+                            struct xhci_device *dev,
+                            uint8_t config_value);
 
 bool xhci_msc_parse_config(const struct xhci_device *dev,
                            const void *cfg_buf,
