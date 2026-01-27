@@ -5,85 +5,85 @@
 #include <lib/string.h>
 #include <mem/vmm.h>
 
-#define XHCI_CAPLENGTH 0x00u
-#define XHCI_HCSPARAMS1 0x04u
-#define XHCI_HCSPARAMS2 0x08u
-#define XHCI_HCCPARAMS1 0x10u
-#define XHCI_DBOFF 0x14u
-#define XHCI_RTSOFF 0x18u
-#define XHCI_OP_USBCMD 0x00u
-#define XHCI_OP_USBSTS 0x04u
-#define XHCI_OP_CRCR 0x18u
-#define XHCI_RT_IR_BASE 0x20u
-#define XHCI_IMAN 0x00u
-#define XHCI_IMOD 0x04u
-#define XHCI_ERSTSZ 0x08u
-#define XHCI_ERSTBA 0x10u
-#define XHCI_ERDP 0x18u
-#define XHCI_MMIO_MAP_BYTES 0x100000u
+#define XHCI_CAPLENGTH 0x00u // Capability register length offset.
+#define XHCI_HCSPARAMS1 0x04u // HCS parameters 1 offset.
+#define XHCI_HCSPARAMS2 0x08u // HCS parameters 2 offset.
+#define XHCI_HCCPARAMS1 0x10u // HCC parameters 1 offset.
+#define XHCI_DBOFF 0x14u // Doorbell array offset register.
+#define XHCI_RTSOFF 0x18u // Runtime register space offset.
+#define XHCI_OP_USBCMD 0x00u // USBCMD operational register offset.
+#define XHCI_OP_USBSTS 0x04u // USBSTS operational register offset.
+#define XHCI_OP_CRCR 0x18u // Command ring control register offset.
+#define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
+#define XHCI_IMAN 0x00u // Interrupter management offset.
+#define XHCI_IMOD 0x04u // Interrupter moderation offset.
+#define XHCI_ERSTSZ 0x08u // Event ring segment table size offset.
+#define XHCI_ERSTBA 0x10u // Event ring segment table base address offset.
+#define XHCI_ERDP 0x18u // Event ring dequeue pointer offset.
+#define XHCI_MMIO_MAP_BYTES 0x100000u // MMIO mapping size.
 
-#define XHCI_USBCMD_RS (1u << 0)
-#define XHCI_USBCMD_HCRST (1u << 1)
-#define XHCI_USBSTS_HCH (1u << 0)
-#define XHCI_USBSTS_CNR (1u << 11)
+#define XHCI_USBCMD_RS (1u << 0) // Run/Stop bit.
+#define XHCI_USBCMD_HCRST (1u << 1) // Host controller reset bit.
+#define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
+#define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
 
-#define XHCI_TRB_CYCLE 0x1u
-#define XHCI_TRB_TC (1u << 1)
-#define XHCI_TRB_TYPE_SHIFT 10u
-#define XHCI_TRB_TYPE_LINK 6u
-#define XHCI_ERDP_EHB (1ull << 3)
-#define XHCI_CMD_RING_TRBS 256u
-#define XHCI_EVENT_RING_TRBS 256u
+#define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
+#define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
+#define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
+#define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
+#define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
+#define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
+#define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
 
-#define XHCI_TIMEOUT_MS 200u
-#define XHCI_RESET_TIMEOUT_MS 1000u
+#define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
+#define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 
 struct xhci_trb
 {
-    uint32_t dword0;
-    uint32_t dword1;
-    uint32_t dword2;
-    uint32_t dword3;
+    uint32_t dword0; // TRB payload dword 0.
+    uint32_t dword1; // TRB payload dword 1.
+    uint32_t dword2; // TRB payload dword 2.
+    uint32_t dword3; // TRB control and type dword.
 } __attribute__((packed));
 
 struct xhci_erst_entry
 {
-    uint64_t addr;
-    uint32_t size;
-    uint32_t reserved;
+    uint64_t addr;     // Physical base of event ring segment.
+    uint32_t size;     // TRB count in this segment.
+    uint32_t reserved; // Reserved, must be zero.
 } __attribute__((packed));
 
 struct xhci_ring
 {
-    struct xhci_trb *trbs;
-    uint32_t trb_count;
-    uint32_t enqueue;
-    bool cycle;
-    uintptr_t phys;
+    struct xhci_trb *trbs; // Virtual base of TRB ring.
+    uint32_t trb_count;    // Number of TRBs in the ring.
+    uint32_t enqueue;      // Producer index.
+    bool cycle;            // Producer cycle state.
+    uintptr_t phys;        // Physical base address of ring.
 };
 
 struct xhci_event_ring
 {
-    struct xhci_trb *trbs;
-    uint32_t trb_count;
-    uintptr_t phys;
-    struct xhci_erst_entry *erst;
-    uintptr_t erst_phys;
+    struct xhci_trb *trbs;        // Virtual base of event TRBs.
+    uint32_t trb_count;           // TRB count in the segment.
+    uintptr_t phys;               // Physical base address of TRBs.
+    struct xhci_erst_entry *erst; // Virtual ERST base.
+    uintptr_t erst_phys;          // Physical ERST base.
 };
 
 struct xhci_controller
 {
-    volatile uint8_t *mmio;
-    volatile uint8_t *op_base;
-    uint8_t cap_len;
-    uint32_t max_slots;
-    uint32_t max_ports;
-    uint32_t context_size;
-    uint32_t max_scratchpad;
-    volatile uint8_t *db_base;
-    volatile uint8_t *rt_base;
-    struct xhci_ring cmd_ring;
-    struct xhci_event_ring event_ring;
+    volatile uint8_t *mmio;            // MMIO base.
+    volatile uint8_t *op_base;         // Operational registers base.
+    uint8_t cap_len;                   // Capability length in bytes.
+    uint32_t max_slots;                // Max device slots.
+    uint32_t max_ports;                // Max root hub ports.
+    uint32_t context_size;             // Context size in bytes.
+    uint32_t max_scratchpad;           // Scratchpad buffer count.
+    volatile uint8_t *db_base;         // Doorbell array base.
+    volatile uint8_t *rt_base;         // Runtime registers base.
+    struct xhci_ring cmd_ring;         // Command ring state.
+    struct xhci_event_ring event_ring; // Event ring state.
 };
 
 static struct xhci_controller g_xhci;
@@ -256,21 +256,21 @@ void xhci_init(struct pci_device device)
     }
 
     xhci_map_mmio_range(mmio_phys, XHCI_MMIO_MAP_BYTES);
-    g_xhci.mmio    = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
-    const uint32_t cap = xhci_read32(g_xhci.mmio, XHCI_CAPLENGTH);
-    g_xhci.cap_len = (uint8_t)(cap & 0xFFu);
-    const uint32_t hcs = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS1);
-    const uint32_t hcs2 = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS2);
-    const uint32_t hcc1 = xhci_read32(g_xhci.mmio, XHCI_HCCPARAMS1);
-    const uint32_t dboff = xhci_read32(g_xhci.mmio, XHCI_DBOFF) & ~0x3u;
+    g_xhci.mmio           = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
+    const uint32_t cap    = xhci_read32(g_xhci.mmio, XHCI_CAPLENGTH);
+    g_xhci.cap_len        = (uint8_t)(cap & 0xFFu);
+    const uint32_t hcs    = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS1);
+    const uint32_t hcs2   = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS2);
+    const uint32_t hcc1   = xhci_read32(g_xhci.mmio, XHCI_HCCPARAMS1);
+    const uint32_t dboff  = xhci_read32(g_xhci.mmio, XHCI_DBOFF) & ~0x3u;
     const uint32_t rtsoff = xhci_read32(g_xhci.mmio, XHCI_RTSOFF) & ~0x1Fu;
-    g_xhci.op_base = g_xhci.mmio + g_xhci.cap_len;
-    g_xhci.max_slots = hcs & 0xFFu;
-    g_xhci.max_ports = (hcs >> 24) & 0xFFu;
-    g_xhci.context_size = (hcc1 & (1u << 2)) ? 64u : 32u;
+    g_xhci.op_base        = g_xhci.mmio + g_xhci.cap_len;
+    g_xhci.max_slots      = hcs & 0xFFu;
+    g_xhci.max_ports      = (hcs >> 24) & 0xFFu;
+    g_xhci.context_size   = (hcc1 & (1u << 2)) ? 64u : 32u;
     g_xhci.max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
-    g_xhci.db_base = g_xhci.mmio + dboff;
-    g_xhci.rt_base = g_xhci.mmio + rtsoff;
+    g_xhci.db_base        = g_xhci.mmio + dboff;
+    g_xhci.rt_base        = g_xhci.mmio + rtsoff;
     if (!xhci_ring_init(&g_xhci.cmd_ring, XHCI_CMD_RING_TRBS)) {
         boot_message(ERROR, "[xHCI] Command ring alloc failed");
         return;
