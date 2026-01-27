@@ -5,6 +5,7 @@
 
 #define XHCI_CAPLENGTH 0x00u
 #define XHCI_HCSPARAMS1 0x04u
+#define XHCI_MMIO_MAP_BYTES 0x100000u
 
 static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
 {
@@ -12,6 +13,26 @@ static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t 
     uint32_t value;
     __asm__ volatile("mov %0, %1" : "=r"(value) : "m"(*reg));
     return value;
+}
+
+static inline pml4_t xhci_current_pml4(void)
+{
+    uint64_t cr3 = 0;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    return (pml4_t)(cr3 & 0x000FFFFFFFFFF000ull);
+}
+
+static void xhci_map_mmio_range(const uint64_t phys_base, const uint64_t bytes)
+{
+    const uint64_t start = phys_base & ~(uint64_t)(PAGE_SIZE - 1u);
+    const uint64_t end   = (phys_base + bytes + PAGE_SIZE - 1u) & ~(uint64_t)(PAGE_SIZE - 1u);
+    pml4_t pml4          = xhci_current_pml4();
+    for (uint64_t phys = start; phys < end; phys += PAGE_SIZE) {
+        const uint64_t virt = phys + g_hhdm_offset;
+        if (vmm_virt_to_phys(pml4, virt) == 0) {
+            vmm_map_page(pml4, virt, phys, PTE_PRESENT | PTE_WRITABLE | PTE_PCD | PTE_PWT);
+        }
+    }
 }
 
 static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_out)
@@ -50,6 +71,7 @@ void xhci_init(struct pci_device device)
         return;
     }
 
+    xhci_map_mmio_range(mmio_phys, XHCI_MMIO_MAP_BYTES);
     auto mmio             = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
     const uint32_t cap    = xhci_read32(mmio, XHCI_CAPLENGTH);
     const uint8_t cap_len = (uint8_t)(cap & 0xFFu);
