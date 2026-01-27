@@ -5,11 +5,14 @@
 #include <drivers/atl1c.h>
 #include <drivers/e1000.h>
 #include <drivers/ide.h>
+#include <drivers/usb/xhci.h>
 #include <stddef.h>
 #include <lib/string.h>
+#include <attributes.h>
 
 // Type 0x00: A general device
-struct pci_header {
+struct pci_header
+{
     uint16_t vendor_id;
     uint16_t device_id;
     // Provides control over a device's ability to generate and respond to PCI cycles.
@@ -203,6 +206,7 @@ static void pci_ide_init(struct pci_device device)
 struct pci_driver pci_drivers[] = {
     {.class = 0x01, .subclass = 0x06, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &ahci_init},
     {.class = 0x01, .subclass = 0x01, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &pci_ide_init},
+    {.class = 0x0C, .subclass = 0x03, .vendor_id = PCI_ANY_ID, .device_id = PCI_ANY_ID, .init = &xhci_init},
     // Intel e1000 network controller (QEMU, Bochs, VirtualBox)
     {.class = 0x02, .subclass = 0x00, .vendor_id = INTEL_VEND, .device_id = E1000_DEV, .init = &e1000_init},
     // Qualcomm Atheros AR8162 Fast Ethernet
@@ -220,10 +224,10 @@ struct pci_driver pci_drivers[] = {
  */
 uint16_t pci_config_read_word(const uint8_t bus, const uint8_t slot, const uint8_t func, const uint8_t offset)
 {
-    const uint32_t lbus = bus;
+    const uint32_t lbus  = bus;
     const uint32_t lslot = slot;
     const uint32_t lfunc = func;
-    uint16_t tmp = 0;
+    uint16_t tmp         = 0;
 
     // Create configuration address
     // Bit 31     | Bits 30-24 | Bits 23-16 | Bits 15-11    | Bits 10-8       | Bits 7-0
@@ -245,7 +249,7 @@ uint16_t pci_config_read_word(const uint8_t bus, const uint8_t slot, const uint8
 void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t func, const uint8_t offset,
                            const uint16_t data)
 {
-    const uint32_t lbus = bus;
+    const uint32_t lbus  = bus;
     const uint32_t lslot = slot;
     const uint32_t lfunc = func;
 
@@ -255,12 +259,9 @@ void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t 
 
     uint32_t tmp = inl(PCI_CONFIG_DATA);
 
-    if (offset & 2)
-    {
+    if (offset & 2) {
         tmp = (tmp & 0x0000FFFF) | (data << 16); // Modify the upper 16 bits
-    }
-    else
-    {
+    } else {
         tmp = (tmp & 0xFFFF0000) | data; // Modify the lower 16 bits
     }
 
@@ -271,12 +272,10 @@ void pci_config_write_word(const uint8_t bus, const uint8_t slot, const uint8_t 
 /**
  * @brief Resolve a PCI class/subclass pair to a descriptive name.
  */
-const char* pci_find_name(const uint8_t class, const uint8_t subclass)
+const char *pci_find_name(const uint8_t class, const uint8_t subclass)
 {
-    for (size_t i = 0; i < sizeof(classes) / sizeof(struct pci_class); i++)
-    {
-        if (classes[i].class == class && classes[i].subclass == subclass)
-        {
+    for (size_t i = 0; i < sizeof(classes) / sizeof(struct pci_class); i++) {
+        if (classes[i].class == class && classes[i].subclass == subclass) {
             return classes[i].name;
         }
     }
@@ -286,70 +285,57 @@ const char* pci_find_name(const uint8_t class, const uint8_t subclass)
 /**
  * @brief Resolve a vendor ID to a descriptive name.
  */
-const char* pci_find_vendor(const uint16_t vendor_id)
+const char *pci_find_vendor(const uint16_t vendor_id)
 {
-    for (size_t i = 0; i < sizeof(vendors) / sizeof(struct pci_vendor); i++)
-    {
-        if (vendors[i].id == vendor_id)
-        {
+    for (size_t i = 0; i < sizeof(vendors) / sizeof(struct pci_vendor); i++) {
+        if (vendors[i].id == vendor_id) {
             return vendors[i].name;
         }
     }
     return "Unknown Vendor";
 }
 
-static const char* pci_cap_name(const uint8_t cap_id)
+static UNUSED const char *pci_cap_name(const uint8_t cap_id)
 {
-    switch (cap_id)
-    {
-        case 0x01:
-            return "Power Management";
-        case 0x05:
-            return "MSI";
-        case 0x10:
-            return "PCI Express";
-        case 0x11:
-            return "MSI-X";
-        default:
-            return "Unknown Capability";
+    switch (cap_id) {
+    case 0x01:
+        return "Power Management";
+    case 0x05:
+        return "MSI";
+    case 0x10:
+        return "PCI Express";
+    case 0x11:
+        return "MSI-X";
+    default:
+        return "Unknown Capability";
     }
 }
 
-static const char* pci_usb_prog_if_name(const uint8_t prog_if)
+static const char *pci_usb_prog_if_name(const uint8_t prog_if)
 {
-    switch (prog_if)
-    {
-        case 0x00:
-            return "UHCI";
-        case 0x10:
-            return "OHCI";
-        case 0x20:
-            return "EHCI";
-        case 0x30:
-            return "XHCI";
-        case 0x80:
-            return "Unspecified";
-        case 0xFE:
-            return "USB Device";
-        default:
-            return "Unknown";
+    switch (prog_if) {
+    case 0x30:
+        return "XHCI";
+    case 0x80:
+        return "Unspecified";
+    case 0xFE:
+        return "USB Device";
+    default:
+        return "Unsupported";
     }
 }
 
-static void pci_dump_bars(const struct pci_header *pci)
+static UNUSED void pci_dump_bars(const struct pci_header *pci)
 {
     bool logged = false;
-    for (uint8_t i = 0; i < 6; i++)
-    {
+    for (uint8_t i = 0; i < 6; i++) {
         const uint32_t bar = pci->bars[i];
-        if (bar == 0)
-        {
+        if (bar == 0) {
             continue;
         }
 
         logged = true;
-        if (bar & PCI_BAR_IO)
-        {
+        if (bar & PCI_BAR_IO) {
             boot_message(INFO,
                          "  BAR%u: IO base=0x%08x raw=0x%08x",
                          i,
@@ -359,11 +345,10 @@ static void pci_dump_bars(const struct pci_header *pci)
         }
 
         const uint8_t mem_type = (bar >> 1) & 0x3;
-        const bool prefetch = (bar & 0x8) != 0;
-        if (mem_type == PCI_BAR_MEMORY_TYPE_64 && i + 1 < 6)
-        {
+        const bool prefetch    = (bar & 0x8) != 0;
+        if (mem_type == PCI_BAR_MEMORY_TYPE_64 && i + 1 < 6) {
             const uint32_t bar_hi = pci->bars[i + 1];
-            const uint64_t base = ((uint64_t)bar_hi << 32) | (bar & ~0xFULL);
+            const uint64_t base   = ((uint64_t)bar_hi << 32) | (bar & ~0xFULL);
             boot_message(INFO,
                          "  BAR%u: MEM64 base=0x%016lx raw=0x%08x%08x prefetch=%u",
                          i,
@@ -383,36 +368,32 @@ static void pci_dump_bars(const struct pci_header *pci)
                      prefetch ? 1U : 0U);
     }
 
-    if (!logged)
-    {
+    if (!logged) {
         boot_message(INFO, "  BARs: none");
     }
 }
 
-static void pci_dump_capabilities(const uint8_t bus,
-                                  const uint8_t device,
-                                  const uint8_t function,
-                                  const struct pci_header *pci)
+static UNUSED void pci_dump_capabilities(const uint8_t bus,
+                                         const uint8_t device,
+                                         const uint8_t function,
+                                         const struct pci_header *pci)
 {
-    if ((pci->status & PCI_STATUS_CAPABILITIES_LIST) == 0)
-    {
+    if ((pci->status & PCI_STATUS_CAPABILITIES_LIST) == 0) {
         boot_message(INFO, "  caps: none");
         return;
     }
 
     uint8_t cap_ptr = pci->capabilities_pointer;
-    if (cap_ptr < 0x40)
-    {
+    if (cap_ptr < 0x40) {
         boot_message(WARNING, "  caps: invalid pointer 0x%02x", cap_ptr);
         return;
     }
 
     boot_message(INFO, "  caps:");
-    for (uint8_t i = 0; cap_ptr != 0 && i < 48; i++)
-    {
+    for (uint8_t i = 0; cap_ptr != 0 && i < 48; i++) {
         const uint16_t cap_header = pci_config_read_word(bus, device, function, cap_ptr);
-        const uint8_t cap_id = (uint8_t)(cap_header & 0xFF);
-        const uint8_t next_ptr = (uint8_t)((cap_header >> 8) & 0xFF);
+        const uint8_t cap_id      = (uint8_t)(cap_header & 0xFF);
+        const uint8_t next_ptr    = (uint8_t)((cap_header >> 8) & 0xFF);
 
         boot_message(INFO,
                      "    0x%02x %s (id=0x%02x)",
@@ -420,14 +401,12 @@ static void pci_dump_capabilities(const uint8_t bus,
                      pci_cap_name(cap_id),
                      cap_id);
 
-        if (next_ptr == cap_ptr)
-        {
+        if (next_ptr == cap_ptr) {
             boot_message(WARNING, "  caps: loop at 0x%02x", cap_ptr);
             break;
         }
 
-        if (next_ptr != 0 && next_ptr < 0x40)
-        {
+        if (next_ptr != 0 && next_ptr < 0x40) {
             boot_message(WARNING, "  caps: invalid next 0x%02x", next_ptr);
             break;
         }
@@ -436,10 +415,9 @@ static void pci_dump_capabilities(const uint8_t bus,
     }
 }
 
-static void pci_dump_config_space(const uint8_t bus, const uint8_t device, const uint8_t function)
+static UNUSED void pci_dump_config_space(const uint8_t bus, const uint8_t device, const uint8_t function)
 {
-    for (uint16_t offset = 0; offset < 0x100; offset += 0x10)
-    {
+    for (uint16_t offset = 0; offset < 0x100; offset += 0x10) {
         const uint16_t w0 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x0));
         const uint16_t w1 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x2));
         const uint16_t w2 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x4));
@@ -463,10 +441,10 @@ static void pci_dump_config_space(const uint8_t bus, const uint8_t device, const
     }
 }
 
-static void pci_dump_device_config(const struct pci_header *pci,
-                                   const uint8_t bus,
-                                   const uint8_t device,
-                                   const uint8_t function)
+static UNUSED void pci_dump_device_config(const struct pci_header *pci,
+                                          const uint8_t bus,
+                                          const uint8_t device,
+                                          const uint8_t function)
 {
     boot_message(INFO,
                  "PCI %02x:%02x.%u vendor=0x%04x device=0x%04x",
@@ -503,21 +481,6 @@ static void pci_dump_device_config(const struct pci_header *pci,
     pci_dump_config_space(bus, device, function);
 }
 
-// static void pci_log_device_info(const struct pci_header *pci, const uint8_t bus, const uint8_t device,
-//                                 const uint8_t function)
-// {
-//     boot_message(INFO,
-//                  "%02X:%02X.%u vendor=0x%04X device=0x%04X class=0x%02X subclass=0x%02X prog_if=0x%02X",
-//                  bus,
-//                  device,
-//                  function,
-//                  pci->vendor_id,
-//                  pci->device_id,
-//                  pci->class,
-//                  pci->subclass,
-//                  pci->prog_if);
-// }
-
 /**
  * @brief Attempt to load a driver matching the given PCI header.
  */
@@ -537,16 +500,17 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
     };
     memcpy(dev.bars, pci.bars, sizeof(dev.bars));
 
-    if (pci.vendor_id == PCI_TRACE_VENDOR_ID && pci.device_id == PCI_TRACE_DEVICE_ID)
-    {
-        pci_dump_device_config(&pci, bus, device, function);
-    }
+
+    // Uncomment this if you need to dump information about a device
+    // if (pci.vendor_id == PCI_TRACE_VENDOR_ID && pci.device_id == PCI_TRACE_DEVICE_ID)
+    // {
+    //     pci_dump_device_config(&pci, bus, device, function);
+    // }
 
     boot_message(INFO, "%s", pci_find_name(dev.class, dev.subclass));
 
     // {0x02, 0x00, "Ethernet Controller"},
-    if (dev.class == 0x02 && dev.subclass == 0x00)
-    {
+    if (dev.class == 0x02 && dev.subclass == 0x00) {
         boot_message(INFO,
                      "Ethernet controller Vendor: %s (0x%04X), Device: 0x%04X",
                      pci_find_vendor(dev.vendor_id),
@@ -555,8 +519,7 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
     }
 
     // {0x04, 0x03, "Audio Device"},
-    if (dev.class == 0x04 && dev.subclass == 0x03)
-    {
+    if (dev.class == 0x04 && dev.subclass == 0x03) {
         boot_message(INFO,
                      "Audio device Vendor: %s (0x%04X), Device: 0x%04X",
                      pci_find_vendor(dev.vendor_id),
@@ -565,25 +528,22 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
     }
 
     // {0x0C, 0x03, "USB Controller"},
-    if (dev.class == 0x0C && dev.subclass == 0x03)
-    {
+    if (dev.class == 0x0C && dev.subclass == 0x03) {
         boot_message(INFO,
                      "USB controller interface: %s (prog_if=0x%02X)",
                      pci_usb_prog_if_name(dev.prog_if),
                      dev.prog_if);
     }
 
-    for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++)
-    {
-        const struct pci_driver* driver = &pci_drivers[i];
+    for (size_t i = 0; i < sizeof(pci_drivers) / sizeof(struct pci_driver); i++) {
+        const struct pci_driver *driver = &pci_drivers[i];
 
-        const bool class_match = driver->class == dev.class;
+        const bool class_match    = driver->class == dev.class;
         const bool subclass_match = driver->subclass == dev.subclass;
-        const bool vendor_match = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == dev.vendor_id;
-        const bool device_match = driver->device_id == PCI_ANY_ID || driver->device_id == dev.device_id;
+        const bool vendor_match   = driver->vendor_id == PCI_ANY_ID || driver->vendor_id == dev.vendor_id;
+        const bool device_match   = driver->device_id == PCI_ANY_ID || driver->device_id == dev.device_id;
 
-        if (class_match && subclass_match && vendor_match && device_match)
-        {
+        if (class_match && subclass_match && vendor_match && device_match) {
             boot_message(INFO, "Loading driver for %s", pci_find_name(dev.class, dev.subclass));
 
             pci_drivers[i].init(dev);
@@ -598,8 +558,7 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
 struct pci_header get_pci_data(const uint8_t bus, const uint8_t num, const uint8_t function)
 {
     struct pci_header pci_data;
-    for (uint8_t i = 0; i < 32; i++)
-    {
+    for (uint8_t i = 0; i < 32; i++) {
         uint16_t word = pci_config_read_word(bus, num, function, i * 2);
         memcpy((char *)&pci_data + i * 2, &word, sizeof(word));
     }
@@ -614,23 +573,17 @@ void pci_scan()
     boot_message(INFO, "Scanning PCI devices...");
 
     struct pci_header pci_data;
-    for (uint16_t i = 0; i < 256; i++)
-    {
+    for (uint16_t i = 0; i < 256; i++) {
         pci_data = get_pci_data(i, 0, 0);
-        if (pci_data.vendor_id != 0xFFFF)
-        {
-            for (uint8_t j = 0; j < 32; j++)
-            {
+        if (pci_data.vendor_id != 0xFFFF) {
+            for (uint8_t j = 0; j < 32; j++) {
                 pci_data = get_pci_data(i, j, 0);
-                if (pci_data.vendor_id != 0xFFFF)
-                {
+                if (pci_data.vendor_id != 0xFFFF) {
                     load_driver(pci_data, i, j, 0);
 
-                    for (uint8_t k = 1; k < 8; k++)
-                    {
+                    for (uint8_t k = 1; k < 8; k++) {
                         struct pci_header pci = get_pci_data(i, j, k);
-                        if (pci.vendor_id != 0xFFFF)
-                        {
+                        if (pci.vendor_id != 0xFFFF) {
                             load_driver(pci, i, j, k);
                         }
                     }
@@ -658,11 +611,9 @@ void pci_enable_bus_mastering(const struct pci_device device)
 uint32_t pci_get_bar(const struct pci_device dev, const uint8_t type)
 {
     uint32_t bar = 0;
-    for (int i = 0; i < 6; i++)
-    {
+    for (int i = 0; i < 6; i++) {
         bar = dev.bars[i];
-        if ((bar & 0x1) == type)
-        {
+        if ((bar & 0x1) == type) {
             return bar;
         }
     }
