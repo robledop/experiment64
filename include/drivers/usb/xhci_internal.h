@@ -53,6 +53,11 @@
 #define XHCI_EP_MAX_BURST_SHIFT 8u // Endpoint max burst field shift.
 #define XHCI_EP_MAX_PACKET_SHIFT 16u // Endpoint max packet size field shift.
 #define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
+#define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
+#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
+#define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
+#define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
+#define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 #define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
@@ -358,8 +363,18 @@ void xhci_ring_doorbell(const struct xhci_controller *xhci,
                         uint8_t doorbell,
                         uint32_t value);
 
+bool xhci_find_connected_port(const struct xhci_controller *xhci,
+                              uint32_t *port_out,
+                              uint32_t *speed_out);
+bool xhci_port_reset(const struct xhci_controller *xhci,
+                     uint32_t port,
+                     uint32_t *portsc_out);
 bool xhci_enable_slot(struct xhci_controller *xhci,
                       uint8_t *slot_id_out);
+bool xhci_alloc_device_context(struct xhci_controller *xhci,
+                               struct xhci_device *dev);
+bool xhci_prepare_slot_context(struct xhci_controller *xhci,
+                               struct xhci_device *dev);
 bool xhci_address_device(struct xhci_controller *xhci,
                          struct xhci_device *dev);
 bool xhci_control_transfer(struct xhci_controller *xhci,

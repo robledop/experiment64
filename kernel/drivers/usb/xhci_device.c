@@ -21,6 +21,89 @@ bool xhci_enable_slot(struct xhci_controller *xhci, uint8_t *slot_id_out)
     return xhci_cmd_submit(xhci, &cmd_trb, slot_id_out);
 }
 
+bool xhci_alloc_device_context(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    if (!dev) {
+        return false;
+    }
+
+    if (dev->device_ctx) {
+        return true;
+    }
+
+    const size_t bytes = (size_t)XHCI_MAX_CONTEXTS * xhci->context_size;
+    uintptr_t phys     = 0;
+    void *virt         = nullptr;
+    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+        return false;
+    }
+
+    dev->device_ctx      = virt;
+    dev->device_ctx_phys = phys;
+    memset(dev->device_ctx, 0, bytes);
+    xhci->dcbaa[dev->slot_id] = phys;
+    return true;
+}
+
+bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    if (!dev) {
+        return false;
+    }
+
+    uint32_t port  = 0;
+    uint32_t speed = 0;
+    if (!xhci_find_connected_port(xhci, &port, &speed)) {
+        boot_message(WARNING, "[xHCI] No connected ports for slot %u", dev->slot_id);
+        return false;
+    }
+
+    uint32_t portsc_after = 0;
+    if (!xhci_port_reset(xhci, port, &portsc_after)) {
+        return false;
+    }
+    speed = (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+
+    const size_t ctx_size     = xhci->context_size;
+    const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
+    const size_t input_bytes  = input_offset + (XHCI_MAX_CONTEXTS * ctx_size);
+    if (!dev->input_ctx) {
+        if (!xhci_alloc_pages(input_bytes, &dev->input_ctx_phys, &dev->input_ctx)) {
+            return false;
+        }
+    }
+
+    memset(dev->input_ctx, 0, input_bytes);
+    dev->port_id = (uint8_t)port;
+    dev->speed   = speed;
+
+    auto ctrl       = (struct xhci_input_control_ctx *)dev->input_ctx;
+    ctrl->add_flags = 0x3u;
+
+    auto slot_ctx      = (struct xhci_slot_ctx *)xhci_input_context_ptr(dev->input_ctx, 0, (uint32_t)ctx_size);
+    slot_ctx->dev_info = (speed << XHCI_SLOT_CTX_SPEED_SHIFT) |
+        (1u << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
+    slot_ctx->dev_info2 = (port << XHCI_SLOT_CTX_ROOT_PORT_SHIFT);
+
+    if (!dev->ep0_ring.trbs) {
+        if (!xhci_ring_init(&dev->ep0_ring, XHCI_EP0_RING_TRBS)) {
+            return false;
+        }
+    }
+
+    auto ep0_ctx                  = (struct xhci_ep_ctx *)xhci_input_context_ptr(dev->input_ctx, 1, (uint32_t)ctx_size);
+    constexpr uint16_t max_packet = 512u;
+    ep0_ctx->ep_info              = 0;
+    ep0_ctx->ep_info2             = (3u << XHCI_EP_ERROR_COUNT_SHIFT) |
+        (XHCI_EP_TYPE_CONTROL << XHCI_EP_TYPE_SHIFT) |
+        ((uint32_t)max_packet << XHCI_EP_MAX_PACKET_SHIFT);
+    const uintptr_t deq = dev->ep0_ring.phys + (dev->ep0_ring.enqueue * sizeof(struct xhci_trb));
+    ep0_ctx->deq        = deq | (dev->ep0_ring.cycle ? 1u : 0u);
+    ep0_ctx->tx_info    = 8u;
+
+    return true;
+}
+
 bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     if (!xhci || !dev) {

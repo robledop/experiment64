@@ -41,18 +41,13 @@
 #define XHCI_PORTSC_WRC (1u << 19) // Port warm reset change bit.
 #define XHCI_PORTSC_WK_MASK (0x7u << 25) // Port wake event mask.
 #define XHCI_PORTSC_WR (1u << 31) // Port warm reset bit.
-#define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
-#define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 #define XHCI_PORTSC_RWS_MASK (XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_PP | XHCI_PORTSC_INDICATOR_MASK | XHCI_PORTSC_WK_MASK) // Port read/write settable bits.
 
 
-#define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
-#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
 #define XHCI_MAX_DEVICES 256u // Max device slots tracked.
 
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
-#define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
@@ -62,10 +57,6 @@
 
 static struct xhci_controller g_xhci;
 static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
-
-static bool xhci_port_reset(const struct xhci_controller *xhci,
-                            const uint32_t port,
-                            uint32_t *portsc_out);
 
 static const char *xhci_speed_name(const uint32_t speed)
 {
@@ -189,31 +180,7 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     return true;
 }
 
-static bool xhci_alloc_device_context(struct xhci_controller *xhci, struct xhci_device *dev)
-{
-    if (!dev) {
-        return false;
-    }
-
-    if (dev->device_ctx) {
-        return true;
-    }
-
-    const size_t bytes = (size_t)XHCI_MAX_CONTEXTS * xhci->context_size;
-    uintptr_t phys     = 0;
-    void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
-        return false;
-    }
-
-    dev->device_ctx      = virt;
-    dev->device_ctx_phys = phys;
-    memset(dev->device_ctx, 0, bytes);
-    xhci->dcbaa[dev->slot_id] = phys;
-    return true;
-}
-
-static bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
+bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
 {
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -232,65 +199,6 @@ static bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_
     }
 
     return false;
-}
-
-static bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device *dev)
-{
-    if (!dev) {
-        return false;
-    }
-
-    uint32_t port  = 0;
-    uint32_t speed = 0;
-    if (!xhci_find_connected_port(xhci, &port, &speed)) {
-        boot_message(WARNING, "[xHCI] No connected ports for slot %u", dev->slot_id);
-        return false;
-    }
-
-    uint32_t portsc_after = 0;
-    if (!xhci_port_reset(xhci, port, &portsc_after)) {
-        return false;
-    }
-    speed = (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-
-    const size_t ctx_size     = xhci->context_size;
-    const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
-    const size_t input_bytes  = input_offset + (XHCI_MAX_CONTEXTS * ctx_size);
-    if (!dev->input_ctx) {
-        if (!xhci_alloc_pages(input_bytes, &dev->input_ctx_phys, &dev->input_ctx)) {
-            return false;
-        }
-    }
-
-    memset(dev->input_ctx, 0, input_bytes);
-    dev->port_id = (uint8_t)port;
-    dev->speed   = speed;
-
-    auto ctrl       = (struct xhci_input_control_ctx *)dev->input_ctx;
-    ctrl->add_flags = 0x3u;
-
-    auto slot_ctx      = (struct xhci_slot_ctx *)xhci_input_context_ptr(dev->input_ctx, 0, (uint32_t)ctx_size);
-    slot_ctx->dev_info = (speed << XHCI_SLOT_CTX_SPEED_SHIFT) |
-        (1u << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
-    slot_ctx->dev_info2 = (port << XHCI_SLOT_CTX_ROOT_PORT_SHIFT);
-
-    if (!dev->ep0_ring.trbs) {
-        if (!xhci_ring_init(&dev->ep0_ring, XHCI_EP0_RING_TRBS)) {
-            return false;
-        }
-    }
-
-    auto ep0_ctx                  = (struct xhci_ep_ctx *)xhci_input_context_ptr(dev->input_ctx, 1, (uint32_t)ctx_size);
-    constexpr uint16_t max_packet = 512u;
-    ep0_ctx->ep_info              = 0;
-    ep0_ctx->ep_info2             = (3u << XHCI_EP_ERROR_COUNT_SHIFT) |
-        (XHCI_EP_TYPE_CONTROL << XHCI_EP_TYPE_SHIFT) |
-        ((uint32_t)max_packet << XHCI_EP_MAX_PACKET_SHIFT);
-    const uintptr_t deq = dev->ep0_ring.phys + (dev->ep0_ring.enqueue * sizeof(struct xhci_trb));
-    ep0_ctx->deq        = deq | (dev->ep0_ring.cycle ? 1u : 0u);
-    ep0_ctx->tx_info    = 8u;
-
-    return true;
 }
 
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
@@ -359,9 +267,9 @@ static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
     return false;
 }
 
-static bool xhci_port_reset(const struct xhci_controller *xhci,
-                            const uint32_t port,
-                            uint32_t *portsc_out)
+bool xhci_port_reset(const struct xhci_controller *xhci,
+                     const uint32_t port,
+                     uint32_t *portsc_out)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
     uint32_t portsc       = xhci_read32(xhci->op_base, offset);
