@@ -23,6 +23,8 @@ struct xhci_controller
     volatile uint8_t *mmio;
     volatile uint8_t *op_base;
     uint8_t cap_len;
+    uint32_t max_slots;
+    uint32_t max_ports;
 };
 
 static struct xhci_controller g_xhci;
@@ -126,6 +128,8 @@ void xhci_init(struct pci_device device)
     g_xhci.cap_len = (uint8_t)(cap & 0xFFu);
     const uint32_t hcs = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS1);
     g_xhci.op_base = g_xhci.mmio + g_xhci.cap_len;
+    g_xhci.max_slots = hcs & 0xFFu;
+    g_xhci.max_ports = (hcs >> 24) & 0xFFu;
 
     boot_message(INFO,
                  "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
@@ -135,7 +139,12 @@ void xhci_init(struct pci_device device)
                  device.slot,
                  device.function,
                  (unsigned long)mmio_phys);
-    boot_message(INFO, "[xHCI] caplen=%u hcsparams1=0x%08x", g_xhci.cap_len, hcs);
+    boot_message(INFO,
+                 "[xHCI] caplen=%u hcsparams1=0x%08x slots=%u ports=%u",
+                 g_xhci.cap_len,
+                 hcs,
+                 g_xhci.max_slots,
+                 g_xhci.max_ports);
 
     uint32_t cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     cmd          &= ~XHCI_USBCMD_RS;
