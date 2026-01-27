@@ -185,7 +185,7 @@ static inline uint32_t ahci_upper32(uintptr_t value)
 #endif
 
 static uint32_t ahci_calculate_chunk(const uint8_t *buffer, const uint32_t requested_sectors, uintptr_t *phys_out,
-                                bool *needs_bounce)
+                                     bool *needs_bounce)
 {
     const uintptr_t phys = ahci_virt_to_phys(buffer);
     if (phys == 0) {
@@ -238,18 +238,19 @@ static void ahci_init_lock()
 static void *ahci_alloc_aligned(const size_t size, const size_t alignment)
 {
     const size_t total = size + alignment - 1;
-    uint8_t *raw            = kmalloc(total);
+    uint8_t *raw       = kmalloc(total);
     if (!raw) {
         return NULL;
     }
 
     const uintptr_t addr    = (uintptr_t)raw;
     const uintptr_t aligned = (addr + alignment - 1) & ~(alignment - 1);
-    uint8_t *const ptr      = (uint8_t *)(uintptr_t)aligned;
+    const auto ptr          = (uint8_t *)(uintptr_t)aligned;
     memset(ptr, 0, size);
     return ptr;
 }
 
+// ReSharper disable once CppDFAConstantParameter
 static int ahci_port_wait(const volatile struct ahci_port *port, const uint32_t mask)
 {
     uint32_t timeout = AHCI_GENERIC_TIMEOUT;
@@ -277,7 +278,7 @@ static int ahci_port_stop(volatile struct ahci_port *port)
     }
 
     port->cmd &= ~AHCI_HBA_PxCMD_FRE;
-    timeout = AHCI_GENERIC_TIMEOUT;
+    timeout   = AHCI_GENERIC_TIMEOUT;
     while ((port->cmd & AHCI_HBA_PxCMD_FR) != 0 && timeout-- > 0) {
         // busy wait
     }
@@ -312,11 +313,9 @@ static int ahci_configure_active_port(volatile struct ahci_memory *memory, const
         return status;
     }
 
-    struct ahci_command_header *const command_list =
-        (struct ahci_command_header *)ahci_alloc_aligned(AHCI_COMMAND_LIST_BYTES, 1024);
-    uint8_t *const fis                                  = ahci_alloc_aligned(AHCI_RECEIVED_FIS_BYTES, 256);
-    struct ahci_command_table *const command_table =
-        (struct ahci_command_table *)ahci_alloc_aligned(sizeof(struct ahci_command_table), 128);
+    const auto command_list = (struct ahci_command_header *)ahci_alloc_aligned(AHCI_COMMAND_LIST_BYTES, 1024);
+    uint8_t *const fis = ahci_alloc_aligned(AHCI_RECEIVED_FIS_BYTES, 256);
+    const auto command_table = (struct ahci_command_table *)ahci_alloc_aligned(sizeof(struct ahci_command_table), 128);
     uint8_t *const bounce_buffer = ahci_alloc_aligned(AHCI_SECTOR_SIZE, AHCI_SECTOR_SIZE);
 
     if (!command_list || !fis || !command_table || !bounce_buffer) {
@@ -405,7 +404,7 @@ void ahci_init(struct pci_device device)
         return;
     }
 
-    void *abar_va = (void *)((uint64_t)abar + g_hhdm_offset);
+    auto abar_va = (void *)((uint64_t)abar + g_hhdm_offset);
     if (abar_va == nullptr) {
         boot_message(ERROR, "[AHCI] failed to map ABAR 0x%lx", (unsigned long)abar);
         return;
@@ -434,9 +433,9 @@ void ahci_init(struct pci_device device)
     uint32_t port_mask = ports;
     if (port_mask == 0) {
         if (port_count == 0 || port_count > 32) {
-        boot_message(ERROR,
-                     "[AHCI] invalid port count reported in CAP (NP=%lu)",
-                     (unsigned long)port_count);
+            boot_message(ERROR,
+                         "[AHCI] invalid port count reported in CAP (NP=%lu)",
+                         (unsigned long)port_count);
             return;
         }
 
@@ -460,9 +459,9 @@ void ahci_init(struct pci_device device)
         }
 
         volatile struct ahci_port *const port = &hba_memory->ports[i];
-        const uint32_t ssts                        = port->ssts;
-        const uint8_t det                          = (uint8_t)(ssts & 0x0F);
-        const uint8_t ipm                          = (uint8_t)((ssts >> 8) & 0x0F);
+        const uint32_t ssts                   = port->ssts;
+        const uint8_t det                     = (uint8_t)(ssts & 0x0F);
+        const uint8_t ipm                     = (uint8_t)((ssts >> 8) & 0x0F);
 
         const bool device_present = ahci_port_device_present(det);
         const bool link_active    = det == AHCI_DET_DEVICE_PRESENT_ACTIVE && ipm == AHCI_IPM_ACTIVE;
@@ -536,7 +535,7 @@ static int ahci_issue_dma(uint64_t lba, const uintptr_t buffer_phys, const uint3
     header->prdbc = 0;
 
     struct ahci_prdt_entry *const prdt = &table->prdt[0];
-    const uint32_t bytes                    = sector_count * AHCI_SECTOR_SIZE;
+    const uint32_t bytes               = sector_count * AHCI_SECTOR_SIZE;
 
     prdt->dba  = (uint32_t)buffer_phys;
     prdt->dbau = ahci_upper32(buffer_phys);
@@ -683,14 +682,14 @@ int ahci_read(uint64_t lba, uint32_t sector_count, void *buffer)
 
     spinlock_acquire(&ahci_lock);
 
-    uint8_t *byte_buffer = (uint8_t *)buffer;
-    uint32_t remaining   = sector_count;
-    int result      = 0;
+    auto byte_buffer   = (uint8_t *)buffer;
+    uint32_t remaining = sector_count;
+    int result         = 0;
 
     while (remaining > 0) {
-        uintptr_t buffer_phys  = 0;
-        bool needs_bounce = false;
-        uint32_t chunk         = ahci_calculate_chunk(byte_buffer, remaining, &buffer_phys, &needs_bounce);
+        uintptr_t buffer_phys = 0;
+        bool needs_bounce     = false;
+        uint32_t chunk        = ahci_calculate_chunk(byte_buffer, remaining, &buffer_phys, &needs_bounce);
 
         result = ahci_issue_dma(lba, buffer_phys, chunk, false);
         if (result != 0) {
@@ -701,9 +700,9 @@ int ahci_read(uint64_t lba, uint32_t sector_count, void *buffer)
             memcpy(byte_buffer, active_port.bounce_buffer, AHCI_SECTOR_SIZE);
         }
 
-        lba += chunk;
+        lba         += chunk;
         byte_buffer += chunk * AHCI_SECTOR_SIZE;
-        remaining -= chunk;
+        remaining   -= chunk;
     }
 
     spinlock_release(&ahci_lock);
@@ -722,14 +721,14 @@ int ahci_write(uint64_t lba, uint32_t sector_count, const void *buffer)
 
     spinlock_acquire(&ahci_lock);
 
-    const uint8_t *byte_buffer_const = (const uint8_t *)buffer;
-    uint32_t remaining               = sector_count;
-    int result                  = 0;
+    auto byte_buffer_const = (const uint8_t *)buffer;
+    uint32_t remaining     = sector_count;
+    int result             = 0;
 
     while (remaining > 0) {
-        uintptr_t buffer_phys  = 0;
-        bool needs_bounce = false;
-        uint32_t chunk         = ahci_calculate_chunk(byte_buffer_const, remaining, &buffer_phys, &needs_bounce);
+        uintptr_t buffer_phys = 0;
+        bool needs_bounce     = false;
+        uint32_t chunk        = ahci_calculate_chunk(byte_buffer_const, remaining, &buffer_phys, &needs_bounce);
 
         if (needs_bounce) {
             memcpy(active_port.bounce_buffer, byte_buffer_const, AHCI_SECTOR_SIZE);
@@ -740,9 +739,9 @@ int ahci_write(uint64_t lba, uint32_t sector_count, const void *buffer)
             break;
         }
 
-        lba += chunk;
+        lba               += chunk;
         byte_buffer_const += chunk * AHCI_SECTOR_SIZE;
-        remaining -= chunk;
+        remaining         -= chunk;
     }
 
     spinlock_release(&ahci_lock);
