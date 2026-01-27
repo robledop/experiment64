@@ -14,6 +14,12 @@
 #define XHCI_OP_USBCMD 0x00u
 #define XHCI_OP_USBSTS 0x04u
 #define XHCI_OP_CRCR 0x18u
+#define XHCI_RT_IR_BASE 0x20u
+#define XHCI_IMAN 0x00u
+#define XHCI_IMOD 0x04u
+#define XHCI_ERSTSZ 0x08u
+#define XHCI_ERSTBA 0x10u
+#define XHCI_ERDP 0x18u
 #define XHCI_MMIO_MAP_BYTES 0x100000u
 
 #define XHCI_USBCMD_RS (1u << 0)
@@ -25,7 +31,9 @@
 #define XHCI_TRB_TC (1u << 1)
 #define XHCI_TRB_TYPE_SHIFT 10u
 #define XHCI_TRB_TYPE_LINK 6u
+#define XHCI_ERDP_EHB (1ull << 3)
 #define XHCI_CMD_RING_TRBS 256u
+#define XHCI_EVENT_RING_TRBS 256u
 
 #define XHCI_TIMEOUT_MS 200u
 #define XHCI_RESET_TIMEOUT_MS 1000u
@@ -38,6 +46,13 @@ struct xhci_trb
     uint32_t dword3;
 } __attribute__((packed));
 
+struct xhci_erst_entry
+{
+    uint64_t addr;
+    uint32_t size;
+    uint32_t reserved;
+} __attribute__((packed));
+
 struct xhci_ring
 {
     struct xhci_trb *trbs;
@@ -45,6 +60,15 @@ struct xhci_ring
     uint32_t enqueue;
     bool cycle;
     uintptr_t phys;
+};
+
+struct xhci_event_ring
+{
+    struct xhci_trb *trbs;
+    uint32_t trb_count;
+    uintptr_t phys;
+    struct xhci_erst_entry *erst;
+    uintptr_t erst_phys;
 };
 
 struct xhci_controller
@@ -59,6 +83,7 @@ struct xhci_controller
     volatile uint8_t *db_base;
     volatile uint8_t *rt_base;
     struct xhci_ring cmd_ring;
+    struct xhci_event_ring event_ring;
 };
 
 static struct xhci_controller g_xhci;
@@ -188,6 +213,34 @@ static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     return true;
 }
 
+static bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t trb_count)
+{
+    const size_t bytes = trb_count * sizeof(struct xhci_trb);
+    uintptr_t phys     = 0;
+    void *virt         = nullptr;
+    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+        return false;
+    }
+
+    uintptr_t erst_phys = 0;
+    void *erst_virt     = nullptr;
+    if (!xhci_alloc_pages(sizeof(struct xhci_erst_entry), &erst_phys, &erst_virt)) {
+        return false;
+    }
+
+    ring->trbs      = (struct xhci_trb *)virt;
+    ring->trb_count = trb_count;
+    ring->phys      = phys;
+    ring->erst      = (struct xhci_erst_entry *)erst_virt;
+    ring->erst_phys = erst_phys;
+
+    ring->erst[0].addr     = phys;
+    ring->erst[0].size     = trb_count;
+    ring->erst[0].reserved = 0;
+
+    return true;
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -272,6 +325,18 @@ void xhci_init(struct pci_device device)
         boot_message(ERROR, "[xHCI] Controller not ready");
         return;
     }
+
+    if (!xhci_event_ring_init(&g_xhci.event_ring, XHCI_EVENT_RING_TRBS)) {
+        boot_message(ERROR, "[xHCI] Event ring alloc failed");
+        return;
+    }
+
+    auto ir_base = (volatile uint8_t *)(g_xhci.rt_base + XHCI_RT_IR_BASE);
+    xhci_write32(ir_base, XHCI_IMAN, 0x1u);
+    xhci_write32(ir_base, XHCI_IMOD, 0);
+    xhci_write32(ir_base, XHCI_ERSTSZ, 1u);
+    xhci_write64(ir_base, XHCI_ERSTBA, g_xhci.event_ring.erst_phys);
+    xhci_write64(ir_base, XHCI_ERDP, g_xhci.event_ring.phys | XHCI_ERDP_EHB);
 
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
 }
