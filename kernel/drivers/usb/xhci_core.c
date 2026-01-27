@@ -56,6 +56,7 @@
 #define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
 #define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
+#define XHCI_TRB_TYPE_ADDRESS_DEVICE 11u // Address Device command TRB type.
 #define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
 #define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
 #define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
@@ -653,6 +654,26 @@ static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb 
     return xhci_wait_for_cmd_completion(xhci, phys, slot_id_out);
 }
 
+static bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    if (!xhci || !dev) {
+        return false;
+    }
+
+    struct xhci_trb cmd = {0};
+    cmd.dword0          = (uint32_t)dev->input_ctx_phys;
+    cmd.dword1          = (uint32_t)(dev->input_ctx_phys >> 32);
+    cmd.dword3          = (XHCI_TRB_TYPE_ADDRESS_DEVICE << XHCI_TRB_TYPE_SHIFT) |
+        ((uint32_t)dev->slot_id << 24);
+    if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
+        boot_message(WARNING, "[xHCI] Slot %u address device failed", dev->slot_id);
+        return false;
+    }
+
+    boot_message(INFO, "[xHCI] Slot %u addressed", dev->slot_id);
+    return true;
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -796,11 +817,16 @@ void xhci_init(struct pci_device device)
         dev->active  = true;
         dev->slot_id = slot_id;
 
-        if (!xhci_alloc_device_context(&g_xhci, dev)) {
+        const bool ctx_ok = xhci_alloc_device_context(&g_xhci, dev);
+        if (!ctx_ok) {
             boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
         }
-        if (!xhci_prepare_slot_context(&g_xhci, dev)) {
+        const bool input_ok = xhci_prepare_slot_context(&g_xhci, dev);
+        if (!input_ok) {
             boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
+        }
+        if (ctx_ok && input_ok) {
+            (void)xhci_address_device(&g_xhci, dev);
         }
     } else {
         boot_message(WARNING, "[xHCI] Enable slot command failed");
