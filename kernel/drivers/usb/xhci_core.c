@@ -98,6 +98,7 @@
 #define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
+#define USB_DESC_TYPE_CONFIGURATION 0x02u // USB configuration descriptor type.
 #define USB_REQ_GET_DESCRIPTOR 0x06u // USB standard GET_DESCRIPTOR request.
 
 struct xhci_trb
@@ -198,6 +199,18 @@ struct usb_device_descriptor
     uint8_t i_product;           // Product string index.
     uint8_t i_serial_number;     // Serial number string index.
     uint8_t b_num_configurations; // Number of configurations.
+} __attribute__((packed));
+
+struct usb_config_descriptor
+{
+    uint8_t b_length;             // Descriptor size in bytes.
+    uint8_t b_descriptor_type;    // Descriptor type code.
+    uint16_t w_total_length;      // Total length of configuration data.
+    uint8_t b_num_interfaces;     // Number of interfaces.
+    uint8_t b_configuration_value; // Configuration value.
+    uint8_t i_configuration;      // Configuration string index.
+    uint8_t bm_attributes;        // Configuration attributes.
+    uint8_t b_max_power;          // Max power consumption.
 } __attribute__((packed));
 
 struct xhci_controller
@@ -944,6 +957,71 @@ static bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci
     return true;
 }
 
+static bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    uintptr_t desc_phys = 0;
+    void *desc_buf      = nullptr;
+    if (!xhci_alloc_pages(64u, &desc_phys, &desc_buf)) {
+        boot_message(ERROR, "[xHCI] Config descriptor buffer alloc failed");
+        return false;
+    }
+
+    memset(desc_buf, 0, 64u);
+    struct usb_setup_packet setup = {
+        .bm_request_type = 0x80,
+        .b_request       = USB_REQ_GET_DESCRIPTOR,
+        .w_value         = (USB_DESC_TYPE_CONFIGURATION << 8),
+        .w_index         = 0,
+        .w_length        = sizeof(struct usb_config_descriptor),
+    };
+
+    if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
+        boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR(CONFIG) failed", dev->slot_id);
+        return false;
+    }
+
+    auto cfg = (const struct usb_config_descriptor *)desc_buf;
+    if (cfg->b_length < sizeof(struct usb_config_descriptor) ||
+        cfg->b_descriptor_type != USB_DESC_TYPE_CONFIGURATION ||
+        cfg->w_total_length < sizeof(struct usb_config_descriptor)) {
+        boot_message(WARNING,
+                     "[xHCI] Slot %u invalid config descriptor header len=%u type=%u total=%u",
+                     dev->slot_id,
+                     cfg->b_length,
+                     cfg->b_descriptor_type,
+                     cfg->w_total_length);
+        return false;
+    }
+
+    const uint16_t total_len = cfg->w_total_length;
+    boot_message(INFO,
+                 "[xHCI] Slot %u config total=%u interfaces=%u value=%u",
+                 dev->slot_id,
+                 total_len,
+                 cfg->b_num_interfaces,
+                 cfg->b_configuration_value);
+
+    if (total_len <= 64u) {
+        return true;
+    }
+
+    uintptr_t full_phys = 0;
+    void *full_buf      = nullptr;
+    if (!xhci_alloc_pages(total_len, &full_phys, &full_buf)) {
+        boot_message(ERROR, "[xHCI] Config descriptor full alloc failed");
+        return false;
+    }
+
+    memset(full_buf, 0, total_len);
+    setup.w_length = total_len;
+    if (!xhci_control_transfer(xhci, dev, &setup, full_phys, total_len, true)) {
+        boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR(CONFIG) full failed", dev->slot_id);
+        return false;
+    }
+
+    return true;
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -1098,7 +1176,9 @@ void xhci_init(struct pci_device device)
         if (ctx_ok && input_ok) {
             if (xhci_address_device(&g_xhci, dev)) {
                 tsc_sleep_ms(XHCI_ADDRESS_SETTLE_MS);
-                (void)xhci_get_device_descriptor(&g_xhci, dev);
+                if (xhci_get_device_descriptor(&g_xhci, dev)) {
+                    (void)xhci_get_config_descriptor(&g_xhci, dev);
+                }
             }
         }
     } else {
