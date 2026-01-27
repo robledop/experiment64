@@ -41,27 +41,15 @@
 #define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
 #define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
 
-#define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
-#define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
-#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
-
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
-#define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
-#define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
-#define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
-#define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
-#define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
-#define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
-#define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
-#define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
 #define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
@@ -100,22 +88,6 @@ struct xhci_event_ring
     struct xhci_erst_entry *erst; // Virtual ERST base.
     uintptr_t erst_phys;          // Physical ERST base.
 };
-
-struct xhci_input_control_ctx
-{
-    uint32_t drop_flags;   // Contexts to drop in this update.
-    uint32_t add_flags;    // Contexts to add in this update.
-    uint32_t reserved[6];  // Reserved, must be zero.
-} __attribute__((packed));
-
-struct xhci_slot_ctx
-{
-    uint32_t dev_info;     // Slot state, speed, and context count.
-    uint32_t dev_info2;    // Root port and hub information.
-    uint32_t tt_info;      // Transaction translator info.
-    uint32_t dev_state;    // Slot state and device address.
-    uint32_t reserved[4];  // Reserved, must be zero.
-} __attribute__((packed));
 
 struct xhci_controller
 {
@@ -174,27 +146,6 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 {
     auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
-}
-
-static inline void xhci_mb(void)
-{
-    __asm__ volatile("" ::: "memory");
-}
-
-static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
-{
-    const size_t offset = (ctx_size == 64u) ? 64u : 32u;
-    return (void *)((uint8_t *)base + offset + (index * ctx_size));
-}
-
-static inline void xhci_wait_relax(uint32_t *spins)
-{
-    if (*spins < XHCI_WAIT_SPIN_COUNT) {
-        __asm__ volatile("pause");
-        (*spins)++;
-    } else {
-        tsc_sleep_ns(XHCI_WAIT_SLEEP_NS);
-    }
 }
 
 static bool xhci_wait_for(const volatile uint8_t *base,
@@ -275,78 +226,6 @@ static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **vir
 
     *phys_out = (uintptr_t)phys;
     *virt_out = virt;
-    return true;
-}
-
-static bool xhci_alloc_device_context(struct xhci_controller *xhci, const uint8_t slot_id)
-{
-    const size_t bytes = (size_t)XHCI_MAX_CONTEXTS * xhci->context_size;
-    uintptr_t phys     = 0;
-    void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
-        return false;
-    }
-
-    xhci->dcbaa[slot_id] = phys;
-    boot_message(INFO, "[xHCI] Slot %u device context=0x%lx", slot_id, (unsigned long)phys);
-    return true;
-}
-
-static bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
-{
-    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
-        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
-        const uint32_t portsc = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_CCS) == 0) {
-            continue;
-        }
-
-        if (port_out) {
-            *port_out = port;
-        }
-        if (speed_out) {
-            *speed_out = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-        }
-        return true;
-    }
-
-    return false;
-}
-
-static bool xhci_prepare_slot_context(struct xhci_controller *xhci, const uint8_t slot_id)
-{
-    uint32_t port  = 0;
-    uint32_t speed = 0;
-    if (!xhci_find_connected_port(xhci, &port, &speed)) {
-        boot_message(WARNING, "[xHCI] No connected ports for slot %u", slot_id);
-        return false;
-    }
-
-    const size_t ctx_size     = xhci->context_size;
-    const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
-    const size_t input_bytes  = input_offset + (XHCI_MAX_CONTEXTS * ctx_size);
-    uintptr_t input_phys      = 0;
-    void *input_virt          = nullptr;
-    if (!xhci_alloc_pages(input_bytes, &input_phys, &input_virt)) {
-        return false;
-    }
-
-    memset(input_virt, 0, input_bytes);
-
-    auto ctrl       = (struct xhci_input_control_ctx *)input_virt;
-    ctrl->add_flags = 0x1u;
-
-    auto slot_ctx      = (struct xhci_slot_ctx *)xhci_input_context_ptr(input_virt, 0, (uint32_t)ctx_size);
-    slot_ctx->dev_info = (speed << XHCI_SLOT_CTX_SPEED_SHIFT) |
-        (1u << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
-    slot_ctx->dev_info2 = (port << XHCI_SLOT_CTX_ROOT_PORT_SHIFT);
-
-    boot_message(INFO,
-                 "[xHCI] Slot %u input context=0x%lx port=%u speed=%s",
-                 slot_id,
-                 (unsigned long)input_phys,
-                 port,
-                 xhci_speed_name(speed));
     return true;
 }
 
@@ -453,84 +332,6 @@ static bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t tr
     return true;
 }
 
-static uint32_t xhci_trb_type(const struct xhci_trb *trb)
-{
-    return (trb->dword3 & XHCI_TRB_TYPE_MASK) >> XHCI_TRB_TYPE_SHIFT;
-}
-
-static void xhci_event_ring_advance(struct xhci_controller *xhci)
-{
-    struct xhci_event_ring *ring = &xhci->event_ring;
-    ring->dequeue++;
-    if (ring->dequeue >= ring->trb_count) {
-        ring->dequeue = 0;
-        ring->cycle   = !ring->cycle;
-    }
-
-    const uintptr_t erdp  = ring->phys + (ring->dequeue * sizeof(struct xhci_trb));
-    const uintptr_t value = erdp | XHCI_ERDP_EHB;
-    auto ir_base          = (volatile uint8_t *)(xhci->rt_base + XHCI_RT_IR_BASE);
-    xhci_write64(ir_base, XHCI_ERDP, value);
-}
-
-static bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
-                                         const uintptr_t cmd_phys,
-                                         uint8_t *slot_id_out)
-{
-    constexpr uint64_t timeout_ns = (uint64_t)XHCI_TIMEOUT_MS * 1000000ull;
-    const uint64_t start          = tsc_nanos();
-    uint32_t spins                = 0;
-    while (tsc_nanos() - start < timeout_ns) {
-        struct xhci_event_ring *ring = &xhci->event_ring;
-        struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
-        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
-        if (cycle == ring->cycle) {
-            const uint32_t type = xhci_trb_type(trb);
-            if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
-                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
-                const uint32_t completion = trb->dword2 >> 24;
-                const uint8_t slot_id     = (uint8_t)(trb->dword3 >> 24);
-                xhci_event_ring_advance(xhci);
-
-                if (cmd_phys != 0 && ptr != cmd_phys) {
-                    boot_message(WARNING,
-                                 "[xHCI] Command completion mismatch ptr=0x%lx expected=0x%lx",
-                                 (unsigned long)ptr,
-                                 (unsigned long)cmd_phys);
-                    spins = 0;
-                    continue;
-                }
-
-                if (completion != XHCI_COMPLETION_SUCCESS) {
-                    boot_message(WARNING,
-                                 "[xHCI] Command completion failed code=%u",
-                                 completion);
-                    return false;
-                }
-
-                if (slot_id_out) {
-                    *slot_id_out = slot_id;
-                }
-                return true;
-            }
-
-            if (type == XHCI_TRB_TYPE_PORT_STATUS) {
-                xhci_event_ring_advance(xhci);
-                spins = 0;
-                continue;
-            }
-
-            xhci_event_ring_advance(xhci);
-            spins = 0;
-        } else {
-            xhci_wait_relax(&spins);
-        }
-    }
-
-    boot_message(WARNING, "[xHCI] Command completion timed out");
-    return false;
-}
-
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -569,24 +370,6 @@ static void xhci_power_ports(struct xhci_controller *xhci)
     }
 
     tsc_sleep_ms(XHCI_PORT_POWER_DELAY_MS);
-}
-
-static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
-{
-    auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
-    xhci_mb();
-    xhci_write32(db, 0, value);
-}
-
-static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
-{
-    if (!trb) {
-        return false;
-    }
-
-    const uintptr_t phys = xhci_ring_enqueue(&xhci->cmd_ring, trb);
-    xhci_ring_doorbell(xhci, 0, 0);
-    return xhci_wait_for_cmd_completion(xhci, phys, slot_id_out);
 }
 
 void xhci_init(struct pci_device device)
@@ -717,18 +500,4 @@ void xhci_init(struct pci_device device)
     xhci_power_ports(&g_xhci);
     tsc_sleep_ms(XHCI_PORT_CONNECT_DELAY_MS);
     xhci_dump_ports(&g_xhci);
-    struct xhci_trb cmd_trb = {0};
-    cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
-    uint8_t slot_id         = 0;
-    if (xhci_cmd_submit(&g_xhci, &cmd_trb, &slot_id)) {
-        boot_message(INFO, "[xHCI] Enable slot completed slot=%u", slot_id);
-        if (!xhci_alloc_device_context(&g_xhci, slot_id)) {
-            boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
-        }
-        if (!xhci_prepare_slot_context(&g_xhci, slot_id)) {
-            boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
-        }
-    } else {
-        boot_message(WARNING, "[xHCI] Enable slot command failed");
-    }
 }
