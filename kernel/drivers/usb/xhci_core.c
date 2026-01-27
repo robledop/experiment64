@@ -34,6 +34,7 @@
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
+#define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
@@ -279,6 +280,17 @@ static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t
     xhci_write32(db, 0, value);
 }
 
+static uintptr_t xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, const bool submit)
+{
+    if (!trb || !submit) {
+        return 0;
+    }
+
+    const uintptr_t phys = xhci_ring_enqueue(&xhci->cmd_ring, trb);
+    xhci_ring_doorbell(xhci, 0, 0);
+    return phys;
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -389,5 +401,8 @@ void xhci_init(struct pci_device device)
     xhci_write32(g_xhci.op_base, XHCI_OP_CONFIG, slots);
 
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
-    xhci_ring_doorbell(&g_xhci, 0, 0);
+    struct xhci_trb cmd_trb = {0};
+    cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
+    const bool submit   = (g_xhci.context_size == 0u);
+    (void)xhci_cmd_submit(&g_xhci, &cmd_trb, submit);
 }
