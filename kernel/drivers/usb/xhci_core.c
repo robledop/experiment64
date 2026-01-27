@@ -57,14 +57,30 @@
 
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
+#define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
+#define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
+#define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
+#define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
 #define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
+#define XHCI_TRB_TRT_SHIFT 16u // Transfer type field shift for setup stage.
+#define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
+#define XHCI_TRB_TRT_DATA_IN 3u // Setup stage transfer type: data in.
+#define XHCI_TRB_LEN_MASK 0x1FFFFu // TRB transfer length mask.
+#define XHCI_TRB_INTR_TARGET_SHIFT 22u // TRB interrupter target shift.
+#define XHCI_TRB_LEN(value) ((value) & XHCI_TRB_LEN_MASK) // TRB transfer length field.
+#define XHCI_TRB_INTR_TARGET(value) ((value) << XHCI_TRB_INTR_TARGET_SHIFT) // TRB interrupter target field.
+#define XHCI_TRB_TYPE_SETUP_STAGE 2u // Setup stage TRB type.
+#define XHCI_TRB_TYPE_DATA_STAGE 3u // Data stage TRB type.
+#define XHCI_TRB_TYPE_STATUS_STAGE 4u // Status stage TRB type.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
 #define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE 11u // Address Device command TRB type.
+#define XHCI_TRB_TYPE_TRANSFER_EVENT 32u // Transfer event TRB type.
 #define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
 #define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
 #define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
+#define XHCI_COMPLETION_SHORT_PACKET 13u // Transfer completion short packet code.
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
@@ -72,12 +88,17 @@
 #define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
+#define XHCI_TRANSFER_TIMEOUT_MS 1000u // Transfer timeout in ms.
 #define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
 #define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
 #define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
+#define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
+
+#define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
+#define USB_REQ_GET_DESCRIPTOR 0x06u // USB standard GET_DESCRIPTOR request.
 
 struct xhci_trb
 {
@@ -152,6 +173,33 @@ struct xhci_device
     uintptr_t device_ctx_phys; // Device context physical base.
 };
 
+struct usb_setup_packet
+{
+    uint8_t bm_request_type; // Request type and direction.
+    uint8_t b_request;       // Request code.
+    uint16_t w_value;        // Request value parameter.
+    uint16_t w_index;        // Request index parameter.
+    uint16_t w_length;       // Request data length.
+} __attribute__((packed));
+
+struct usb_device_descriptor
+{
+    uint8_t b_length;            // Descriptor size in bytes.
+    uint8_t b_descriptor_type;   // Descriptor type code.
+    uint16_t bcd_usb;            // USB specification version.
+    uint8_t b_device_class;      // Device class code.
+    uint8_t b_device_subclass;   // Device subclass code.
+    uint8_t b_device_protocol;   // Device protocol code.
+    uint8_t b_max_packet_size0;  // EP0 max packet size.
+    uint16_t id_vendor;          // Vendor ID.
+    uint16_t id_product;         // Product ID.
+    uint16_t bcd_device;         // Device release number.
+    uint8_t i_manufacturer;      // Manufacturer string index.
+    uint8_t i_product;           // Product string index.
+    uint8_t i_serial_number;     // Serial number string index.
+    uint8_t b_num_configurations; // Number of configurations.
+} __attribute__((packed));
+
 struct xhci_controller
 {
     volatile uint8_t *mmio;            // MMIO base.
@@ -175,6 +223,9 @@ static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
 static bool xhci_port_reset(const struct xhci_controller *xhci,
                             const uint32_t port,
                             uint32_t *portsc_out);
+static void xhci_ring_doorbell(const struct xhci_controller *xhci,
+                               const uint8_t doorbell,
+                               const uint32_t value);
 
 static const char *xhci_speed_name(const uint32_t speed)
 {
@@ -612,6 +663,57 @@ static bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
     return false;
 }
 
+static bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
+                                         const uintptr_t trb_phys,
+                                         const uint8_t slot_id,
+                                         const uint8_t ep_id,
+                                         const bool require_ptr_match)
+{
+    constexpr uint64_t timeout_ns = (uint64_t)XHCI_TRANSFER_TIMEOUT_MS * 1000000ull;
+    const uint64_t start          = tsc_nanos();
+    uint32_t spins                = 0;
+    while (tsc_nanos() - start < timeout_ns) {
+        struct xhci_event_ring *ring = &xhci->event_ring;
+        struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
+        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
+        if (cycle == ring->cycle) {
+            const uint32_t type = xhci_trb_type(trb);
+            if (type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
+                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
+                const uint32_t completion = trb->dword2 >> 24;
+                const uint8_t event_slot  = (uint8_t)(trb->dword3 >> 24);
+                const uint8_t event_ep    = (uint8_t)((trb->dword3 >> 16) & 0x1Fu);
+                xhci_event_ring_advance(xhci);
+
+                const bool ep_match = event_ep == ep_id || (ep_id == 1u && event_ep == 0u);
+                if (event_slot != slot_id || !ep_match) {
+                    spins = 0;
+                    continue;
+                }
+
+                if (require_ptr_match && trb_phys != 0 && ptr != trb_phys) {
+                    spins = 0;
+                    continue;
+                }
+
+                if (completion != XHCI_COMPLETION_SUCCESS && completion != XHCI_COMPLETION_SHORT_PACKET) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            xhci_event_ring_advance(xhci);
+            spins = 0;
+        } else {
+            xhci_wait_relax(&spins);
+        }
+    }
+
+    boot_message(WARNING, "[xHCI] Transfer completion timed out");
+    return false;
+}
+
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -748,6 +850,97 @@ static bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device
     }
 
     boot_message(INFO, "[xHCI] Slot %u addressed", dev->slot_id);
+    return true;
+}
+
+static bool xhci_control_transfer(struct xhci_controller *xhci,
+                                  struct xhci_device *dev,
+                                  const struct usb_setup_packet *setup,
+                                  const uintptr_t data_phys,
+                                  const uint32_t data_len,
+                                  const bool data_in)
+{
+    if (!xhci || !dev || !setup || !dev->ep0_ring.trbs) {
+        return false;
+    }
+
+    struct xhci_trb setup_trb = {0};
+    uint64_t setup_data       = 0;
+    memcpy(&setup_data, setup, sizeof(*setup));
+    setup_trb.dword0 = (uint32_t)setup_data;
+    setup_trb.dword1 = (uint32_t)(setup_data >> 32);
+    setup_trb.dword2 = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0);
+    setup_trb.dword3 = (XHCI_TRB_TYPE_SETUP_STAGE << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IDT;
+
+    struct xhci_trb data_trb = {0};
+    if (data_len > 0) {
+        setup_trb.dword3 |= (data_in ? XHCI_TRB_TRT_DATA_IN : XHCI_TRB_TRT_DATA_OUT) << XHCI_TRB_TRT_SHIFT;
+
+        data_trb.dword0 = (uint32_t)data_phys;
+        data_trb.dword1 = (uint32_t)(data_phys >> 32);
+        data_trb.dword2 = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0);
+        data_trb.dword3 = (XHCI_TRB_TYPE_DATA_STAGE << XHCI_TRB_TYPE_SHIFT);
+        if (data_in) {
+            data_trb.dword3 |= XHCI_TRB_DIR_IN | XHCI_TRB_ISP;
+        }
+    }
+
+    struct xhci_trb status_trb = {0};
+    status_trb.dword3          = (XHCI_TRB_TYPE_STATUS_STAGE << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
+    const bool status_in       = data_len == 0 ? true : !data_in;
+    if (status_in) {
+        status_trb.dword3 |= XHCI_TRB_DIR_IN;
+    }
+
+    (void)xhci_ring_enqueue(&dev->ep0_ring, &setup_trb);
+    if (data_len > 0) {
+        (void)xhci_ring_enqueue(&dev->ep0_ring, &data_trb);
+    }
+    const uintptr_t status_phys = xhci_ring_enqueue(&dev->ep0_ring, &status_trb);
+
+    xhci_ring_doorbell(xhci, dev->slot_id, 1u);
+
+    return xhci_wait_for_transfer_event(xhci,
+                                        status_phys,
+                                        dev->slot_id,
+                                        1u,
+                                        false);
+}
+
+static bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    uintptr_t desc_phys = 0;
+    void *desc_buf      = nullptr;
+    if (!xhci_alloc_pages(64u, &desc_phys, &desc_buf)) {
+        boot_message(ERROR, "[xHCI] Descriptor buffer alloc failed");
+        return false;
+    }
+
+    memset(desc_buf, 0, 64u);
+    struct usb_setup_packet setup = {
+        .bm_request_type = 0x80,
+        .b_request       = USB_REQ_GET_DESCRIPTOR,
+        .w_value         = (USB_DESC_TYPE_DEVICE << 8),
+        .w_index         = 0,
+        .w_length        = 18,
+    };
+
+    if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
+        boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR failed", dev->slot_id);
+        return false;
+    }
+
+    auto desc = (const struct usb_device_descriptor *)desc_buf;
+
+    boot_message(INFO,
+                 "[xHCI] Slot %u USB %x.%02x VID=%04x (%s) PID=%04x class=%02x",
+                 dev->slot_id,
+                 (unsigned)((desc->bcd_usb >> 8) & 0xFFu),
+                 (unsigned)(desc->bcd_usb & 0xFFu),
+                 (unsigned)desc->id_vendor,
+                 pci_find_vendor(desc->id_vendor),
+                 (unsigned)desc->id_product,
+                 (unsigned)desc->b_device_class);
     return true;
 }
 
@@ -903,7 +1096,10 @@ void xhci_init(struct pci_device device)
             boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
         }
         if (ctx_ok && input_ok) {
-            (void)xhci_address_device(&g_xhci, dev);
+            if (xhci_address_device(&g_xhci, dev)) {
+                tsc_sleep_ms(XHCI_ADDRESS_SETTLE_MS);
+                (void)xhci_get_device_descriptor(&g_xhci, dev);
+            }
         }
     } else {
         boot_message(WARNING, "[xHCI] Enable slot command failed");
