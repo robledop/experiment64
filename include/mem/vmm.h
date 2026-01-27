@@ -4,13 +4,13 @@
 #include <stddef.h>
 #include <mem/pmm.h> // for PAGE_SIZE
 
-#define PTE_PRESENT (1ull << 0)
-#define PTE_WRITABLE (1ull << 1)
-#define PTE_USER (1ull << 2)
+#define PTE_PRESENT (1ull << 0) // Page Present
+#define PTE_WRITABLE (1ull << 1) // Page Writeable
+#define PTE_USER (1ull << 2) // User Access
 #define PTE_PWT (1ull << 3) // Page Write-Through
 #define PTE_PCD (1ull << 4) // Page Cache Disable
 #define PTE_HUGE (1ull << 7)
-#define PTE_NX (1ull << 63)
+#define PTE_NX (1ull << 63) // No Execute
 
 typedef uint64_t *pml4_t;
 
