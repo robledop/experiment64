@@ -22,6 +22,23 @@
 #define XHCI_TIMEOUT_MS 200u
 #define XHCI_RESET_TIMEOUT_MS 1000u
 
+struct xhci_trb
+{
+    uint32_t dword0;
+    uint32_t dword1;
+    uint32_t dword2;
+    uint32_t dword3;
+} __attribute__((packed));
+
+struct xhci_ring
+{
+    struct xhci_trb *trbs;
+    uint32_t trb_count;
+    uint32_t enqueue;
+    bool cycle;
+    uintptr_t phys;
+};
+
 struct xhci_controller
 {
     volatile uint8_t *mmio;
@@ -33,6 +50,7 @@ struct xhci_controller
     uint32_t max_scratchpad;
     volatile uint8_t *db_base;
     volatile uint8_t *rt_base;
+    struct xhci_ring cmd_ring;
 };
 
 static struct xhci_controller g_xhci;
@@ -146,6 +164,7 @@ void xhci_init(struct pci_device device)
     g_xhci.max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
     g_xhci.db_base = g_xhci.mmio + dboff;
     g_xhci.rt_base = g_xhci.mmio + rtsoff;
+    g_xhci.cmd_ring = (struct xhci_ring){0};
 
     boot_message(INFO,
                  "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
