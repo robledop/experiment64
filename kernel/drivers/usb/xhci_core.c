@@ -8,6 +8,8 @@
 #define XHCI_HCSPARAMS1 0x04u
 #define XHCI_HCSPARAMS2 0x08u
 #define XHCI_HCCPARAMS1 0x10u
+#define XHCI_DBOFF 0x14u
+#define XHCI_RTSOFF 0x18u
 #define XHCI_OP_USBCMD 0x00u
 #define XHCI_OP_USBSTS 0x04u
 #define XHCI_MMIO_MAP_BYTES 0x100000u
@@ -29,6 +31,8 @@ struct xhci_controller
     uint32_t max_ports;
     uint32_t context_size;
     uint32_t max_scratchpad;
+    volatile uint8_t *db_base;
+    volatile uint8_t *rt_base;
 };
 
 static struct xhci_controller g_xhci;
@@ -133,11 +137,15 @@ void xhci_init(struct pci_device device)
     const uint32_t hcs = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS1);
     const uint32_t hcs2 = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS2);
     const uint32_t hcc1 = xhci_read32(g_xhci.mmio, XHCI_HCCPARAMS1);
+    const uint32_t dboff = xhci_read32(g_xhci.mmio, XHCI_DBOFF) & ~0x3u;
+    const uint32_t rtsoff = xhci_read32(g_xhci.mmio, XHCI_RTSOFF) & ~0x1Fu;
     g_xhci.op_base = g_xhci.mmio + g_xhci.cap_len;
     g_xhci.max_slots = hcs & 0xFFu;
     g_xhci.max_ports = (hcs >> 24) & 0xFFu;
     g_xhci.context_size = (hcc1 & (1u << 2)) ? 64u : 32u;
     g_xhci.max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
+    g_xhci.db_base = g_xhci.mmio + dboff;
+    g_xhci.rt_base = g_xhci.mmio + rtsoff;
 
     boot_message(INFO,
                  "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
@@ -155,6 +163,10 @@ void xhci_init(struct pci_device device)
                  g_xhci.max_ports,
                  g_xhci.context_size,
                  g_xhci.max_scratchpad);
+    boot_message(INFO,
+                 "[xHCI] dboff=0x%08x rtsoff=0x%08x",
+                 dboff,
+                 rtsoff);
 
     uint32_t cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     cmd          &= ~XHCI_USBCMD_RS;
