@@ -59,6 +59,7 @@
 #define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
+#define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
 
 struct xhci_trb
 {
@@ -615,6 +616,7 @@ void xhci_init(struct pci_device device)
     const uint32_t usbsts = xhci_read32(g_xhci.op_base, XHCI_OP_USBSTS);
     boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
     xhci_power_ports(&g_xhci);
+    tsc_sleep_ms(XHCI_PORT_CONNECT_DELAY_MS);
     xhci_dump_ports(&g_xhci);
     struct xhci_trb cmd_trb = {0};
     cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
