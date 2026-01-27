@@ -44,12 +44,19 @@
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
+#define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
+#define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
+#define XHCI_TRB_TYPE_CMD_COMPLETION 33u // Command completion event TRB type.
+#define XHCI_TRB_TYPE_PORT_STATUS 34u // Port status change event TRB type.
+#define XHCI_COMPLETION_SUCCESS 1u // Command completion code for success.
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
 
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
+#define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
+#define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
 #define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
@@ -146,6 +153,21 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 {
     auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline void xhci_mb(void)
+{
+    __asm__ volatile("" ::: "memory");
+}
+
+static inline void xhci_wait_relax(uint32_t *spins)
+{
+    if (*spins < XHCI_WAIT_SPIN_COUNT) {
+        __asm__ volatile("pause");
+        (*spins)++;
+    } else {
+        tsc_sleep_ns(XHCI_WAIT_SLEEP_NS);
+    }
 }
 
 static bool xhci_wait_for(const volatile uint8_t *base,
@@ -332,6 +354,84 @@ static bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t tr
     return true;
 }
 
+static uint32_t xhci_trb_type(const struct xhci_trb *trb)
+{
+    return (trb->dword3 & XHCI_TRB_TYPE_MASK) >> XHCI_TRB_TYPE_SHIFT;
+}
+
+static void xhci_event_ring_advance(struct xhci_controller *xhci)
+{
+    struct xhci_event_ring *ring = &xhci->event_ring;
+    ring->dequeue++;
+    if (ring->dequeue >= ring->trb_count) {
+        ring->dequeue = 0;
+        ring->cycle   = !ring->cycle;
+    }
+
+    const uintptr_t erdp  = ring->phys + (ring->dequeue * sizeof(struct xhci_trb));
+    const uintptr_t value = erdp | XHCI_ERDP_EHB;
+    auto ir_base          = (volatile uint8_t *)(xhci->rt_base + XHCI_RT_IR_BASE);
+    xhci_write64(ir_base, XHCI_ERDP, value);
+}
+
+static bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
+                                         const uintptr_t cmd_phys,
+                                         uint8_t *slot_id_out)
+{
+    constexpr uint64_t timeout_ns = (uint64_t)XHCI_TIMEOUT_MS * 1000000ull;
+    const uint64_t start          = tsc_nanos();
+    uint32_t spins                = 0;
+    while (tsc_nanos() - start < timeout_ns) {
+        struct xhci_event_ring *ring = &xhci->event_ring;
+        struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
+        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
+        if (cycle == ring->cycle) {
+            const uint32_t type = xhci_trb_type(trb);
+            if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
+                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
+                const uint32_t completion = trb->dword2 >> 24;
+                const uint8_t slot_id     = (uint8_t)(trb->dword3 >> 24);
+                xhci_event_ring_advance(xhci);
+
+                if (cmd_phys != 0 && ptr != cmd_phys) {
+                    boot_message(WARNING,
+                                 "[xHCI] Command completion mismatch ptr=0x%lx expected=0x%lx",
+                                 (unsigned long)ptr,
+                                 (unsigned long)cmd_phys);
+                    spins = 0;
+                    continue;
+                }
+
+                if (completion != XHCI_COMPLETION_SUCCESS) {
+                    boot_message(WARNING,
+                                 "[xHCI] Command completion failed code=%u",
+                                 completion);
+                    return false;
+                }
+
+                if (slot_id_out) {
+                    *slot_id_out = slot_id;
+                }
+                return true;
+            }
+
+            if (type == XHCI_TRB_TYPE_PORT_STATUS) {
+                xhci_event_ring_advance(xhci);
+                spins = 0;
+                continue;
+            }
+
+            xhci_event_ring_advance(xhci);
+            spins = 0;
+        } else {
+            xhci_wait_relax(&spins);
+        }
+    }
+
+    boot_message(WARNING, "[xHCI] Command completion timed out");
+    return false;
+}
+
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -370,6 +470,24 @@ static void xhci_power_ports(struct xhci_controller *xhci)
     }
 
     tsc_sleep_ms(XHCI_PORT_POWER_DELAY_MS);
+}
+
+static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
+{
+    auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
+    xhci_mb();
+    xhci_write32(db, 0, value);
+}
+
+static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
+{
+    if (!trb) {
+        return false;
+    }
+
+    const uintptr_t phys = xhci_ring_enqueue(&xhci->cmd_ring, trb);
+    xhci_ring_doorbell(xhci, 0, 0);
+    return xhci_wait_for_cmd_completion(xhci, phys, slot_id_out);
 }
 
 void xhci_init(struct pci_device device)
@@ -500,4 +618,12 @@ void xhci_init(struct pci_device device)
     xhci_power_ports(&g_xhci);
     tsc_sleep_ms(XHCI_PORT_CONNECT_DELAY_MS);
     xhci_dump_ports(&g_xhci);
+    struct xhci_trb cmd_trb = {0};
+    cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
+    uint8_t slot_id         = 0;
+    if (xhci_cmd_submit(&g_xhci, &cmd_trb, &slot_id)) {
+        boot_message(INFO, "[xHCI] Enable slot completed slot=%u", slot_id);
+    } else {
+        boot_message(WARNING, "[xHCI] Enable slot command failed");
+    }
 }
