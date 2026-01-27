@@ -1,11 +1,22 @@
 #include <drivers/usb/xhci.h>
 #include <drivers/usb/ehci.h>
 #include <drivers/terminal.h>
+#include <drivers/tsc.h>
 #include <mem/vmm.h>
 
 #define XHCI_CAPLENGTH 0x00u
 #define XHCI_HCSPARAMS1 0x04u
+#define XHCI_OP_USBCMD 0x00u
+#define XHCI_OP_USBSTS 0x04u
 #define XHCI_MMIO_MAP_BYTES 0x100000u
+
+#define XHCI_USBCMD_RS (1u << 0)
+#define XHCI_USBCMD_HCRST (1u << 1)
+#define XHCI_USBSTS_HCH (1u << 0)
+#define XHCI_USBSTS_CNR (1u << 11)
+
+#define XHCI_TIMEOUT_MS 200u
+#define XHCI_RESET_TIMEOUT_MS 1000u
 
 static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
 {
@@ -13,6 +24,35 @@ static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t 
     uint32_t value;
     __asm__ volatile("mov %0, %1" : "=r"(value) : "m"(*reg));
     return value;
+}
+
+static inline void xhci_write32(volatile uint8_t *base, const uint32_t offset, const uint32_t value)
+{
+    auto reg = (volatile uint32_t *)(base + offset);
+    __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static bool xhci_wait_for(const volatile uint8_t *base,
+                          const uint32_t offset,
+                          const uint32_t mask,
+                          const bool set,
+                          const uint32_t timeout_ms)
+{
+    for (uint32_t i = 0; i < timeout_ms; i++) {
+        const uint32_t value = xhci_read32(base, offset);
+        if (set) {
+            if ((value & mask) == mask) {
+                return true;
+            }
+        } else {
+            if ((value & mask) == 0) {
+                return true;
+            }
+        }
+        tsc_sleep_ms(1);
+    }
+
+    return false;
 }
 
 static inline pml4_t xhci_current_pml4(void)
@@ -76,6 +116,7 @@ void xhci_init(struct pci_device device)
     const uint32_t cap    = xhci_read32(mmio, XHCI_CAPLENGTH);
     const uint8_t cap_len = (uint8_t)(cap & 0xFFu);
     const uint32_t hcs    = xhci_read32(mmio, XHCI_HCSPARAMS1);
+    auto op_base          = mmio + cap_len;
 
     boot_message(INFO,
                  "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
@@ -86,4 +127,25 @@ void xhci_init(struct pci_device device)
                  device.function,
                  (unsigned long)mmio_phys);
     boot_message(INFO, "[xHCI] caplen=%u hcsparams1=0x%08x", cap_len, hcs);
+
+    uint32_t cmd = xhci_read32(op_base, XHCI_OP_USBCMD);
+    cmd          &= ~XHCI_USBCMD_RS;
+    xhci_write32(op_base, XHCI_OP_USBCMD, cmd);
+    if (!xhci_wait_for(op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, true, XHCI_TIMEOUT_MS)) {
+        boot_message(WARNING, "[xHCI] Stop timeout");
+    }
+
+    cmd = xhci_read32(op_base, XHCI_OP_USBCMD);
+    cmd |= XHCI_USBCMD_HCRST;
+    xhci_write32(op_base, XHCI_OP_USBCMD, cmd);
+
+    if (!xhci_wait_for(op_base, XHCI_OP_USBCMD, XHCI_USBCMD_HCRST, false, XHCI_RESET_TIMEOUT_MS)) {
+        boot_message(ERROR, "[xHCI] Reset timeout");
+        return;
+    }
+
+    if (!xhci_wait_for(op_base, XHCI_OP_USBSTS, XHCI_USBSTS_CNR, false, XHCI_RESET_TIMEOUT_MS)) {
+        boot_message(ERROR, "[xHCI] Controller not ready");
+        return;
+    }
 }
