@@ -16,6 +16,7 @@
 #define XHCI_OP_PAGESIZE 0x08u // Page size register offset.
 #define XHCI_OP_CRCR 0x18u // Command ring control register offset.
 #define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
+#define XHCI_OP_CONFIG 0x38u // Configure register offset.
 #define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
 #define XHCI_IMAN 0x00u // Interrupter management offset.
 #define XHCI_IMOD 0x04u // Interrupter moderation offset.
@@ -350,6 +351,9 @@ void xhci_init(struct pci_device device)
     xhci_write32(ir_base, XHCI_ERSTSZ, 1u);
     xhci_write64(ir_base, XHCI_ERSTBA, g_xhci.event_ring.erst_phys);
     xhci_write64(ir_base, XHCI_ERDP, g_xhci.event_ring.phys | XHCI_ERDP_EHB);
+
+    const uint32_t slots = g_xhci.max_slots ? g_xhci.max_slots : 1u;
+    xhci_write32(g_xhci.op_base, XHCI_OP_CONFIG, slots);
 
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
 }
