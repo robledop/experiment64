@@ -1,4 +1,5 @@
 #include <drivers/usb/xhci.h>
+#include <drivers/usb/xhci_internal.h>
 #include <drivers/usb/ehci.h>
 #include <drivers/terminal.h>
 #include <drivers/tsc.h>
@@ -48,13 +49,8 @@
 
 
 #define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
-#define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
 #define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
 #define XHCI_MAX_DEVICES 256u // Max device slots tracked.
-#define XHCI_EP_TYPE_CONTROL 4u // Endpoint type for control transfers.
-#define XHCI_EP_ERROR_COUNT_SHIFT 1u // Endpoint error count field shift.
-#define XHCI_EP_TYPE_SHIFT 3u // Endpoint type field shift.
-#define XHCI_EP_MAX_PACKET_SHIFT 16u // Endpoint max packet size field shift.
 
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
@@ -62,7 +58,6 @@
 #define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
 #define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
 #define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
-#define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
 #define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
 #define XHCI_TRB_TRT_SHIFT 16u // Transfer type field shift for setup stage.
 #define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
@@ -85,7 +80,6 @@
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
-#define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
 #define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
@@ -100,180 +94,8 @@
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
 #define USB_DESC_TYPE_CONFIGURATION 0x02u // USB configuration descriptor type.
-#define USB_DESC_TYPE_INTERFACE 0x04u // USB interface descriptor type.
-#define USB_DESC_TYPE_ENDPOINT 0x05u // USB endpoint descriptor type.
-#define USB_DESC_TYPE_SS_ENDPOINT_COMP 0x30u // USB SuperSpeed endpoint companion descriptor type.
 #define USB_REQ_GET_DESCRIPTOR 0x06u // USB standard GET_DESCRIPTOR request.
 #define USB_REQ_SET_CONFIGURATION 0x09u // USB standard SET_CONFIGURATION request.
-
-#define USB_CLASS_MASS_STORAGE 0x08u // USB mass storage device class code.
-#define USB_SUBCLASS_SCSI 0x06u // USB SCSI transparent subclass code.
-#define USB_PROTOCOL_BOT 0x50u // USB bulk-only transport protocol code.
-
-#define USB_EP_DIR_IN 0x80u // Endpoint address IN direction bit.
-#define USB_EP_ATTR_TYPE_MASK 0x03u // Endpoint attribute transfer type mask.
-#define USB_EP_ATTR_TYPE_BULK 0x02u // Endpoint attribute bulk transfer type.
-
-struct xhci_trb
-{
-    uint32_t dword0; // TRB payload dword 0.
-    uint32_t dword1; // TRB payload dword 1.
-    uint32_t dword2; // TRB payload dword 2.
-    uint32_t dword3; // TRB control and type dword.
-} __attribute__((packed));
-
-struct xhci_erst_entry
-{
-    uint64_t addr;     // Physical base of event ring segment.
-    uint32_t size;     // TRB count in this segment.
-    uint32_t reserved; // Reserved, must be zero.
-} __attribute__((packed));
-
-struct xhci_ring
-{
-    struct xhci_trb *trbs; // Virtual base of TRB ring.
-    uint32_t trb_count;    // Number of TRBs in the ring.
-    uint32_t enqueue;      // Producer index.
-    bool cycle;            // Producer cycle state.
-    uintptr_t phys;        // Physical base address of ring.
-};
-
-struct xhci_event_ring
-{
-    struct xhci_trb *trbs;        // Virtual base of event TRBs.
-    uint32_t trb_count;           // TRB count in the segment.
-    uint32_t dequeue;             // Consumer index.
-    bool cycle;                   // Consumer cycle state.
-    uintptr_t phys;               // Physical base address of TRBs.
-    struct xhci_erst_entry *erst; // Virtual ERST base.
-    uintptr_t erst_phys;          // Physical ERST base.
-};
-
-struct xhci_input_control_ctx
-{
-    uint32_t drop_flags;  // Contexts to drop in this update.
-    uint32_t add_flags;   // Contexts to add in this update.
-    uint32_t reserved[6]; // Reserved, must be zero.
-} __attribute__((packed));
-
-struct xhci_slot_ctx
-{
-    uint32_t dev_info;    // Slot state, speed, and context count.
-    uint32_t dev_info2;   // Root port and hub information.
-    uint32_t tt_info;     // Transaction translator info.
-    uint32_t dev_state;   // Slot state and device address.
-    uint32_t reserved[4]; // Reserved, must be zero.
-} __attribute__((packed));
-
-struct xhci_ep_ctx
-{
-    uint32_t ep_info;     // Endpoint state and properties.
-    uint32_t ep_info2;    // Endpoint type and max packet size.
-    uint64_t deq;         // Endpoint dequeue pointer.
-    uint32_t tx_info;     // Endpoint transfer settings.
-    uint32_t reserved[3]; // Reserved, must be zero.
-} __attribute__((packed));
-
-struct xhci_device
-{
-    bool active;               // Device slot is in use.
-    uint8_t slot_id;           // Slot ID assigned by controller.
-    uint8_t port_id;           // Root hub port number.
-    uint32_t speed;            // Port speed code.
-    struct xhci_ring ep0_ring; // Control endpoint ring state.
-    void *input_ctx;           // Input context virtual base.
-    uintptr_t input_ctx_phys;  // Input context physical base.
-    void *device_ctx;          // Device context virtual base.
-    uintptr_t device_ctx_phys; // Device context physical base.
-};
-
-struct usb_setup_packet
-{
-    uint8_t bm_request_type; // Request type and direction.
-    uint8_t b_request;       // Request code.
-    uint16_t w_value;        // Request value parameter.
-    uint16_t w_index;        // Request index parameter.
-    uint16_t w_length;       // Request data length.
-} __attribute__((packed));
-
-struct usb_device_descriptor
-{
-    uint8_t b_length;             // Descriptor size in bytes.
-    uint8_t b_descriptor_type;    // Descriptor type code.
-    uint16_t bcd_usb;             // USB specification version.
-    uint8_t b_device_class;       // Device class code.
-    uint8_t b_device_subclass;    // Device subclass code.
-    uint8_t b_device_protocol;    // Device protocol code.
-    uint8_t b_max_packet_size0;   // EP0 max packet size.
-    uint16_t id_vendor;           // Vendor ID.
-    uint16_t id_product;          // Product ID.
-    uint16_t bcd_device;          // Device release number.
-    uint8_t i_manufacturer;       // Manufacturer string index.
-    uint8_t i_product;            // Product string index.
-    uint8_t i_serial_number;      // Serial number string index.
-    uint8_t b_num_configurations; // Number of configurations.
-} __attribute__((packed));
-
-struct usb_config_descriptor
-{
-    uint8_t b_length;              // Descriptor size in bytes.
-    uint8_t b_descriptor_type;     // Descriptor type code.
-    uint16_t w_total_length;       // Total length of configuration data.
-    uint8_t b_num_interfaces;      // Number of interfaces.
-    uint8_t b_configuration_value; // Configuration value.
-    uint8_t i_configuration;       // Configuration string index.
-    uint8_t bm_attributes;         // Configuration attributes.
-    uint8_t b_max_power;           // Max power consumption.
-} __attribute__((packed));
-
-struct usb_interface_descriptor
-{
-    uint8_t b_length;             // Descriptor size in bytes.
-    uint8_t b_descriptor_type;    // Descriptor type code.
-    uint8_t b_interface_number;   // Interface number.
-    uint8_t b_alternate_setting;  // Alternate setting index.
-    uint8_t b_num_endpoints;      // Number of endpoints.
-    uint8_t b_interface_class;    // Interface class code.
-    uint8_t b_interface_subclass; // Interface subclass code.
-    uint8_t b_interface_protocol; // Interface protocol code.
-    uint8_t i_interface;          // Interface string index.
-} __attribute__((packed));
-
-struct usb_endpoint_descriptor
-{
-    uint8_t b_length;           // Descriptor size in bytes.
-    uint8_t b_descriptor_type;  // Descriptor type code.
-    uint8_t b_endpoint_address; // Endpoint address and direction.
-    uint8_t bm_attributes;      // Endpoint attributes bitmap.
-    uint16_t w_max_packet_size; // Max packet size.
-    uint8_t b_interval;         // Polling interval.
-} __attribute__((packed));
-
-struct usb_ss_ep_comp_descriptor
-{
-    uint8_t b_length;              // Descriptor size in bytes.
-    uint8_t b_descriptor_type;     // Descriptor type code.
-    uint8_t b_max_burst;           // Max packets per burst minus one.
-    uint8_t bm_attributes;         // Companion attributes bitmap.
-    uint16_t w_bytes_per_interval; // Bytes per service interval.
-} __attribute__((packed));
-
-struct xhci_controller
-{
-    volatile uint8_t *mmio;            // MMIO base.
-    volatile uint8_t *op_base;         // Operational registers base.
-    uint8_t cap_len;                   // Capability length in bytes.
-    uint32_t max_slots;                // Max device slots.
-    uint32_t max_ports;                // Max root hub ports.
-    uint32_t context_size;             // Context size in bytes.
-    uint32_t max_scratchpad;           // Scratchpad buffer count.
-    uint64_t *dcbaa;                   // Virtual DCBAA base.
-    uintptr_t dcbaa_phys;              // Physical DCBAA base.
-    volatile uint8_t *db_base;         // Doorbell array base.
-    volatile uint8_t *rt_base;         // Runtime registers base.
-    struct xhci_ring cmd_ring;         // Command ring state.
-    struct xhci_event_ring event_ring; // Event ring state.
-};
 
 static struct xhci_controller g_xhci;
 static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
@@ -281,9 +103,6 @@ static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
 static bool xhci_port_reset(const struct xhci_controller *xhci,
                             const uint32_t port,
                             uint32_t *portsc_out);
-static void xhci_ring_doorbell(const struct xhci_controller *xhci,
-                               const uint8_t doorbell,
-                               const uint32_t value);
 
 static const char *xhci_speed_name(const uint32_t speed)
 {
@@ -337,12 +156,6 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 static inline void xhci_mb(void)
 {
     __asm__ volatile("" ::: "memory");
-}
-
-static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
-{
-    const size_t offset = (ctx_size == 64u) ? 64u : 32u;
-    return (void *)((uint8_t *)base + offset + (index * ctx_size));
 }
 
 static inline void xhci_wait_relax(uint32_t *spins)
@@ -464,7 +277,7 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     return true;
 }
 
-static uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
+uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
 {
     const uint32_t index  = ring->enqueue;
     struct xhci_trb *dest = &ring->trbs[index];
@@ -482,7 +295,7 @@ static uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb
     return ring->phys + (index * sizeof(struct xhci_trb));
 }
 
-static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
+bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
 {
     const size_t bytes = trb_count * sizeof(struct xhci_trb);
     uintptr_t phys     = 0;
@@ -663,9 +476,9 @@ static void xhci_event_ring_advance(struct xhci_controller *xhci)
     xhci_write64(ir_base, XHCI_ERDP, value);
 }
 
-static bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
-                                         const uintptr_t cmd_phys,
-                                         uint8_t *slot_id_out)
+bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
+                                  const uintptr_t cmd_phys,
+                                  uint8_t *slot_id_out)
 {
     constexpr uint64_t timeout_ns = (uint64_t)XHCI_TIMEOUT_MS * 1000000ull;
     const uint64_t start          = tsc_nanos();
@@ -873,7 +686,7 @@ static bool xhci_port_reset(const struct xhci_controller *xhci,
     return true;
 }
 
-static void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
+void xhci_ring_doorbell(const struct xhci_controller *xhci, const uint8_t doorbell, const uint32_t value)
 {
     auto db = (volatile uint8_t *)(xhci->db_base + ((uint32_t)doorbell * 4u));
     xhci_mb();
@@ -1017,91 +830,6 @@ static bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci
     return true;
 }
 
-static bool xhci_parse_msc_config(const struct xhci_device *dev,
-                                  const void *cfg_buf,
-                                  const uint16_t total_len)
-{
-    if (!dev || !cfg_buf || total_len < sizeof(struct usb_config_descriptor)) {
-        return false;
-    }
-
-    auto buf                     = (const uint8_t *)cfg_buf;
-    const uint8_t *end           = buf + total_len;
-    bool in_msc_interface        = false;
-    bool saw_msc_interface       = false;
-    uint8_t interface_number     = 0;
-    uint8_t bulk_in_ep           = 0;
-    uint8_t bulk_out_ep          = 0;
-    uint16_t bulk_in_max_packet  = 0;
-    uint16_t bulk_out_max_packet = 0;
-    uint8_t bulk_in_max_burst    = 0;
-    uint8_t bulk_out_max_burst   = 0;
-    uint8_t last_ep              = 0;
-
-    while (buf + 2 <= end) {
-        const uint8_t len  = buf[0];
-        const uint8_t type = buf[1];
-        if (len < 2 || buf + len > end) {
-            break;
-        }
-
-        if (type == USB_DESC_TYPE_INTERFACE) {
-            auto iface       = (const struct usb_interface_descriptor *)buf;
-            in_msc_interface = iface->b_interface_class == USB_CLASS_MASS_STORAGE &&
-                iface->b_interface_subclass == USB_SUBCLASS_SCSI &&
-                iface->b_interface_protocol == USB_PROTOCOL_BOT &&
-                iface->b_alternate_setting == 0;
-            if (in_msc_interface) {
-                saw_msc_interface = true;
-                interface_number  = iface->b_interface_number;
-            }
-        } else if (type == USB_DESC_TYPE_ENDPOINT && in_msc_interface) {
-            auto ep = (const struct usb_endpoint_descriptor *)buf;
-            if ((ep->bm_attributes & USB_EP_ATTR_TYPE_MASK) == USB_EP_ATTR_TYPE_BULK) {
-                if (ep->b_endpoint_address & USB_EP_DIR_IN) {
-                    bulk_in_ep         = ep->b_endpoint_address;
-                    bulk_in_max_packet = ep->w_max_packet_size;
-                } else {
-                    bulk_out_ep         = ep->b_endpoint_address;
-                    bulk_out_max_packet = ep->w_max_packet_size;
-                }
-                last_ep = ep->b_endpoint_address;
-            }
-        } else if (type == USB_DESC_TYPE_SS_ENDPOINT_COMP && in_msc_interface && last_ep != 0) {
-            auto comp = (const struct usb_ss_ep_comp_descriptor *)buf;
-            if (last_ep == bulk_in_ep) {
-                bulk_in_max_burst = comp->b_max_burst;
-            } else if (last_ep == bulk_out_ep) {
-                bulk_out_max_burst = comp->b_max_burst;
-            }
-            last_ep = 0;
-        }
-
-        buf += len;
-    }
-
-    if (!saw_msc_interface) {
-        return false;
-    }
-
-    if (bulk_in_ep == 0 || bulk_out_ep == 0) {
-        boot_message(WARNING, "[xHCI] Slot %u no BOT bulk endpoints found", dev->slot_id);
-        return false;
-    }
-
-    boot_message(INFO,
-                 "[xHCI] Slot %u BOT iface=%u in=0x%02x maxp=%u burst=%u out=0x%02x maxp=%u burst=%u",
-                 dev->slot_id,
-                 interface_number,
-                 bulk_in_ep,
-                 bulk_in_max_packet,
-                 bulk_in_max_burst,
-                 bulk_out_ep,
-                 bulk_out_max_packet,
-                 bulk_out_max_burst);
-    return true;
-}
-
 static bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     uintptr_t desc_phys = 0;
@@ -1162,13 +890,19 @@ static bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci
         return false;
     }
 
-    const bool msc_ok = xhci_parse_msc_config(dev, full_buf, total_len);
-    if (msc_ok) {
-        const uint8_t config_value = ((const struct usb_config_descriptor *)full_buf)->b_configuration_value;
-        if (!xhci_set_configuration(xhci, dev, config_value)) {
-            boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
-            return false;
-        }
+    const bool msc_ok = xhci_msc_parse_config(dev, full_buf, total_len);
+    if (!msc_ok) {
+        return true;
+    }
+
+    if (!xhci_set_configuration(xhci, dev, xhci_msc_config_value())) {
+        boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+        return false;
+    }
+    tsc_sleep_ms(20);
+
+    if (!xhci_msc_configure_endpoints(xhci)) {
+        return false;
     }
     return true;
 }
