@@ -2,6 +2,7 @@
 #include <drivers/usb/ehci.h>
 #include <drivers/terminal.h>
 #include <drivers/tsc.h>
+#include <lib/string.h>
 #include <mem/vmm.h>
 
 #define XHCI_CAPLENGTH 0x00u
@@ -18,6 +19,12 @@
 #define XHCI_USBCMD_HCRST (1u << 1)
 #define XHCI_USBSTS_HCH (1u << 0)
 #define XHCI_USBSTS_CNR (1u << 11)
+
+#define XHCI_TRB_CYCLE 0x1u
+#define XHCI_TRB_TC (1u << 1)
+#define XHCI_TRB_TYPE_SHIFT 10u
+#define XHCI_TRB_TYPE_LINK 6u
+#define XHCI_CMD_RING_TRBS 256u
 
 #define XHCI_TIMEOUT_MS 200u
 #define XHCI_RESET_TIMEOUT_MS 1000u
@@ -134,6 +141,46 @@ static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_ou
     return true;
 }
 
+static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
+{
+    const size_t pages = (bytes + PAGE_SIZE - 1u) / PAGE_SIZE;
+    void *phys         = pmm_alloc_pages(pages);
+    if (!phys) {
+        return false;
+    }
+
+    auto virt = (void *)((uintptr_t)phys + g_hhdm_offset);
+    memset(virt, 0, pages * PAGE_SIZE);
+
+    *phys_out = (uintptr_t)phys;
+    *virt_out = virt;
+    return true;
+}
+
+static bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
+{
+    const size_t bytes = trb_count * sizeof(struct xhci_trb);
+    uintptr_t phys     = 0;
+    void *virt         = nullptr;
+    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+        return false;
+    }
+
+    ring->trbs      = (struct xhci_trb *)virt;
+    ring->trb_count = trb_count;
+    ring->enqueue   = 0;
+    ring->cycle     = true;
+    ring->phys      = phys;
+
+    struct xhci_trb *link = &ring->trbs[trb_count - 1];
+    link->dword0          = (uint32_t)phys;
+    link->dword1          = (uint32_t)(phys >> 32);
+    link->dword2          = 0;
+    link->dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC | XHCI_TRB_CYCLE;
+
+    return true;
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -164,7 +211,10 @@ void xhci_init(struct pci_device device)
     g_xhci.max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
     g_xhci.db_base = g_xhci.mmio + dboff;
     g_xhci.rt_base = g_xhci.mmio + rtsoff;
-    g_xhci.cmd_ring = (struct xhci_ring){0};
+    if (!xhci_ring_init(&g_xhci.cmd_ring, XHCI_CMD_RING_TRBS)) {
+        boot_message(ERROR, "[xHCI] Command ring alloc failed");
+        return;
+    }
 
     boot_message(INFO,
                  "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
