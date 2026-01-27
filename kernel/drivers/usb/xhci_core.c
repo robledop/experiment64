@@ -53,6 +53,7 @@
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
 #define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
+#define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
 #define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
@@ -248,6 +249,20 @@ static bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **vir
 
     *phys_out = (uintptr_t)phys;
     *virt_out = virt;
+    return true;
+}
+
+static bool xhci_alloc_device_context(struct xhci_controller *xhci, const uint8_t slot_id)
+{
+    const size_t bytes = (size_t)XHCI_MAX_CONTEXTS * xhci->context_size;
+    uintptr_t phys     = 0;
+    void *virt         = nullptr;
+    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+        return false;
+    }
+
+    xhci->dcbaa[slot_id] = phys;
+    boot_message(INFO, "[xHCI] Slot %u device context=0x%lx", slot_id, (unsigned long)phys);
     return true;
 }
 
@@ -623,6 +638,9 @@ void xhci_init(struct pci_device device)
     uint8_t slot_id         = 0;
     if (xhci_cmd_submit(&g_xhci, &cmd_trb, &slot_id)) {
         boot_message(INFO, "[xHCI] Enable slot completed slot=%u", slot_id);
+        if (!xhci_alloc_device_context(&g_xhci, slot_id)) {
+            boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
+        }
     } else {
         boot_message(WARNING, "[xHCI] Enable slot command failed");
     }
