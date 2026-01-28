@@ -66,71 +66,125 @@ static void vfs_put_inode(vfs_inode_t *node)
     kfree(node);
 }
 
-static partition_info_t root_part;
-static partition_info_t mnt_part;
-static partition_info_t boot_part;
-static partition_info_t disk1_part;
-static partition_info_t usb_part;
-static bool root_found = false;
-static bool mnt_found = false;
-static bool boot_found = false;
-static bool disk1_found = false;
-static bool usb_found = false;
-
-static void mount_disk1_callback(const partition_info_t *part)
+struct gpt_scan_state
 {
-    const char *type = gpt_get_guid_name(part->type_guid);
-    if (strcmp(type, "Linux Filesystem") == 0)
-    {
-        disk1_part = *part;
-        disk1_found = true;
-        boot_message(INFO, "VFS: Found disk1 ext2 partition at LBA %ld", part->start_lba);
-    }
-}
+    partition_info_t root_part; // Linux filesystem partition candidate.
+    partition_info_t data_part; // Microsoft Basic Data partition for /mnt.
+    partition_info_t esp_part;  // EFI System Partition for /boot.
+    bool root_found;            // Root partition found on this device.
+    bool data_found;            // Data partition found on this device.
+    bool esp_found;             // ESP found on this device.
+};
 
-static void mount_usb_callback(const partition_info_t *part)
-{
-    const char *type = gpt_get_guid_name(part->type_guid);
-    if (strcmp(type, "Linux Filesystem") == 0)
-    {
-        usb_part = *part;
-        usb_found = true;
-        boot_message(INFO, "VFS: Found USB ext2 partition at LBA %ld", part->start_lba);
-    }
-}
+static struct gpt_scan_state gpt_states[3];
+static struct gpt_scan_state *gpt_scan_target = nullptr;
 
-static void mount_callback(const partition_info_t *part)
+static void vfs_scan_callback(const partition_info_t *part)
 {
+    if (!gpt_scan_target || !part)
+        return;
+
     const char *type = gpt_get_guid_name(part->type_guid);
-    // Check for Microsoft Basic Data (FAT32) or EFI System Partition
     if (strcmp(type, "Microsoft Basic Data") == 0)
     {
-        mnt_part = *part;
-        mnt_found = true;
-        boot_message(INFO, "VFS: Found Data partition at LBA %ld", part->start_lba);
+        gpt_scan_target->data_part = *part;
+        gpt_scan_target->data_found = true;
+        boot_message(INFO, "VFS: Found Data partition on drive %u at LBA %ld", part->drive, part->start_lba);
     }
     else if (strcmp(type, "EFI System Partition") == 0)
     {
-        boot_part = *part;
-        boot_found = true;
-        boot_message(INFO, "VFS: Found ESP partition at LBA %ld", part->start_lba);
+        gpt_scan_target->esp_part = *part;
+        gpt_scan_target->esp_found = true;
+        boot_message(INFO, "VFS: Found ESP partition on drive %u at LBA %ld", part->drive, part->start_lba);
     }
-    else if (strcmp(type, "Linux Filesystem") == 0)
+    else if (strcmp(type, "Linux Filesystem") == 0 && !gpt_scan_target->root_found)
     {
-        root_part = *part;
-        root_found = true;
-        boot_message(INFO, "VFS: Found Root partition at LBA %ld", part->start_lba);
+        gpt_scan_target->root_part = *part;
+        gpt_scan_target->root_found = true;
+        boot_message(INFO, "VFS: Found Root partition on drive %u at LBA %ld", part->drive, part->start_lba);
     }
+}
+
+static void vfs_scan_device(uint8_t device)
+{
+    if (!storage_device_present(device))
+        return;
+
+    memset(&gpt_states[device], 0, sizeof(gpt_states[device]));
+    gpt_scan_target = &gpt_states[device];
+    gpt_read_partitions(device, vfs_scan_callback);
+    gpt_scan_target = nullptr;
 }
 
 void vfs_mount_root(void)
 {
-    // Try to find partition via GPT on Drive 0
-    gpt_read_partitions(0, mount_callback);
-
-    if (root_found)
+    const uint8_t device_count = storage_device_count();
+    for (uint8_t dev = 0; dev < device_count; dev++)
     {
-        vfs_root = ext2_mount(root_part.drive, root_part.start_lba);
+        vfs_scan_device(dev);
+    }
+
+    int boot_device = -1;
+    for (uint8_t dev = 0; dev < device_count; dev++)
+    {
+        if (storage_device_present(dev) && gpt_states[dev].esp_found && gpt_states[dev].root_found)
+        {
+            boot_device = dev;
+            break;
+        }
+    }
+
+    if (boot_device < 0)
+    {
+        for (uint8_t dev = 0; dev < device_count; dev++)
+        {
+            if (storage_device_present(dev) && gpt_states[dev].esp_found)
+            {
+                boot_device = dev;
+                break;
+            }
+        }
+    }
+
+    if (boot_device < 0)
+    {
+        for (uint8_t dev = 0; dev < device_count; dev++)
+        {
+            if (storage_device_present(dev) && gpt_states[dev].root_found)
+            {
+                boot_device = dev;
+                break;
+            }
+        }
+    }
+
+    if (boot_device < 0)
+    {
+        for (uint8_t dev = 0; dev < device_count; dev++)
+        {
+            if (storage_device_present(dev))
+            {
+                boot_device = dev;
+                break;
+            }
+        }
+    }
+
+    if (boot_device < 0)
+    {
+        boot_message(ERROR, "VFS: No storage devices detected");
+        return;
+    }
+
+    boot_message(INFO,
+                 "VFS: Boot device %u backend=%s",
+                 (unsigned)boot_device,
+                 storage_device_backend_name((uint8_t)boot_device));
+
+    struct gpt_scan_state *boot_state = &gpt_states[boot_device];
+    if (boot_state->root_found)
+    {
+        vfs_root = ext2_mount(boot_state->root_part.drive, boot_state->root_part.start_lba);
         if (vfs_root)
         {
             boot_message(INFO, "VFS: Mounted EXT2 on /");
@@ -143,9 +197,10 @@ void vfs_mount_root(void)
 
     if (!vfs_root)
     {
-        boot_message(WARNING, "VFS: GPT mount failed or no root found, trying fallback LBA 2048");
-        // Fallback
-        vfs_root = fat32_mount(0, 2048);
+        boot_message(WARNING,
+                     "VFS: GPT mount failed or no root found, trying fallback LBA 2048 on drive %u",
+                     (unsigned)boot_device);
+        vfs_root = fat32_mount((uint8_t)boot_device, 2048);
         if (vfs_root)
         {
             boot_message(INFO, "VFS: Mounted FAT32 on / (Fallback)");
@@ -156,13 +211,13 @@ void vfs_mount_root(void)
         }
     }
 
-    if (vfs_root && mnt_found)
+    if (vfs_root && boot_state->data_found)
     {
         vfs_inode_t *mnt_node = vfs_finddir(vfs_root, "mnt");
         if (mnt_node)
         {
             kfree(mnt_node); // Free the EXT2 node, we will mount over it
-            vfs_inode_t *fat_root = fat32_mount(mnt_part.drive, mnt_part.start_lba);
+            vfs_inode_t *fat_root = fat32_mount(boot_state->data_part.drive, boot_state->data_part.start_lba);
             if (fat_root)
             {
                 vfs_register_mount("mnt", fat_root);
@@ -179,14 +234,13 @@ void vfs_mount_root(void)
         }
     }
 
-    // Mount ESP at /boot if present
-    if (vfs_root && boot_found)
+    if (vfs_root && boot_state->esp_found)
     {
         vfs_inode_t *boot_node = vfs_finddir(vfs_root, "boot");
         if (boot_node)
         {
             kfree(boot_node); // replace placeholder
-            vfs_inode_t *esp_root = fat32_mount(boot_part.drive, boot_part.start_lba);
+            vfs_inode_t *esp_root = fat32_mount(boot_state->esp_part.drive, boot_state->esp_part.start_lba);
             if (esp_root)
             {
                 vfs_register_mount("boot", esp_root);
@@ -203,60 +257,57 @@ void vfs_mount_root(void)
         }
     }
 
-    // Mount disk1 (IDE ext2) at /disk1 if present on drive 1
-    disk1_found = false;
-    gpt_read_partitions(1, mount_disk1_callback);
-
-    if (vfs_root && disk1_found)
+    if (vfs_root && device_count > 1u && storage_device_present(1) && boot_device != 1)
     {
-        vfs_inode_t *node = vfs_finddir(vfs_root, "disk1");
-        if (node)
+        struct gpt_scan_state *disk1_state = &gpt_states[1];
+        if (disk1_state->root_found)
         {
-            kfree(node); // replace placeholder
-            vfs_inode_t *ext_root = ext2_mount(disk1_part.drive, disk1_part.start_lba);
-            if (ext_root)
+            vfs_inode_t *node = vfs_finddir(vfs_root, "disk1");
+            if (node)
             {
-                vfs_register_mount("disk1", ext_root);
-                boot_message(INFO, "VFS: Mounted EXT2 on /disk1");
+                kfree(node); // replace placeholder
+                vfs_inode_t *ext_root = ext2_mount(disk1_state->root_part.drive, disk1_state->root_part.start_lba);
+                if (ext_root)
+                {
+                    vfs_register_mount("disk1", ext_root);
+                    boot_message(INFO, "VFS: Mounted EXT2 on /disk1");
+                }
+                else
+                {
+                    boot_message(ERROR, "VFS: Failed to mount EXT2 on /disk1");
+                }
             }
             else
             {
-                boot_message(ERROR, "VFS: Failed to mount EXT2 on /disk1");
+                boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
             }
         }
-        else
-        {
-            boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
-        }
     }
 
-    // Mount USB ext2 at /usb if present on drive 2
-    usb_found = false;
-    if (storage_device_present(2))
+    if (vfs_root && device_count > 2u && storage_device_present(2) && boot_device != 2)
     {
-        gpt_read_partitions(2, mount_usb_callback);
-    }
-
-    if (vfs_root && usb_found)
-    {
-        vfs_inode_t *node = vfs_finddir(vfs_root, "usb");
-        if (node)
+        struct gpt_scan_state *usb_state = &gpt_states[2];
+        if (usb_state->root_found)
         {
-            kfree(node); // replace placeholder
-            vfs_inode_t *ext_root = ext2_mount(usb_part.drive, usb_part.start_lba);
-            if (ext_root)
+            vfs_inode_t *node = vfs_finddir(vfs_root, "usb");
+            if (node)
             {
-                vfs_register_mount("usb", ext_root);
-                boot_message(INFO, "VFS: Mounted EXT2 on /usb");
+                kfree(node); // replace placeholder
+                vfs_inode_t *ext_root = ext2_mount(usb_state->root_part.drive, usb_state->root_part.start_lba);
+                if (ext_root)
+                {
+                    vfs_register_mount("usb", ext_root);
+                    boot_message(INFO, "VFS: Mounted EXT2 on /usb");
+                }
+                else
+                {
+                    boot_message(ERROR, "VFS: Failed to mount EXT2 on /usb");
+                }
             }
             else
             {
-                boot_message(ERROR, "VFS: Failed to mount EXT2 on /usb");
+                boot_message(WARNING, "VFS: /usb not found in root, skipping USB mount");
             }
-        }
-        else
-        {
-            boot_message(WARNING, "VFS: /usb not found in root, skipping USB mount");
         }
     }
 
