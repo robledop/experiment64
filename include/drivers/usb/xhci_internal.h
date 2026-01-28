@@ -140,10 +140,56 @@ struct xhci_trb
         struct
         {
             uint32_t cycle_bit : 1; // TRB cycle bit.
+            uint32_t tc : 1;        // Toggle cycle bit for Link TRBs.
+            uint32_t isp : 1;       // Interrupt on short packet bit.
+            uint32_t rsvd0 : 1;     // Reserved, must be zero.
+            uint32_t chain : 1;     // Chain bit.
+            uint32_t ioc : 1;       // Interrupt on completion bit.
+            uint32_t idt : 1;       // Immediate data bit.
+            uint32_t rsvd1 : 3;     // Reserved, must be zero.
+            uint32_t trb_type : 6;  // TRB type field.
+            uint32_t rsvd2 : 16;    // TRB-specific fields or reserved.
+        } control;
+
+        struct
+        {
+            uint32_t cycle_bit : 1; // TRB cycle bit.
+            uint32_t tc : 1;        // Toggle cycle bit for Link TRBs.
+            uint32_t isp : 1;       // Interrupt on short packet bit.
+            uint32_t rsvd0 : 1;     // Reserved, must be zero.
+            uint32_t chain : 1;     // Chain bit.
+            uint32_t ioc : 1;       // Interrupt on completion bit.
+            uint32_t idt : 1;       // Immediate data bit.
+            uint32_t rsvd1 : 3;     // Reserved, must be zero.
+            uint32_t trb_type : 6;  // TRB type field.
+            uint32_t trt : 2;       // Transfer type for setup stage TRB.
+            uint32_t rsvd2 : 14;    // Reserved, must be zero.
+        } setup;
+
+        struct
+        {
+            uint32_t cycle_bit : 1; // TRB cycle bit.
+            uint32_t tc : 1;        // Toggle cycle bit for Link TRBs.
+            uint32_t isp : 1;       // Interrupt on short packet bit.
+            uint32_t rsvd0 : 1;     // Reserved, must be zero.
+            uint32_t chain : 1;     // Chain bit.
+            uint32_t ioc : 1;       // Interrupt on completion bit.
+            uint32_t idt : 1;       // Immediate data bit.
+            uint32_t rsvd1 : 3;     // Reserved, must be zero.
+            uint32_t trb_type : 6;  // TRB type field.
+            uint32_t dir_in : 1;    // Data IN direction bit.
+            uint32_t rsvd2 : 15;    // Reserved, must be zero.
+        } data;
+
+        struct
+        {
+            uint32_t cycle_bit : 1; // TRB cycle bit.
             uint32_t rsvd0 : 9;     // Reserved, must be zero.
             uint32_t trb_type : 6;  // TRB type field.
-            uint32_t rsvd1 : 16;    // Reserved, must be zero.
-        };
+            uint32_t ep_id : 5;     // Endpoint ID field.
+            uint32_t rsvd1 : 3;     // Reserved, must be zero.
+            uint32_t slot_id : 8;   // Slot ID field.
+        } event;
 
         uint32_t dword3; // TRB control and type dword.
     };

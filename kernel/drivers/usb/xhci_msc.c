@@ -176,8 +176,8 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
     struct xhci_trb cmd = {0};
     cmd.dword0          = (uint32_t)msc->dev->input_ctx_phys;
     cmd.dword1          = (uint32_t)(msc->dev->input_ctx_phys >> 32);
-    cmd.dword3          = (XHCI_TRB_TYPE_CONFIGURE_ENDPOINT << XHCI_TRB_TYPE_SHIFT) |
-        ((uint32_t)msc->dev->slot_id << 24);
+    cmd.control.trb_type = XHCI_TRB_TYPE_CONFIGURE_ENDPOINT;
+    cmd.event.slot_id    = msc->dev->slot_id;
     const uintptr_t cmd_phys = xhci_ring_enqueue(&xhci->cmd_ring, &cmd);
 
     xhci_ring_doorbell(xhci, 0, 0);
@@ -222,11 +222,11 @@ static uintptr_t xhci_bulk_queue(struct xhci_ring *ring,
         trb.dword0             = (uint32_t)phys;
         trb.dword1             = (uint32_t)(phys >> 32);
         trb.dword2             = XHCI_TRB_LEN(chunk) | XHCI_TRB_TD_SIZE(td_size) | XHCI_TRB_INTR_TARGET(0);
-        trb.dword3             = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT);
+        trb.control.trb_type   = XHCI_TRB_TYPE_NORMAL;
         if (remaining > chunk) {
-            trb.dword3 |= XHCI_TRB_CHAIN;
+            trb.control.chain = 1;
         } else {
-            trb.dword3 |= XHCI_TRB_IOC;
+            trb.control.ioc = 1;
         }
 
         last_trb_phys = xhci_ring_enqueue(ring, &trb);

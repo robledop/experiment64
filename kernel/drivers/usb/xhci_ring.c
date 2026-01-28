@@ -35,7 +35,10 @@ void xhci_ring_reset(struct xhci_ring *ring)
     link->dword0          = (uint32_t)ring->phys;
     link->dword1          = (uint32_t)(ring->phys >> 32);
     link->dword2          = 0;
-    link->dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC | XHCI_TRB_CYCLE;
+    link->dword3          = 0;
+    link->control.trb_type = XHCI_TRB_TYPE_LINK;
+    link->control.tc       = 1;
+    link->control.cycle_bit = 1;
 }
 
 bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
@@ -57,7 +60,10 @@ bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     link->dword0          = (uint32_t)phys;
     link->dword1          = (uint32_t)(phys >> 32);
     link->dword2          = 0;
-    link->dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC | XHCI_TRB_CYCLE;
+    link->dword3          = 0;
+    link->control.trb_type = XHCI_TRB_TYPE_LINK;
+    link->control.tc       = 1;
+    link->control.cycle_bit = 1;
 
     return true;
 }
@@ -67,12 +73,12 @@ uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
     const uint32_t index  = ring->enqueue;
     struct xhci_trb *dest = &ring->trbs[index];
     *dest                 = *trb;
-    dest->dword3          |= ring->cycle ? XHCI_TRB_CYCLE : 0u;
+    dest->control.cycle_bit = ring->cycle ? 1u : 0u;
 
     ring->enqueue++;
     if (ring->enqueue >= ring->trb_count - 1u) {
         struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
-        link->dword3          = (link->dword3 & ~XHCI_TRB_CYCLE) | (ring->cycle ? XHCI_TRB_CYCLE : 0u);
+        link->control.cycle_bit = ring->cycle ? 1u : 0u;
         ring->enqueue         = 0;
         ring->cycle           = !ring->cycle;
     }
@@ -112,7 +118,7 @@ bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t trb_count
 
 static uint32_t xhci_trb_type(const struct xhci_trb *trb)
 {
-    return (trb->dword3 & XHCI_TRB_TYPE_MASK) >> XHCI_TRB_TYPE_SHIFT;
+    return trb->control.trb_type;
 }
 
 static void xhci_event_ring_advance(struct xhci_controller *xhci)
@@ -140,13 +146,13 @@ bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
     while (tsc_nanos() - start < timeout_ns) {
         struct xhci_event_ring *ring = &xhci->event_ring;
         struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
-        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
+        const bool cycle             = trb->control.cycle_bit != 0;
         if (cycle == ring->cycle) {
             const uint32_t type = xhci_trb_type(trb);
             if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
                 const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
                 const uint32_t completion = trb->dword2 >> 24;
-                const uint8_t slot_id     = (uint8_t)(trb->dword3 >> 24);
+                const uint8_t slot_id     = trb->event.slot_id;
                 xhci_event_ring_advance(xhci);
 
                 if (cmd_phys != 0 && ptr != cmd_phys) {
@@ -201,14 +207,14 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
     while (tsc_nanos() - start < timeout_ns) {
         struct xhci_event_ring *ring = &xhci->event_ring;
         struct xhci_trb *trb         = &ring->trbs[ring->dequeue];
-        const bool cycle             = (trb->dword3 & XHCI_TRB_CYCLE) != 0;
+        const bool cycle             = trb->control.cycle_bit != 0;
         if (cycle == ring->cycle) {
             const uint32_t type = xhci_trb_type(trb);
             if (type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
                 const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
                 const uint32_t completion = trb->dword2 >> 24;
-                const uint8_t event_slot  = (uint8_t)(trb->dword3 >> 24);
-                const uint8_t event_ep    = (uint8_t)((trb->dword3 >> 16) & 0x1Fu);
+                const uint8_t event_slot  = trb->event.slot_id;
+                const uint8_t event_ep    = trb->event.ep_id;
                 xhci_event_ring_advance(xhci);
 
                 const bool ep_match = event_ep == ep_id || (ep_id == 1u && event_ep == 0u);

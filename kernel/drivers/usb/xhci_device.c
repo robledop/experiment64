@@ -78,15 +78,15 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
 bool xhci_enable_slot(struct xhci_controller *xhci, uint8_t *slot_id_out)
 {
     struct xhci_trb cmd_trb = {0};
-    cmd_trb.dword3          = (XHCI_TRB_TYPE_ENABLE_SLOT << XHCI_TRB_TYPE_SHIFT);
+    cmd_trb.control.trb_type = XHCI_TRB_TYPE_ENABLE_SLOT;
     return xhci_cmd_submit(xhci, &cmd_trb, slot_id_out);
 }
 
 bool xhci_disable_slot(struct xhci_controller *xhci, const uint8_t slot_id)
 {
     struct xhci_trb cmd = {0};
-    cmd.dword3          = (XHCI_TRB_TYPE_DISABLE_SLOT << XHCI_TRB_TYPE_SHIFT) |
-        ((uint32_t)slot_id << 24);
+    cmd.control.trb_type = XHCI_TRB_TYPE_DISABLE_SLOT;
+    cmd.event.slot_id    = slot_id;
     if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
         boot_message(WARNING, "[xHCI] Slot %u disable failed", slot_id);
         return false;
@@ -180,8 +180,8 @@ bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device *dev)
     struct xhci_trb cmd = {0};
     cmd.dword0          = (uint32_t)dev->input_ctx_phys;
     cmd.dword1          = (uint32_t)(dev->input_ctx_phys >> 32);
-    cmd.dword3          = (XHCI_TRB_TYPE_ADDRESS_DEVICE << XHCI_TRB_TYPE_SHIFT) |
-        ((uint32_t)dev->slot_id << 24);
+    cmd.control.trb_type = XHCI_TRB_TYPE_ADDRESS_DEVICE;
+    cmd.event.slot_id    = dev->slot_id;
     if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
         boot_message(WARNING, "[xHCI] Slot %u address device failed", dev->slot_id);
         return false;
@@ -208,26 +208,29 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
     setup_trb.dword0 = (uint32_t)setup_data;
     setup_trb.dword1 = (uint32_t)(setup_data >> 32);
     setup_trb.dword2 = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0);
-    setup_trb.dword3 = (XHCI_TRB_TYPE_SETUP_STAGE << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IDT;
+    setup_trb.setup.trb_type = XHCI_TRB_TYPE_SETUP_STAGE;
+    setup_trb.setup.idt      = 1;
 
     struct xhci_trb data_trb = {0};
     if (data_len > 0) {
-        setup_trb.dword3 |= (data_in ? XHCI_TRB_TRT_DATA_IN : XHCI_TRB_TRT_DATA_OUT) << XHCI_TRB_TRT_SHIFT;
+        setup_trb.setup.trt = data_in ? XHCI_TRB_TRT_DATA_IN : XHCI_TRB_TRT_DATA_OUT;
 
         data_trb.dword0 = (uint32_t)data_phys;
         data_trb.dword1 = (uint32_t)(data_phys >> 32);
         data_trb.dword2 = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0);
-        data_trb.dword3 = (XHCI_TRB_TYPE_DATA_STAGE << XHCI_TRB_TYPE_SHIFT);
+        data_trb.control.trb_type = XHCI_TRB_TYPE_DATA_STAGE;
         if (data_in) {
-            data_trb.dword3 |= XHCI_TRB_DIR_IN | XHCI_TRB_ISP;
+            data_trb.data.dir_in = 1;
+            data_trb.control.isp = 1;
         }
     }
 
     struct xhci_trb status_trb = {0};
-    status_trb.dword3          = (XHCI_TRB_TYPE_STATUS_STAGE << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_IOC;
+    status_trb.control.trb_type = XHCI_TRB_TYPE_STATUS_STAGE;
+    status_trb.control.ioc      = 1;
     const bool status_in       = data_len == 0 ? true : !data_in;
     if (status_in) {
-        status_trb.dword3 |= XHCI_TRB_DIR_IN;
+        status_trb.data.dir_in = 1;
     }
 
     (void)xhci_ring_enqueue(&dev->ep0_ring, &setup_trb);
