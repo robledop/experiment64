@@ -1,6 +1,6 @@
 # experiment 64
 
-An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support, and a libc/tiny shell.
+An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shell.
 
 ![Kernel splash](https://pazotto.com/img/experiment64/Screenshot2.png)
 
@@ -49,7 +49,7 @@ To ensure code quality and consistency, run the following checks:
 make check
 ```
 
-This command will run formatting checks, linting, and static analysis on the codebase.
+This command will run formatting checks, linting and static analysis on the codebase.
 
 ## Running
 
@@ -65,9 +65,19 @@ To boot the disk image as a USB mass storage device:
 make run-usb
 ```
 
+## Running on real hardware
+
+To write the disk image to a real disk, use the following command:
+
+```bash
+make disk DISK=/dev/sdX
+```
+
+By default, the disk image is written to `/dev/sdb` so, **BE CAREFUL**!
+
 ## Disk images
 
-- `image.hdd`: GPT image with ESP (FAT32), root ext2, and data FAT32
+- `image.hdd`: GPT image with ESP (FAT32), root ext2 and data FAT32
 - `image2.ide`: secondary IDE disk with an ext2 partition
 - `image3.usb`: USB mass storage disk with an ext2 partition
 
