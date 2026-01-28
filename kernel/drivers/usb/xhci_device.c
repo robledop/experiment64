@@ -388,5 +388,9 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     if (!xhci_msc_configure_endpoints(xhci)) {
         return false;
     }
+
+    if (!xhci_msc_init(xhci)) {
+        boot_message(WARNING, "[xHCI] Slot %u MSC inquiry failed", dev->slot_id);
+    }
     return true;
 }

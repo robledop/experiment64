@@ -13,6 +13,7 @@
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
+#define XHCI_TRB_CHAIN (1u << 4) // TRB chain bit.
 #define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
 #define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
 #define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
@@ -22,9 +23,12 @@
 #define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
 #define XHCI_TRB_TRT_DATA_IN 3u // Setup stage transfer type: data in.
 #define XHCI_TRB_LEN_MASK 0x1FFFFu // TRB transfer length mask.
+#define XHCI_TRB_TD_SIZE_SHIFT 17u // TRB transfer descriptor size shift.
 #define XHCI_TRB_INTR_TARGET_SHIFT 22u // TRB interrupter target shift.
 #define XHCI_TRB_LEN(value) ((value) & XHCI_TRB_LEN_MASK) // TRB transfer length field.
+#define XHCI_TRB_TD_SIZE(value) (((value) & 0x1Fu) << XHCI_TRB_TD_SIZE_SHIFT) // TRB transfer descriptor size field.
 #define XHCI_TRB_INTR_TARGET(value) ((value) << XHCI_TRB_INTR_TARGET_SHIFT) // TRB interrupter target field.
+#define XHCI_TRB_TYPE_NORMAL 1u // Normal TRB type.
 #define XHCI_TRB_TYPE_SETUP_STAGE 2u // Setup stage TRB type.
 #define XHCI_TRB_TYPE_DATA_STAGE 3u // Data stage TRB type.
 #define XHCI_TRB_TYPE_STATUS_STAGE 4u // Status stage TRB type.
@@ -87,6 +91,9 @@
 #define USB_EP_ADDR_MASK 0x0Fu // Endpoint number mask.
 #define USB_EP_ATTR_TYPE_MASK 0x03u // Endpoint attribute transfer type mask.
 #define USB_EP_ATTR_TYPE_BULK 0x02u // Endpoint attribute bulk transfer type.
+#define USB_MSC_CBW_SIGNATURE 0x43425355u // MSC command block wrapper signature.
+#define USB_MSC_CSW_SIGNATURE 0x53425355u // MSC command status wrapper signature.
+#define XHCI_MSC_DATA_BYTES (256u * 1024u) // MSC data buffer size in bytes.
 
 struct xhci_trb
 {
@@ -255,6 +262,25 @@ struct usb_ss_ep_comp_descriptor
     uint16_t w_bytes_per_interval; // Bytes per service interval.
 } __attribute__((packed));
 
+struct usb_msc_cbw
+{
+    uint32_t signature;            // CBW signature.
+    uint32_t tag;                  // CBW command tag.
+    uint32_t data_transfer_length; // Data transfer length in bytes.
+    uint8_t flags;                 // Direction and flags.
+    uint8_t lun;                   // Logical unit number.
+    uint8_t cb_length;             // Command block length.
+    uint8_t cb[16];                // SCSI command block.
+} __attribute__((packed));
+
+struct usb_msc_csw
+{
+    uint32_t signature;    // CSW signature.
+    uint32_t tag;          // CSW command tag.
+    uint32_t data_residue; // Remaining data length.
+    uint8_t status;        // CSW status code.
+} __attribute__((packed));
+
 struct xhci_msc_device
 {
     struct xhci_device *dev;        // Associated xHCI device.
@@ -270,6 +296,14 @@ struct xhci_msc_device
     uint8_t bulk_out_max_burst;     // Bulk OUT max burst.
     struct xhci_ring bulk_in_ring;  // Bulk IN transfer ring state.
     struct xhci_ring bulk_out_ring; // Bulk OUT transfer ring state.
+    void *cbw_buf;                  // CBW buffer virtual base.
+    uintptr_t cbw_phys;             // CBW buffer physical base.
+    void *csw_buf;                  // CSW buffer virtual base.
+    uintptr_t csw_phys;             // CSW buffer physical base.
+    void *data_buf;                 // Data transfer buffer virtual base.
+    uintptr_t data_phys;            // Data transfer buffer physical base.
+    uint32_t data_bytes;            // Data buffer size in bytes.
+    uint32_t tag;                   // CBW tag counter.
 };
 
 struct xhci_controller
@@ -345,6 +379,14 @@ static inline void xhci_wait_relax(uint32_t *spins)
     } else {
         tsc_sleep_ns(XHCI_WAIT_SLEEP_NS);
     }
+}
+
+static inline uint32_t xhci_packet_count(const uint32_t bytes, const uint16_t max_packet)
+{
+    if (max_packet == 0) {
+        return 0;
+    }
+    return (bytes + max_packet - 1u) / max_packet;
 }
 
 static inline bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
@@ -432,3 +474,4 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
                            uint16_t total_len);
 uint8_t xhci_msc_config_value(void);
 bool xhci_msc_configure_endpoints(struct xhci_controller *xhci);
+bool xhci_msc_init(struct xhci_controller *xhci);

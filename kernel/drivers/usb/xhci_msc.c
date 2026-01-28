@@ -28,6 +28,14 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
     g_xhci_msc.bulk_out_max_packet = 0;
     g_xhci_msc.bulk_in_max_burst   = 0;
     g_xhci_msc.bulk_out_max_burst  = 0;
+    g_xhci_msc.cbw_buf             = nullptr;
+    g_xhci_msc.cbw_phys            = 0;
+    g_xhci_msc.csw_buf             = nullptr;
+    g_xhci_msc.csw_phys            = 0;
+    g_xhci_msc.data_buf            = nullptr;
+    g_xhci_msc.data_phys           = 0;
+    g_xhci_msc.data_bytes          = 0;
+    g_xhci_msc.tag                 = 0;
 
     auto buf               = (const uint8_t *)cfg_buf;
     const uint8_t *end     = buf + total_len;
@@ -176,4 +184,230 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
     }
 
     return true;
+}
+
+static uintptr_t xhci_bulk_queue(struct xhci_ring *ring,
+                                 const uintptr_t data_phys,
+                                 const uint32_t data_len,
+                                 const uint16_t max_packet)
+{
+    if (!ring || !ring->trbs || data_len == 0) {
+        return 0;
+    }
+
+    uintptr_t phys               = data_phys;
+    uint32_t remaining           = data_len;
+    uintptr_t last_trb_phys      = 0;
+    const uint32_t total_packets = xhci_packet_count(data_len, max_packet);
+    uint32_t packets_done        = 0;
+
+    while (remaining > 0) {
+        uint32_t chunk = remaining > XHCI_TRB_LEN_MASK ? XHCI_TRB_LEN_MASK : remaining;
+        if (remaining > chunk && max_packet != 0) {
+            const uint32_t aligned = (chunk / max_packet) * max_packet;
+            if (aligned != 0) {
+                chunk = aligned;
+            }
+        }
+        const uint32_t trb_packets = xhci_packet_count(chunk, max_packet);
+        uint32_t remaining_packets = 0;
+        if (total_packets > packets_done + trb_packets) {
+            remaining_packets = total_packets - (packets_done + trb_packets);
+        }
+        const uint32_t td_size = remaining_packets > 31u ? 31u : remaining_packets;
+        struct xhci_trb trb    = {0};
+        trb.dword0             = (uint32_t)phys;
+        trb.dword1             = (uint32_t)(phys >> 32);
+        trb.dword2             = XHCI_TRB_LEN(chunk) | XHCI_TRB_TD_SIZE(td_size) | XHCI_TRB_INTR_TARGET(0);
+        trb.dword3             = (XHCI_TRB_TYPE_NORMAL << XHCI_TRB_TYPE_SHIFT);
+        if (remaining > chunk) {
+            trb.dword3 |= XHCI_TRB_CHAIN;
+        } else {
+            trb.dword3 |= XHCI_TRB_IOC;
+        }
+
+        last_trb_phys = xhci_ring_enqueue(ring, &trb);
+        phys          += chunk;
+        remaining     -= chunk;
+        packets_done  += trb_packets;
+    }
+
+    return last_trb_phys;
+}
+
+static struct usb_msc_cbw *xhci_msc_prepare_cbw(struct xhci_msc_device *msc,
+                                                const uint8_t *cb,
+                                                const uint8_t cb_len,
+                                                const bool data_in,
+                                                const uint32_t data_len)
+{
+    auto cbw = (struct usb_msc_cbw *)msc->cbw_buf;
+    memset(cbw, 0, sizeof(*cbw));
+    cbw->signature            = USB_MSC_CBW_SIGNATURE;
+    cbw->tag                  = ++msc->tag;
+    cbw->data_transfer_length = data_len;
+    cbw->flags                = data_in ? 0x80u : 0x00u;
+    cbw->lun                  = 0;
+    cbw->cb_length            = cb_len;
+    memcpy(cbw->cb, cb, cb_len);
+    return cbw;
+}
+
+static bool xhci_msc_bulk_wait(struct xhci_controller *xhci,
+                               struct xhci_ring *ring,
+                               const uintptr_t data_phys,
+                               const uint32_t data_len,
+                               const uint16_t max_packet,
+                               const uint8_t slot_id,
+                               const uint8_t ep_id)
+{
+    const uintptr_t trb = xhci_bulk_queue(ring, data_phys, data_len, max_packet);
+    if (trb == 0) {
+        return false;
+    }
+
+    xhci_ring_doorbell(xhci, slot_id, ep_id);
+    return xhci_wait_for_transfer_event(xhci,
+                                        trb,
+                                        slot_id,
+                                        ep_id,
+                                        true);
+}
+
+static bool xhci_msc_transfer(struct xhci_controller *xhci,
+                              struct xhci_msc_device *msc,
+                              const uint8_t *cb,
+                              const uint8_t cb_len,
+                              const bool data_in,
+                              const uint32_t data_len)
+{
+    if (!msc || !msc->dev || !msc->cbw_buf || !msc->csw_buf || (data_len > 0 && !msc->data_buf)) {
+        return false;
+    }
+
+    auto cbw = xhci_msc_prepare_cbw(msc, cb, cb_len, data_in, data_len);
+
+    if (!xhci_msc_bulk_wait(xhci,
+                            &msc->bulk_out_ring,
+                            msc->cbw_phys,
+                            sizeof(*cbw),
+                            msc->bulk_out_max_packet,
+                            msc->dev->slot_id,
+                            msc->bulk_out_id)) {
+        boot_message(WARNING, "[xHCI] MSC CBW transfer failed");
+        return false;
+    }
+
+    if (data_len > 0) {
+        const uintptr_t data_phys = msc->data_phys;
+
+        if (data_in) {
+            if (!xhci_msc_bulk_wait(xhci,
+                                    &msc->bulk_in_ring,
+                                    data_phys,
+                                    data_len,
+                                    msc->bulk_in_max_packet,
+                                    msc->dev->slot_id,
+                                    msc->bulk_in_id)) {
+                boot_message(WARNING, "[xHCI] MSC data IN failed");
+                return false;
+            }
+        } else {
+            if (!xhci_msc_bulk_wait(xhci,
+                                    &msc->bulk_out_ring,
+                                    data_phys,
+                                    data_len,
+                                    msc->bulk_out_max_packet,
+                                    msc->dev->slot_id,
+                                    msc->bulk_out_id)) {
+                boot_message(WARNING, "[xHCI] MSC data OUT failed");
+                return false;
+            }
+        }
+    }
+
+    if (!xhci_msc_bulk_wait(xhci,
+                            &msc->bulk_in_ring,
+                            msc->csw_phys,
+                            sizeof(struct usb_msc_csw),
+                            msc->bulk_in_max_packet,
+                            msc->dev->slot_id,
+                            msc->bulk_in_id)) {
+        boot_message(WARNING, "[xHCI] MSC CSW transfer failed");
+        return false;
+    }
+
+    auto csw = (const struct usb_msc_csw *)msc->csw_buf;
+    if (csw->signature != USB_MSC_CSW_SIGNATURE || csw->tag != cbw->tag) {
+        boot_message(WARNING, "[xHCI] MSC CSW invalid");
+        return false;
+    }
+
+    if (csw->status != 0) {
+        boot_message(WARNING, "[xHCI] MSC CSW status=%u", csw->status);
+        return false;
+    }
+
+    return true;
+}
+
+static bool xhci_msc_inquiry(struct xhci_controller *xhci, struct xhci_msc_device *msc)
+{
+    uint8_t cb[6] = {0};
+    cb[0]         = 0x12;
+    cb[4]         = 36;
+
+    if (!xhci_msc_transfer(xhci, msc, cb, sizeof(cb), true, 36)) {
+        return false;
+    }
+
+    auto buf         = (const uint8_t *)msc->data_buf;
+    char vendor[9]   = {0};
+    char product[17] = {0};
+    memcpy(vendor, buf + 8, 8);
+    memcpy(product, buf + 16, 16);
+    boot_message(INFO, "[xHCI] MSC INQUIRY %s %s", vendor, product);
+    return true;
+}
+
+static bool xhci_msc_prepare_buffers(struct xhci_msc_device *msc)
+{
+    if (!msc->cbw_buf) {
+        if (!xhci_alloc_pages(sizeof(struct usb_msc_cbw), &msc->cbw_phys, &msc->cbw_buf)) {
+            return false;
+        }
+    }
+
+    if (!msc->csw_buf) {
+        if (!xhci_alloc_pages(sizeof(struct usb_msc_csw), &msc->csw_phys, &msc->csw_buf)) {
+            return false;
+        }
+    }
+
+    if (!msc->data_buf) {
+        if (!xhci_alloc_pages(XHCI_MSC_DATA_BYTES, &msc->data_phys, &msc->data_buf)) {
+            return false;
+        }
+        msc->data_bytes = XHCI_MSC_DATA_BYTES;
+    }
+
+    return true;
+}
+
+bool xhci_msc_init(struct xhci_controller *xhci)
+{
+    struct xhci_msc_device *msc = &g_xhci_msc;
+    if (!xhci || !msc->dev || !msc->bulk_in_id || !msc->bulk_out_id) {
+        return false;
+    }
+
+    if (!msc->bulk_in_ring.trbs || !msc->bulk_out_ring.trbs) {
+        return false;
+    }
+
+    if (!xhci_msc_prepare_buffers(msc)) {
+        return false;
+    }
+
+    return xhci_msc_inquiry(xhci, msc);
 }
