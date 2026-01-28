@@ -26,6 +26,7 @@
 
 #define XHCI_USBCMD_RS (1u << 0) // Run/Stop bit.
 #define XHCI_USBCMD_HCRST (1u << 1) // Host controller reset bit.
+#define XHCI_USBCMD_INTE (1u << 2) // Interrupt enable bit.
 #define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
 #define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
 
@@ -483,6 +484,7 @@ void xhci_init(struct pci_device device)
     xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
     cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
     cmd |= XHCI_USBCMD_RS;
+    cmd &= ~XHCI_USBCMD_INTE;
     xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
     if (!xhci_wait_for(g_xhci.op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, false, XHCI_TIMEOUT_MS)) {
         boot_message(WARNING, "[xHCI] Start timeout");
