@@ -59,6 +59,25 @@ TEST(test_storage_usb_ext2_superblock)
     return true;
 }
 
+TEST(test_storage_usb_write_readback)
+{
+    constexpr uint32_t scratch_lba = 70000;
+    uint8_t original[512];
+    uint8_t modified[512];
+    uint8_t verify[512];
+
+    TEST_ASSERT(storage_read(2, scratch_lba, 1, original) == 0);
+    memcpy(modified, original, sizeof(modified));
+    modified[0] ^= 0x5Au;
+    modified[1] ^= 0xA5u;
+
+    TEST_ASSERT(storage_write(2, scratch_lba, 1, modified) == 0);
+    TEST_ASSERT(storage_read(2, scratch_lba, 1, verify) == 0);
+    TEST_ASSERT(memcmp(verify, modified, sizeof(modified)) == 0);
+    TEST_ASSERT(storage_write(2, scratch_lba, 1, original) == 0);
+    return true;
+}
+
 TEST(test_storage_device_helpers)
 {
     const uint8_t count = storage_device_count();
