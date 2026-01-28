@@ -5,6 +5,7 @@
 #include <fs/ext2.h>
 #include <stddef.h>
 #include <drivers/gpt.h>
+#include <drivers/usb/xhci.h>
 #include <mem/heap.h>
 #include <lib/path.h>
 
@@ -13,8 +14,8 @@ vfs_inode_t *vfs_root = nullptr;
 
 struct mount_point
 {
-    char name[64];
-    vfs_inode_t *root;
+    char name[64]; // Mount name used for path matching.
+    vfs_inode_t *root; // Root inode for the mounted filesystem.
 };
 
 static struct mount_point mount_table[16];
@@ -69,10 +70,12 @@ static partition_info_t root_part;
 static partition_info_t mnt_part;
 static partition_info_t boot_part;
 static partition_info_t disk1_part;
+static partition_info_t usb_part;
 static bool root_found = false;
 static bool mnt_found = false;
 static bool boot_found = false;
 static bool disk1_found = false;
+static bool usb_found = false;
 
 static void mount_disk1_callback(const partition_info_t *part)
 {
@@ -82,6 +85,17 @@ static void mount_disk1_callback(const partition_info_t *part)
         disk1_part = *part;
         disk1_found = true;
         boot_message(INFO, "VFS: Found disk1 ext2 partition at LBA %ld", part->start_lba);
+    }
+}
+
+static void mount_usb_callback(const partition_info_t *part)
+{
+    const char *type = gpt_get_guid_name(part->type_guid);
+    if (strcmp(type, "Linux Filesystem") == 0)
+    {
+        usb_part = *part;
+        usb_found = true;
+        boot_message(INFO, "VFS: Found USB ext2 partition at LBA %ld", part->start_lba);
     }
 }
 
@@ -213,6 +227,36 @@ void vfs_mount_root(void)
         else
         {
             boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
+        }
+    }
+
+    // Mount USB ext2 at /usb if present on drive 2
+    usb_found = false;
+    if (xhci_usb_storage_present())
+    {
+        gpt_read_partitions(2, mount_usb_callback);
+    }
+
+    if (vfs_root && usb_found)
+    {
+        vfs_inode_t *node = vfs_finddir(vfs_root, "usb");
+        if (node)
+        {
+            kfree(node); // replace placeholder
+            vfs_inode_t *ext_root = ext2_mount(usb_part.drive, usb_part.start_lba);
+            if (ext_root)
+            {
+                vfs_register_mount("usb", ext_root);
+                boot_message(INFO, "VFS: Mounted EXT2 on /usb");
+            }
+            else
+            {
+                boot_message(ERROR, "VFS: Failed to mount EXT2 on /usb");
+            }
+        }
+        else
+        {
+            boot_message(WARNING, "VFS: /usb not found in root, skipping USB mount");
         }
     }
 
