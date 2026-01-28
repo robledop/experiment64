@@ -7,22 +7,18 @@ static void swap(void *a, void *b, size_t size)
     char temp[256]; // Fixed buffer for swapping, should be enough for most cases
     // If size > 256, we need a loop or dynamic allocation (but we don't want to depend on malloc here if possible)
 
-    if (size <= sizeof(temp))
-    {
+    if (size <= sizeof(temp)) {
         memcpy(temp, a, size);
         memcpy(a, b, size);
         memcpy(b, temp, size);
-    }
-    else
-    {
+    } else {
         // Fallback for large elements
         char *p = a;
         char *q = b;
-        for (size_t i = 0; i < size; i++)
-        {
+        for (size_t i = 0; i < size; i++) {
             char t = p[i];
-            p[i] = q[i];
-            q[i] = t;
+            p[i]   = q[i];
+            q[i]   = t;
         }
     }
 }
@@ -41,10 +37,8 @@ static void quicksort(void *base, size_t size, int (*compar)(const void *, const
     swap(ptr + pivot_idx * size, ptr + right * size, size);
 
     int store_idx = left;
-    for (int k = left; k < right; k++)
-    {
-        if (compar(ptr + k * size, ptr + right * size) < 0)
-        {
+    for (int k = left; k < right; k++) {
+        if (compar(ptr + k * size, ptr + right * size) < 0) {
             swap(ptr + k * size, ptr + store_idx * size, size);
             store_idx++;
         }

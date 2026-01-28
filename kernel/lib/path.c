@@ -5,15 +5,13 @@ void path_safe_copy(char *dst, size_t dst_size, const char *src)
 {
     if (!dst || dst_size == 0)
         return;
-    if (!src)
-    {
+    if (!src) {
         dst[0] = '\0';
         return;
     }
 
     size_t i = 0;
-    while (i + 1 < dst_size && src[i])
-    {
+    while (i + 1 < dst_size && src[i]) {
         dst[i] = src[i];
         i++;
     }
@@ -30,10 +28,9 @@ void path_simplify(char *path, size_t path_size)
 
     char *segments[PATH_MAX_SEGMENTS];
     int seg_count = 0;
-    char *p = buffer;
+    char *p       = buffer;
 
-    while (*p)
-    {
+    while (*p) {
         while (*p == '/')
             p++;
         if (!*p)
@@ -47,8 +44,7 @@ void path_simplify(char *path, size_t path_size)
 
         if (strcmp(segment, ".") == 0)
             continue;
-        if (strcmp(segment, "..") == 0)
-        {
+        if (strcmp(segment, "..") == 0) {
             if (seg_count > 0)
                 seg_count--;
             continue;
@@ -57,10 +53,9 @@ void path_simplify(char *path, size_t path_size)
             segments[seg_count++] = segment;
     }
 
-    size_t idx = 0;
+    size_t idx  = 0;
     path[idx++] = '/';
-    for (int i = 0; i < seg_count && idx < path_size - 1; i++)
-    {
+    for (int i = 0; i < seg_count && idx < path_size - 1; i++) {
         const char *seg = segments[i];
         for (size_t j = 0; seg[j] && idx < path_size - 1; j++)
             path[idx++] = seg[j];
@@ -81,25 +76,20 @@ void path_build_absolute(const char *base, const char *input, char *output, size
 
     const char *root = (base && base[0]) ? base : "/";
 
-    if (!input || !*input)
-    {
+    if (!input || !*input) {
         path_safe_copy(output, size, root);
         return;
     }
 
-    if (*input == '/')
-    {
+    if (*input == '/') {
         path_safe_copy(output, size, input);
-    }
-    else
-    {
+    } else {
         path_safe_copy(output, size, root);
         size_t idx = strlen(output);
-        if (idx == 0)
-        {
+        if (idx == 0) {
             output[0] = '/';
             output[1] = '\0';
-            idx = 1;
+            idx       = 1;
         }
         if (idx > 1 && output[idx - 1] != '/' && idx + 1 < size)
             output[idx++] = '/';

@@ -24,34 +24,26 @@ uint32_t htonl(const uint32_t hostlong)
 
 #define INVALID 0
 
-uint32_t inet_addr(const char* cp)
+uint32_t inet_addr(const char *cp)
 {
-    unsigned v = 0;
-    const char* start = cp;
+    unsigned v        = 0;
+    const char *start = cp;
 
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++) {
         int n = 0;
-        while (1)
-        {
+        while (1) {
             const char c = *start;
             start++;
-            if (c >= '0' && c <= '9')
-            {
+            if (c >= '0' && c <= '9') {
                 n *= 10;
                 n += c - '0';
-            }
-            else if ((i < 3 && c == '.') || i == 3)
-            {
+            } else if ((i < 3 && c == '.') || i == 3) {
                 break;
-            }
-            else
-            {
+            } else {
                 return INVALID;
             }
         }
-        if (n >= 256)
-        {
+        if (n >= 256) {
             return INVALID;
         }
         v *= 256;
@@ -60,13 +52,13 @@ uint32_t inet_addr(const char* cp)
     return v;
 }
 
-static inline void write_digit(char** p, uint8_t digit)
+static inline void write_digit(char **p, uint8_t digit)
 {
     **p = (char)((unsigned char)('0' + digit));
     (*p)++;
 }
 
-void inet_ntoa_r(uint32_t addr, char* buf)
+void inet_ntoa_r(uint32_t addr, char *buf)
 {
     const uint32_t ip = ntohl(addr);
     uint8_t octets[4] = {
@@ -76,24 +68,18 @@ void inet_ntoa_r(uint32_t addr, char* buf)
         (uint8_t)ip & 0xFF
     };
 
-    char* p = buf;
-    for (int i = 0; i < 4; i++)
-    {
+    char *p = buf;
+    for (int i = 0; i < 4; i++) {
         uint8_t octet = octets[i];
-        if (octet >= 100)
-        {
+        if (octet >= 100) {
             write_digit(&p, (uint8_t)(octet / 100));
             octet = (uint8_t)(octet % 100);
             write_digit(&p, (uint8_t)(octet / 10));
             write_digit(&p, (uint8_t)(octet % 10));
-        }
-        else if (octet >= 10)
-        {
+        } else if (octet >= 10) {
             write_digit(&p, (uint8_t)(octet / 10));
             write_digit(&p, (uint8_t)(octet % 10));
-        }
-        else
-        {
+        } else {
             write_digit(&p, octet);
         }
         if (i < 3)
@@ -110,7 +96,7 @@ void ip_to_bytes(uint32_t ip, uint8_t out[4])
     out[3] = ip & 0xFF;
 }
 
-void bytes_to_ip(const uint8_t bytes[4], uint32_t* out)
+void bytes_to_ip(const uint8_t bytes[4], uint32_t *out)
 {
     *out = ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
         ((uint32_t)bytes[2] << 8) | (uint32_t)bytes[3];

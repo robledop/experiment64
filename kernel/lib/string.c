@@ -26,14 +26,12 @@ static unsigned long long read_unsigned_arg(va_list *args, int length_mod)
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
-    while (n > 0 && *s1 && (*s1 == *s2))
-    {
+    while (n > 0 && *s1 && (*s1 == *s2)) {
         s1++;
         s2++;
         n--;
     }
-    if (n == 0)
-    {
+    if (n == 0) {
         return 0;
     }
     return *(const unsigned char *)s1 - *(const unsigned char *)s2;
@@ -41,8 +39,7 @@ int strncmp(const char *s1, const char *s2, size_t n)
 
 int strcmp(const char *s1, const char *s2)
 {
-    while (*s1 && (*s1 == *s2))
-    {
+    while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
     }
@@ -56,36 +53,31 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 
 void *memmove(void *dst, const void *src, size_t n)
 {
-    if (src < dst && (const char *)src + n > (char *)dst)
-    {
+    if (src < dst && (const char *)src + n > (char *)dst) {
         // Backward copy required: overlapping region where src < dst
-        unsigned char *d = (unsigned char *)dst + n;
+        unsigned char *d       = (unsigned char *)dst + n;
         const unsigned char *s = (const unsigned char *)src + n;
 
         // Handle trailing bytes to get 8-byte aligned
-        while (n && ((uintptr_t)d & 7))
-        {
+        while (n && ((uintptr_t)d & 7)) {
             *--d = *--s;
             n--;
         }
 
         // Copy 8 bytes at a time backwards if both pointers are aligned
-        if (((uintptr_t)s & 7) == 0)
-        {
-            uint64_t *d64 = (uint64_t *)d;
+        if (((uintptr_t)s & 7) == 0) {
+            uint64_t *d64       = (uint64_t *)d;
             const uint64_t *s64 = (const uint64_t *)s;
-            while (n >= 8)
-            {
+            while (n >= 8) {
                 *--d64 = *--s64;
-                n -= 8;
+                n      -= 8;
             }
             d = (unsigned char *)d64;
             s = (const unsigned char *)s64;
         }
 
         // Copy remaining bytes
-        while (n--)
-        {
+        while (n--) {
             *--d = *--s;
         }
         return dst;
@@ -98,11 +90,10 @@ void *memmove(void *dst, const void *src, size_t n)
 // Forward memory copy - compiler should auto-vectorize due to restrict qualifiers
 static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n)
 {
-    unsigned char *d = dst;
+    unsigned char *d       = dst;
     const unsigned char *s = src;
 
-    while (n--)
-    {
+    while (n--) {
         *d++ = *s++;
     }
 
@@ -116,18 +107,17 @@ void *memcpy_forward(void *restrict dst, const void *restrict src, size_t n)
 
 void *memset(void *s, int c, size_t n)
 {
-    unsigned char *p = s;
+    unsigned char *p   = s;
     unsigned char byte = (unsigned char)c;
 
     // Build 64-bit pattern
     uint64_t val = byte;
-    val |= val << 8;
-    val |= val << 16;
-    val |= val << 32;
+    val          |= val << 8;
+    val          |= val << 16;
+    val          |= val << 32;
 
     // Use rep stosq for 8-byte aligned bulk fills
-    if (((uintptr_t)p & 7) == 0 && n >= 8)
-    {
+    if (((uintptr_t)p & 7) == 0 && n >= 8) {
         size_t qwords = n / 8;
         __asm__ volatile(
             "rep stosq"
@@ -138,8 +128,7 @@ void *memset(void *s, int c, size_t n)
     }
 
     // Handle remaining bytes with rep stosb
-    if (n > 0)
-    {
+    if (n > 0) {
         __asm__ volatile(
             "rep stosb"
             : "+D"(p), "+c"(n)
@@ -153,10 +142,8 @@ void *memset(void *s, int c, size_t n)
 int memcmp(const void *s1, const void *s2, size_t n)
 {
     const unsigned char *p1 = s1, *p2 = s2;
-    while (n--)
-    {
-        if (*p1 != *p2)
-        {
+    while (n--) {
+        if (*p1 != *p2) {
             return *p1 - *p2;
         }
         p1++;
@@ -168,8 +155,7 @@ int memcmp(const void *s1, const void *s2, size_t n)
 size_t strlen(const char *s)
 {
     size_t len = 0;
-    while (*s++)
-    {
+    while (*s++) {
         len++;
     }
     return len;
@@ -178,8 +164,7 @@ size_t strlen(const char *s)
 char *strcpy(char *dest, const char *src)
 {
     char *d = dest;
-    while ((*d++ = *src++))
-        ;
+    while ((*d++ = *src++));
     return dest;
 }
 
@@ -196,8 +181,7 @@ char *strncpy(char *dest, const char *src, size_t n)
 char *strcat(char *dest, const char *src)
 {
     char *ptr = dest + strlen(dest);
-    while (*src != '\0')
-    {
+    while (*src != '\0') {
         *ptr++ = *src++;
     }
     *ptr = '\0';
@@ -207,8 +191,7 @@ char *strcat(char *dest, const char *src)
 char *strrchr(const char *s, int c)
 {
     const char *last = nullptr;
-    do
-    {
+    do {
         if (*s == (char)c)
             last = s;
     } while (*s++);
@@ -219,26 +202,23 @@ static void cb_emit_string(const char *s, void *arg, printf_callback_t callback)
 {
     if (!s)
         s = "(null)";
-    while (*s)
-    {
+    while (*s) {
         callback(*s++, arg);
     }
 }
 
 static int build_unsigned(char *buf, size_t buf_size, unsigned long long value, unsigned base, bool uppercase)
 {
-    int idx = 0;
+    int idx            = 0;
     const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
-    if (value == 0)
-    {
+    if (value == 0) {
         buf[idx++] = '0';
         return idx;
     }
-    while (value && idx < (int)buf_size)
-    {
+    while (value && idx < (int)buf_size) {
         buf[idx++] = digits[value % base];
-        value /= base;
+        value      /= base;
     }
     return idx;
 }
@@ -247,18 +227,15 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
 {
     int total = 0;
 
-    while (*format)
-    {
-        if (*format != '%')
-        {
+    while (*format) {
+        if (*format != '%') {
             callback(*format++, arg);
             total++;
             continue;
         }
 
         format++;
-        if (*format == '%')
-        {
+        if (*format == '%') {
             callback('%', arg);
             total++;
             format++;
@@ -266,11 +243,10 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         }
 
         bool left_align = false;
-        bool zero_pad = false;
-        int width = 0;
+        bool zero_pad   = false;
+        int width       = 0;
 
-        while (*format == '-' || *format == '0')
-        {
+        while (*format == '-' || *format == '0') {
             if (*format == '-')
                 left_align = true;
             else
@@ -281,20 +257,17 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         if (left_align)
             zero_pad = false;
 
-        while (*format >= '0' && *format <= '9')
-        {
+        while (*format >= '0' && *format <= '9') {
             width = width * 10 + (*format - '0');
             format++;
         }
 
         int length_mod = 0;
-        while (*format == 'l')
-        {
+        while (*format == 'l') {
             length_mod++;
             format++;
         }
-        if (*format == 'z')
-        {
+        if (*format == 'z') {
             // size_t/ssize_t width; map to long on LP64
             length_mod = sizeof(size_t) > sizeof(unsigned long) ? 2 : 1;
             format++;
@@ -308,106 +281,92 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         char numbuf[64];
         int content_len = 0;
 
-        switch (spec)
-        {
-        case 's':
-        {
+        switch (spec) {
+        case 's': {
             const char *s = va_arg(*args, const char *);
             if (!s)
                 s = "(null)";
-            size_t len = strlen(s);
+            size_t len  = strlen(s);
             content_len = (len > (size_t)INT_MAX) ? INT_MAX : (int)len;
-            int pad = (width > content_len) ? (width - content_len) : 0;
+            int pad     = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
             cb_emit_string(s, arg, callback);
             total += content_len;
             if (left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
             break;
         }
-        case 'c':
-        {
-            char c = (char)va_arg(*args, int);
+        case 'c': {
+            char c      = (char)va_arg(*args, int);
             content_len = 1;
-            int pad = (width > content_len) ? (width - content_len) : 0;
+            int pad     = (width > content_len) ? (width - content_len) : 0;
             if (!left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
             callback(c, arg);
             total++;
             if (left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
             break;
         }
         case 'd':
-        case 'i':
-        {
+        case 'i': {
             long long value = read_signed_arg(args, length_mod);
 
-            bool negative = value < 0;
+            bool negative                = value < 0;
             unsigned long long magnitude = negative
-                                               ? (unsigned long long)(-(value + 1)) + 1
-                                               : (unsigned long long)value;
+                ? (unsigned long long)(-(value + 1)) + 1
+                : (unsigned long long)value;
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), magnitude, 10, false);
             if (digits > (int)sizeof(numbuf))
                 digits = (int)sizeof(numbuf);
             int prefix_len = negative ? 1 : 0;
-            int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
+            int pad        = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
             if (!left_align && !zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
 
-            if (negative)
-            {
+            if (negative) {
                 callback('-', arg);
                 total++;
             }
 
             if (!left_align && zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback('0', arg);
                     total++;
                 }
 
-            while (digits > 0)
-            {
+            while (digits > 0) {
                 digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
 
             if (left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
             break;
         }
-        case 'u':
-        {
+        case 'u': {
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 10, false);
@@ -416,29 +375,25 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             int pad = (width > digits) ? (width - digits) : 0;
 
             if (!left_align && !zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
 
             if (!left_align && zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback('0', arg);
                     total++;
                 }
 
-            while (digits > 0)
-            {
+            while (digits > 0) {
                 digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
 
             if (left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
@@ -446,58 +401,51 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
         }
         case 'x':
         case 'X':
-        case 'p':
-        {
-            bool uppercase = (spec == 'X');
-            bool is_pointer = (spec == 'p');
+        case 'p': {
+            bool uppercase           = (spec == 'X');
+            bool is_pointer          = (spec == 'p');
             unsigned long long value = is_pointer
-                                           ? (uintptr_t)va_arg(*args, void *)
-                                           : read_unsigned_arg(args, length_mod);
+                ? (uintptr_t)va_arg(*args, void *)
+                : read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 16, uppercase);
             if (digits > (int)sizeof(numbuf))
                 digits = (int)sizeof(numbuf);
             int prefix_len = is_pointer ? 2 : 0;
-            int pad = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
+            int pad        = (width > (prefix_len + digits)) ? (width - (prefix_len + digits)) : 0;
 
             if (!left_align && !zero_pad)
-                while (pad-- > 0)
-                {
+                while (pad-- > 0) {
                     callback(' ', arg);
                     total++;
                 }
 
-            if (is_pointer)
-            {
+            if (is_pointer) {
                 callback('0', arg);
                 callback('x', arg);
                 total += 2;
             }
 
             if (!left_align && zero_pad)
-                while (pad-- > 0)
-                {
+                while (pad-- > 0) {
                     callback('0', arg);
                     total++;
                 }
 
-            while (digits > 0)
-            {
+            while (digits > 0) {
                 digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
 
             if (left_align)
-                while (pad-- > 0)
-                {
+                while (pad-- > 0) {
                     callback(' ', arg);
                     total++;
                 }
             break;
         }
-        case 'o':
-        {
+        case 'o': {
             unsigned long long value = read_unsigned_arg(args, length_mod);
 
             int digits = build_unsigned(numbuf, sizeof(numbuf), value, 8, false);
@@ -506,29 +454,25 @@ int vcbprintf(void *arg, printf_callback_t callback, const char *format, va_list
             int pad = (width > digits) ? (width - digits) : 0;
 
             if (!left_align && !zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
 
             if (!left_align && zero_pad)
-                while (pad--)
-                {
+                while (pad--) {
                     callback('0', arg);
                     total++;
                 }
 
-            while (digits > 0)
-            {
+            while (digits > 0) {
                 digits--;
                 callback(numbuf[digits], arg);
                 total++;
             }
 
             if (left_align)
-                while (pad--)
-                {
+                while (pad--) {
                     callback(' ', arg);
                     total++;
                 }
@@ -554,8 +498,7 @@ struct vsnprintk_ctx
 static void vsnprintk_callback(char c, void *arg)
 {
     struct vsnprintk_ctx *ctx = arg;
-    if (ctx->buffer && ctx->stored < ctx->capacity)
-    {
+    if (ctx->buffer && ctx->stored < ctx->capacity) {
         ctx->buffer[ctx->stored++] = c;
     }
 }
@@ -572,8 +515,7 @@ static void count_callback(char c, void *arg)
 {
     struct count_ctx *ctx = arg;
     ctx->count++;
-    if (ctx->callback)
-    {
+    if (ctx->callback) {
         ctx->callback(c, ctx->arg);
     }
 }
@@ -595,8 +537,7 @@ int vsnprintk(char *buffer, size_t size, const char *format, va_list args)
     vcbprintf(&cctx, count_callback, format, &args_copy);
     va_end(args_copy);
 
-    if (size > 0 && buffer)
-    {
+    if (size > 0 && buffer) {
         buffer[ctx.stored] = '\0';
     }
 
