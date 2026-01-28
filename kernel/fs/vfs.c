@@ -5,7 +5,7 @@
 #include <fs/ext2.h>
 #include <stddef.h>
 #include <drivers/gpt.h>
-#include <drivers/usb/xhci.h>
+#include <io/storage.h>
 #include <mem/heap.h>
 #include <lib/path.h>
 
@@ -232,7 +232,7 @@ void vfs_mount_root(void)
 
     // Mount USB ext2 at /usb if present on drive 2
     usb_found = false;
-    if (xhci_usb_storage_present())
+    if (storage_device_present(2))
     {
         gpt_read_partitions(2, mount_usb_callback);
     }

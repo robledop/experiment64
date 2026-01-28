@@ -37,3 +37,21 @@ TEST(test_storage_disk1_ext2_superblock)
     TEST_ASSERT(log_block_size == 0);
     return true;
 }
+
+TEST(test_storage_device_helpers)
+{
+    const uint8_t count = storage_device_count();
+    TEST_ASSERT(count == 3);
+    TEST_ASSERT(storage_device_present(0));
+
+    const char* backend = storage_device_backend_name(0);
+    TEST_ASSERT(backend != nullptr);
+    TEST_ASSERT(strcmp(backend, "none") != 0);
+    TEST_ASSERT(strcmp(backend, "unknown") != 0);
+
+    if (storage_device_present(2))
+    {
+        TEST_ASSERT(strcmp(storage_device_backend_name(2), "usb") == 0);
+    }
+    return true;
+}

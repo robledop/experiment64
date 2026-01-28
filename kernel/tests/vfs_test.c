@@ -3,7 +3,7 @@
 #include <fs/vfs.h>
 #include <lib/string.h>
 #include <lib/path.h>
-#include <drivers/usb/xhci.h>
+#include <io/storage.h>
 #include <drivers/terminal.h>
 #include <mem/heap.h>
 
@@ -184,7 +184,7 @@ TEST(test_vfs_path_overlength_rejected)
 
 TEST(test_vfs_usb_mount)
 {
-    if (!xhci_usb_storage_present())
+    if (!storage_device_present(2))
         return true;
 
     vfs_inode_t *node = vfs_resolve_path("/usb");

@@ -28,6 +28,21 @@ static struct storage_device g_devices[STORAGE_DEVICE_COUNT];
 static sleeplock_t storage_locks[STORAGE_DEVICE_COUNT];
 static bool storage_lock_initialized = false;
 
+static const char* storage_backend_name(const enum storage_backend backend)
+{
+    switch (backend)
+    {
+    case STORAGE_BACKEND_AHCI:
+        return "ahci";
+    case STORAGE_BACKEND_IDE:
+        return "ide";
+    case STORAGE_BACKEND_USB:
+        return "usb";
+    default:
+        return "none";
+    }
+}
+
 void storage_init(void)
 {
     sleeplock_init(&storage_locks[0], "storage0");
@@ -35,36 +50,61 @@ void storage_init(void)
     sleeplock_init(&storage_locks[2], "storage2");
     storage_lock_initialized = true;
 
-    // Default: try AHCI on device 0, fallback to IDE drive 0.
+    for (uint8_t i = 0; i < (uint8_t)STORAGE_DEVICE_COUNT; i++)
+    {
+        g_devices[i].backend = STORAGE_BACKEND_NONE;
+        g_devices[i].port = 0;
+    }
+
+    uint8_t ide_first = 0xFF;
+    uint8_t ide_second = 0xFF;
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        if (!ide_devices[i].exists)
+        {
+            continue;
+        }
+        if (ide_first == 0xFF)
+        {
+            ide_first = i;
+        }
+        else
+        {
+            ide_second = i;
+            break;
+        }
+    }
+
+    // Default: try AHCI on device 0, fallback to the first IDE drive.
     if (ahci_port_ready())
     {
         g_devices[0].backend = STORAGE_BACKEND_AHCI;
         g_devices[0].port = 0;
     }
-    else
+    else if (ide_first != 0xFF)
     {
         g_devices[0].backend = STORAGE_BACKEND_IDE;
-        g_devices[0].port = 0;
+        g_devices[0].port = ide_first;
     }
 
-    // Device 1: pick the first available IDE drive (other than any already used).
-    g_devices[1].backend = STORAGE_BACKEND_NONE;
-    g_devices[1].port = 0;
-    for (uint8_t i = 0; i < 4; i++)
+    // Device 1: pick the next available IDE drive (other than any already used).
+    if (ide_first != 0xFF)
     {
-        if (ide_devices[i].exists)
+        if (g_devices[0].backend == STORAGE_BACKEND_IDE)
         {
-            // If device0 is also IDE and already uses this index, skip it.
-            if (g_devices[0].backend == STORAGE_BACKEND_IDE && g_devices[0].port == i)
-                continue;
+            if (ide_second != 0xFF)
+            {
+                g_devices[1].backend = STORAGE_BACKEND_IDE;
+                g_devices[1].port = ide_second;
+            }
+        }
+        else
+        {
             g_devices[1].backend = STORAGE_BACKEND_IDE;
-            g_devices[1].port = i;
-            break;
+            g_devices[1].port = ide_first;
         }
     }
 
-    g_devices[STORAGE_DEVICE_USB].backend = STORAGE_BACKEND_NONE;
-    g_devices[STORAGE_DEVICE_USB].port = 0;
     if (xhci_usb_storage_present())
     {
         g_devices[STORAGE_DEVICE_USB].backend = STORAGE_BACKEND_USB;
@@ -180,4 +220,29 @@ int storage_flush(uint8_t device)
     }
 
     return result;
+}
+
+uint8_t storage_device_count(void)
+{
+    return STORAGE_DEVICE_COUNT;
+}
+
+bool storage_device_present(uint8_t device)
+{
+    if (device >= STORAGE_DEVICE_COUNT)
+    {
+        return false;
+    }
+
+    return g_devices[device].backend != STORAGE_BACKEND_NONE;
+}
+
+const char* storage_device_backend_name(uint8_t device)
+{
+    if (device >= STORAGE_DEVICE_COUNT)
+    {
+        return "unknown";
+    }
+
+    return storage_backend_name(g_devices[device].backend);
 }
