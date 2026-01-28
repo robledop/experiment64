@@ -213,6 +213,151 @@ static void xhci_power_ports(struct xhci_controller *xhci)
     tsc_sleep_ms(XHCI_PORT_POWER_DELAY_MS);
 }
 
+static bool xhci_enumerate_device(struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    xhci_ring_reset(&dev->ep0_ring);
+
+    if (!xhci_address_device(xhci, dev)) {
+        return false;
+    }
+
+    tsc_sleep_ms(XHCI_ADDRESS_SETTLE_MS);
+
+    if (!xhci_get_device_descriptor(xhci, dev)) {
+        return false;
+    }
+
+    tsc_sleep_ms(XHCI_ADDRESS_SETTLE_MS);
+
+    if (!xhci_get_config_descriptor(xhci, dev)) {
+        return false;
+    }
+
+    return true;
+}
+
+static bool xhci_setup_slot_for_port(struct xhci_controller *xhci,
+                                     const uint32_t port,
+                                     const uint32_t speed,
+                                     const uint32_t portsc_after,
+                                     uint8_t *slot_id_out,
+                                     struct xhci_device **dev_out)
+{
+    uint8_t slot_id = 0;
+    if (!xhci_enable_slot(xhci, &slot_id)) {
+        boot_message(WARNING, "[xHCI] Port %u enable slot failed", port);
+        return false;
+    }
+
+    boot_message(INFO, "[xHCI] Port %u slot %u enabled", port, slot_id);
+    struct xhci_device *dev = xhci_device_from_slot(slot_id);
+    if (!dev) {
+        boot_message(WARNING, "[xHCI] Slot %u out of range", slot_id);
+        xhci_disable_slot(xhci, slot_id);
+        return false;
+    }
+
+    memset(dev, 0, sizeof(*dev));
+    dev->active        = true;
+    dev->slot_id       = slot_id;
+    dev->port_id       = (uint8_t)port;
+    uint32_t new_speed = (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+    if (new_speed == 0) {
+        new_speed = speed;
+    }
+    dev->speed = new_speed;
+
+    if (slot_id_out) {
+        *slot_id_out = slot_id;
+    }
+    if (dev_out) {
+        *dev_out = dev;
+    }
+    return true;
+}
+
+static bool xhci_attempt_enumeration(struct xhci_controller *xhci,
+                                     const uint32_t port,
+                                     const uint32_t speed)
+{
+    uint32_t portsc_after = 0;
+    if (!xhci_port_reset(xhci, port, &portsc_after)) {
+        boot_message(WARNING, "[xHCI] Port %u reset failed", port);
+        return false;
+    }
+
+    tsc_sleep_ms(XHCI_USB3_RESET_RECOVERY_MS);
+
+    struct xhci_device *dev = nullptr;
+    uint8_t slot_id         = 0;
+    if (!xhci_setup_slot_for_port(xhci, port, speed, portsc_after, &slot_id, &dev)) {
+        return false;
+    }
+
+    if (!xhci_alloc_device_context(xhci, dev)) {
+        boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
+        dev->active = false;
+        xhci_disable_slot(xhci, slot_id);
+        return false;
+    }
+    if (!xhci_prepare_slot_context(xhci, dev)) {
+        boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
+        dev->active = false;
+        xhci_disable_slot(xhci, slot_id);
+        return false;
+    }
+
+    bool ok = xhci_enumerate_device(xhci, dev);
+    if (!ok) {
+        dev->active = false;
+        xhci_disable_slot(xhci, slot_id);
+    }
+
+    return ok;
+}
+
+static bool xhci_enumerate_port(struct xhci_controller *xhci,
+                                const uint32_t port,
+                                const uint32_t speed)
+{
+    return xhci_attempt_enumeration(xhci, port, speed);
+}
+
+static void xhci_scan_ports(struct xhci_controller *xhci)
+{
+    uint32_t found = 0;
+
+    xhci_dump_ports(xhci);
+
+    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
+        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+        uint32_t portsc       = xhci_read32(xhci->op_base, offset);
+        if ((portsc & XHCI_PORTSC_CCS) == 0) {
+            continue;
+        }
+
+        const uint32_t speed = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+        if (speed < 4u) {
+            boot_message(WARNING,
+                         "[xHCI] Port %u connected speed=%s portsc=0x%08x; unsupported",
+                         port,
+                         xhci_speed_name(speed),
+                         portsc);
+            continue;
+        }
+
+        boot_message(INFO, "[xHCI] Port %u connected speed=%s", port, xhci_speed_name(speed));
+
+        if (xhci_enumerate_port(xhci, port, speed)) {
+            found++;
+        }
+    }
+
+    if (found == 0) {
+        boot_message(ERROR, "[xHCI] No connected ports detected");
+    }
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -347,37 +492,5 @@ void xhci_init(struct pci_device device)
     boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
     xhci_power_ports(&g_xhci);
     tsc_sleep_ms(XHCI_PORT_CONNECT_DELAY_MS);
-    xhci_dump_ports(&g_xhci);
-    uint8_t slot_id = 0;
-    if (xhci_enable_slot(&g_xhci, &slot_id)) {
-        boot_message(INFO, "[xHCI] Enable slot completed slot=%u", slot_id);
-        struct xhci_device *dev = xhci_device_from_slot(slot_id);
-        if (!dev) {
-            boot_message(WARNING, "[xHCI] Slot %u out of range", slot_id);
-            return;
-        }
-
-        memset(dev, 0, sizeof(*dev));
-        dev->active  = true;
-        dev->slot_id = slot_id;
-
-        const bool ctx_ok = xhci_alloc_device_context(&g_xhci, dev);
-        if (!ctx_ok) {
-            boot_message(WARNING, "[xHCI] Slot %u device context alloc failed", slot_id);
-        }
-        const bool input_ok = xhci_prepare_slot_context(&g_xhci, dev);
-        if (!input_ok) {
-            boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
-        }
-        if (ctx_ok && input_ok) {
-            if (xhci_address_device(&g_xhci, dev)) {
-                tsc_sleep_ms(XHCI_ADDRESS_SETTLE_MS);
-                if (xhci_get_device_descriptor(&g_xhci, dev)) {
-                    (void)xhci_get_config_descriptor(&g_xhci, dev);
-                }
-            }
-        }
-    } else {
-        boot_message(WARNING, "[xHCI] Enable slot command failed");
-    }
+    xhci_scan_ports(&g_xhci);
 }

@@ -21,6 +21,23 @@ static const char *xhci_completion_name(const uint32_t code)
     }
 }
 
+void xhci_ring_reset(struct xhci_ring *ring)
+{
+    if (!ring->trbs || ring->trb_count < 2) {
+        return;
+    }
+
+    memset(ring->trbs, 0, ring->trb_count * sizeof(struct xhci_trb));
+    ring->enqueue = 0;
+    ring->cycle   = true;
+
+    struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
+    link->dword0          = (uint32_t)ring->phys;
+    link->dword1          = (uint32_t)(ring->phys >> 32);
+    link->dword2          = 0;
+    link->dword3          = (XHCI_TRB_TYPE_LINK << XHCI_TRB_TYPE_SHIFT) | XHCI_TRB_TC | XHCI_TRB_CYCLE;
+}
+
 bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
 {
     const size_t bytes = trb_count * sizeof(struct xhci_trb);

@@ -3,8 +3,6 @@
 #include <drivers/terminal.h>
 #include <lib/string.h>
 
-#define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
-
 static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
 {
     if (!trb) {
@@ -39,27 +37,6 @@ static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
     if (portsc_out) {
         *portsc_out = portsc;
     }
-    return false;
-}
-
-bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
-{
-    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
-        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
-        const uint32_t portsc = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_CCS) == 0) {
-            continue;
-        }
-
-        if (port_out) {
-            *port_out = port;
-        }
-        if (speed_out) {
-            *speed_out = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-        }
-        return true;
-    }
-
     return false;
 }
 
@@ -105,6 +82,20 @@ bool xhci_enable_slot(struct xhci_controller *xhci, uint8_t *slot_id_out)
     return xhci_cmd_submit(xhci, &cmd_trb, slot_id_out);
 }
 
+bool xhci_disable_slot(struct xhci_controller *xhci, const uint8_t slot_id)
+{
+    struct xhci_trb cmd = {0};
+    cmd.dword3          = (XHCI_TRB_TYPE_DISABLE_SLOT << XHCI_TRB_TYPE_SHIFT) |
+        ((uint32_t)slot_id << 24);
+    if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
+        boot_message(WARNING, "[xHCI] Slot %u disable failed", slot_id);
+        return false;
+    }
+
+    xhci->dcbaa[slot_id] = 0;
+    return true;
+}
+
 bool xhci_alloc_device_context(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     if (!dev) {
@@ -135,18 +126,12 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
         return false;
     }
 
-    uint32_t port  = 0;
-    uint32_t speed = 0;
-    if (!xhci_find_connected_port(xhci, &port, &speed)) {
-        boot_message(WARNING, "[xHCI] No connected ports for slot %u", dev->slot_id);
+    const uint32_t port  = dev->port_id;
+    const uint32_t speed = dev->speed;
+    if (port == 0 || speed == 0) {
+        boot_message(WARNING, "[xHCI] Slot %u missing port/speed info", dev->slot_id);
         return false;
     }
-
-    uint32_t portsc_after = 0;
-    if (!xhci_port_reset(xhci, port, &portsc_after)) {
-        return false;
-    }
-    speed = (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
 
     const size_t ctx_size     = xhci->context_size;
     const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
@@ -158,8 +143,6 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
     }
 
     memset(dev->input_ctx, 0, input_bytes);
-    dev->port_id = (uint8_t)port;
-    dev->speed   = speed;
 
     auto ctrl       = (struct xhci_input_control_ctx *)dev->input_ctx;
     ctrl->add_flags = 0x3u;

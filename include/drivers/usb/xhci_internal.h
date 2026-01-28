@@ -35,6 +35,7 @@
 #define XHCI_TRB_TYPE_STATUS_STAGE 4u // Status stage TRB type.
 #define XHCI_TRB_TYPE_LINK 6u // Link TRB type.
 #define XHCI_TRB_TYPE_ENABLE_SLOT 9u // Enable Slot command TRB type.
+#define XHCI_TRB_TYPE_DISABLE_SLOT 10u // Disable Slot command TRB type.
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE 11u // Address Device command TRB type.
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12u // Configure Endpoint command TRB type.
 #define XHCI_TRB_TYPE_TRANSFER_EVENT 32u // Transfer event TRB type.
@@ -50,6 +51,8 @@
 #define XHCI_TRANSFER_TIMEOUT_MS 1000u // Transfer timeout in ms.
 #define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
 #define XHCI_WAIT_SLEEP_NS 50000ull // Sleep duration in ns after spin budget.
+#define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
+#define XHCI_USB3_RESET_RECOVERY_MS 50u // USB3 warm reset recovery delay in ms.
 #define XHCI_EP_TYPE_CONTROL 4u // Endpoint type for control transfers.
 #define XHCI_EP_TYPE_BULK_OUT 2u // Endpoint type for bulk OUT transfers.
 #define XHCI_EP_TYPE_BULK_IN 6u // Endpoint type for bulk IN transfers.
@@ -471,6 +474,7 @@ static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
 extern struct xhci_controller g_xhci;
 
 bool xhci_ring_init(struct xhci_ring *ring, uint32_t trb_count);
+void xhci_ring_reset(struct xhci_ring *ring);
 uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb);
 bool xhci_event_ring_init(struct xhci_event_ring *ring, uint32_t trb_count);
 bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
@@ -485,14 +489,13 @@ void xhci_ring_doorbell(const struct xhci_controller *xhci,
                         uint8_t doorbell,
                         uint32_t value);
 
-bool xhci_find_connected_port(const struct xhci_controller *xhci,
-                              uint32_t *port_out,
-                              uint32_t *speed_out);
 bool xhci_port_reset(const struct xhci_controller *xhci,
                      uint32_t port,
                      uint32_t *portsc_out);
 bool xhci_enable_slot(struct xhci_controller *xhci,
                       uint8_t *slot_id_out);
+bool xhci_disable_slot(struct xhci_controller *xhci,
+                       uint8_t slot_id);
 bool xhci_alloc_device_context(struct xhci_controller *xhci,
                                struct xhci_device *dev);
 bool xhci_prepare_slot_context(struct xhci_controller *xhci,
