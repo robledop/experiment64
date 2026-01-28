@@ -81,6 +81,40 @@ static inline pml4_t xhci_current_pml4(void)
     return (pml4_t)(cr3 & 0x000FFFFFFFFFF000ull);
 }
 
+static bool xhci_virt_mapped(const uint64_t *pml4, const uint64_t virt)
+{
+    auto pml4_virt        = (const uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
+    const size_t pml4_idx = (virt >> 39) & 0x1FFu;
+    const uint64_t pml4e  = pml4_virt[pml4_idx];
+    if ((pml4e & PTE_PRESENT) == 0) {
+        return false;
+    }
+
+    auto pdpt             = (const uint64_t *)((pml4e & 0x000FFFFFFFFFF000ull) + g_hhdm_offset);
+    const size_t pdpt_idx = (virt >> 30) & 0x1FFu;
+    const uint64_t pdpte  = pdpt[pdpt_idx];
+    if ((pdpte & PTE_PRESENT) == 0) {
+        return false;
+    }
+    if ((pdpte & PTE_HUGE) != 0) {
+        return true;
+    }
+
+    auto pd             = (const uint64_t *)((pdpte & 0x000FFFFFFFFFF000ull) + g_hhdm_offset);
+    const size_t pd_idx = (virt >> 21) & 0x1FFu;
+    const uint64_t pde  = pd[pd_idx];
+    if ((pde & PTE_PRESENT) == 0) {
+        return false;
+    }
+    if ((pde & PTE_HUGE) != 0) {
+        return true;
+    }
+
+    auto pt             = (const uint64_t *)((pde & 0x000FFFFFFFFFF000ull) + g_hhdm_offset);
+    const size_t pt_idx = (virt >> 12) & 0x1FFu;
+    return (pt[pt_idx] & PTE_PRESENT) != 0;
+}
+
 static void xhci_map_mmio_range(const uint64_t phys_base, const uint64_t bytes)
 {
     const uint64_t start = phys_base & ~(uint64_t)(PAGE_SIZE - 1u);
@@ -88,7 +122,7 @@ static void xhci_map_mmio_range(const uint64_t phys_base, const uint64_t bytes)
     pml4_t pml4          = xhci_current_pml4();
     for (uint64_t phys = start; phys < end; phys += PAGE_SIZE) {
         const uint64_t virt = phys + g_hhdm_offset;
-        if (vmm_virt_to_phys(pml4, virt) == 0) {
+        if (!xhci_virt_mapped(pml4, virt)) {
             vmm_map_page(pml4, virt, phys, PTE_PRESENT | PTE_WRITABLE | PTE_PCD | PTE_PWT);
         }
     }
