@@ -79,6 +79,8 @@
 #define PCI_BAR_MEMORY_TYPE_32 0x0
 #define PCI_BAR_MEMORY_TYPE_64 0x2
 
+#define PCI_VENDOR_INTEL 0x8086 // Intel PCI vendor ID.
+
 struct pci_device
 {
     uint32_t bus;

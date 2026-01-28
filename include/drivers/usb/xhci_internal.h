@@ -1,5 +1,6 @@
 #pragma once
 
+#include <drivers/pci.h>
 #include <drivers/tsc.h>
 #include <lib/string.h>
 #include <mem/pmm.h>
@@ -75,6 +76,8 @@
 #define XHCI_PORTSC_WK_MASK (0x7u << 25) // Port wake event mask.
 #define XHCI_PORTSC_WR (1u << 31) // Port warm reset bit.
 #define XHCI_PORTSC_RWS_MASK (XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_PP | XHCI_PORTSC_INDICATOR_MASK | XHCI_PORTSC_WK_MASK) // Port read/write settable bits.
+#define XHCI_INTEL_USB3_PSSEN 0xD0u // Intel USB3 port routing enable register offset in PCI config space.
+#define XHCI_INTEL_XUSB2PR 0xD8u // Intel USB2 port routing register offset in PCI config space.
 #define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
@@ -311,6 +314,7 @@ struct xhci_msc_device
 
 struct xhci_controller
 {
+    struct pci_device pci;           // PCI device descriptor for config access.
     volatile uint8_t *mmio;            // MMIO base.
     volatile uint8_t *op_base;         // Operational registers base.
     uint8_t cap_len;                   // Capability length in bytes.
@@ -344,6 +348,19 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 {
     auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline uint32_t xhci_pci_read32(const struct pci_device *device, const uint8_t offset)
+{
+    const uint16_t low  = pci_config_read_word(device->bus, device->slot, device->function, offset);
+    const uint16_t high = pci_config_read_word(device->bus, device->slot, device->function, offset + 2u);
+    return (uint32_t)low | ((uint32_t)high << 16);
+}
+
+static inline void xhci_pci_write32(const struct pci_device *device, const uint8_t offset, const uint32_t value)
+{
+    pci_config_write_word(device->bus, device->slot, device->function, offset, (uint16_t)value);
+    pci_config_write_word(device->bus, device->slot, device->function, offset + 2u, (uint16_t)(value >> 16));
 }
 
 static inline bool xhci_wait_for(const volatile uint8_t *base,

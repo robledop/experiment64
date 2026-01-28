@@ -544,8 +544,6 @@ void load_driver(const struct pci_header pci, const uint8_t bus, const uint8_t d
         const bool device_match   = driver->device_id == PCI_ANY_ID || driver->device_id == dev.device_id;
 
         if (class_match && subclass_match && vendor_match && device_match) {
-            boot_message(INFO, "Loading driver for %s", pci_find_name(dev.class, dev.subclass));
-
             pci_drivers[i].init(dev);
             return;
         }

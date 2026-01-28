@@ -169,6 +169,36 @@ static void xhci_dump_ports(struct xhci_controller *xhci)
     }
 }
 
+static void xhci_intel_port_routing(const struct xhci_controller *xhci)
+{
+    if (xhci->pci.vendor_id != PCI_VENDOR_INTEL) {
+        return;
+    }
+
+    const uint32_t usb3_pssen = xhci_pci_read32(&xhci->pci, XHCI_INTEL_USB3_PSSEN);
+    const uint32_t xusb2pr    = xhci_pci_read32(&xhci->pci, XHCI_INTEL_XUSB2PR);
+
+    if (usb3_pssen == 0xFFFFFFFFu && xusb2pr == 0xFFFFFFFFu) {
+        boot_message(INFO, "[xHCI] Intel port routing registers not present");
+        return;
+    }
+
+    const uint32_t mask = (xhci->max_ports >= 32u) ? 0xFFFFFFFFu : ((1u << xhci->max_ports) - 1u);
+    if (usb3_pssen != 0xFFFFFFFFu) {
+        xhci_pci_write32(&xhci->pci, XHCI_INTEL_USB3_PSSEN, usb3_pssen | mask);
+    }
+    if (xusb2pr != 0xFFFFFFFFu) {
+        xhci_pci_write32(&xhci->pci, XHCI_INTEL_XUSB2PR, xusb2pr | mask);
+    }
+
+    const uint32_t usb3_after  = xhci_pci_read32(&xhci->pci, XHCI_INTEL_USB3_PSSEN);
+    const uint32_t xusb2_after = xhci_pci_read32(&xhci->pci, XHCI_INTEL_XUSB2PR);
+    boot_message(INFO,
+                 "[xHCI] Intel port routing USB3_PSSEN=0x%08x XUSB2PR=0x%08x",
+                 usb3_after,
+                 xusb2_after);
+}
+
 static void xhci_power_ports(struct xhci_controller *xhci)
 {
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
@@ -199,6 +229,8 @@ void xhci_init(struct pci_device device)
 
     pci_enable_bus_mastering(device);
     xhci_map_mmio_range(mmio_phys, XHCI_MMIO_MAP_BYTES);
+    memset(&g_xhci, 0, sizeof(g_xhci));
+    g_xhci.pci            = device;
     g_xhci.mmio           = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
     const uint32_t cap    = xhci_read32(g_xhci.mmio, XHCI_CAPLENGTH);
     g_xhci.cap_len        = (uint8_t)(cap & 0xFFu);
@@ -239,6 +271,8 @@ void xhci_init(struct pci_device device)
                  "[xHCI] dboff=0x%08x rtsoff=0x%08x",
                  dboff,
                  rtsoff);
+
+    xhci_intel_port_routing(&g_xhci);
 
     // Reset sequence for the xHCI controller.
     // Set the RUN/STOP bit to 0.
