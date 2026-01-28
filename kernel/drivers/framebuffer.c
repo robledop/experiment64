@@ -5,7 +5,7 @@
 #include <fs/vfs.h>
 #include <sys/ioctl.h>
 
-static struct limine_framebuffer* active_fb = nullptr;
+static struct limine_framebuffer *active_fb = nullptr;
 
 static inline uint32_t framebuffer_width(void)
 {
@@ -19,22 +19,22 @@ static inline uint32_t framebuffer_height(void)
     return (uint32_t)active_fb->height;
 }
 
-static inline uint32_t* framebuffer_row(uint32_t y)
+static inline uint32_t *framebuffer_row(uint32_t y)
 {
     assert(active_fb != nullptr);
-    return (uint32_t*)((uint8_t*)active_fb->address + (uint64_t)y * active_fb->pitch);
+    return (uint32_t *)((uint8_t *)active_fb->address + (uint64_t)y * active_fb->pitch);
 }
 
-static uint64_t framebuffer_size_bytes(const struct limine_framebuffer* fb)
+static uint64_t framebuffer_size_bytes(const struct limine_framebuffer *fb)
 {
     if (!fb)
         return 0;
     return fb->pitch * fb->height;
 }
 
-static uint64_t framebuffer_dev_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
+static uint64_t framebuffer_dev_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
 {
-    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    struct limine_framebuffer *fb = node ? (struct limine_framebuffer *)node->device : nullptr;
     if (!fb)
         fb = framebuffer_current();
     if (!fb)
@@ -48,13 +48,13 @@ static uint64_t framebuffer_dev_read(const vfs_inode_t* node, uint64_t offset, u
     if (offset + to_copy > fb_size)
         to_copy = fb_size - offset;
 
-    memcpy(buffer, (uint8_t*)fb->address + offset, to_copy);
+    memcpy(buffer, (uint8_t *)fb->address + offset, to_copy);
     return to_copy;
 }
 
-static uint64_t framebuffer_dev_write(vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
+static uint64_t framebuffer_dev_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
 {
-    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    struct limine_framebuffer *fb = node ? (struct limine_framebuffer *)node->device : nullptr;
     if (!fb)
         fb = framebuffer_current();
     if (!fb)
@@ -68,11 +68,11 @@ static uint64_t framebuffer_dev_write(vfs_inode_t* node, uint64_t offset, uint64
     if (offset + to_copy > fb_size)
         to_copy = fb_size - offset;
 
-    memcpy((uint8_t*)fb->address + offset, buffer, to_copy);
+    memcpy((uint8_t *)fb->address + offset, buffer, to_copy);
     return to_copy;
 }
 
-static int framebuffer_copy_u32(void* arg, uint32_t value)
+static int framebuffer_copy_u32(void *arg, uint32_t value)
 {
     if (!arg)
         return -1;
@@ -80,7 +80,7 @@ static int framebuffer_copy_u32(void* arg, uint32_t value)
     return 0;
 }
 
-static int framebuffer_copy_u64(void* arg, uint64_t value)
+static int framebuffer_copy_u64(void *arg, uint64_t value)
 {
     if (!arg)
         return -1;
@@ -88,16 +88,15 @@ static int framebuffer_copy_u64(void* arg, uint64_t value)
     return 0;
 }
 
-static int framebuffer_dev_ioctl(vfs_inode_t* node, int request, void* arg)
+static int framebuffer_dev_ioctl(vfs_inode_t *node, int request, void *arg)
 {
-    struct limine_framebuffer* fb = node ? (struct limine_framebuffer*)node->device : nullptr;
+    struct limine_framebuffer *fb = node ? (struct limine_framebuffer *)node->device : nullptr;
     if (!fb)
         fb = framebuffer_current();
     if (!fb)
         return -1;
 
-    switch (request)
-    {
+    switch (request) {
     case FB_IOCTL_GET_WIDTH:
         return framebuffer_copy_u32(arg, (uint32_t)fb->width);
     case FB_IOCTL_GET_HEIGHT:
@@ -120,24 +119,23 @@ static struct inode_operations framebuffer_dev_ops = {
 static vfs_inode_t framebuffer_device_node;
 static bool framebuffer_device_registered = false;
 
-void framebuffer_init(struct limine_framebuffer* fb)
+void framebuffer_init(struct limine_framebuffer *fb)
 {
     assert(fb != nullptr);
     active_fb = fb;
 
-    framebuffer_device_node.flags = VFS_CHARDEVICE;
-    framebuffer_device_node.iops = &framebuffer_dev_ops;
-    framebuffer_device_node.size = framebuffer_size_bytes(fb);
+    framebuffer_device_node.flags  = VFS_CHARDEVICE;
+    framebuffer_device_node.iops   = &framebuffer_dev_ops;
+    framebuffer_device_node.size   = framebuffer_size_bytes(fb);
     framebuffer_device_node.device = fb;
 
-    if (!framebuffer_device_registered)
-    {
+    if (!framebuffer_device_registered) {
         devfs_register_device("fb0", &framebuffer_device_node);
         framebuffer_device_registered = true;
     }
 }
 
-struct limine_framebuffer* framebuffer_current(void)
+struct limine_framebuffer *framebuffer_current(void)
 {
     return active_fb;
 }
@@ -153,7 +151,7 @@ void framebuffer_fill_span32(uint32_t y, uint32_t x, uint32_t length, uint32_t c
     if (x + length > width)
         length = width - x;
 
-    uint32_t* row = framebuffer_row(y);
+    uint32_t *row = framebuffer_row(y);
     if (!row)
         return;
 
@@ -168,7 +166,7 @@ void framebuffer_copy_span32(uint32_t dst_y, uint32_t dst_x, uint32_t src_y, uin
     if (!active_fb || length == 0)
         return;
 
-    uint32_t width = framebuffer_width();
+    uint32_t width  = framebuffer_width();
     uint32_t height = framebuffer_height();
     if (dst_y >= height || src_y >= height || dst_x >= width || src_x >= width)
         return;
@@ -180,26 +178,21 @@ void framebuffer_copy_span32(uint32_t dst_y, uint32_t dst_x, uint32_t src_y, uin
     if (length > max_len)
         length = max_len;
 
-    uint32_t* dst = framebuffer_row(dst_y);
-    uint32_t* src = framebuffer_row(src_y);
+    uint32_t *dst = framebuffer_row(dst_y);
+    uint32_t *src = framebuffer_row(src_y);
     if (!dst || !src)
         return;
 
     dst += dst_x;
     src += src_x;
 
-    if (dst < src)
-    {
+    if (dst < src) {
         for (uint32_t i = 0; i < length; i++)
             dst[i] = src[i];
-    }
-    else if (dst > src)
-    {
+    } else if (dst > src) {
         for (uint32_t i = length; i > 0; i--)
             dst[i - 1] = src[i - 1];
-    }
-    else
-    {
+    } else {
         // Same region, nothing to do.
     }
 }
@@ -211,7 +204,7 @@ void framebuffer_fill_rect32(uint32_t x, uint32_t y, uint32_t width, uint32_t he
     if (!active_fb || width == 0 || height == 0)
         return;
 
-    const uint32_t fb_width = framebuffer_width();
+    const uint32_t fb_width  = framebuffer_width();
     const uint32_t fb_height = framebuffer_height();
 
     if (x >= fb_width || y >= fb_height)
@@ -226,7 +219,7 @@ void framebuffer_fill_rect32(uint32_t x, uint32_t y, uint32_t width, uint32_t he
         framebuffer_fill_span32(y + row, x, width, color);
 }
 
-void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t* src, uint32_t length)
+void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t *src, uint32_t length)
 {
     assert(active_fb != nullptr);
 
@@ -237,7 +230,7 @@ void framebuffer_blit_span32(uint32_t y, uint32_t x, const uint32_t* src, uint32
     if (x + length > width)
         length = width - x;
 
-    uint32_t* row = framebuffer_row(y);
+    uint32_t *row = framebuffer_row(y);
     if (!row)
         return;
 
@@ -250,14 +243,14 @@ void framebuffer_putpixel(uint32_t x, uint32_t y, uint32_t color)
     framebuffer_fill_span32(y, x, 1, color);
 }
 
-void framebuffer_put_bitmap_32(uint32_t x, uint32_t y, const uint32_t* pixels, uint32_t width, uint32_t height)
+void framebuffer_put_bitmap_32(uint32_t x, uint32_t y, const uint32_t *pixels, uint32_t width, uint32_t height)
 {
     assert(active_fb != nullptr);
 
     if (!active_fb || !pixels || width == 0 || height == 0)
         return;
 
-    uint32_t fb_width = framebuffer_width();
+    uint32_t fb_width  = framebuffer_width();
     uint32_t fb_height = framebuffer_height();
 
     if (x >= fb_width || y >= fb_height)

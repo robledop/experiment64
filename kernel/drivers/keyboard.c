@@ -61,28 +61,28 @@ char keyboard_scancode_to_char_shifted(uint8_t scancode)
 // causing the shell to think the buffer is empty (freeze).
 static volatile char buffer[BUFFER_SIZE];
 static volatile int write_ptr = 0;
-static volatile int read_ptr = 0;
+static volatile int read_ptr  = 0;
 
 #define RAW_BUFFER_SIZE 256
 static volatile uint8_t raw_buffer[RAW_BUFFER_SIZE];
 static volatile int raw_write_ptr = 0;
-static volatile int raw_read_ptr = 0;
+static volatile int raw_read_ptr  = 0;
 
 static struct inode_operations keyboard_dev_ops;
 
-static thread_t* keyboard_waiter = nullptr;
+static thread_t *keyboard_waiter = nullptr;
 
-static bool shift_pressed = false;
-static bool ctrl_pressed = false;
-static bool alt_pressed = false;
-static bool caps_lock = false;
+static bool shift_pressed     = false;
+static bool ctrl_pressed      = false;
+static bool alt_pressed       = false;
+static bool caps_lock         = false;
 static bool extended_scancode = false;
 
 void keyboard_clear_modifiers(void)
 {
-    shift_pressed = false;
-    ctrl_pressed = false;
-    alt_pressed = false;
+    shift_pressed     = false;
+    ctrl_pressed      = false;
+    alt_pressed       = false;
     extended_scancode = false;
 }
 
@@ -92,7 +92,7 @@ static void keyboard_enqueue_raw(uint8_t scancode)
     if (next == raw_read_ptr)
         return; // Drop if full
     raw_buffer[raw_write_ptr] = scancode;
-    raw_write_ptr = next;
+    raw_write_ptr             = next;
 }
 
 static void keyboard_enqueue_char(char c)
@@ -101,16 +101,15 @@ static void keyboard_enqueue_char(char c)
     if (next == read_ptr)
         return;
     buffer[write_ptr] = c;
-    write_ptr = next;
+    write_ptr         = next;
 
-    if (keyboard_waiter)
-    {
+    if (keyboard_waiter) {
         keyboard_waiter->state = THREAD_READY;
-        keyboard_waiter = nullptr;
+        keyboard_waiter        = nullptr;
     }
 }
 
-static void keyboard_enqueue_sequence(const char* seq, size_t len)
+static void keyboard_enqueue_sequence(const char *seq, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         keyboard_enqueue_char(seq[i]);
@@ -120,13 +119,13 @@ void keyboard_init(void)
 {
     keyboard_reset_state_for_test();
 
-    vfs_inode_t* node = kmalloc(sizeof(vfs_inode_t));
+    vfs_inode_t *node = kmalloc(sizeof(vfs_inode_t));
     if (!node)
         return;
 
     memset(node, 0, sizeof(vfs_inode_t));
     node->flags = VFS_CHARDEVICE;
-    node->iops = &keyboard_dev_ops;
+    node->iops  = &keyboard_dev_ops;
 
     devfs_register_device("keyboard", node);
 }
@@ -135,17 +134,15 @@ static void keyboard_process_scancode(uint8_t scancode)
 {
     keyboard_enqueue_raw(scancode);
 
-    if (scancode == SCANCODE_EXTENDED_PREFIX)
-    {
+    if (scancode == SCANCODE_EXTENDED_PREFIX) {
         extended_scancode = true;
         return;
     }
 
     const bool is_release = (scancode & SCANCODE_RELEASE_MASK) != 0;
-    const uint8_t code = scancode & ~SCANCODE_RELEASE_MASK;
+    const uint8_t code    = scancode & ~SCANCODE_RELEASE_MASK;
 
-    if (extended_scancode)
-    {
+    if (extended_scancode) {
         extended_scancode = false;
 
         if (code == 0x1D) // Right Ctrl
@@ -157,8 +154,7 @@ static void keyboard_process_scancode(uint8_t scancode)
         if (is_release)
             return;
 
-        switch (code)
-        {
+        switch (code) {
         case 0x48: // Up
             keyboard_enqueue_sequence("\x1b[A", 3);
             return;
@@ -192,76 +188,60 @@ static void keyboard_process_scancode(uint8_t scancode)
         default:
             return;
         }
-    }
-    else
-    {
+    } else {
         // Handle right Ctrl release (E0 9D) that sets is_release and clears flag.
-        if (code == 0x1D && is_release)
-        {
+        if (code == 0x1D && is_release) {
             ctrl_pressed = false;
             return;
         }
     }
 
-    if (code == SCANCODE_LSHIFT_PRESS || code == SCANCODE_RSHIFT_PRESS)
-    {
+    if (code == SCANCODE_LSHIFT_PRESS || code == SCANCODE_RSHIFT_PRESS) {
         shift_pressed = !is_release;
         return;
     }
-    if (code == SCANCODE_LCTRL_PRESS)
-    {
+    if (code == SCANCODE_LCTRL_PRESS) {
         ctrl_pressed = !is_release;
         return;
     }
-    if (code == SCANCODE_LALT_PRESS)
-    {
+    if (code == SCANCODE_LALT_PRESS) {
         alt_pressed = !is_release;
         return;
     }
-    if (code == SCANCODE_CAPSLOCK_PRESS && !is_release)
-    {
+    if (code == SCANCODE_CAPSLOCK_PRESS && !is_release) {
         caps_lock = !caps_lock;
         return;
     }
 
-    if (is_release)
-    {
+    if (is_release) {
         return;
     }
 
-    if (code < SCANCODE_TABLE_SIZE)
-    {
+    if (code < SCANCODE_TABLE_SIZE) {
         bool use_shift = shift_pressed;
 
         char c = keyboard_scancode_to_char(code);
-        if (caps_lock && c >= 'a' && c <= 'z')
-        {
+        if (caps_lock && c >= 'a' && c <= 'z') {
             use_shift = !use_shift;
         }
 
-        if (use_shift)
-        {
+        if (use_shift) {
             c = keyboard_scancode_to_char_shifted(code);
-        }
-        else
-        {
+        } else {
             c = keyboard_scancode_to_char(code);
         }
 
         // Handle Ctrl (e.g. Ctrl+C, Ctrl+L)
-        if (ctrl_pressed)
-        {
+        if (ctrl_pressed) {
             if (c >= 'a' && c <= 'z')
                 c = (char)(c - 'a' + 1);
             else if (c >= 'A' && c <= 'Z')
                 c = (char)(c - 'A' + 1);
         }
 
-        if (c)
-        {
+        if (c) {
             // Ctrl+P prints the process/thread list (xv6-style)
-            if (c == 0x10)
-            {
+            if (c == 0x10) {
                 process_dump();
                 return;
             }
@@ -284,15 +264,15 @@ void keyboard_inject_scancode(uint8_t scancode)
 
 void keyboard_reset_state_for_test(void)
 {
-    write_ptr = 0;
-    read_ptr = 0;
-    raw_write_ptr = 0;
-    raw_read_ptr = 0;
-    shift_pressed = false;
-    ctrl_pressed = false;
-    alt_pressed = false;
-    caps_lock = false;
-    keyboard_waiter = nullptr;
+    write_ptr         = 0;
+    read_ptr          = 0;
+    raw_write_ptr     = 0;
+    raw_read_ptr      = 0;
+    shift_pressed     = false;
+    ctrl_pressed      = false;
+    alt_pressed       = false;
+    caps_lock         = false;
+    keyboard_waiter   = nullptr;
     extended_scancode = false;
 }
 
@@ -303,15 +283,13 @@ bool keyboard_has_char(void)
 
 char keyboard_get_char(void)
 {
-    while (1)
-    {
+    while (1) {
         // Disable interrupts to check buffer and sleep atomically
         uint64_t rflags;
         __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
-        if (read_ptr != write_ptr)
-        {
-            char c = buffer[read_ptr];
+        if (read_ptr != write_ptr) {
+            char c   = buffer[read_ptr];
             read_ptr = (read_ptr + 1) % BUFFER_SIZE;
             // Restore interrupts
             if (rflags & RFLAGS_IF)
@@ -320,46 +298,44 @@ char keyboard_get_char(void)
         }
 
         // Buffer empty, sleep
-        thread_t* cur = get_current_thread();
-        if (cur)
-        {
+        thread_t *cur = get_current_thread();
+        if (cur) {
             keyboard_waiter = cur;
-            cur->state = THREAD_BLOCKED;
+            cur->state      = THREAD_BLOCKED;
         }
 
         schedule();
     }
 }
 
-uint64_t keyboard_read_raw(uint8_t* out, uint64_t max)
+uint64_t keyboard_read_raw(uint8_t *out, uint64_t max)
 {
     if (!out || max == 0)
         return 0;
 
     uint64_t read = 0;
-    while (read < max && raw_read_ptr != raw_write_ptr)
-    {
-        out[read++] = raw_buffer[raw_read_ptr];
+    while (read < max && raw_read_ptr != raw_write_ptr) {
+        out[read++]  = raw_buffer[raw_read_ptr];
         raw_read_ptr = (raw_read_ptr + 1) % RAW_BUFFER_SIZE;
     }
     return read;
 }
 
-static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t* node, uint64_t offset, uint64_t size,
-                                  uint8_t* buffer)
+static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t *node, uint64_t offset, uint64_t size,
+                                  uint8_t *buffer)
 {
     (void)offset;
     return keyboard_read_raw(buffer, size);
 }
 
-static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t* node, int request, [[maybe_unused]] void* arg)
+static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, int request, [[maybe_unused]] void *arg)
 {
     if (request == 0x4B00) // KDFLUSH - flush both buffers
     {
-        write_ptr = 0;
-        read_ptr = 0;
+        write_ptr     = 0;
+        read_ptr      = 0;
         raw_write_ptr = 0;
-        raw_read_ptr = 0;
+        raw_read_ptr  = 0;
         return 0;
     }
     return 0;

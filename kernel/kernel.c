@@ -43,8 +43,8 @@ void shutdown()
     outw(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
     outl(QEMU_EXIT_PORT, QEMU_EXIT_CMD);
 
-    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD); // qemu
-    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD); // VirtualBox
+    outw(QEMU_SHUTDOWN_PORT, QEMU_SHUTDOWN_CMD);   // qemu
+    outw(VBOX_SHUTDOWN_PORT, VBOX_SHUTDOWN_CMD);   // VirtualBox
     outw(BOCHS_SHUTDOWN_PORT, BOCHS_SHUTDOWN_CMD); // Bochs
     outw(CLOUD_SHUTDOWN_PORT, CLOUD_SHUTDOWN_CMD); // Cloud hypervisors
 }
@@ -64,20 +64,18 @@ static void kernel_splash_ascii(void)
 
 void kernel_splash(void)
 {
-    struct limine_framebuffer* fb = framebuffer_current();
-    if (!fb)
-    {
+    struct limine_framebuffer *fb = framebuffer_current();
+    if (!fb) {
         kernel_splash_ascii();
         return;
     }
 
     terminal_clear(0x00000000);
 
-    uint32_t* pixels = nullptr;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    if (bitmap_load_argb("/var/logo.bmp", &pixels, &width, &height) != 0 || !pixels)
-    {
+    uint32_t *pixels = nullptr;
+    uint32_t width   = 0;
+    uint32_t height  = 0;
+    if (bitmap_load_argb("/var/logo.bmp", &pixels, &width, &height) != 0 || !pixels) {
         kernel_splash_ascii();
         return;
     }
@@ -87,17 +85,16 @@ void kernel_splash(void)
     cursor_y_start = 0;
 
     constexpr uint32_t splash_bottom_margin = 13;
-    constexpr uint32_t origin_x = 0;
-    const uint32_t origin_y = (uint32_t)cursor_y_start;
+    constexpr uint32_t origin_x             = 0;
+    const uint32_t origin_y                 = (uint32_t)cursor_y_start;
 
-    const uint32_t max_width = fb->width - origin_x;
+    const uint32_t max_width  = fb->width - origin_x;
     const uint32_t max_height = (fb->height > origin_y) ? (fb->height - origin_y) : 0;
 
-    const uint32_t draw_width = (width > max_width) ? max_width : width;
+    const uint32_t draw_width  = (width > max_width) ? max_width : width;
     const uint32_t draw_height = (height > max_height) ? max_height : height;
 
-    for (uint32_t row = 0; row < draw_height; row++)
-    {
+    for (uint32_t row = 0; row < draw_height; row++) {
         framebuffer_blit_span32(origin_y + row, origin_x, &pixels[row * width], draw_width);
     }
 
@@ -146,8 +143,7 @@ void _start(void) // NOLINT(*-reserved-identifier)
     process_spawn_init();
 #endif
 
-    while (1)
-    {
+    while (1) {
         __asm__ volatile("hlt");
     }
 }

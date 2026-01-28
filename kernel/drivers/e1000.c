@@ -24,21 +24,21 @@
 #define E1000_MMIO_SIZE 0x20000U
 #define GETNETINFO 0x4090
 
-static uint8_t bar_type; // Type of BAR0
-static uint16_t io_base; // IO Base Address
-static uint64_t mem_base; // MMIO Base Address
-static bool eeprom_exists; // A flag indicating if eeprom exists
-static uint8_t mac[6]; // A buffer for storing the mac address
-static struct e1000_rx_desc* rx_descs[E1000_RX_RING_SIZE]; // Receive Descriptor Buffers
-static struct e1000_tx_desc* tx_descs[E1000_TX_RING_SIZE]; // Transmit Descriptor Buffers
-static uint8_t* rx_buffers[E1000_RX_RING_SIZE]; // Virtual receive buffers
-static uint8_t* tx_buffers[E1000_TX_RING_SIZE]; // Virtual transmit buffers
-static uint16_t rx_cur; // Current Receive Descriptor Buffer
-static uint16_t tx_cur; // Current Transmit Descriptor Buffer
+static uint8_t bar_type;                                   // Type of BAR0
+static uint16_t io_base;                                   // IO Base Address
+static uint64_t mem_base;                                  // MMIO Base Address
+static bool eeprom_exists;                                 // A flag indicating if eeprom exists
+static uint8_t mac[6];                                     // A buffer for storing the mac address
+static struct e1000_rx_desc *rx_descs[E1000_RX_RING_SIZE]; // Receive Descriptor Buffers
+static struct e1000_tx_desc *tx_descs[E1000_TX_RING_SIZE]; // Transmit Descriptor Buffers
+static uint8_t *rx_buffers[E1000_RX_RING_SIZE];            // Virtual receive buffers
+static uint8_t *tx_buffers[E1000_TX_RING_SIZE];            // Virtual transmit buffers
+static uint16_t rx_cur;                                    // Current Receive Descriptor Buffer
+static uint16_t tx_cur;                                    // Current Transmit Descriptor Buffer
 static struct pci_device pci_device;
 static bool e1000_initialized;
 
-static int eth_dev_ioctl([[maybe_unused]] vfs_inode_t* node, int request, void* arg);
+static int eth_dev_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *arg);
 static bool e1000_start(void);
 static void e1000_linkup(void);
 
@@ -49,32 +49,33 @@ static struct inode_operations eth_dev_ops = {
 uint32_t wait_for_network_timeout = 5000;
 
 
-static int eth_dev_ioctl([[maybe_unused]] vfs_inode_t* node, const int request, void* arg)
+static int eth_dev_ioctl([[maybe_unused]] vfs_inode_t *node, const int request, void *arg)
 {
-    if (request == GETNETINFO)
-    {
+    if (request == GETNETINFO) {
         if (!arg)
             return -1;
 
-        auto netinfo = (struct netinfo*)arg;
+        auto netinfo = (struct netinfo *)arg;
         memset(netinfo, 0, sizeof(*netinfo));
         memcpy(netinfo->mac, mac, 6);
 
-        const uint32_t* ip = (uint32_t*)network_get_my_ip_address();
-        const uint32_t* mask = (uint32_t*)network_get_subnet_mask();
-        const uint32_t* gateway = (uint32_t*)network_get_default_gateway();
-        const uint32_t* dns_servers = network_get_dns_servers();
+        const uint32_t *ip              = (uint32_t *)network_get_my_ip_address();
+        const uint32_t *mask            = (uint32_t *)network_get_subnet_mask();
+        const uint32_t *gateway         = (uint32_t *)network_get_default_gateway();
+        const uint32_t *dns_servers     = network_get_dns_servers();
         const uint32_t dns_server_count = network_get_dns_server_count();
 
-        if (ip) netinfo->ip = *ip;
-        if (mask) netinfo->subnet_mask = *mask;
-        if (gateway) netinfo->default_gateway = *gateway;
+        if (ip)
+            netinfo->ip = *ip;
+        if (mask)
+            netinfo->subnet_mask = *mask;
+        if (gateway)
+            netinfo->default_gateway = *gateway;
 
-        if (dns_servers && dns_server_count >= 1)
-        {
+        if (dns_servers && dns_server_count >= 1) {
             uint8_t dns_server[4];
             ip_to_bytes(*dns_servers, dns_server);
-            netinfo->dns_server = *(uint32_t*)dns_server;
+            netinfo->dns_server = *(uint32_t *)dns_server;
         }
 
         return 0;
@@ -86,13 +87,11 @@ void wait_for_network(void)
 {
     boot_message(INFO, "Waiting for DHCP offer...");
     uint32_t budget = wait_for_network_timeout;
-    while (!network_is_ready() && budget-- > 0)
-    {
+    while (!network_is_ready() && budget-- > 0) {
         tsc_sleep_ms(1); // ~1ms
     }
 
-    if (!network_is_ready())
-    {
+    if (!network_is_ready()) {
         boot_message(ERROR, "Network failed to start");
     }
 }
@@ -102,12 +101,9 @@ void wait_for_network(void)
  */
 static void e1000_write_command(const uint16_t p_address, const uint32_t p_value)
 {
-    if (bar_type == PCI_BAR_MEM)
-    {
+    if (bar_type == PCI_BAR_MEM) {
         mmio_write32(mem_base + p_address, p_value);
-    }
-    else
-    {
+    } else {
         outl(io_base, p_address);
         outl(io_base + 4, p_value);
     }
@@ -118,8 +114,7 @@ static void e1000_write_command(const uint16_t p_address, const uint32_t p_value
  */
 static uint32_t e1000_read_command(const uint16_t p_address)
 {
-    if (bar_type == PCI_BAR_MEM)
-    {
+    if (bar_type == PCI_BAR_MEM) {
         return mmio_read32(mem_base + p_address);
     }
 
@@ -137,15 +132,11 @@ static bool e1000_detect_eeprom(void)
     uint32_t val = 0;
     e1000_write_command(REG_EERD, 0x1);
 
-    for (int i = 0; i < 1000 && !eeprom_exists; i++)
-    {
+    for (int i = 0; i < 1000 && !eeprom_exists; i++) {
         val = e1000_read_command(REG_EERD);
-        if (val & 0x10)
-        {
+        if (val & 0x10) {
             eeprom_exists = true;
-        }
-        else
-        {
+        } else {
             eeprom_exists = false;
         }
     }
@@ -161,14 +152,11 @@ static bool e1000_detect_eeprom(void)
 static uint32_t e1000_eeprom_read(const uint8_t addr)
 {
     uint16_t data = 0;
-    uint32_t tmp = 0;
-    if (eeprom_exists)
-    {
+    uint32_t tmp  = 0;
+    if (eeprom_exists) {
         e1000_write_command(REG_EERD, (1) | ((uint32_t)(addr) << 8));
         while (!((tmp = e1000_read_command(REG_EERD)) & (1 << 4)));
-    }
-    else
-    {
+    } else {
         e1000_write_command(REG_EERD, (1) | ((uint32_t)(addr) << 2));
         while (!((tmp = e1000_read_command(REG_EERD)) & (1 << 1)));
     }
@@ -183,31 +171,24 @@ static uint32_t e1000_eeprom_read(const uint8_t addr)
  */
 static bool e1000_read_mac_address(void)
 {
-    if (eeprom_exists)
-    {
+    if (eeprom_exists) {
         uint32_t temp = e1000_eeprom_read(0);
-        mac[0] = temp & 0xff;
-        mac[1] = temp >> 8;
-        temp = e1000_eeprom_read(1);
-        mac[2] = temp & 0xff;
-        mac[3] = temp >> 8;
-        temp = e1000_eeprom_read(2);
-        mac[4] = temp & 0xff;
-        mac[5] = temp >> 8;
-    }
-    else
-    {
-        const uint8_t* mem_base_mac_8 = (uint8_t*)(uintptr_t)(mem_base + 0x5400);
-        const uint32_t* mem_base_mac_32 = (uint32_t*)(uintptr_t)(mem_base + 0x5400);
-        if (mem_base_mac_32[0] != 0)
-        {
-            for (int i = 0; i < 6; i++)
-            {
+        mac[0]        = temp & 0xff;
+        mac[1]        = temp >> 8;
+        temp          = e1000_eeprom_read(1);
+        mac[2]        = temp & 0xff;
+        mac[3]        = temp >> 8;
+        temp          = e1000_eeprom_read(2);
+        mac[4]        = temp & 0xff;
+        mac[5]        = temp >> 8;
+    } else {
+        const uint8_t *mem_base_mac_8   = (uint8_t *)(uintptr_t)(mem_base + 0x5400);
+        const uint32_t *mem_base_mac_32 = (uint32_t *)(uintptr_t)(mem_base + 0x5400);
+        if (mem_base_mac_32[0] != 0) {
+            for (int i = 0; i < 6; i++) {
                 mac[i] = mem_base_mac_8[i];
             }
-        }
-        else
-        {
+        } else {
             return false;
         }
     }
@@ -223,25 +204,22 @@ static void e1000_rx_init(void)
 {
     uintptr_t ring_phys = 0;
     void *ring_virt     = nullptr;
-    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt))
-    {
+    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt)) {
         panic("e1000_rx_init: no descriptor memory");
     }
     uint8_t *ring = (uint8_t *)ring_virt;
     memset(ring, 0, PAGE_SIZE);
 
-    for (int i = 0; i < E1000_RX_RING_SIZE; i++)
-    {
-        rx_descs[i] = (struct e1000_rx_desc*)(ring + i * sizeof(struct e1000_rx_desc));
+    for (int i = 0; i < E1000_RX_RING_SIZE; i++) {
+        rx_descs[i]        = (struct e1000_rx_desc *)(ring + i * sizeof(struct e1000_rx_desc));
         uintptr_t buf_phys = 0;
         void *buf_virt     = nullptr;
-        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
-        {
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt)) {
             panic("e1000_rx_init: no rx buffer");
         }
         rx_buffers[i] = (uint8_t *)buf_virt;
         memset(rx_buffers[i], 0, PAGE_SIZE);
-        rx_descs[i]->addr = buf_phys;
+        rx_descs[i]->addr   = buf_phys;
         rx_descs[i]->status = 0;
     }
 
@@ -265,26 +243,23 @@ static void e1000_tx_init(void)
 {
     uintptr_t ring_phys = 0;
     void *ring_virt     = nullptr;
-    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt))
-    {
+    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt)) {
         panic("e1000_tx_init: no descriptor memory");
     }
     uint8_t *ring = (uint8_t *)ring_virt;
     memset(ring, 0, PAGE_SIZE);
 
-    for (int i = 0; i < E1000_TX_RING_SIZE; i++)
-    {
-        tx_descs[i] = (struct e1000_tx_desc*)(ring + i * sizeof(struct e1000_tx_desc));
+    for (int i = 0; i < E1000_TX_RING_SIZE; i++) {
+        tx_descs[i]        = (struct e1000_tx_desc *)(ring + i * sizeof(struct e1000_tx_desc));
         uintptr_t buf_phys = 0;
         void *buf_virt     = nullptr;
-        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
-        {
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt)) {
             panic("e1000_tx_init: no tx buffer");
         }
         tx_buffers[i] = (uint8_t *)buf_virt;
         memset(tx_buffers[i], 0, PAGE_SIZE);
-        tx_descs[i]->addr = buf_phys;
-        tx_descs[i]->cmd = 0;
+        tx_descs[i]->addr   = buf_phys;
+        tx_descs[i]->cmd    = 0;
         tx_descs[i]->status = TSTA_DD;
     }
 
@@ -311,7 +286,7 @@ static void e1000_enable_interrupt(void)
 /**
  * @brief Interrupt service routine for e1000 events.
  */
-static void e1000_interrupt_handler(struct interrupt_frame* frame)
+static void e1000_interrupt_handler(struct interrupt_frame *frame)
 {
     (void)frame;
 
@@ -319,12 +294,10 @@ static void e1000_interrupt_handler(struct interrupt_frame* frame)
     e1000_write_command(REG_IMC, E1000_IMS_ENABLE_MASK);
 
     const uint32_t status = e1000_read_command(REG_ICR);
-    if (status & E1000_LSC)
-    {
+    if (status & E1000_LSC) {
         e1000_linkup();
     }
-    if (status & (E1000_RXDMT0 | E1000_RX0 | E1000_RXT0))
-    {
+    if (status & (E1000_RXDMT0 | E1000_RX0 | E1000_RXT0)) {
         e1000_receive();
     }
 
@@ -346,7 +319,7 @@ static void e1000_print_mac_address(void)
 static void e1000_linkup(void)
 {
     uint32_t val = e1000_read_command(REG_CTRL);
-    val |= ECTRL_SLU;
+    val          |= ECTRL_SLU;
     e1000_write_command(REG_CTRL, val);
 }
 
@@ -358,20 +331,18 @@ static void e1000_linkup(void)
 static bool e1000_start(void)
 {
     e1000_detect_eeprom();
-    if (!e1000_read_mac_address())
-    {
+    if (!e1000_read_mac_address()) {
         return false;
     }
     e1000_print_mac_address();
     e1000_linkup();
 
     // Clear multicast table array
-    for (int i = 0; i < 0x80; i++)
-    {
+    for (int i = 0; i < 0x80; i++) {
         e1000_write_command(REG_MTA + i * 4, 0);
     }
 
-    const uint8_t irq = pci_device.irq;
+    const uint8_t irq    = pci_device.irq;
     const uint8_t vector = IRQ0 + irq;
 
     apic_enable_irq(irq, vector);
@@ -386,13 +357,13 @@ static bool e1000_start(void)
 
     dhcp_send_discover(mac);
 
-    vfs_inode_t* node = kmalloc(sizeof(vfs_inode_t));
+    vfs_inode_t *node = kmalloc(sizeof(vfs_inode_t));
     if (!node)
         return false;
 
     memset(node, 0, sizeof(vfs_inode_t));
     node->flags = VFS_CHARDEVICE;
-    node->iops = &eth_dev_ops;
+    node->iops  = &eth_dev_ops;
 
     devfs_register_device("eth0", node);
     return true;
@@ -412,23 +383,18 @@ void e1000_init(struct pci_device device)
     return;
 #endif
 
-    pci_device = device;
-    bar_type = pci_get_bar(pci_device, PCI_BAR_MEM) & 1;
-    io_base = pci_get_bar(pci_device, PCI_BAR_IO) & ~1;
+    pci_device            = device;
+    bar_type              = pci_get_bar(pci_device, PCI_BAR_MEM) & 1;
+    io_base               = pci_get_bar(pci_device, PCI_BAR_IO) & ~1;
     uint32_t mem_base_raw = pci_get_bar(pci_device, PCI_BAR_MEM) & ~3;
 
-    if (bar_type == PCI_BAR_MEM && mem_base_raw != 0)
-    {
+    if (bar_type == PCI_BAR_MEM && mem_base_raw != 0) {
         // Map MMIO region using HHDM offset
         mem_base = (uint64_t)mem_base_raw + g_hhdm_offset;
-    }
-    else if (io_base != 0)
-    {
+    } else if (io_base != 0) {
         // IO space fallback
         mem_base = 0;
-    }
-    else
-    {
+    } else {
         boot_message(ERROR, "[E1000] No valid BAR found");
         return;
     }
@@ -436,13 +402,10 @@ void e1000_init(struct pci_device device)
     pci_enable_bus_mastering(device);
     eeprom_exists = false;
 
-    if (e1000_start())
-    {
+    if (e1000_start()) {
         arp_init();
         wait_for_network();
-    }
-    else
-    {
+    } else {
         boot_message(ERROR, "[E1000] Failed to start");
     }
 }
@@ -456,59 +419,47 @@ void e1000_receive(void)
     static uint32_t reassembly_len;
     static bool dropping_fragments;
 
-    while ((rx_descs[rx_cur]->status & E1000_RXD_STAT_DD))
-    {
-        uint8_t* buf = rx_buffers[rx_cur];
-        const uint16_t len = rx_descs[rx_cur]->length;
+    while ((rx_descs[rx_cur]->status & E1000_RXD_STAT_DD)) {
+        uint8_t *buf             = rx_buffers[rx_cur];
+        const uint16_t len       = rx_descs[rx_cur]->length;
         const bool end_of_packet = (rx_descs[rx_cur]->status & E1000_RXD_STAT_EOP) != 0;
 
-        if (!end_of_packet)
-        {
-            if (!dropping_fragments)
-            {
+        if (!end_of_packet) {
+            if (!dropping_fragments) {
                 const uint32_t remaining = (uint32_t)sizeof(reassembly_buffer) - reassembly_len;
-                if (len <= remaining)
-                {
+                if (len <= remaining) {
                     memcpy(reassembly_buffer + reassembly_len, buf, len);
                     reassembly_len += len;
-                }
-                else
-                {
+                } else {
                     dropping_fragments = true;
-                    reassembly_len = 0;
+                    reassembly_len     = 0;
                 }
             }
 
             rx_descs[rx_cur]->status = 0;
-            const uint16_t old_cur = rx_cur;
-            rx_cur = (rx_cur + 1) % E1000_RX_RING_SIZE;
+            const uint16_t old_cur   = rx_cur;
+            rx_cur                   = (rx_cur + 1) % E1000_RX_RING_SIZE;
             e1000_write_command(REG_RXDESCTAIL, old_cur);
             continue;
         }
 
-        if (dropping_fragments)
-        {
+        if (dropping_fragments) {
             dropping_fragments = false;
-            reassembly_len = 0;
-        }
-        else if (reassembly_len > 0)
-        {
+            reassembly_len     = 0;
+        } else if (reassembly_len > 0) {
             const uint32_t total_len = reassembly_len + len;
-            if (total_len <= sizeof(reassembly_buffer))
-            {
+            if (total_len <= sizeof(reassembly_buffer)) {
                 memcpy(reassembly_buffer + reassembly_len, buf, len);
                 network_receive(reassembly_buffer, (uint16_t)total_len);
             }
             reassembly_len = 0;
-        }
-        else
-        {
+        } else {
             network_receive(buf, len);
         }
 
         rx_descs[rx_cur]->status = 0;
-        const uint16_t old_cur = rx_cur;
-        rx_cur = (rx_cur + 1) % E1000_RX_RING_SIZE;
+        const uint16_t old_cur   = rx_cur;
+        rx_cur                   = (rx_cur + 1) % E1000_RX_RING_SIZE;
         e1000_write_command(REG_RXDESCTAIL, old_cur);
     }
 }
@@ -520,10 +471,9 @@ void e1000_receive(void)
  * @param len Frame length in bytes.
  * @return 0 on success, -1 on error.
  */
-int e1000_send_packet(const void* data, const uint16_t len)
+int e1000_send_packet(const void *data, const uint16_t len)
 {
-    if (!e1000_initialized)
-    {
+    if (!e1000_initialized) {
         return -1;
     }
 
@@ -532,15 +482,14 @@ int e1000_send_packet(const void* data, const uint16_t len)
     // Wait for the descriptor to be available
     while ((tx_descs[slot]->status & TSTA_DD) == 0);
 
-    if (len > PAGE_SIZE)
-    {
+    if (len > PAGE_SIZE) {
         return -1;
     }
 
     memcpy(tx_buffers[slot], data, len);
 
     tx_descs[slot]->length = len;
-    tx_descs[slot]->cmd = CMD_EOP | CMD_IFCS | CMD_RS;
+    tx_descs[slot]->cmd    = CMD_EOP | CMD_IFCS | CMD_RS;
     tx_descs[slot]->status = 0;
 
     tx_cur = (tx_cur + 1) % E1000_TX_RING_SIZE;
@@ -557,10 +506,9 @@ int e1000_send_packet(const void* data, const uint16_t len)
  *
  * @param mac_out Buffer to store the 6-byte MAC address.
  */
-void e1000_get_mac(uint8_t* mac_out)
+void e1000_get_mac(uint8_t *mac_out)
 {
-    if (mac_out)
-    {
+    if (mac_out) {
         memcpy(mac_out, mac, 6);
     }
 }

@@ -21,7 +21,7 @@ static const uint8_t LINUX_FILESYSTEM_GUID[16] = {
     0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4
 };
 
-const char* gpt_get_guid_name(const uint8_t* type_guid)
+const char *gpt_get_guid_name(const uint8_t *type_guid)
 {
     if (memcmp(type_guid, EFI_SYSTEM_PARTITION_GUID, 16) == 0)
         return "EFI System Partition";
@@ -35,24 +35,22 @@ const char* gpt_get_guid_name(const uint8_t* type_guid)
 void gpt_read_partitions(const uint8_t drive, const partition_callback_t callback)
 {
     // Read GPT Header (LBA 1)
-    buffer_head_t* bh = bread(drive, 1);
-    if (!bh)
-    {
+    buffer_head_t *bh = bread(drive, 1);
+    if (!bh) {
         printk("GPT: Failed to read LBA 1 on drive %d\n", drive);
         return;
     }
 
-    auto header = (gpt_header_t*)bh->data;
+    auto header = (gpt_header_t *)bh->data;
 
-    if (header->signature != GPT_SIGNATURE)
-    {
+    if (header->signature != GPT_SIGNATURE) {
         printk("GPT: Invalid signature on drive %d\n", drive);
         brelse(bh);
         return;
     }
 
     uint32_t num_entries = header->num_partition_entries;
-    uint32_t entry_size = header->size_partition_entry;
+    uint32_t entry_size  = header->size_partition_entry;
     uint64_t entries_lba = header->partition_entries_lba;
 
     // printk("GPT: Detected valid GPT on drive %d\n", drive);
@@ -60,8 +58,7 @@ void gpt_read_partitions(const uint8_t drive, const partition_callback_t callbac
 
     brelse(bh);
 
-    if (entry_size < sizeof(gpt_entry_t) || num_entries == 0)
-    {
+    if (entry_size < sizeof(gpt_entry_t) || num_entries == 0) {
         printk("GPT: Invalid entry size (%u) or count (%u)\n", entry_size, num_entries);
         return;
     }
@@ -69,25 +66,21 @@ void gpt_read_partitions(const uint8_t drive, const partition_callback_t callbac
     // Read Partition Entries
     // Calculate how many sectors we need to read
     uint64_t total_size = (uint64_t)num_entries * entry_size;
-    uint32_t sectors = (uint32_t)((total_size + 511) / 512);
-    if (sectors == 0)
-    {
+    uint32_t sectors    = (uint32_t)((total_size + 511) / 512);
+    if (sectors == 0) {
         printk("GPT: Invalid entries size\n");
         return;
     }
 
-    uint8_t* entries_buf = kmalloc(sectors * 512);
-    if (!entries_buf)
-    {
+    uint8_t *entries_buf = kmalloc(sectors * 512);
+    if (!entries_buf) {
         printk("GPT: Failed to allocate memory for entries\n");
         return;
     }
 
-    for (uint32_t i = 0; i < sectors; i++)
-    {
+    for (uint32_t i = 0; i < sectors; i++) {
         bh = bread(drive, entries_lba + i);
-        if (!bh)
-        {
+        if (!bh) {
             printk("GPT: Failed to read partition entries sector %lu\n", entries_lba + i);
             kfree(entries_buf);
             return;
@@ -96,39 +89,37 @@ void gpt_read_partitions(const uint8_t drive, const partition_callback_t callbac
         brelse(bh);
     }
 
-    for (uint32_t i = 0; i < num_entries; i++)
-    {
-        auto entry = (gpt_entry_t*)(entries_buf + i * entry_size);
+    for (uint32_t i = 0; i < num_entries; i++) {
+        auto entry = (gpt_entry_t *)(entries_buf + i * entry_size);
 
         // Check if the entry is used (Type GUID is not zero)
         int empty = 1;
-        for (int j = 0; j < 16; j++)
-        {
-            if (entry->type_guid[j] != 0)
-            {
+        for (int j = 0; j < 16; j++) {
+            if (entry->type_guid[j] != 0) {
                 empty = 0;
                 break;
             }
         }
 
-        if (empty) continue;
+        if (empty)
+            continue;
 
         partition_info_t info;
-        info.drive = drive;
+        info.drive     = drive;
         info.start_lba = entry->first_lba;
-        info.end_lba = entry->last_lba;
+        info.end_lba   = entry->last_lba;
         memcpy(info.type_guid, entry->type_guid, 16);
 
         // Convert name to ASCII
-        for (int j = 0; j < 36; j++)
-        {
+        for (int j = 0; j < 36; j++) {
             info.name[j] = (char)entry->name[j];
             if (info.name[j] == 0)
                 break;
         }
         info.name[36] = 0;
 
-        if (callback) callback(&info);
+        if (callback)
+            callback(&info);
     }
 
     kfree(entries_buf);

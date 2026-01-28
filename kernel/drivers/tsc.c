@@ -49,9 +49,8 @@ void tsc_sleep_ns(uint64_t ns)
     uint64_t start = rdtsc();
     // Use MHz to avoid 64-bit overflow.
     uint64_t freq_mhz = tsc_frequency / 1000000;
-    uint64_t ticks = (ns * freq_mhz) / 1000;
-    while (rdtsc() - start < ticks)
-    {
+    uint64_t ticks    = (ns * freq_mhz) / 1000;
+    while (rdtsc() - start < ticks) {
         __asm__ volatile("pause");
     }
 }

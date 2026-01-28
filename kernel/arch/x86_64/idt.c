@@ -45,9 +45,9 @@ __attribute__((aligned(0x10))) static struct idt_entry idt[256];
 static struct idt_ptr idtr;
 static isr_handler_t isr_handlers[256];
 
-extern void* isr_stub_table[];
+extern void *isr_stub_table[];
 
-char* exception_messages[] = {
+char *exception_messages[] = {
     "Division By Zero",
     "Debug",
     "Non Maskable Interrupt",
@@ -84,13 +84,13 @@ char* exception_messages[] = {
 
 void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
 {
-    idt[num].offset_low = base & 0xFFFF;
-    idt[num].offset_mid = (base >> 16) & 0xFFFF;
+    idt[num].offset_low  = base & 0xFFFF;
+    idt[num].offset_mid  = (base >> 16) & 0xFFFF;
     idt[num].offset_high = (base >> 32) & 0xFFFFFFFF;
-    idt[num].selector = sel;
-    idt[num].ist = 0;
-    idt[num].type_attr = flags;
-    idt[num].zero = 0;
+    idt[num].selector    = sel;
+    idt[num].ist         = 0;
+    idt[num].type_attr   = flags;
+    idt[num].zero        = 0;
 }
 
 void register_interrupt_handler(uint8_t vector, isr_handler_t handler)
@@ -104,7 +104,7 @@ void register_trap_handler(uint8_t vector, isr_handler_t handler)
     idt_set_gate(vector, (uint64_t)isr_stub_table[vector], 0x08, IDT_FLAG_PRESENT | IDT_FLAG_RING3 | IDT_FLAG_TRAPGATE);
 }
 
-static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     bool need_resched = scheduler_tick();
     apic_send_eoi();
@@ -112,33 +112,33 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame* frame)
         schedule();
 }
 
-static void keyboard_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     keyboard_handler_main();
     apic_send_eoi();
 }
 
-static void ide_primary_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(0);
     apic_send_eoi();
 }
 
-static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame* frame)
+static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(1);
     apic_send_eoi();
 }
 
-static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame* frame)
+static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame *frame)
 {
     apic_send_eoi();
     schedule();
 }
 
-static void dump_panic_context(const struct interrupt_frame* frame, const struct interrupt_frame* snapshot)
+static void dump_panic_context(const struct interrupt_frame *frame, const struct interrupt_frame *snapshot)
 {
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu        = get_cpu();
     uint64_t curr_rsp = 0;
     __asm__ volatile("mov %0, rsp" : "=r"(curr_rsp));
     uint64_t cr2 = 0;
@@ -162,8 +162,7 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
 
     if (frame->int_no != snapshot->int_no || frame->err_code != snapshot->err_code ||
         frame->rip != snapshot->rip || frame->cs != snapshot->cs || frame->rflags != snapshot->rflags ||
-        frame->rsp != snapshot->rsp || frame->ss != snapshot->ss)
-    {
+        frame->rsp != snapshot->rsp || frame->ss != snapshot->ss) {
         printk(
             KBYEL "frame changed in handler" KBWHT " int" KRESET "=%lu " KBWHT "err" KRESET "=0x%lx " KBWHT "rip" KRESET
             "=0x%lx " KBWHT "cs" KRESET "=0x%lx " KBWHT "rflags" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT
@@ -176,8 +175,7 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
             frame->rsp,
             frame->ss);
     }
-    if (!cpu)
-    {
+    if (!cpu) {
         printk("cpu=null\n");
         return;
     }
@@ -192,13 +190,12 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
         cpu->tss.rsp0,
         cpu->active_thread);
 
-    thread_t* t = cpu->active_thread;
+    thread_t *t            = cpu->active_thread;
     const uintptr_t t_addr = (uintptr_t)t;
     // Ensure the thread pointer is properly aligned
-    if (t && (t_addr % __alignof__(thread_t)) == 0)
-    {
-        process_t* p = t->process;
-        int pid = -1;
+    if (t && (t_addr % __alignof__(thread_t)) == 0) {
+        process_t *p = t->process;
+        int pid      = -1;
         if (p && (((uintptr_t)p) % __alignof__(process_t)) == 0)
             pid = p->pid;
 
@@ -216,34 +213,29 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
             pid,
             p);
 
-        if (t->kstack_top != 0)
-        {
+        if (t->kstack_top != 0) {
             const uintptr_t kbase = t->kstack_top - KSTACK_SIZE;
-            const uintptr_t ktop = t->kstack_top;
+            const uintptr_t ktop  = t->kstack_top;
             const uintptr_t faddr = (uintptr_t)frame;
-            const bool in_kstack = (faddr >= kbase && faddr < ktop);
+            const bool in_kstack  = (faddr >= kbase && faddr < ktop);
             printk(KBWHT "kstack" KRESET "=[0x%lx-0x%lx) " KBWHT"frame_in_kstack" KRESET"=%d\n",
                    kbase,
                    ktop,
                    in_kstack);
         }
-    }
-    else
-    {
+    } else {
         printk(KYEL "active_thread invalid or misaligned (ptr=%p)\n" KRESET, t);
     }
 
 
-    if (t && t->is_user)
-    {
-        printk(KRESET "run " KBBLU "addr2line -e user/build/%s %p" KRESET " to get line numbers\n",current_process->name,
+    if (t && t->is_user) {
+        printk(KRESET "run " KBBLU "addr2line -e user/build/%s %p" KRESET " to get line numbers\n",
+               current_process->name,
                snapshot->rip);
         printk(KRESET "run " KBBLU "objdump -d user/build/%s | grep %p -A 40 -B 40" KRESET " to see more.\n",
                current_process->name,
                snapshot->rip);
-    }
-    else
-    {
+    } else {
         printk(KRESET "run " KBBLU "addr2line -e build/kernel.elf %p" KRESET " to get line numbers\n",
                snapshot->rip);
         printk(KRESET "run " KBBLU "objdump -d build/kernel.elf | grep %p -A 40 -B 40" KRESET " to see more.\n",
@@ -259,25 +251,22 @@ static void dump_panic_context(const struct interrupt_frame* frame, const struct
         snapshot->rflags);
 }
 
-void interrupt_handler(struct interrupt_frame* frame)
+void interrupt_handler(struct interrupt_frame *frame)
 {
-    if (isr_handlers[frame->int_no])
-    {
+    if (isr_handlers[frame->int_no]) {
         isr_handlers[frame->int_no](frame);
-    }
-    else if (frame->int_no < 32)
-    {
-        struct interrupt_frame snapshot = *frame;
-        const struct interrupt_frame* snap = &snapshot;
+    } else if (frame->int_no < 32) {
+        struct interrupt_frame snapshot    = *frame;
+        const struct interrupt_frame *snap = &snapshot;
 
-        char* message = frame->int_no >= ARRAY_SIZE(exception_messages)
-                            ? "Unknown"
-                            : exception_messages[snap->int_no];
-        printk(KRED "PANIC: EXCEPTION OCCURRED! " KYEL "%s" KRESET " (Vector %d)\n", message,
+        char *message = frame->int_no >= ARRAY_SIZE(exception_messages)
+            ? "Unknown"
+            : exception_messages[snap->int_no];
+        printk(KRED "PANIC: EXCEPTION OCCURRED! " KYEL "%s" KRESET " (Vector %d)\n",
+               message,
                (int)snap->int_no);
 
-        if (snap->int_no == 14)
-        {
+        if (snap->int_no == 14) {
             uint64_t cr2;
             __asm__ volatile("mov %0, cr2" : "=r"(cr2));
 #ifdef TEST_MODE
@@ -295,10 +284,9 @@ void interrupt_handler(struct interrupt_frame* frame)
             // rather than panicking the whole kernel.
             const bool user_mode = (snap->cs & 0x3) != 0;
 
-            if (user_mode)
-            {
-                thread_t* t = current_thread;
-                process_t* p = current_process;
+            if (user_mode) {
+                thread_t *t  = current_thread;
+                process_t *p = current_process;
                 printk("Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx",
                        p != nullptr ? p->pid : -1,
                        t != nullptr ? t->tid : -1,
@@ -314,25 +302,20 @@ void interrupt_handler(struct interrupt_frame* frame)
                 // Interrupts are already disabled by the interrupt gate.
                 spinlock_acquire(&scheduler_lock);
 
-                if (p)
-                {
-                    p->exit_code = -1;
+                if (p) {
+                    p->exit_code  = -1;
                     p->terminated = true;
                 }
-                if (p)
-                {
-                    thread_t* tt;
-                    list_foreach_entry(tt, &p->threads, list)
-                    {
+                if (p) {
+                    thread_t *tt;
+                    list_foreach_entry(tt, &p->threads, list) {
                         tt->state = THREAD_TERMINATED;
                     }
 
-                    process_t* new_parent = init_process ? init_process : kernel_process;
-                    process_t* child;
-                    list_foreach_entry(child, &process_list, list)
-                    {
-                        if (child && child->parent == p)
-                        {
+                    process_t *new_parent = init_process ? init_process : kernel_process;
+                    process_t *child;
+                    list_foreach_entry(child, &process_list, list) {
+                        if (child && child->parent == p) {
                             child->parent = new_parent;
                             if (child->terminated)
                                 thread_wakeup(new_parent);
@@ -341,13 +324,12 @@ void interrupt_handler(struct interrupt_frame* frame)
                 }
 
                 // Cache parent before releasing lock
-                process_t* parent = (p && p->parent) ? p->parent : nullptr;
+                process_t *parent = (p && p->parent) ? p->parent : nullptr;
 
                 spinlock_release(&scheduler_lock);
 
                 // Wake up parent outside the lock (thread_wakeup acquires its own lock)
-                if (parent)
-                {
+                if (parent) {
                     thread_wakeup(parent);
                 }
 
@@ -381,9 +363,7 @@ void interrupt_handler(struct interrupt_frame* frame)
         shutdown();
 #endif
         hcf();
-    }
-    else
-    {
+    } else {
         apic_send_eoi();
     }
 
@@ -394,10 +374,9 @@ void interrupt_handler(struct interrupt_frame* frame)
 void idt_init(void)
 {
     idtr.limit = sizeof(idt) - 1;
-    idtr.base = (uint64_t)&idt;
+    idtr.base  = (uint64_t)&idt;
 
-    for (int i = 0; i < 256; i++)
-    {
+    for (int i = 0; i < 256; i++) {
         // Use Interrupt Gates (0x0E) for all entries to automatically disable interrupts
         // upon entry. This avoids the need for manual 'cli' instructions in handlers.
         // If we wanted to allow nested interrupts (e.g. for system calls or non-critical exceptions),

@@ -152,7 +152,7 @@ bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
             if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
                 const uint64_t ptr =
                     ((uint64_t)trb->dword1 << 32) | trb->dword0; // Rebuild 64-bit TRB pointer.
-                const uint32_t completion = trb->dword2 >> 24;    // Completion code field.
+                const uint32_t completion = trb->dword2 >> 24;   // Completion code field.
                 const uint8_t slot_id     = trb->event.slot_id;
                 xhci_event_ring_advance(xhci);
 
@@ -214,7 +214,7 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
             if (type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
                 const uint64_t ptr =
                     ((uint64_t)trb->dword1 << 32) | trb->dword0; // Rebuild 64-bit TRB pointer.
-                const uint32_t completion = trb->dword2 >> 24;    // Completion code field.
+                const uint32_t completion = trb->dword2 >> 24;   // Completion code field.
                 const uint8_t event_slot  = trb->event.slot_id;
                 const uint8_t event_ep    = trb->event.ep_id;
                 xhci_event_ring_advance(xhci);

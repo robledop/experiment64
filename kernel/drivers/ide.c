@@ -20,7 +20,7 @@
 ide_device_t ide_devices[4];
 
 static uint16_t ide_channels[2] = {0x1F0, 0x170};
-static uint16_t ide_control[2] = {0x3F6, 0x376};
+static uint16_t ide_control[2]  = {0x3F6, 0x376};
 
 // Note: we use polling (DRQ/BSY) for PIO transfers to avoid SMP/IRQ routing issues.
 // The IRQ handler remains to ACK the device interrupt by reading status.
@@ -43,22 +43,19 @@ static void ide_delay(uint8_t channel)
     // Reading the Alternate Status port 15 times introduces a 400ns delay
     // which is suggested by the ATA spec after changing drive selection.
     // https://wiki.osdev.org/ATA_PIO_Mode#400ns_delays
-    for (int i = 0; i < 15; i++)
-    {
+    for (int i = 0; i < 15; i++) {
         inb(ide_channels[channel] + 7);
     }
 }
 
 static void ide_swap_and_trim_model(char *dst, const uint8_t *src)
 {
-    for (int k = 0; k < 40; k += 2)
-    {
-        dst[k] = (char)src[k + 1];
+    for (int k = 0; k < 40; k += 2) {
+        dst[k]     = (char)src[k + 1];
         dst[k + 1] = (char)src[k];
     }
     dst[40] = 0;
-    for (int k = 39; k > 0; k--)
-    {
+    for (int k = 39; k > 0; k--) {
         if (dst[k] == ' ')
             dst[k] = 0;
         else
@@ -69,10 +66,8 @@ static void ide_swap_and_trim_model(char *dst, const uint8_t *src)
 static void ide_log_devices(void)
 {
     boot_message(INFO, "IDE Initialized.");
-    for (int i = 0; i < 4; i++)
-    {
-        if (ide_devices[i].exists)
-        {
+    for (int i = 0; i < 4; i++) {
+        if (ide_devices[i].exists) {
             boot_message(INFO, "IDE Drive %d: %s - %d Sectors", i, ide_devices[i].model, ide_devices[i].size);
         }
     }
@@ -82,8 +77,7 @@ static void ide_log_devices(void)
 static uint8_t ide_wait_flag(uint8_t channel, uint8_t flag)
 {
     uint64_t timeout = 1000000;
-    while (timeout > 0)
-    {
+    while (timeout > 0) {
         uint8_t status = inb(ide_channels[channel] + 7);
         if (status & IDE_ERR)
             return 1; // Error
@@ -102,20 +96,19 @@ void ide_init(void)
 {
     memset(ide_devices, 0, sizeof(ide_devices));
 
-    if (!ide_channel_lock_inited)
-    {
+    if (!ide_channel_lock_inited) {
         spinlock_init(&ide_channel_lock[0]);
         spinlock_init(&ide_channel_lock[1]);
         ide_channel_lock_inited = true;
     }
 
-    for (int i = 0; i < 2; i++)
-    { // Channels
-        for (int j = 0; j < 2; j++)
-        { // Drives
+    for (int i = 0; i < 2; i++) {
+        // Channels
+        for (int j = 0; j < 2; j++) {
+            // Drives
             const int idx = i * 2 + j;
-            uint8_t err = 0;
-            uint8_t type = IDE_ATA;
+            uint8_t err   = 0;
+            uint8_t type  = IDE_ATA;
 
             // Select Drive
             outb(ide_channels[i] + 6, 0xA0 | (j << 4));
@@ -128,11 +121,9 @@ void ide_init(void)
             if (inb(ide_channels[i] + 7) == 0)
                 continue; // Drive does not exist
 
-            while (1)
-            {
+            while (1) {
                 uint8_t status = inb(ide_channels[i] + 7);
-                if (status & IDE_ERR)
-                {
+                if (status & IDE_ERR) {
                     err = 1;
                     break;
                 }
@@ -140,22 +131,21 @@ void ide_init(void)
                     break;
             }
 
-            if (err)
-            {
+            if (err) {
                 continue;
             }
 
             // Read Identification Data
             insw(ide_channels[i] + 0, (void *)ide_buf, 256);
 
-            ide_devices[idx].exists = 1;
-            ide_devices[idx].type = type;
-            ide_devices[idx].channel = i;
-            ide_devices[idx].drive = j;
-            ide_devices[idx].signature = *((uint16_t *)(ide_buf + 0));
+            ide_devices[idx].exists       = 1;
+            ide_devices[idx].type         = type;
+            ide_devices[idx].channel      = i;
+            ide_devices[idx].drive        = j;
+            ide_devices[idx].signature    = *((uint16_t *)(ide_buf + 0));
             ide_devices[idx].capabilities = *((uint16_t *)(ide_buf + 49));
             ide_devices[idx].command_sets = *((uint32_t *)(ide_buf + 82));
-            ide_devices[idx].size = *((uint32_t *)(ide_buf + 60)); // Total sectors (LBA28)
+            ide_devices[idx].size         = *((uint32_t *)(ide_buf + 60)); // Total sectors (LBA28)
 
             // Model string needs byte swapping
             ide_swap_and_trim_model(ide_devices[idx].model, ide_buf + 27 * 2);
@@ -177,13 +167,12 @@ int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *
         return 1;
 
     uint8_t channel = ide_devices[drive_index].channel;
-    uint8_t slave = ide_devices[drive_index].drive;
+    uint8_t slave   = ide_devices[drive_index].drive;
 
     // Serialize operations on the channel, but keep interrupts enabled so IRQ handlers can run.
     spinlock_acquire(&ide_channel_lock[channel]);
 
-    if (ide_wait_ready(channel) != 0)
-    {
+    if (ide_wait_ready(channel) != 0) {
         spinlock_release(&ide_channel_lock[channel]);
         return 1;
     }
@@ -198,11 +187,9 @@ int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *
     outb(ide_channels[channel] + 5, (uint8_t)(lba >> 16));
     outb(ide_channels[channel] + 7, IDE_CMD_READ);
 
-    for (int i = 0; i < count; i++)
-    {
+    for (int i = 0; i < count; i++) {
         // Poll DRQ instead of waiting for IRQ; avoids SMP/IRQ routing issues.
-        if (ide_wait_drq(channel) != 0)
-        {
+        if (ide_wait_drq(channel) != 0) {
             spinlock_release(&ide_channel_lock[channel]);
             return 1;
         }
@@ -219,12 +206,11 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
         return 1;
 
     uint8_t channel = ide_devices[drive_index].channel;
-    uint8_t slave = ide_devices[drive_index].drive;
+    uint8_t slave   = ide_devices[drive_index].drive;
 
     spinlock_acquire(&ide_channel_lock[channel]);
 
-    if (ide_wait_ready(channel) != 0)
-    {
+    if (ide_wait_ready(channel) != 0) {
         spinlock_release(&ide_channel_lock[channel]);
         return 1;
     }
@@ -239,10 +225,8 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
     outb(ide_channels[channel] + 5, (uint8_t)(lba >> 16));
     outb(ide_channels[channel] + 7, IDE_CMD_WRITE);
 
-    for (int i = 0; i < count; i++)
-    {
-        if (ide_wait_drq(channel) != 0)
-        {
+    for (int i = 0; i < count; i++) {
+        if (ide_wait_drq(channel) != 0) {
             spinlock_release(&ide_channel_lock[channel]);
             return 1;
         }
@@ -250,8 +234,7 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
         outsw(ide_channels[channel] + 0, (void *)(buffer + i * 512), 256);
 
         // Wait for the device to finish the sector (BSY clear).
-        if (ide_wait_not_bsy(channel) != 0)
-        {
+        if (ide_wait_not_bsy(channel) != 0) {
             spinlock_release(&ide_channel_lock[channel]);
             return 1;
         }
@@ -267,12 +250,11 @@ int ide_flush_cache(uint8_t drive_index)
         return -1;
 
     uint8_t channel = ide_devices[drive_index].channel;
-    uint8_t slave = ide_devices[drive_index].drive;
+    uint8_t slave   = ide_devices[drive_index].drive;
 
     spinlock_acquire(&ide_channel_lock[channel]);
 
-    if (ide_wait_ready(channel) != 0)
-    {
+    if (ide_wait_ready(channel) != 0) {
         spinlock_release(&ide_channel_lock[channel]);
         return -1;
     }
@@ -281,8 +263,7 @@ int ide_flush_cache(uint8_t drive_index)
     ide_delay(channel);
     outb(ide_channels[channel] + 7, IDE_CMD_FLUSH_CACHE);
 
-    if (ide_wait_not_bsy(channel) != 0)
-    {
+    if (ide_wait_not_bsy(channel) != 0) {
         spinlock_release(&ide_channel_lock[channel]);
         return -1;
     }

@@ -34,8 +34,8 @@ extern volatile struct limine_hhdm_request hhdm_request;
 #define IOAPIC_IOREGSEL 0x00
 #define IOAPIC_IOWIN 0x10
 
-static uint64_t lapic_base = 0;
-static uint64_t ioapic_base = 0;
+static uint64_t lapic_base        = 0;
+static uint64_t ioapic_base       = 0;
 static uint32_t lapic_timer_ticks = 100000; // Default fallback
 
 #define MAX_ISOS 16
@@ -50,40 +50,41 @@ static int iso_count = 0;
  * Returns the GSI corresponding to the given IRQ.
  * If no ISO is found, returns the IRQ itself (1:1 mapping).
  */
-static uint32_t apic_get_gsi(uint8_t irq, uint16_t* flags)
+static uint32_t apic_get_gsi(uint8_t irq, uint16_t *flags)
 {
-    for (int i = 0; i < iso_count; i++)
-    {
+    for (int i = 0; i < iso_count; i++) {
         if (isos[i].irq_source == irq && isos[i].bus_source == 0) // ISA bus is usually 0
         {
-            if (flags) *flags = isos[i].flags;
+            if (flags)
+                *flags = isos[i].flags;
             return isos[i].gsi;
         }
     }
-    if (flags) *flags = 0;
+    if (flags)
+        *flags = 0;
     return irq; // Default 1:1 mapping
 }
 
 uint32_t apic_lapic_read(uint32_t reg)
 {
-    return *((volatile uint32_t*)(lapic_base + reg));
+    return *((volatile uint32_t *)(lapic_base + reg));
 }
 
 static void lapic_write(uint32_t reg, uint32_t value)
 {
-    *((volatile uint32_t*)(lapic_base + reg)) = value;
+    *((volatile uint32_t *)(lapic_base + reg)) = value;
 }
 
 uint32_t ioapic_read(uint32_t reg)
 {
-    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
-    return *((volatile uint32_t*)(ioapic_base + IOAPIC_IOWIN));
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    return *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN));
 }
 
 static void ioapic_write(uint32_t reg, uint32_t value)
 {
-    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
-    *((volatile uint32_t*)(ioapic_base + IOAPIC_IOWIN)) = value;
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOREGSEL)) = reg;
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_IOWIN))    = value;
 }
 
 void apic_send_eoi(void)
@@ -149,15 +150,13 @@ void apic_init(void)
 {
     pic_disable();
 
-    struct madt* madt = acpi_find_table("APIC");
-    if (madt == nullptr)
-    {
+    struct madt *madt = acpi_find_table("APIC");
+    if (madt == nullptr) {
         boot_message(ERROR, "APIC: MADT not found!");
         return;
     }
 
-    if (hhdm_request.response == nullptr)
-    {
+    if (hhdm_request.response == nullptr) {
         boot_message(ERROR, "APIC: HHDM response not found!");
         return;
     }
@@ -167,25 +166,26 @@ void apic_init(void)
     boot_message(INFO, "APIC: LAPIC base: %lx", lapic_base);
 
     // Parse MADT entries to find IOAPIC and ISOs
-    uint8_t* entry = (uint8_t*)(madt + 1);
-    uint8_t* end = (uint8_t*)madt + madt->header.length;
+    uint8_t *entry = (uint8_t *)(madt + 1);
+    uint8_t *end   = (uint8_t *)madt + madt->header.length;
 
-    while (entry < end)
-    {
-        struct madt_entry_header* header = (struct madt_entry_header*)entry;
+    while (entry < end) {
+        struct madt_entry_header *header = (struct madt_entry_header *)entry;
         if (header->type == 1) // IOAPIC
         {
-            struct madt_ioapic* ioapic = (struct madt_ioapic*)entry;
-            ioapic_base = ioapic->ioapic_address + hhdm_offset;
+            struct madt_ioapic *ioapic = (struct madt_ioapic *)entry;
+            ioapic_base                = ioapic->ioapic_address + hhdm_offset;
             boot_message(INFO, "APIC: IOAPIC base: %lx", ioapic_base);
-        }
-        else if (header->type == 2) // ISO
+        } else if (header->type == 2) // ISO
         {
-            struct madt_iso* iso = (struct madt_iso*)entry;
-            boot_message(INFO, "APIC: ISO bus=%d irq=%d gsi=%d flags=%x", iso->bus_source, iso->irq_source, iso->gsi,
+            struct madt_iso *iso = (struct madt_iso *)entry;
+            boot_message(INFO,
+                         "APIC: ISO bus=%d irq=%d gsi=%d flags=%x",
+                         iso->bus_source,
+                         iso->irq_source,
+                         iso->gsi,
                          iso->flags);
-            if (iso_count < MAX_ISOS)
-            {
+            if (iso_count < MAX_ISOS) {
                 isos[iso_count++] = *iso;
             }
         }
@@ -202,7 +202,7 @@ void apic_init(void)
 
     // Map Keyboard (IRQ 1) to Vector 33 (0x21)
     uint16_t kbd_flags = 0;
-    uint32_t kbd_gsi = apic_get_gsi(1, &kbd_flags);
+    uint32_t kbd_gsi   = apic_get_gsi(1, &kbd_flags);
 
     uint64_t entry_val = 33; // Vector 33
 
@@ -228,7 +228,7 @@ void apic_init(void)
 void apic_enable_irq(uint8_t irq, uint8_t vector)
 {
     uint16_t flags = 0;
-    uint32_t gsi = apic_get_gsi(irq, &flags);
+    uint32_t gsi   = apic_get_gsi(irq, &flags);
 
     uint64_t entry_val = vector;
 
@@ -264,8 +264,7 @@ uint32_t apic_get_lapic_id(void)
 void apic_send_ipi(uint8_t lapic_id, uint8_t vector)
 {
     // Wait for any pending IPI to complete
-    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12))
-        ;
+    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12));
 
     // Write destination LAPIC ID to ICR high
     lapic_write(LAPIC_ICR1, (uint32_t)lapic_id << 24);
@@ -277,10 +276,8 @@ void apic_send_ipi(uint8_t lapic_id, uint8_t vector)
 void apic_send_ipi_all_excluding_self(uint8_t vector)
 {
     // Wait for any pending IPI to complete
-    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12))
-        ;
+    while (apic_lapic_read(LAPIC_ICR0) & (1 << 12));
 
     // Write vector with "all excluding self" shorthand
     lapic_write(LAPIC_ICR0, vector | ICR_FIXED | ICR_LEVEL_ASSERT | ICR_DEST_ALL_EXCLUDING_SELF);
 }
-

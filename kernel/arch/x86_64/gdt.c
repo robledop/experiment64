@@ -18,19 +18,19 @@
 
 void tss_set_stack(uint64_t stack)
 {
-    cpu_t* cpu = get_cpu();
+    cpu_t *cpu    = get_cpu();
     cpu->tss.rsp0 = stack;
 }
 
 void gdt_init(void)
 {
-    cpu_t* cpu = get_cpu();
-    struct gdt_desc* gdt = cpu->gdt;
-    struct tss_entry* tss = &cpu->tss;
+    cpu_t *cpu            = get_cpu();
+    struct gdt_desc *gdt  = cpu->gdt;
+    struct tss_entry *tss = &cpu->tss;
     struct gdt_ptr gdtp;
 
     gdtp.limit = sizeof(struct gdt_desc) * 7 - 1;
-    gdtp.base = (uint64_t)gdt;
+    gdtp.base  = (uint64_t)gdt;
 
     gdt[0] = (struct gdt_desc){0, 0, 0, 0, 0, 0};
 
@@ -76,18 +76,18 @@ void gdt_init(void)
     memset(tss, 0, sizeof(struct tss_entry));
     tss->iomap_base = sizeof(struct tss_entry); // Disable IO Map
 
-    uint64_t tss_base = (uint64_t)tss;
+    uint64_t tss_base  = (uint64_t)tss;
     uint64_t tss_limit = sizeof(struct tss_entry) - 1;
 
-    auto tss_desc = (struct gdt_system_desc*)&gdt[5];
-    tss_desc->limit = tss_limit & 0xFFFF;
-    tss_desc->base_low = tss_base & 0xFFFF;
-    tss_desc->base_mid = (tss_base >> 16) & 0xFF;
-    tss_desc->access = GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_TSS;
+    auto tss_desc         = (struct gdt_system_desc *)&gdt[5];
+    tss_desc->limit       = tss_limit & 0xFFFF;
+    tss_desc->base_low    = tss_base & 0xFFFF;
+    tss_desc->base_mid    = (tss_base >> 16) & 0xFF;
+    tss_desc->access      = GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_TSS;
     tss_desc->granularity = 0; // Limit is in bytes
-    tss_desc->base_high = (tss_base >> 24) & 0xFF;
-    tss_desc->base_upper = (tss_base >> 32) & 0xFFFFFFFF;
-    tss_desc->reserved = 0;
+    tss_desc->base_high   = (tss_base >> 24) & 0xFF;
+    tss_desc->base_upper  = (tss_base >> 32) & 0xFFFFFFFF;
+    tss_desc->reserved    = 0;
 
     __asm__ volatile("lgdt %0" : : "m"(gdtp));
 

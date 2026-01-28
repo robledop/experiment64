@@ -18,12 +18,11 @@ void pit_sleep(uint32_t ms)
     outb(PIT_CHANNEL0, (count >> 8) & 0xFF);
 
     uint16_t current_count;
-    do
-    {
+    do {
         // Send Latch command
         outb(PIT_CMD, PIT_CMD_LATCH);
-        uint8_t low = inb(PIT_CHANNEL0);
-        uint8_t high = inb(PIT_CHANNEL0);
+        uint8_t low   = inb(PIT_CHANNEL0);
+        uint8_t high  = inb(PIT_CHANNEL0);
         current_count = ((uint16_t)high << 8) | low;
     } while (current_count > 64); // Wait until it's close to 0.
 }

@@ -32,7 +32,8 @@ static const char *xhci_speed_name(const uint32_t speed)
 static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_out)
 {
     const uint32_t bar0 = device->bars[0];
-    if (bar0 == 0 || (bar0 & PCI_BAR_IO)) { // Reject I/O BARs.
+    if (bar0 == 0 || (bar0 & PCI_BAR_IO)) {
+        // Reject I/O BARs.
         return false;
     }
 
@@ -83,8 +84,8 @@ static void xhci_log_port_state(const struct xhci_controller *xhci, const uint32
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
     const uint32_t portsc = xhci_read32(xhci->op_base, offset);
-    const uint32_t speed = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // PORTSC speed field.
-    const uint32_t pls   = (portsc & XHCI_PORTSC_PLS_MASK) >> XHCI_PORTSC_PLS_SHIFT;     // PORTSC PLS field.
+    const uint32_t speed  = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // PORTSC speed field.
+    const uint32_t pls    = (portsc & XHCI_PORTSC_PLS_MASK) >> XHCI_PORTSC_PLS_SHIFT;     // PORTSC PLS field.
 
     // Report PORTSC status bits: CCS/PP/PED/PR.
     boot_message(INFO,
@@ -142,8 +143,9 @@ static void xhci_power_ports(const struct xhci_controller *xhci)
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
         uint32_t portsc       = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_PP) == 0) { // Power bit clear.
-            portsc |= XHCI_PORTSC_PP;         // Set port power.
+        if ((portsc & XHCI_PORTSC_PP) == 0) {
+            // Power bit clear.
+            portsc |= XHCI_PORTSC_PP; // Set port power.
             xhci_write32(xhci->op_base, offset, portsc);
         }
     }
@@ -271,7 +273,8 @@ static void xhci_scan_ports(struct xhci_controller *xhci)
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
         uint32_t portsc       = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_CCS) == 0) { // No device connected.
+        if ((portsc & XHCI_PORTSC_CCS) == 0) {
+            // No device connected.
             continue;
         }
 

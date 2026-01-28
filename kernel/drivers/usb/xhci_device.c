@@ -25,7 +25,8 @@ static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
     for (uint32_t i = 0; i < timeout_ms; i++) {
         portsc             = xhci_read32(xhci->op_base, offset);
         const uint32_t pls = (portsc & XHCI_PORTSC_PLS_MASK) >> 5u; // PORTSC PLS field.
-        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {          // Port enabled and in U0.
+        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {
+            // Port enabled and in U0.
             if (portsc_out) {
                 *portsc_out = portsc;
             }
@@ -49,7 +50,7 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
 
     const uint32_t preserve =
         (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK; // Keep RWS bits, clear PLS.
-    uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;  // Set power and warm reset.
+    uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR; // Set power and warm reset.
     xhci_write32(xhci->op_base, offset, write);
 
     if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
@@ -79,14 +80,14 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
 
 bool xhci_enable_slot(struct xhci_controller *xhci, uint8_t *slot_id_out)
 {
-    struct xhci_trb cmd_trb = {0};
+    struct xhci_trb cmd_trb  = {0};
     cmd_trb.control.trb_type = XHCI_TRB_TYPE_ENABLE_SLOT;
     return xhci_cmd_submit(xhci, &cmd_trb, slot_id_out);
 }
 
 bool xhci_disable_slot(struct xhci_controller *xhci, const uint8_t slot_id)
 {
-    struct xhci_trb cmd = {0};
+    struct xhci_trb cmd  = {0};
     cmd.control.trb_type = XHCI_TRB_TYPE_DISABLE_SLOT;
     cmd.event.slot_id    = slot_id;
     if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
@@ -149,10 +150,10 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
     auto ctrl       = (struct xhci_input_control_ctx *)dev->input_ctx;
     ctrl->add_flags = 0x3u;
 
-    auto slot_ctx      = (struct xhci_slot_ctx *)xhci_input_context_ptr(dev->input_ctx, 0, (uint32_t)ctx_size);
-    slot_ctx->dev_info_bits.speed       = speed;
+    auto slot_ctx = (struct xhci_slot_ctx *)xhci_input_context_ptr(dev->input_ctx, 0, (uint32_t)ctx_size);
+    slot_ctx->dev_info_bits.speed = speed;
     slot_ctx->dev_info_bits.ctx_entries = 1u;
-    slot_ctx->dev_info2_bits.root_port  = port;
+    slot_ctx->dev_info2_bits.root_port = port;
 
     if (!dev->ep0_ring.trbs) {
         if (!xhci_ring_init(&dev->ep0_ring, XHCI_EP0_RING_TRBS)) {
@@ -160,15 +161,15 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
         }
     }
 
-    auto ep0_ctx                  = (struct xhci_ep_ctx *)xhci_input_context_ptr(dev->input_ctx, 1, (uint32_t)ctx_size);
+    auto ep0_ctx = (struct xhci_ep_ctx *)xhci_input_context_ptr(dev->input_ctx, 1, (uint32_t)ctx_size);
     constexpr uint16_t max_packet = 512u;
-    ep0_ctx->ep_info              = 0;
+    ep0_ctx->ep_info = 0;
     ep0_ctx->ep_info2_bits.error_count = 3u;
-    ep0_ctx->ep_info2_bits.ep_type     = XHCI_EP_TYPE_CONTROL;
-    ep0_ctx->ep_info2_bits.max_packet  = max_packet;
+    ep0_ctx->ep_info2_bits.ep_type = XHCI_EP_TYPE_CONTROL;
+    ep0_ctx->ep_info2_bits.max_packet = max_packet;
     const uintptr_t deq = dev->ep0_ring.phys + (dev->ep0_ring.enqueue * sizeof(struct xhci_trb));
-    ep0_ctx->deq        = deq | (dev->ep0_ring.cycle ? 1u : 0u); // Set DCS from ring cycle.
-    ep0_ctx->tx_info    = 8u;
+    ep0_ctx->deq = deq | (dev->ep0_ring.cycle ? 1u : 0u); // Set DCS from ring cycle.
+    ep0_ctx->tx_info = 8u;
 
     return true;
 }
@@ -179,9 +180,9 @@ bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device *dev)
         return false;
     }
 
-    struct xhci_trb cmd = {0};
-    cmd.dword0          = (uint32_t)dev->input_ctx_phys;
-    cmd.dword1          = (uint32_t)(dev->input_ctx_phys >> 32); // Upper 32 bits of input ctx.
+    struct xhci_trb cmd  = {0};
+    cmd.dword0           = (uint32_t)dev->input_ctx_phys;
+    cmd.dword1           = (uint32_t)(dev->input_ctx_phys >> 32); // Upper 32 bits of input ctx.
     cmd.control.trb_type = XHCI_TRB_TYPE_ADDRESS_DEVICE;
     cmd.event.slot_id    = dev->slot_id;
     if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
@@ -207,9 +208,9 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
     struct xhci_trb setup_trb = {0};
     uint64_t setup_data       = 0;
     memcpy(&setup_data, setup, sizeof(*setup));
-    setup_trb.dword0 = (uint32_t)setup_data;
-    setup_trb.dword1 = (uint32_t)(setup_data >> 32); // Upper 32 bits of setup payload.
-    setup_trb.dword2 = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
+    setup_trb.dword0         = (uint32_t)setup_data;
+    setup_trb.dword1         = (uint32_t)(setup_data >> 32); // Upper 32 bits of setup payload.
+    setup_trb.dword2         = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
     setup_trb.setup.trb_type = XHCI_TRB_TYPE_SETUP_STAGE;
     setup_trb.setup.idt      = 1;
 
@@ -217,9 +218,9 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
     if (data_len > 0) {
         setup_trb.setup.trt = data_in ? XHCI_TRB_TRT_DATA_IN : XHCI_TRB_TRT_DATA_OUT;
 
-        data_trb.dword0 = (uint32_t)data_phys;
-        data_trb.dword1 = (uint32_t)(data_phys >> 32); // Upper 32 bits of data buffer.
-        data_trb.dword2 = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
+        data_trb.dword0           = (uint32_t)data_phys;
+        data_trb.dword1           = (uint32_t)(data_phys >> 32);                      // Upper 32 bits of data buffer.
+        data_trb.dword2           = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
         data_trb.control.trb_type = XHCI_TRB_TYPE_DATA_STAGE;
         if (data_in) {
             data_trb.data.dir_in = 1;
@@ -227,10 +228,10 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
         }
     }
 
-    struct xhci_trb status_trb = {0};
+    struct xhci_trb status_trb  = {0};
     status_trb.control.trb_type = XHCI_TRB_TYPE_STATUS_STAGE;
     status_trb.control.ioc      = 1;
-    const bool status_in       = data_len == 0 ? true : !data_in;
+    const bool status_in        = data_len == 0 ? true : !data_in;
     if (status_in) {
         status_trb.data.dir_in = 1;
     }

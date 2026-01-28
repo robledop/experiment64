@@ -71,7 +71,7 @@ static void mouse_buffer_push(struct ps2_mouse_packet pkt)
         mouse_buf_tail = (mouse_buf_tail + 1) % MOUSE_BUFFER_SIZE;
     }
     mouse_buffer[mouse_buf_head] = pkt;
-    mouse_buf_head = next;
+    mouse_buf_head               = next;
 }
 
 static bool mouse_buffer_pop(struct ps2_mouse_packet *pkt)
@@ -79,7 +79,7 @@ static bool mouse_buffer_pop(struct ps2_mouse_packet *pkt)
     if (mouse_buffer_empty()) {
         return false;
     }
-    *pkt = mouse_buffer[mouse_buf_tail];
+    *pkt           = mouse_buffer[mouse_buf_tail];
     mouse_buf_tail = (mouse_buf_tail + 1) % MOUSE_BUFFER_SIZE;
     return true;
 }
@@ -129,7 +129,7 @@ static void mouse_handler(struct interrupt_frame *frame)
             mouse_device.packet.flags = (uint8_t)byte;
             if ((mouse_device.packet.flags & MOUSE_V_BIT) == 0) {
                 mouse_device.cycle = 0;
-                status = inb(MOUSE_STATUS);
+                status             = inb(MOUSE_STATUS);
                 continue;
             }
             mouse_device.cycle = 1;
@@ -147,8 +147,8 @@ static void mouse_handler(struct interrupt_frame *frame)
             mouse_device.x = (int16_t)(mouse_device.x + mouse_device.packet.x);
             mouse_device.y = (int16_t)(mouse_device.y - mouse_device.packet.y);
 
-            mouse_device.prev_flags = mouse_device.flags;
-            mouse_device.flags = mouse_device.packet.flags & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
+            mouse_device.prev_flags   = mouse_device.flags;
+            mouse_device.flags        = mouse_device.packet.flags & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
             mouse_device.packet.flags = mouse_device.packet.flags & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
 
             if (mouse_device.x < 0) {
@@ -202,9 +202,9 @@ void mouse_init(void)
     outb(MOUSE_STATUS, 0x20);
     mouse_wait(0);
     uint8_t status = inb(0x60);
-    status |= 0x03;  // Enable both keyboard (bit 0) and mouse (bit 1) interrupts
-    status |= 0x40;  // Ensure translation stays enabled (bit 6)
-    status &= ~0x20; // Enable mouse clock (bit 5 = 0 means enabled)
+    status         |= 0x03;  // Enable both keyboard (bit 0) and mouse (bit 1) interrupts
+    status         |= 0x40;  // Ensure translation stays enabled (bit 6)
+    status         &= ~0x20; // Enable mouse clock (bit 5 = 0 means enabled)
     mouse_wait(1);
     outb(MOUSE_STATUS, 0x60);
     mouse_wait(1);
@@ -229,7 +229,7 @@ void mouse_init(void)
 
     memset(node, 0, sizeof(vfs_inode_t));
     node->flags = VFS_CHARDEVICE;
-    node->iops = &mouse_dev_ops;
+    node->iops  = &mouse_dev_ops;
 
     devfs_register_device("mouse", node);
 }
@@ -243,8 +243,8 @@ void mouse_get_position(mouse_t *mouse)
         return;
     }
 
-    mouse->x = mouse_device.x;
-    mouse->y = mouse_device.y;
+    mouse->x     = mouse_device.x;
+    mouse->y     = mouse_device.y;
     mouse->flags = mouse_device.flags;
 
     mouse_device.received = 1;
@@ -261,4 +261,3 @@ void mouse_flush_pending_events(void)
 static struct inode_operations mouse_dev_ops = {
     .read = mouse_dev_read,
 };
-
