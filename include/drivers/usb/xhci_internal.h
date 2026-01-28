@@ -237,10 +237,45 @@ static_assert(sizeof(struct xhci_input_control_ctx) == sizeof(uint32_t) * 8);
 
 struct xhci_slot_ctx
 {
-    uint32_t dev_info;    // Slot state, speed, and context count.
-    uint32_t dev_info2;   // Root port and hub information.
-    uint32_t tt_info;     // Transaction translator info.
-    uint32_t dev_state;   // Slot state and device address.
+    union
+    {
+        struct
+        {
+            uint32_t route_string : 20; // Route string for hub ports.
+            uint32_t speed : 4;         // Port speed code.
+            uint32_t rsvd0 : 3;         // Reserved, must be zero.
+            uint32_t ctx_entries : 5;   // Context entries count.
+        } dev_info_bits;
+
+        uint32_t dev_info; // Route string, speed, and context count.
+    };
+
+    union
+    {
+        struct
+        {
+            uint32_t rsvd0 : 16;    // Reserved, must be zero.
+            uint32_t root_port : 8; // Root hub port number.
+            uint32_t rsvd1 : 8;     // Reserved, must be zero.
+        } dev_info2_bits;
+
+        uint32_t dev_info2; // Root port and hub information.
+    };
+
+    uint32_t tt_info; // Transaction translator info.
+
+    union
+    {
+        struct
+        {
+            uint32_t address : 8;   // Device address.
+            uint32_t rsvd0 : 19;    // Reserved, must be zero.
+            uint32_t slot_state : 5; // Slot state.
+        } dev_state_bits;
+
+        uint32_t dev_state; // Slot state and device address.
+    };
+
     uint32_t reserved[4]; // Reserved, must be zero.
 } __attribute__((packed));
 
@@ -248,8 +283,32 @@ static_assert(sizeof(struct xhci_slot_ctx) == sizeof(uint32_t) * 8);
 
 struct xhci_ep_ctx
 {
-    uint32_t ep_info;     // Endpoint state and properties.
-    uint32_t ep_info2;    // Endpoint type and max packet size.
+    union
+    {
+        struct
+        {
+            uint32_t ep_state : 3; // Endpoint state.
+            uint32_t rsvd0 : 29;   // Reserved, must be zero.
+        } ep_info_bits;
+
+        uint32_t ep_info; // Endpoint state and properties.
+    };
+
+    union
+    {
+        struct
+        {
+            uint32_t rsvd0 : 1;       // Reserved, must be zero.
+            uint32_t error_count : 2; // Error count.
+            uint32_t ep_type : 3;     // Endpoint type.
+            uint32_t rsvd1 : 2;       // Reserved, must be zero.
+            uint32_t max_burst : 8;   // Max burst.
+            uint32_t max_packet : 16; // Max packet size.
+        } ep_info2_bits;
+
+        uint32_t ep_info2; // Endpoint type and max packet size.
+    };
+
     uint64_t deq;         // Endpoint dequeue pointer.
     uint32_t tx_info;     // Endpoint transfer settings.
     uint32_t reserved[3]; // Reserved, must be zero.

@@ -142,8 +142,7 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
     *slot_in      = *slot_out;
 
     const uint8_t max_ep_id = msc->bulk_in_id > msc->bulk_out_id ? msc->bulk_in_id : msc->bulk_out_id;
-    slot_in->dev_info       &= ~(0x1Fu << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
-    slot_in->dev_info       |= ((uint32_t)max_ep_id << XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT);
+    slot_in->dev_info_bits.ctx_entries = max_ep_id;
 
     auto ep0_in  = (struct xhci_ep_ctx *)xhci_input_context_ptr(msc->dev->input_ctx, 1, (uint32_t)ctx_size);
     auto ep0_out = (struct xhci_ep_ctx *)xhci_device_context_ptr(msc->dev->device_ctx, 1, (uint32_t)ctx_size);
@@ -153,10 +152,10 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
                                                                  msc->bulk_out_id,
                                                                  (uint32_t)ctx_size);
     memset(bulk_out, 0, sizeof(*bulk_out));
-    bulk_out->ep_info2 = (3u << XHCI_EP_ERROR_COUNT_SHIFT) |
-        (XHCI_EP_TYPE_BULK_OUT << XHCI_EP_TYPE_SHIFT) |
-        ((uint32_t)msc->bulk_out_max_burst << XHCI_EP_MAX_BURST_SHIFT) |
-        ((uint32_t)msc->bulk_out_max_packet << XHCI_EP_MAX_PACKET_SHIFT);
+    bulk_out->ep_info2_bits.error_count = 3u;
+    bulk_out->ep_info2_bits.ep_type     = XHCI_EP_TYPE_BULK_OUT;
+    bulk_out->ep_info2_bits.max_burst   = msc->bulk_out_max_burst;
+    bulk_out->ep_info2_bits.max_packet  = msc->bulk_out_max_packet;
     const uintptr_t out_deq = msc->bulk_out_ring.phys + (msc->bulk_out_ring.enqueue * sizeof(struct xhci_trb));
     bulk_out->deq           = out_deq | (msc->bulk_out_ring.cycle ? 1u : 0u);
     bulk_out->tx_info       = 0;
@@ -165,10 +164,10 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
                                                                 msc->bulk_in_id,
                                                                 (uint32_t)ctx_size);
     memset(bulk_in, 0, sizeof(*bulk_in));
-    bulk_in->ep_info2 = (3u << XHCI_EP_ERROR_COUNT_SHIFT) |
-        (XHCI_EP_TYPE_BULK_IN << XHCI_EP_TYPE_SHIFT) |
-        ((uint32_t)msc->bulk_in_max_burst << XHCI_EP_MAX_BURST_SHIFT) |
-        ((uint32_t)msc->bulk_in_max_packet << XHCI_EP_MAX_PACKET_SHIFT);
+    bulk_in->ep_info2_bits.error_count = 3u;
+    bulk_in->ep_info2_bits.ep_type     = XHCI_EP_TYPE_BULK_IN;
+    bulk_in->ep_info2_bits.max_burst   = msc->bulk_in_max_burst;
+    bulk_in->ep_info2_bits.max_packet  = msc->bulk_in_max_packet;
     const uintptr_t in_deq = msc->bulk_in_ring.phys + (msc->bulk_in_ring.enqueue * sizeof(struct xhci_trb));
     bulk_in->deq           = in_deq | (msc->bulk_in_ring.cycle ? 1u : 0u);
     bulk_in->tx_info       = 0;
