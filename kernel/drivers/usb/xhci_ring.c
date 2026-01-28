@@ -46,7 +46,7 @@ bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     const size_t bytes = trb_count * sizeof(struct xhci_trb);
     uintptr_t phys     = 0;
     void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+    if (!dma_alloc_pages(bytes, PAGE_SIZE, 0, &phys, &virt)) {
         return false;
     }
 
@@ -91,13 +91,13 @@ bool xhci_event_ring_init(struct xhci_event_ring *ring, const uint32_t trb_count
     const size_t bytes = trb_count * sizeof(struct xhci_trb);
     uintptr_t phys     = 0;
     void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+    if (!dma_alloc_pages(bytes, PAGE_SIZE, 0, &phys, &virt)) {
         return false;
     }
 
     uintptr_t erst_phys = 0;
     void *erst_virt     = nullptr;
-    if (!xhci_alloc_pages(sizeof(struct xhci_erst_entry), &erst_phys, &erst_virt)) {
+    if (!dma_alloc_pages(sizeof(struct xhci_erst_entry), PAGE_SIZE, 0, &erst_phys, &erst_virt)) {
         return false;
     }
 

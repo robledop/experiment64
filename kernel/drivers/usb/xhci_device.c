@@ -109,7 +109,7 @@ bool xhci_alloc_device_context(struct xhci_controller *xhci, struct xhci_device 
     const size_t bytes = (size_t)XHCI_MAX_CONTEXTS * xhci->context_size;
     uintptr_t phys     = 0;
     void *virt         = nullptr;
-    if (!xhci_alloc_pages(bytes, &phys, &virt)) {
+    if (!dma_alloc_pages(bytes, PAGE_SIZE, 0, &phys, &virt)) {
         return false;
     }
 
@@ -137,7 +137,7 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
     const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
     const size_t input_bytes  = input_offset + (XHCI_MAX_CONTEXTS * ctx_size);
     if (!dev->input_ctx) {
-        if (!xhci_alloc_pages(input_bytes, &dev->input_ctx_phys, &dev->input_ctx)) {
+        if (!dma_alloc_pages(input_bytes, PAGE_SIZE, 0, &dev->input_ctx_phys, &dev->input_ctx)) {
             return false;
         }
     }
@@ -267,7 +267,7 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
 {
     uintptr_t desc_phys = 0;
     void *desc_buf      = nullptr;
-    if (!xhci_alloc_pages(64u, &desc_phys, &desc_buf)) {
+    if (!dma_alloc_pages(64u, PAGE_SIZE, 0, &desc_phys, &desc_buf)) {
         boot_message(ERROR, "[xHCI] Descriptor buffer alloc failed");
         return false;
     }
@@ -304,7 +304,7 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
 {
     uintptr_t desc_phys = 0;
     void *desc_buf      = nullptr;
-    if (!xhci_alloc_pages(64u, &desc_phys, &desc_buf)) {
+    if (!dma_alloc_pages(64u, PAGE_SIZE, 0, &desc_phys, &desc_buf)) {
         boot_message(ERROR, "[xHCI] Config descriptor buffer alloc failed");
         return false;
     }
@@ -347,7 +347,7 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     uintptr_t full_phys = desc_phys;
     void *full_buf      = desc_buf;
     if (total_len > 64u) {
-        if (!xhci_alloc_pages(total_len, &full_phys, &full_buf)) {
+        if (!dma_alloc_pages(total_len, PAGE_SIZE, 0, &full_phys, &full_buf)) {
             boot_message(ERROR, "[xHCI] Config descriptor full alloc failed");
             return false;
         }

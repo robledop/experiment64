@@ -3,6 +3,7 @@
 #include <drivers/pci.h>
 #include <drivers/tsc.h>
 #include <lib/string.h>
+#include <mem/dma.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <stddef.h>
@@ -607,22 +608,6 @@ static inline void xhci_put_be32(uint8_t *buf, const uint32_t value)
     buf[1] = (uint8_t)(value >> 16u);
     buf[2] = (uint8_t)(value >> 8u);
     buf[3] = (uint8_t)value;
-}
-
-static inline bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
-{
-    const size_t pages = (bytes + PAGE_SIZE - 1u) / PAGE_SIZE;
-    void *phys         = pmm_alloc_pages(pages);
-    if (!phys) {
-        return false;
-    }
-
-    void *virt = (void *)((uintptr_t)phys + g_hhdm_offset);
-    memset(virt, 0, pages * PAGE_SIZE);
-
-    *phys_out = (uintptr_t)phys;
-    *virt_out = virt;
-    return true;
 }
 
 static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)

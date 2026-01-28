@@ -435,19 +435,19 @@ static bool xhci_msc_write10(struct xhci_controller *xhci,
 static bool xhci_msc_prepare_buffers(struct xhci_msc_device *msc)
 {
     if (!msc->cbw_buf) {
-        if (!xhci_alloc_pages(sizeof(struct usb_msc_cbw), &msc->cbw_phys, &msc->cbw_buf)) {
+        if (!dma_alloc_pages(sizeof(struct usb_msc_cbw), PAGE_SIZE, 0, &msc->cbw_phys, &msc->cbw_buf)) {
             return false;
         }
     }
 
     if (!msc->csw_buf) {
-        if (!xhci_alloc_pages(sizeof(struct usb_msc_csw), &msc->csw_phys, &msc->csw_buf)) {
+        if (!dma_alloc_pages(sizeof(struct usb_msc_csw), PAGE_SIZE, 0, &msc->csw_phys, &msc->csw_buf)) {
             return false;
         }
     }
 
     if (!msc->data_buf) {
-        if (!xhci_alloc_pages(XHCI_MSC_DATA_BYTES, &msc->data_phys, &msc->data_buf)) {
+        if (!dma_alloc_pages(XHCI_MSC_DATA_BYTES, PAGE_SIZE, 0, &msc->data_phys, &msc->data_buf)) {
             return false;
         }
         msc->data_bytes = XHCI_MSC_DATA_BYTES;

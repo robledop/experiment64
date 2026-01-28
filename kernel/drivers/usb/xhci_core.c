@@ -60,7 +60,7 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     const size_t array_bytes = xhci->max_scratchpad * sizeof(uint64_t);
     uintptr_t array_phys     = 0;
     void *array_virt         = nullptr;
-    if (!xhci_alloc_pages(array_bytes, &array_phys, &array_virt)) {
+    if (!dma_alloc_pages(array_bytes, PAGE_SIZE, 0, &array_phys, &array_virt)) {
         return false;
     }
 
@@ -388,7 +388,7 @@ void xhci_init(struct pci_device device)
     }
 
     const size_t dcbaa_bytes = (g_xhci.max_slots + 1u) * sizeof(uint64_t);
-    if (!xhci_alloc_pages(dcbaa_bytes, &g_xhci.dcbaa_phys, (void **)&g_xhci.dcbaa)) {
+    if (!dma_alloc_pages(dcbaa_bytes, PAGE_SIZE, 0, &g_xhci.dcbaa_phys, (void **)&g_xhci.dcbaa)) {
         boot_message(ERROR, "[xHCI] DCBAA alloc failed");
         return;
     }
