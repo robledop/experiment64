@@ -3,6 +3,7 @@
 #include <fs/vfs.h>
 #include <lib/string.h>
 #include <lib/path.h>
+#include <drivers/usb/xhci.h>
 #include <drivers/terminal.h>
 #include <mem/heap.h>
 
@@ -179,4 +180,26 @@ TEST(test_vfs_path_overlength_rejected)
     vfs_inode_t *node = vfs_resolve_path(longpath);
     TEST_ASSERT(node == nullptr);
     return true;
+}
+
+TEST(test_vfs_usb_mount)
+{
+    if (!xhci_usb_storage_present())
+        return true;
+
+    vfs_inode_t *node = vfs_resolve_path("/usb");
+    if (!node)
+    {
+        printk("VFS: /usb not mounted\n");
+        return false;
+    }
+
+    const bool is_dir = ((node->flags & 0x07) == VFS_DIRECTORY);
+    if (!is_dir)
+    {
+        printk("VFS: /usb is not a directory\n");
+    }
+
+    vfs_release(node);
+    return is_dir;
 }
