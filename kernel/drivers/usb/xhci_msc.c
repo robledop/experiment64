@@ -402,6 +402,34 @@ static bool xhci_msc_read_capacity(struct xhci_controller *xhci, struct xhci_msc
     return true;
 }
 
+static bool xhci_msc_read10(struct xhci_controller *xhci,
+                            struct xhci_msc_device *msc,
+                            const uint32_t lba,
+                            const uint16_t blocks)
+{
+    uint8_t cb[10] = {0};
+    cb[0]          = 0x28;
+    xhci_put_be32(&cb[2], lba);
+    xhci_put_be16(&cb[7], blocks);
+
+    const uint32_t data_len = (uint32_t)blocks * msc->block_size;
+    return xhci_msc_transfer(xhci, msc, cb, sizeof(cb), true, data_len);
+}
+
+static bool xhci_msc_write10(struct xhci_controller *xhci,
+                             struct xhci_msc_device *msc,
+                             const uint32_t lba,
+                             const uint16_t blocks)
+{
+    uint8_t cb[10] = {0};
+    cb[0]          = 0x2A;
+    xhci_put_be32(&cb[2], lba);
+    xhci_put_be16(&cb[7], blocks);
+
+    const uint32_t data_len = (uint32_t)blocks * msc->block_size;
+    return xhci_msc_transfer(xhci, msc, cb, sizeof(cb), false, data_len);
+}
+
 static bool xhci_msc_prepare_buffers(struct xhci_msc_device *msc)
 {
     if (!msc->cbw_buf) {
@@ -462,6 +490,17 @@ bool xhci_msc_init(struct xhci_controller *xhci)
     if (!xhci_msc_read_capacity(xhci, msc)) {
         boot_message(WARNING, "[xHCI] MSC READ CAPACITY failed");
         return false;
+    }
+
+    if (msc->block_size != 0 && msc->block_size <= msc->data_bytes) {
+        if (!xhci_msc_read10(xhci, msc, 0, 1)) {
+            boot_message(WARNING, "[xHCI] MSC READ(10) probe failed");
+        }
+    }
+
+    const bool allow_write = false;
+    if (allow_write) {
+        (void)xhci_msc_write10(xhci, msc, 0, 1);
     }
 
     return true;

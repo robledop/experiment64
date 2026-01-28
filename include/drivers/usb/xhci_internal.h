@@ -399,6 +399,20 @@ static inline uint32_t xhci_be32(const uint8_t *buf)
         (uint32_t)buf[3];
 }
 
+static inline void xhci_put_be16(uint8_t *buf, const uint16_t value)
+{
+    buf[0] = (uint8_t)(value >> 8u);
+    buf[1] = (uint8_t)value;
+}
+
+static inline void xhci_put_be32(uint8_t *buf, const uint32_t value)
+{
+    buf[0] = (uint8_t)(value >> 24u);
+    buf[1] = (uint8_t)(value >> 16u);
+    buf[2] = (uint8_t)(value >> 8u);
+    buf[3] = (uint8_t)value;
+}
+
 static inline bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
 {
     const size_t pages = (bytes + PAGE_SIZE - 1u) / PAGE_SIZE;
