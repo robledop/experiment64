@@ -5,8 +5,10 @@ MEMORY=${1:-2048}
 VM_NAME="Experiment64"
 RAW_DISK="image.hdd"
 RAW_IDE_DISK="image2.ide"
+RAW_USB_DISK="image3.usb"
 VDI_DISK="image.vdi"
 VDI_IDE_DISK="image2.vdi"
+VDI_USB_DISK="image3.vdi"
 MAC_ADDRESS="525400123456"
 NETWORK_INTERFACE="enp0s20f0u1c2"
 
@@ -18,14 +20,18 @@ if VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then
   VBoxManage unregistervm "$VM_NAME" --delete-all;
 fi
 
-rm -f "$VDI_DISK" "$VDI_IDE_DISK" || true
+rm -f "$VDI_DISK" "$VDI_IDE_DISK" "$VDI_USB_DISK" || true
 VBoxManage convertfromraw "$RAW_DISK" "$VDI_DISK" --format VDI
 VBoxManage convertfromraw "$RAW_IDE_DISK" "$VDI_IDE_DISK" --format VDI
+VBoxManage convertfromraw "$RAW_USB_DISK" "$VDI_USB_DISK" --format VDI
 VBoxManage createvm --name "$VM_NAME" --register --basefolder .
+VBoxManage modifyvm "$VM_NAME" --usb on --usbxhci on
 VBoxManage storagectl "$VM_NAME" --name "SATA" --add sata --controller IntelAhci --portcount 1 --bootable on
 VBoxManage storagectl "$VM_NAME" --name "IDE" --add ide --controller PIIX4 --bootable on
+VBoxManage storagectl "$VM_NAME" --name "USB" --add usb --controller USB --portcount 8
 VBoxManage storageattach "$VM_NAME" --storagectl "SATA" --port 0 --device 0 --type hdd --medium "$VDI_DISK"
 VBoxManage storageattach "$VM_NAME" --storagectl "IDE" --port 1 --device 0 --type hdd --medium "$VDI_IDE_DISK"
+VBoxManage storageattach "$VM_NAME" --storagectl "USB" --port 1 --device 0 --type hdd --medium "$VDI_USB_DISK"
 VBoxManage modifyvm "$VM_NAME" --memory "$MEMORY" --vram 16 --graphicscontroller vboxvga
 VBoxManage modifyvm "$VM_NAME" --nic1 bridged --nictype1 82540EM --bridgeadapter1 "$NETWORK_INTERFACE" --nicpromisc1 allow-all --macaddress1 "$MAC_ADDRESS"
 VBoxManage modifyvm "$VM_NAME" --ioapic on --cpus 8 --chipset piix3

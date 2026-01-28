@@ -29,4 +29,6 @@ The QEMU targets attach these images by default:
 - `image2.ide`: IDE disk with an ext2 partition
 - `image3.usb`: USB mass storage disk with an ext2 partition
 
+The VirtualBox launcher also attaches these images, including `image3.usb` as USB mass storage.
+
 When detected, the USB ext2 partition mounts at `/usb`.

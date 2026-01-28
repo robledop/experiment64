@@ -14,6 +14,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 
 - `make image.hdd` – build kernel + userland and assemble disk images
 - `make run` – boot the kernel in QEMU with the generated image
+- `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
 - `make check` – formatting/lint/static-analysis wrapper (clangd + clang-tidy)
 - `make clangd-check` / `make clang-tidy` – language server / lint helpers (no .S files)
