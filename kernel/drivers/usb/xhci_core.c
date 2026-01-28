@@ -6,44 +6,8 @@
 #include <lib/string.h>
 #include <mem/vmm.h>
 
-#define XHCI_CAPLENGTH 0x00u // Capability register length offset.
-#define XHCI_HCSPARAMS1 0x04u // HCS parameters 1 offset.
-#define XHCI_HCSPARAMS2 0x08u // HCS parameters 2 offset.
-#define XHCI_HCCPARAMS1 0x10u // HCC parameters 1 offset.
-#define XHCI_DBOFF 0x14u // Doorbell array offset register.
-#define XHCI_RTSOFF 0x18u // Runtime register space offset.
-#define XHCI_OP_USBCMD 0x00u // USBCMD operational register offset.
-#define XHCI_OP_USBSTS 0x04u // USBSTS operational register offset.
-#define XHCI_OP_PAGESIZE 0x08u // Page size register offset.
-#define XHCI_OP_CRCR 0x18u // Command ring control register offset.
-#define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
-#define XHCI_OP_CONFIG 0x38u // Configure register offset.
-#define XHCI_IMAN 0x00u // Interrupter management offset.
-#define XHCI_IMOD 0x04u // Interrupter moderation offset.
-#define XHCI_ERSTSZ 0x08u // Event ring segment table size offset.
-#define XHCI_ERSTBA 0x10u // Event ring segment table base address offset.
-#define XHCI_MMIO_MAP_BYTES 0x100000u // MMIO mapping size.
-
-#define XHCI_USBCMD_RS (1u << 0) // Run/Stop bit.
-#define XHCI_USBCMD_HCRST (1u << 1) // Host controller reset bit.
-#define XHCI_USBCMD_INTE (1u << 2) // Interrupt enable bit.
-#define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
-#define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
-
-
-
-#define XHCI_MAX_DEVICES 256u // Max device slots tracked.
-
-#define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
-#define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
-
-#define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
-#define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
-#define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
-#define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
-
 struct xhci_controller g_xhci;
-static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
+struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
 
 static const char *xhci_speed_name(const uint32_t speed)
 {
@@ -63,15 +27,6 @@ static const char *xhci_speed_name(const uint32_t speed)
     default:
         return "unknown";
     }
-}
-
-static struct xhci_device *xhci_device_from_slot(const uint8_t slot_id)
-{
-    if (slot_id == 0 || slot_id >= XHCI_MAX_DEVICES) {
-        return nullptr;
-    }
-
-    return &g_xhci_devices[slot_id];
 }
 
 static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_out)

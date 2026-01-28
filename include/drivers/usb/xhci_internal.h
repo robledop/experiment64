@@ -8,9 +8,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define XHCI_CAPLENGTH 0x00u // Capability register length offset.
+#define XHCI_HCSPARAMS1 0x04u // HCS parameters 1 offset.
+#define XHCI_HCSPARAMS2 0x08u // HCS parameters 2 offset.
+#define XHCI_HCCPARAMS1 0x10u // HCC parameters 1 offset.
+#define XHCI_DBOFF 0x14u // Doorbell array offset register.
+#define XHCI_RTSOFF 0x18u // Runtime register space offset.
+#define XHCI_OP_USBCMD 0x00u // USBCMD operational register offset.
+#define XHCI_OP_USBSTS 0x04u // USBSTS operational register offset.
+#define XHCI_OP_PAGESIZE 0x08u // Page size register offset.
+#define XHCI_OP_CRCR 0x18u // Command ring control register offset.
+#define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
+#define XHCI_OP_CONFIG 0x38u // Configure register offset.
 #define XHCI_RT_IR_BASE 0x20u // Interrupter 0 base in runtime space.
+#define XHCI_IMAN 0x00u // Interrupter management offset.
+#define XHCI_IMOD 0x04u // Interrupter moderation offset.
+#define XHCI_ERSTSZ 0x08u // Event ring segment table size offset.
+#define XHCI_ERSTBA 0x10u // Event ring segment table base address offset.
 #define XHCI_ERDP 0x18u // Event ring dequeue pointer offset.
 #define XHCI_ERDP_EHB (1ull << 3) // Event handler busy bit in ERDP.
+#define XHCI_USBCMD_RS (1u << 0) // Run/Stop bit.
+#define XHCI_USBCMD_HCRST (1u << 1) // Host controller reset bit.
+#define XHCI_USBCMD_INTE (1u << 2) // Interrupt enable bit.
+#define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
+#define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
 #define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
 #define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
@@ -47,6 +68,13 @@
 #define XHCI_COMPLETION_STALL_ERROR 6u // Completion code for stall error.
 #define XHCI_COMPLETION_DATA_BUFFER_ERROR 7u // Completion code for data buffer error.
 #define XHCI_COMPLETION_CONTEXT_STATE_ERROR 19u // Completion code for context state error.
+#define XHCI_CMD_RING_TRBS 256u // Command ring TRB count.
+#define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
+#define XHCI_MMIO_MAP_BYTES 0x100000u // MMIO mapping size.
+#define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
+#define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
+#define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
+#define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
 #define XHCI_TIMEOUT_MS 200u // Generic timeout in ms.
 #define XHCI_TRANSFER_TIMEOUT_MS 1000u // Transfer timeout in ms.
 #define XHCI_WAIT_SPIN_COUNT 256u // Spin count before sleeping in wait loops.
@@ -82,6 +110,7 @@
 #define XHCI_INTEL_USB3_PSSEN 0xD0u // Intel USB3 port routing enable register offset in PCI config space.
 #define XHCI_INTEL_XUSB2PR 0xD8u // Intel USB2 port routing register offset in PCI config space.
 #define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
+#define XHCI_MAX_DEVICES 256u // Max device slots tracked.
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
 #define USB_DESC_TYPE_CONFIGURATION 0x02u // USB configuration descriptor type.
@@ -333,6 +362,9 @@ struct xhci_controller
     struct xhci_event_ring event_ring; // Event ring state.
 };
 
+extern struct xhci_controller g_xhci;
+extern struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
+
 static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
 {
     auto reg = (const volatile uint32_t *)(base + offset);
@@ -515,6 +547,11 @@ static inline void *xhci_device_context_ptr(void *base, const uint32_t index, co
     return (void *)((uint8_t *)base + (index * ctx_size));
 }
 
+static inline struct xhci_device *xhci_device_from_slot(const uint8_t slot_id)
+{
+    return &g_xhci_devices[slot_id];
+}
+
 static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
 {
     const uint8_t ep_num = ep_addr & USB_EP_ADDR_MASK;
@@ -525,7 +562,6 @@ static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
     return (uint8_t)(ep_num * 2u + (in_dir ? 1u : 0u));
 }
 
-extern struct xhci_controller g_xhci;
 
 bool xhci_ring_init(struct xhci_ring *ring, uint32_t trb_count);
 void xhci_ring_reset(struct xhci_ring *ring);
