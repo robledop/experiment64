@@ -28,7 +28,8 @@ make tests
 
 `make tests` will automatically clean up any previous test artifacts and build the necessary components before executing
 the tests.
-The tests run with a timeout of 120 seconds to prevent hanging. If you see that a timeout has occurred, it means the last
+The tests run with a timeout of 120 seconds to prevent hanging. If you see that a timeout has occurred, it means the
+last
 test did not complete successfully within the allotted time.
 To know the tests completed, you need to see either "ALL TESTS PASSED" or "SOME TESTS FAILED" messages at the end.
 
@@ -58,6 +59,12 @@ To actually run the OS inside QEMU, use the following command:
 make run
 ```
 
+To boot the disk image as a USB mass storage device:
+
+```bash
+make run-usb
+```
+
 ## Disk images
 
 - `image.hdd`: GPT image with ESP (FAT32), root ext2, and data FAT32
@@ -72,19 +79,30 @@ The project is MIT licensed except for the Atheros AR8162 driver files
 ## Kernel overview
 
 - **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, APIC + IOAPIC, IDT/GDT, syscall entry
-- **Memory**: physical allocator (bitmap), virtual memory manager (4 KiB pages), kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap
+- **Memory**: physical allocator (bitmap), DMA allocator (contiguous, HHDM-mapped), virtual memory manager (4 KiB pages),
+  kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap
 - **Timing**: PIT for ticks, TSC calibration for timing
-- **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, e1000 NIC, framebuffer device `/dev/fb0`
-- **Networking**: e1000 and Atheros AR8162 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client, and a little DNS client in userland.
-- **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/` (new entries default to 0755/0644), FAT32 mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`. That's all hard-coded for now.
-- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
-- **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access
+- **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, USB xHCI (
+  USB 3.x enumeration + BOT mass storage read/write; EHCI quiesce + port routing), e1000 NIC, framebuffer device
+  `/dev/fb0`
+- **Networking**: e1000 and Atheros AR8162 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client, and a little DNS
+  client in userland.
+- **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/` (new entries default to 0755/0644), FAT32
+  mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`, USB ext2 (if
+  present) mounted at `/usb`. The boot disk is auto-detected across IDE/AHCI/USB by scanning GPT (ESP + root).
+- **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user
+  programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
+- **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap`
+  for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer
+  access
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
-- **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps (see docs/pci.md)
+- **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB
+  controller interface logs (see docs/pci.md)
 
 ## GUI
 
-It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives based on https://github.com/JMarlin/wsbe
+It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives based
+on https://github.com/JMarlin/wsbe
 
 ![GUI screenshot](docs/img/gui.png)
 
