@@ -283,6 +283,7 @@ struct usb_msc_csw
 
 struct xhci_msc_device
 {
+    bool active;                    // MSC device is active.
     struct xhci_device *dev;        // Associated xHCI device.
     uint8_t config_value;           // Configuration value to select.
     uint8_t interface_number;       // MSC interface number.
@@ -449,6 +450,8 @@ static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
     const bool in_dir = (ep_addr & USB_EP_DIR_IN) != 0;
     return (uint8_t)(ep_num * 2u + (in_dir ? 1u : 0u));
 }
+
+extern struct xhci_controller g_xhci;
 
 bool xhci_ring_init(struct xhci_ring *ring, uint32_t trb_count);
 uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb);

@@ -18,6 +18,7 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
     }
 
     g_xhci_msc.dev                 = (struct xhci_device *)dev;
+    g_xhci_msc.active              = false;
     g_xhci_msc.config_value        = ((const struct usb_config_descriptor *)cfg_buf)->b_configuration_value;
     g_xhci_msc.interface_number    = 0;
     g_xhci_msc.bulk_in_ep          = 0;
@@ -36,6 +37,8 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
     g_xhci_msc.data_phys           = 0;
     g_xhci_msc.data_bytes          = 0;
     g_xhci_msc.tag                 = 0;
+    g_xhci_msc.block_size          = 0;
+    g_xhci_msc.block_count         = 0;
 
     auto buf               = (const uint8_t *)cfg_buf;
     const uint8_t *end     = buf + total_len;
@@ -503,5 +506,88 @@ bool xhci_msc_init(struct xhci_controller *xhci)
         (void)xhci_msc_write10(xhci, msc, 0, 1);
     }
 
+    msc->active = true;
     return true;
+}
+
+bool xhci_usb_storage_present(void)
+{
+    return g_xhci_msc.active;
+}
+
+int xhci_usb_storage_read(uint32_t lba, uint8_t count, uint8_t *buffer)
+{
+    if (!g_xhci_msc.active || !buffer || count == 0) {
+        return -1;
+    }
+
+    if (g_xhci_msc.block_size != 512u) {
+        boot_message(WARNING, "[xHCI] MSC block size %u unsupported", g_xhci_msc.block_size);
+        return -1;
+    }
+
+    if ((uint64_t)lba + count > g_xhci_msc.block_count) {
+        return -1;
+    }
+
+    const uint32_t max_blocks = g_xhci_msc.data_bytes / g_xhci_msc.block_size;
+    if (max_blocks == 0) {
+        return -1;
+    }
+
+    uint32_t remaining     = count;
+    uint32_t offset_blocks = 0;
+    while (remaining > 0) {
+        uint16_t chunk = remaining > max_blocks ? (uint16_t)max_blocks : (uint16_t)remaining;
+        if (!xhci_msc_read10(&g_xhci, &g_xhci_msc, lba + offset_blocks, chunk)) {
+            return -1;
+        }
+
+        const uint32_t bytes = (uint32_t)chunk * g_xhci_msc.block_size;
+        memcpy(buffer + (offset_blocks * g_xhci_msc.block_size), g_xhci_msc.data_buf, bytes);
+        remaining     -= chunk;
+        offset_blocks += chunk;
+    }
+
+    return 0;
+}
+
+int xhci_usb_storage_write(uint32_t lba, uint8_t count, const uint8_t *buffer)
+{
+    if (!g_xhci_msc.active || !buffer || count == 0) {
+        return -1;
+    }
+
+    if (g_xhci_msc.block_size != 512u) {
+        boot_message(WARNING, "[xHCI] MSC block size %u unsupported", g_xhci_msc.block_size);
+        return -1;
+    }
+
+    if ((uint64_t)lba + count > g_xhci_msc.block_count) {
+        return -1;
+    }
+
+    const uint32_t max_blocks = g_xhci_msc.data_bytes / g_xhci_msc.block_size;
+    if (max_blocks == 0) {
+        return -1;
+    }
+
+    uint32_t remaining     = count;
+    uint32_t offset_blocks = 0;
+    while (remaining > 0) {
+        uint16_t chunk       = remaining > max_blocks ? (uint16_t)max_blocks : (uint16_t)remaining;
+        const uint32_t bytes = (uint32_t)chunk * g_xhci_msc.block_size;
+        memcpy(g_xhci_msc.data_buf,
+               buffer + (offset_blocks * g_xhci_msc.block_size),
+               bytes);
+
+        if (!xhci_msc_write10(&g_xhci, &g_xhci_msc, lba + offset_blocks, chunk)) {
+            return -1;
+        }
+
+        remaining     -= chunk;
+        offset_blocks += chunk;
+    }
+
+    return 0;
 }

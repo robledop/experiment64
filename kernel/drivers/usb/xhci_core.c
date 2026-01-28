@@ -41,7 +41,7 @@
 #define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
 #define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
 
-static struct xhci_controller g_xhci;
+struct xhci_controller g_xhci;
 static struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
 
 static const char *xhci_speed_name(const uint32_t speed)
