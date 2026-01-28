@@ -294,6 +294,171 @@ static void xhci_scan_ports(struct xhci_controller *xhci)
     }
 }
 
+static void xhci_init_registers(struct xhci_controller *xhci,
+                                const struct pci_device *device,
+                                const uint64_t mmio_phys,
+                                uint32_t *hcs_out,
+                                uint32_t *dboff_out,
+                                uint32_t *rtsoff_out)
+{
+    memset(xhci, 0, sizeof(*xhci));
+    xhci->pci  = *device;
+    xhci->mmio = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
+
+    const uint32_t cap    = xhci_read32(xhci->mmio, XHCI_CAPLENGTH);
+    const uint32_t hcs    = xhci_read32(xhci->mmio, XHCI_HCSPARAMS1);
+    const uint32_t hcs2   = xhci_read32(xhci->mmio, XHCI_HCSPARAMS2);
+    const uint32_t hcc1   = xhci_read32(xhci->mmio, XHCI_HCCPARAMS1);
+    const uint32_t dboff  = xhci_read32(xhci->mmio, XHCI_DBOFF) & ~0x3u;
+    const uint32_t rtsoff = xhci_read32(xhci->mmio, XHCI_RTSOFF) & ~0x1Fu;
+
+    xhci->cap_len        = (uint8_t)(cap & 0xFFu);
+    xhci->op_base        = xhci->mmio + xhci->cap_len;
+    xhci->max_slots      = hcs & 0xFFu;
+    xhci->max_ports      = (hcs >> 24) & 0xFFu;
+    xhci->context_size   = (hcc1 & (1u << 2)) ? 64u : 32u;
+    xhci->max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
+    xhci->db_base        = xhci->mmio + dboff;
+    xhci->rt_base        = xhci->mmio + rtsoff;
+
+    if (hcs_out) {
+        *hcs_out = hcs;
+    }
+    if (dboff_out) {
+        *dboff_out = dboff;
+    }
+    if (rtsoff_out) {
+        *rtsoff_out = rtsoff;
+    }
+}
+
+static void xhci_log_controller(const struct xhci_controller *xhci,
+                                const uint64_t mmio_phys,
+                                const uint32_t hcs,
+                                const uint32_t dboff,
+                                const uint32_t rtsoff)
+{
+    boot_message(INFO,
+                 "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
+                 xhci->pci.vendor_id,
+                 xhci->pci.device_id,
+                 xhci->pci.bus,
+                 xhci->pci.slot,
+                 xhci->pci.function,
+                 (unsigned long)mmio_phys);
+    boot_message(INFO,
+                 "[xHCI] caplen=%u hcsparams1=0x%08x slots=%u ports=%u ctx=%u scratchpads=%u",
+                 xhci->cap_len,
+                 hcs,
+                 xhci->max_slots,
+                 xhci->max_ports,
+                 xhci->context_size,
+                 xhci->max_scratchpad);
+    boot_message(INFO, "[xHCI] dboff=0x%08x rtsoff=0x%08x", dboff, rtsoff);
+}
+
+static bool xhci_setup_command_ring(struct xhci_controller *xhci)
+{
+    if (!xhci_ring_init(&xhci->cmd_ring, XHCI_CMD_RING_TRBS)) {
+        boot_message(ERROR, "[xHCI] Command ring alloc failed");
+        return false;
+    }
+
+    return true;
+}
+
+static bool xhci_reset_controller(struct xhci_controller *xhci)
+{
+    uint32_t cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
+    cmd          &= ~XHCI_USBCMD_RS;
+    xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
+    if (!xhci_wait_for(xhci->op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, true, XHCI_TIMEOUT_MS)) {
+        boot_message(WARNING, "[xHCI] Stop timeout");
+    }
+
+    cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
+    cmd |= XHCI_USBCMD_HCRST;
+    xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
+
+    if (!xhci_wait_for(xhci->op_base,
+                       XHCI_OP_USBCMD,
+                       XHCI_USBCMD_HCRST,
+                       false,
+                       XHCI_RESET_TIMEOUT_MS)) {
+        boot_message(ERROR, "[xHCI] Reset timeout");
+        return false;
+    }
+
+    if (!xhci_wait_for(xhci->op_base,
+                       XHCI_OP_USBSTS,
+                       XHCI_USBSTS_CNR,
+                       false,
+                       XHCI_RESET_TIMEOUT_MS)) {
+        boot_message(ERROR, "[xHCI] Controller not ready");
+        return false;
+    }
+
+    return true;
+}
+
+static bool xhci_setup_context_arrays(struct xhci_controller *xhci)
+{
+    const size_t dcbaa_bytes = (xhci->max_slots + 1u) * sizeof(uint64_t);
+    if (!dma_alloc_pages(dcbaa_bytes, PAGE_SIZE, 0, &xhci->dcbaa_phys, (void **)&xhci->dcbaa)) {
+        boot_message(ERROR, "[xHCI] DCBAA alloc failed");
+        return false;
+    }
+
+    if (!xhci_setup_scratchpads(xhci)) {
+        boot_message(ERROR, "[xHCI] Scratchpad alloc failed");
+        return false;
+    }
+
+    xhci_write32(xhci->op_base, XHCI_OP_PAGESIZE, 1u);
+    xhci_write64(xhci->op_base, XHCI_OP_DCBAAP, xhci->dcbaa_phys);
+    return true;
+}
+
+static bool xhci_setup_event_ring(struct xhci_controller *xhci)
+{
+    if (!xhci_event_ring_init(&xhci->event_ring, XHCI_EVENT_RING_TRBS)) {
+        boot_message(ERROR, "[xHCI] Event ring alloc failed");
+        return false;
+    }
+
+    auto ir_base = (volatile uint8_t *)(xhci->rt_base + XHCI_RT_IR_BASE);
+    xhci_write32(ir_base, XHCI_IMAN, 0x1u);
+    xhci_write32(ir_base, XHCI_IMOD, 0);
+    xhci_write32(ir_base, XHCI_ERSTSZ, 1u);
+    xhci_write64(ir_base, XHCI_ERSTBA, xhci->event_ring.erst_phys);
+    xhci_write64(ir_base, XHCI_ERDP, xhci->event_ring.phys | XHCI_ERDP_EHB);
+
+    return true;
+}
+
+static void xhci_configure_slots(const struct xhci_controller *xhci)
+{
+    const uint32_t slots = xhci->max_slots ? xhci->max_slots : 1u;
+    xhci_write32(xhci->op_base, XHCI_OP_CONFIG, slots);
+}
+
+static void xhci_start_controller(struct xhci_controller *xhci)
+{
+    xhci_write64(xhci->op_base, XHCI_OP_CRCR, xhci->cmd_ring.phys | XHCI_TRB_CYCLE);
+
+    uint32_t cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
+    cmd |= XHCI_USBCMD_RS;
+    cmd &= ~XHCI_USBCMD_INTE;
+    xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
+    if (!xhci_wait_for(xhci->op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, false, XHCI_TIMEOUT_MS)) {
+        boot_message(WARNING, "[xHCI] Start timeout");
+    }
+
+    const uint32_t usbcmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
+    const uint32_t usbsts = xhci_read32(xhci->op_base, XHCI_OP_USBSTS);
+    boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
+}
+
 void xhci_init(struct pci_device device)
 {
     if (device.prog_if != 0x30) {
@@ -310,123 +475,29 @@ void xhci_init(struct pci_device device)
 
     pci_enable_bus_mastering(device);
     xhci_map_mmio_range(mmio_phys, XHCI_MMIO_MAP_BYTES);
-    memset(&g_xhci, 0, sizeof(g_xhci));
-    g_xhci.pci            = device;
-    g_xhci.mmio           = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
-    const uint32_t cap    = xhci_read32(g_xhci.mmio, XHCI_CAPLENGTH);
-    g_xhci.cap_len        = (uint8_t)(cap & 0xFFu);
-    const uint32_t hcs    = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS1);
-    const uint32_t hcs2   = xhci_read32(g_xhci.mmio, XHCI_HCSPARAMS2);
-    const uint32_t hcc1   = xhci_read32(g_xhci.mmio, XHCI_HCCPARAMS1);
-    const uint32_t dboff  = xhci_read32(g_xhci.mmio, XHCI_DBOFF) & ~0x3u;
-    const uint32_t rtsoff = xhci_read32(g_xhci.mmio, XHCI_RTSOFF) & ~0x1Fu;
-    g_xhci.op_base        = g_xhci.mmio + g_xhci.cap_len;
-    g_xhci.max_slots      = hcs & 0xFFu;
-    g_xhci.max_ports      = (hcs >> 24) & 0xFFu;
-    g_xhci.context_size   = (hcc1 & (1u << 2)) ? 64u : 32u;
-    g_xhci.max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
-    g_xhci.db_base        = g_xhci.mmio + dboff;
-    g_xhci.rt_base        = g_xhci.mmio + rtsoff;
-    if (!xhci_ring_init(&g_xhci.cmd_ring, XHCI_CMD_RING_TRBS)) {
-        boot_message(ERROR, "[xHCI] Command ring alloc failed");
+    uint32_t hcs    = 0;
+    uint32_t dboff  = 0;
+    uint32_t rtsoff = 0;
+    xhci_init_registers(&g_xhci, &device, mmio_phys, &hcs, &dboff, &rtsoff);
+    if (!xhci_setup_command_ring(&g_xhci)) {
         return;
     }
 
-    boot_message(INFO,
-                 "[xHCI] PCI %04x:%04x bus=%u slot=%u func=%u MMIO=0x%lx",
-                 device.vendor_id,
-                 device.device_id,
-                 device.bus,
-                 device.slot,
-                 device.function,
-                 (unsigned long)mmio_phys);
-    boot_message(INFO,
-                 "[xHCI] caplen=%u hcsparams1=0x%08x slots=%u ports=%u ctx=%u scratchpads=%u",
-                 g_xhci.cap_len,
-                 hcs,
-                 g_xhci.max_slots,
-                 g_xhci.max_ports,
-                 g_xhci.context_size,
-                 g_xhci.max_scratchpad);
-    boot_message(INFO,
-                 "[xHCI] dboff=0x%08x rtsoff=0x%08x",
-                 dboff,
-                 rtsoff);
+    xhci_log_controller(&g_xhci, mmio_phys, hcs, dboff, rtsoff);
 
     xhci_intel_port_routing(&g_xhci);
 
-    // Reset sequence for the xHCI controller.
-    // Set the RUN/STOP bit to 0.
-    uint32_t cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
-    cmd          &= ~XHCI_USBCMD_RS;
-    xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
-    if (!xhci_wait_for(g_xhci.op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, true, XHCI_TIMEOUT_MS)) {
-        boot_message(WARNING, "[xHCI] Stop timeout");
-    }
-    // Set the HCRST bit to 1.
-    cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
-    cmd |= XHCI_USBCMD_HCRST;
-    xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
-
-    if (!xhci_wait_for(g_xhci.op_base,
-                       XHCI_OP_USBCMD,
-                       XHCI_USBCMD_HCRST,
-                       false,
-                       XHCI_RESET_TIMEOUT_MS)) {
-        boot_message(ERROR, "[xHCI] Reset timeout");
+    if (!xhci_reset_controller(&g_xhci)) {
         return;
     }
-
-    // Wait for the controller to be ready.
-    if (!xhci_wait_for(g_xhci.op_base,
-                       XHCI_OP_USBSTS,
-                       XHCI_USBSTS_CNR,
-                       false,
-                       XHCI_RESET_TIMEOUT_MS)) {
-        boot_message(ERROR, "[xHCI] Controller not ready");
+    if (!xhci_setup_context_arrays(&g_xhci)) {
         return;
     }
-
-    const size_t dcbaa_bytes = (g_xhci.max_slots + 1u) * sizeof(uint64_t);
-    if (!dma_alloc_pages(dcbaa_bytes, PAGE_SIZE, 0, &g_xhci.dcbaa_phys, (void **)&g_xhci.dcbaa)) {
-        boot_message(ERROR, "[xHCI] DCBAA alloc failed");
+    if (!xhci_setup_event_ring(&g_xhci)) {
         return;
     }
-
-    if (!xhci_setup_scratchpads(&g_xhci)) {
-        boot_message(ERROR, "[xHCI] Scratchpad alloc failed");
-        return;
-    }
-
-    xhci_write32(g_xhci.op_base, XHCI_OP_PAGESIZE, 1u);
-    xhci_write64(g_xhci.op_base, XHCI_OP_DCBAAP, g_xhci.dcbaa_phys);
-
-    if (!xhci_event_ring_init(&g_xhci.event_ring, XHCI_EVENT_RING_TRBS)) {
-        boot_message(ERROR, "[xHCI] Event ring alloc failed");
-        return;
-    }
-
-    auto ir_base = (volatile uint8_t *)(g_xhci.rt_base + XHCI_RT_IR_BASE);
-    xhci_write32(ir_base, XHCI_IMAN, 0x1u);
-    xhci_write32(ir_base, XHCI_IMOD, 0);
-    xhci_write32(ir_base, XHCI_ERSTSZ, 1u);
-    xhci_write64(ir_base, XHCI_ERSTBA, g_xhci.event_ring.erst_phys);
-    xhci_write64(ir_base, XHCI_ERDP, g_xhci.event_ring.phys | XHCI_ERDP_EHB);
-
-    const uint32_t slots = g_xhci.max_slots ? g_xhci.max_slots : 1u;
-    xhci_write32(g_xhci.op_base, XHCI_OP_CONFIG, slots);
-
-    xhci_write64(g_xhci.op_base, XHCI_OP_CRCR, g_xhci.cmd_ring.phys | XHCI_TRB_CYCLE);
-    cmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
-    cmd |= XHCI_USBCMD_RS;
-    cmd &= ~XHCI_USBCMD_INTE;
-    xhci_write32(g_xhci.op_base, XHCI_OP_USBCMD, cmd);
-    if (!xhci_wait_for(g_xhci.op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, false, XHCI_TIMEOUT_MS)) {
-        boot_message(WARNING, "[xHCI] Start timeout");
-    }
-    const uint32_t usbcmd = xhci_read32(g_xhci.op_base, XHCI_OP_USBCMD);
-    const uint32_t usbsts = xhci_read32(g_xhci.op_base, XHCI_OP_USBSTS);
-    boot_message(INFO, "[xHCI] started usbcmd=0x%08x usbsts=0x%08x", usbcmd, usbsts);
+    xhci_configure_slots(&g_xhci);
+    xhci_start_controller(&g_xhci);
     xhci_power_ports(&g_xhci);
     tsc_sleep_ms(XHCI_PORT_CONNECT_DELAY_MS);
     xhci_scan_ports(&g_xhci);
