@@ -370,6 +370,38 @@ static bool xhci_msc_inquiry(struct xhci_controller *xhci, struct xhci_msc_devic
     return true;
 }
 
+static bool xhci_msc_test_unit_ready(struct xhci_controller *xhci, struct xhci_msc_device *msc)
+{
+    uint8_t cb[6] = {0};
+    cb[0]         = 0x00;
+    return xhci_msc_transfer(xhci, msc, cb, sizeof(cb), false, 0);
+}
+
+static bool xhci_msc_read_capacity(struct xhci_controller *xhci, struct xhci_msc_device *msc)
+{
+    uint8_t cb[10] = {0};
+    cb[0]          = 0x25;
+
+    if (!xhci_msc_transfer(xhci, msc, cb, sizeof(cb), true, 8)) {
+        return false;
+    }
+
+    auto buf                  = (const uint8_t *)msc->data_buf;
+    const uint32_t last_lba   = xhci_be32(buf);
+    const uint32_t block_size = xhci_be32(buf + 4);
+    if (block_size == 0) {
+        return false;
+    }
+
+    msc->block_size  = block_size;
+    msc->block_count = (uint64_t)last_lba + 1u;
+    boot_message(INFO,
+                 "[xHCI] MSC capacity blocks=%llu block_size=%u",
+                 (unsigned long long)msc->block_count,
+                 msc->block_size);
+    return true;
+}
+
 static bool xhci_msc_prepare_buffers(struct xhci_msc_device *msc)
 {
     if (!msc->cbw_buf) {
@@ -409,5 +441,28 @@ bool xhci_msc_init(struct xhci_controller *xhci)
         return false;
     }
 
-    return xhci_msc_inquiry(xhci, msc);
+    if (!xhci_msc_inquiry(xhci, msc)) {
+        return false;
+    }
+
+    bool ready = false;
+    for (uint32_t i = 0; i < 5; i++) {
+        if (xhci_msc_test_unit_ready(xhci, msc)) {
+            ready = true;
+            break;
+        }
+        tsc_sleep_ms(100);
+    }
+
+    if (!ready) {
+        boot_message(WARNING, "[xHCI] MSC TEST UNIT READY failed");
+        return false;
+    }
+
+    if (!xhci_msc_read_capacity(xhci, msc)) {
+        boot_message(WARNING, "[xHCI] MSC READ CAPACITY failed");
+        return false;
+    }
+
+    return true;
 }

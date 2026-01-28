@@ -304,6 +304,8 @@ struct xhci_msc_device
     uintptr_t data_phys;            // Data transfer buffer physical base.
     uint32_t data_bytes;            // Data buffer size in bytes.
     uint32_t tag;                   // CBW tag counter.
+    uint32_t block_size;            // MSC logical block size.
+    uint64_t block_count;           // MSC total block count.
 };
 
 struct xhci_controller
@@ -387,6 +389,14 @@ static inline uint32_t xhci_packet_count(const uint32_t bytes, const uint16_t ma
         return 0;
     }
     return (bytes + max_packet - 1u) / max_packet;
+}
+
+static inline uint32_t xhci_be32(const uint8_t *buf)
+{
+    return ((uint32_t)buf[0] << 24u) |
+        ((uint32_t)buf[1] << 16u) |
+        ((uint32_t)buf[2] << 8u) |
+        (uint32_t)buf[3];
 }
 
 static inline bool xhci_alloc_pages(const size_t bytes, uintptr_t *phys_out, void **virt_out)
