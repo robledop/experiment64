@@ -8,6 +8,7 @@
 #include "net/dhcp.h"
 #include "net/helpers.h"
 #include "net/network.h"
+#include <mem/dma.h>
 #include <mem/pmm.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
@@ -94,15 +95,6 @@ void wait_for_network(void)
     {
         boot_message(ERROR, "Network failed to start");
     }
-}
-
-/**
- * @brief Convert virtual address to physical address using HHDM offset.
- */
-static uintptr_t virt_to_phys(const void* virt)
-{
-    if (!virt) return 0;
-    return (uintptr_t)virt - g_hhdm_offset;
 }
 
 /**
@@ -229,29 +221,31 @@ static bool e1000_read_mac_address(void)
  */
 static void e1000_rx_init(void)
 {
-    uint8_t* ring = (uint8_t*)pmm_alloc_page();
-    if (ring == nullptr)
+    uintptr_t ring_phys = 0;
+    void *ring_virt     = nullptr;
+    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt))
     {
         panic("e1000_rx_init: no descriptor memory");
     }
-    ring = (uint8_t*)((uintptr_t)ring + g_hhdm_offset);
+    uint8_t *ring = (uint8_t *)ring_virt;
     memset(ring, 0, PAGE_SIZE);
 
     for (int i = 0; i < E1000_RX_RING_SIZE; i++)
     {
         rx_descs[i] = (struct e1000_rx_desc*)(ring + i * sizeof(struct e1000_rx_desc));
-        void* buf_phys = pmm_alloc_page();
-        if (buf_phys == nullptr)
+        uintptr_t buf_phys = 0;
+        void *buf_virt     = nullptr;
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
         {
             panic("e1000_rx_init: no rx buffer");
         }
-        rx_buffers[i] = (uint8_t*)((uintptr_t)buf_phys + g_hhdm_offset);
+        rx_buffers[i] = (uint8_t *)buf_virt;
         memset(rx_buffers[i], 0, PAGE_SIZE);
-        rx_descs[i]->addr = (uintptr_t)buf_phys;
+        rx_descs[i]->addr = buf_phys;
         rx_descs[i]->status = 0;
     }
 
-    e1000_write_command(REG_RXDESCLO, virt_to_phys(ring));
+    e1000_write_command(REG_RXDESCLO, (uint32_t)ring_phys);
     e1000_write_command(REG_RXDESCHI, 0);
 
     e1000_write_command(REG_RXDESCLEN, E1000_RX_RING_SIZE * sizeof(struct e1000_rx_desc));
@@ -269,30 +263,32 @@ static void e1000_rx_init(void)
  */
 static void e1000_tx_init(void)
 {
-    uint8_t* ring = (uint8_t*)pmm_alloc_page();
-    if (ring == nullptr)
+    uintptr_t ring_phys = 0;
+    void *ring_virt     = nullptr;
+    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &ring_phys, &ring_virt))
     {
         panic("e1000_tx_init: no descriptor memory");
     }
-    ring = (uint8_t*)((uintptr_t)ring + g_hhdm_offset);
+    uint8_t *ring = (uint8_t *)ring_virt;
     memset(ring, 0, PAGE_SIZE);
 
     for (int i = 0; i < E1000_TX_RING_SIZE; i++)
     {
         tx_descs[i] = (struct e1000_tx_desc*)(ring + i * sizeof(struct e1000_tx_desc));
-        void* buf_phys = pmm_alloc_page();
-        if (buf_phys == nullptr)
+        uintptr_t buf_phys = 0;
+        void *buf_virt     = nullptr;
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
         {
             panic("e1000_tx_init: no tx buffer");
         }
-        tx_buffers[i] = (uint8_t*)((uintptr_t)buf_phys + g_hhdm_offset);
+        tx_buffers[i] = (uint8_t *)buf_virt;
         memset(tx_buffers[i], 0, PAGE_SIZE);
-        tx_descs[i]->addr = (uintptr_t)buf_phys;
+        tx_descs[i]->addr = buf_phys;
         tx_descs[i]->cmd = 0;
         tx_descs[i]->status = TSTA_DD;
     }
 
-    e1000_write_command(REG_TXDESCLO, virt_to_phys(ring));
+    e1000_write_command(REG_TXDESCLO, (uint32_t)ring_phys);
     e1000_write_command(REG_TXDESCHI, 0);
 
     e1000_write_command(REG_TXDESCLEN, E1000_TX_RING_SIZE * sizeof(struct e1000_tx_desc));

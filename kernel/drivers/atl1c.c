@@ -9,6 +9,7 @@
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <mem/heap.h>
+#include <mem/dma.h>
 #include <mem/pmm.h>
 #include <net/helpers.h>
 #include <net/network.h>
@@ -800,15 +801,6 @@ static inline void atl1c_write32(const uint32_t reg, const uint32_t value)
     mmio_write32(mmio_base + reg, value);
 }
 
-static uintptr_t atl1c_virt_to_phys(const void* virt)
-{
-    if (!virt)
-    {
-        return 0;
-    }
-    return (uintptr_t)virt - g_hhdm_offset;
-}
-
 static bool atl1c_map_bar(const struct pci_device device)
 {
     const uint32_t bar0 = device.bars[0];
@@ -856,18 +848,23 @@ static void atl1c_reset(void)
 
 static bool atl1c_setup_rings(void)
 {
-    void* rfd_phys_page = pmm_alloc_page();
-    void* rrd_phys_page = pmm_alloc_page();
-    void* tpd_phys_page = pmm_alloc_page();
+    uintptr_t rfd_phys = 0;
+    uintptr_t rrd_phys = 0;
+    uintptr_t tpd_phys = 0;
+    void *rfd_virt     = nullptr;
+    void *rrd_virt     = nullptr;
+    void *tpd_virt     = nullptr;
 
-    if (!rfd_phys_page || !rrd_phys_page || !tpd_phys_page)
+    if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &rfd_phys, &rfd_virt) ||
+        !dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &rrd_phys, &rrd_virt) ||
+        !dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &tpd_phys, &tpd_virt))
     {
         return false;
     }
 
-    rfd_ring = (struct atl1c_rx_free_desc*)((uintptr_t)rfd_phys_page + g_hhdm_offset);
-    rrd_ring = (struct atl1c_recv_ret_status*)((uintptr_t)rrd_phys_page + g_hhdm_offset);
-    tpd_ring = (struct atl1c_tpd_desc*)((uintptr_t)tpd_phys_page + g_hhdm_offset);
+    rfd_ring = (struct atl1c_rx_free_desc*)rfd_virt;
+    rrd_ring = (struct atl1c_recv_ret_status*)rrd_virt;
+    tpd_ring = (struct atl1c_tpd_desc*)tpd_virt;
 
     memset(rfd_ring, 0, PAGE_SIZE);
     memset(rrd_ring, 0, PAGE_SIZE);
@@ -875,32 +872,30 @@ static bool atl1c_setup_rings(void)
 
     for (uint16_t i = 0; i < ATL1C_RX_RING_SIZE; i++)
     {
-        void* buf_phys = pmm_alloc_page();
-        if (!buf_phys)
+        uintptr_t buf_phys = 0;
+        void *buf_virt     = nullptr;
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
         {
             return false;
         }
-        rx_buffers[i] = (uint8_t*)((uintptr_t)buf_phys + g_hhdm_offset);
-        rx_phys[i] = (uintptr_t)buf_phys;
+        rx_buffers[i] = (uint8_t *)buf_virt;
+        rx_phys[i] = buf_phys;
         memset(rx_buffers[i], 0, PAGE_SIZE);
         rfd_ring[i].buffer_addr = rx_phys[i];
     }
 
     for (uint16_t i = 0; i < ATL1C_TX_RING_SIZE; i++)
     {
-        void* buf_phys = pmm_alloc_page();
-        if (!buf_phys)
+        uintptr_t buf_phys = 0;
+        void *buf_virt     = nullptr;
+        if (!dma_alloc_pages(PAGE_SIZE, PAGE_SIZE, 0, &buf_phys, &buf_virt))
         {
             return false;
         }
-        tx_buffers[i] = (uint8_t*)((uintptr_t)buf_phys + g_hhdm_offset);
-        tx_phys[i] = (uintptr_t)buf_phys;
+        tx_buffers[i] = (uint8_t *)buf_virt;
+        tx_phys[i] = buf_phys;
         memset(tx_buffers[i], 0, PAGE_SIZE);
     }
-
-    const uintptr_t rfd_phys = atl1c_virt_to_phys(rfd_ring);
-    const uintptr_t rrd_phys = atl1c_virt_to_phys(rrd_ring);
-    const uintptr_t tpd_phys = atl1c_virt_to_phys(tpd_ring);
 
     if ((rfd_phys >> 32) != 0 || (rrd_phys >> 32) != 0 || (tpd_phys >> 32) != 0)
     {

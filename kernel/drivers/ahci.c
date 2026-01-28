@@ -1,7 +1,7 @@
 #include <drivers/ahci.h>
 #include <task/spinlock.h>
 #include <lib/string.h>
-#include <mem/heap.h>
+#include <mem/dma.h>
 #include <drivers/terminal.h>
 #include <mem/vmm.h>
 #include <mem/pmm.h>
@@ -235,21 +235,6 @@ static void ahci_init_lock()
     }
 }
 
-static void *ahci_alloc_aligned(const size_t size, const size_t alignment)
-{
-    const size_t total = size + alignment - 1;
-    uint8_t *raw       = kmalloc(total);
-    if (!raw) {
-        return NULL;
-    }
-
-    const uintptr_t addr    = (uintptr_t)raw;
-    const uintptr_t aligned = (addr + alignment - 1) & ~(alignment - 1);
-    const auto ptr          = (uint8_t *)(uintptr_t)aligned;
-    memset(ptr, 0, size);
-    return ptr;
-}
-
 // ReSharper disable once CppDFAConstantParameter
 static int ahci_port_wait(const volatile struct ahci_port *port, const uint32_t mask)
 {
@@ -313,12 +298,20 @@ static int ahci_configure_active_port(volatile struct ahci_memory *memory, const
         return status;
     }
 
-    const auto command_list = (struct ahci_command_header *)ahci_alloc_aligned(AHCI_COMMAND_LIST_BYTES, 1024);
-    uint8_t *const fis = ahci_alloc_aligned(AHCI_RECEIVED_FIS_BYTES, 256);
-    const auto command_table = (struct ahci_command_table *)ahci_alloc_aligned(sizeof(struct ahci_command_table), 128);
-    uint8_t *const bounce_buffer = ahci_alloc_aligned(AHCI_SECTOR_SIZE, AHCI_SECTOR_SIZE);
+    uintptr_t clb_phys    = 0;
+    uintptr_t fb_phys     = 0;
+    uintptr_t ct_phys     = 0;
+    uintptr_t bounce_phys = 0;
 
-    if (!command_list || !fis || !command_table || !bounce_buffer) {
+    struct ahci_command_header *command_list = nullptr;
+    struct ahci_command_table *command_table = nullptr;
+    uint8_t *fis                             = nullptr;
+    uint8_t *bounce_buffer                   = nullptr;
+
+    if (!dma_alloc_pages(AHCI_COMMAND_LIST_BYTES, PAGE_SIZE, 0, &clb_phys, (void **)&command_list) ||
+        !dma_alloc_pages(AHCI_RECEIVED_FIS_BYTES, PAGE_SIZE, 0, &fb_phys, (void **)&fis) ||
+        !dma_alloc_pages(sizeof(struct ahci_command_table), PAGE_SIZE, 0, &ct_phys, (void **)&command_table) ||
+        !dma_alloc_pages(AHCI_SECTOR_SIZE, PAGE_SIZE, 0, &bounce_phys, (void **)&bounce_buffer)) {
         boot_message(ERROR,
                      "[AHCI] failed to allocate command structures for port %lu",
                      (unsigned long)port_index);
@@ -329,16 +322,6 @@ static int ahci_configure_active_port(volatile struct ahci_memory *memory, const
     memset(fis, 0, AHCI_RECEIVED_FIS_BYTES);
     memset(command_table, 0, sizeof(struct ahci_command_table));
     memset(bounce_buffer, 0, AHCI_SECTOR_SIZE);
-
-    const uintptr_t clb_phys    = ahci_virt_to_phys(command_list);
-    const uintptr_t fb_phys     = ahci_virt_to_phys(fis);
-    const uintptr_t ct_phys     = ahci_virt_to_phys(command_table);
-    const uintptr_t bounce_phys = ahci_virt_to_phys(bounce_buffer);
-
-    if (clb_phys == 0 || fb_phys == 0 || ct_phys == 0 || bounce_phys == 0) {
-        boot_message(ERROR, "[AHCI] failed to resolve physical addresses for command buffers");
-        return -1;
-    }
 
     port->clb  = (uint32_t)clb_phys;
     port->clbu = ahci_upper32(clb_phys);
