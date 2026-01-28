@@ -66,7 +66,9 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
         } else if (type == USB_DESC_TYPE_ENDPOINT && in_msc_interface) {
             auto ep = (const struct usb_endpoint_descriptor *)buf;
             if ((ep->bm_attributes & USB_EP_ATTR_TYPE_MASK) == USB_EP_ATTR_TYPE_BULK) {
+                // Bulk endpoint.
                 if (ep->b_endpoint_address & USB_EP_DIR_IN) {
+                    // Direction bit.
                     g_xhci_msc.bulk_in_ep         = ep->b_endpoint_address;
                     g_xhci_msc.bulk_in_max_packet = ep->w_max_packet_size;
                 } else {
@@ -135,13 +137,14 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
     const size_t ctx_size = xhci->context_size;
     auto ctrl             = (struct xhci_input_control_ctx *)msc->dev->input_ctx;
     memset(ctrl, 0, sizeof(*ctrl));
-    ctrl->add_flags = (1u << 0) | (1u << msc->bulk_in_id) | (1u << msc->bulk_out_id);
+    ctrl->add_flags =
+        (1u << 0) | (1u << msc->bulk_in_id) | (1u << msc->bulk_out_id); // Add slot + bulk endpoints.
 
     auto slot_in  = (struct xhci_slot_ctx *)xhci_input_context_ptr(msc->dev->input_ctx, 0, (uint32_t)ctx_size);
     auto slot_out = (struct xhci_slot_ctx *)xhci_device_context_ptr(msc->dev->device_ctx, 0, (uint32_t)ctx_size);
     *slot_in      = *slot_out;
 
-    const uint8_t max_ep_id = msc->bulk_in_id > msc->bulk_out_id ? msc->bulk_in_id : msc->bulk_out_id;
+    const uint8_t max_ep_id            = msc->bulk_in_id > msc->bulk_out_id ? msc->bulk_in_id : msc->bulk_out_id;
     slot_in->dev_info_bits.ctx_entries = max_ep_id;
 
     auto ep0_in  = (struct xhci_ep_ctx *)xhci_input_context_ptr(msc->dev->input_ctx, 1, (uint32_t)ctx_size);
@@ -153,12 +156,12 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
                                                                  (uint32_t)ctx_size);
     memset(bulk_out, 0, sizeof(*bulk_out));
     bulk_out->ep_info2_bits.error_count = 3u;
-    bulk_out->ep_info2_bits.ep_type     = XHCI_EP_TYPE_BULK_OUT;
-    bulk_out->ep_info2_bits.max_burst   = msc->bulk_out_max_burst;
-    bulk_out->ep_info2_bits.max_packet  = msc->bulk_out_max_packet;
+    bulk_out->ep_info2_bits.ep_type = XHCI_EP_TYPE_BULK_OUT;
+    bulk_out->ep_info2_bits.max_burst = msc->bulk_out_max_burst;
+    bulk_out->ep_info2_bits.max_packet = msc->bulk_out_max_packet;
     const uintptr_t out_deq = msc->bulk_out_ring.phys + (msc->bulk_out_ring.enqueue * sizeof(struct xhci_trb));
-    bulk_out->deq           = out_deq | (msc->bulk_out_ring.cycle ? 1u : 0u);
-    bulk_out->tx_info       = 0;
+    bulk_out->deq = out_deq | (msc->bulk_out_ring.cycle ? 1u : 0u); // Set DCS from the ring cycle.
+    bulk_out->tx_info = 0;
 
     auto bulk_in = (struct xhci_ep_ctx *)xhci_input_context_ptr(msc->dev->input_ctx,
                                                                 msc->bulk_in_id,
@@ -168,15 +171,15 @@ bool xhci_msc_configure_endpoints(struct xhci_controller *xhci)
     bulk_in->ep_info2_bits.ep_type     = XHCI_EP_TYPE_BULK_IN;
     bulk_in->ep_info2_bits.max_burst   = msc->bulk_in_max_burst;
     bulk_in->ep_info2_bits.max_packet  = msc->bulk_in_max_packet;
-    const uintptr_t in_deq = msc->bulk_in_ring.phys + (msc->bulk_in_ring.enqueue * sizeof(struct xhci_trb));
-    bulk_in->deq           = in_deq | (msc->bulk_in_ring.cycle ? 1u : 0u);
-    bulk_in->tx_info       = 0;
+    const uintptr_t in_deq             = msc->bulk_in_ring.phys + (msc->bulk_in_ring.enqueue * sizeof(struct xhci_trb));
+    bulk_in->deq                       = in_deq | (msc->bulk_in_ring.cycle ? 1u : 0u); // Set DCS from the ring cycle.
+    bulk_in->tx_info                   = 0;
 
-    struct xhci_trb cmd = {0};
-    cmd.dword0          = (uint32_t)msc->dev->input_ctx_phys;
-    cmd.dword1          = (uint32_t)(msc->dev->input_ctx_phys >> 32);
-    cmd.control.trb_type = XHCI_TRB_TYPE_CONFIGURE_ENDPOINT;
-    cmd.event.slot_id    = msc->dev->slot_id;
+    struct xhci_trb cmd      = {0};
+    cmd.dword0               = (uint32_t)msc->dev->input_ctx_phys;
+    cmd.dword1               = (uint32_t)(msc->dev->input_ctx_phys >> 32); // Upper 32 bits of input ctx.
+    cmd.control.trb_type     = XHCI_TRB_TYPE_CONFIGURE_ENDPOINT;
+    cmd.event.slot_id        = msc->dev->slot_id;
     const uintptr_t cmd_phys = xhci_ring_enqueue(&xhci->cmd_ring, &cmd);
 
     xhci_ring_doorbell(xhci, 0, 0);
@@ -219,9 +222,10 @@ static uintptr_t xhci_bulk_queue(struct xhci_ring *ring,
         const uint32_t td_size = remaining_packets > 31u ? 31u : remaining_packets;
         struct xhci_trb trb    = {0};
         trb.dword0             = (uint32_t)phys;
-        trb.dword1             = (uint32_t)(phys >> 32);
+        trb.dword1             = (uint32_t)(phys >> 32); // Upper 32 bits of data buffer.
         trb.dword2             = XHCI_TRB_LEN(chunk) | XHCI_TRB_TD_SIZE(td_size) | XHCI_TRB_INTR_TARGET(0);
-        trb.control.trb_type   = XHCI_TRB_TYPE_NORMAL;
+        // Pack length, TD size, and interrupt target fields.
+        trb.control.trb_type = XHCI_TRB_TYPE_NORMAL;
         if (remaining > chunk) {
             trb.control.chain = 1;
         } else {
@@ -498,11 +502,6 @@ bool xhci_msc_init(struct xhci_controller *xhci)
         if (!xhci_msc_read10(xhci, msc, 0, 1)) {
             boot_message(WARNING, "[xHCI] MSC READ(10) probe failed");
         }
-    }
-
-    const bool allow_write = false;
-    if (allow_write) {
-        (void)xhci_msc_write10(xhci, msc, 0, 1);
     }
 
     msc->active = true;

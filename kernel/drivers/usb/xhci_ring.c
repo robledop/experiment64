@@ -31,13 +31,13 @@ void xhci_ring_reset(struct xhci_ring *ring)
     ring->enqueue = 0;
     ring->cycle   = true;
 
-    struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
-    link->dword0          = (uint32_t)ring->phys;
-    link->dword1          = (uint32_t)(ring->phys >> 32);
-    link->dword2          = 0;
-    link->dword3          = 0;
-    link->control.trb_type = XHCI_TRB_TYPE_LINK;
-    link->control.tc       = 1;
+    struct xhci_trb *link   = &ring->trbs[ring->trb_count - 1u];
+    link->dword0            = (uint32_t)ring->phys;
+    link->dword1            = (uint32_t)(ring->phys >> 32); // Upper 32 bits of ring base.
+    link->dword2            = 0;
+    link->dword3            = 0;
+    link->control.trb_type  = XHCI_TRB_TYPE_LINK;
+    link->control.tc        = 1;
     link->control.cycle_bit = 1;
 }
 
@@ -56,13 +56,13 @@ bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
     ring->cycle     = true;
     ring->phys      = phys;
 
-    struct xhci_trb *link = &ring->trbs[trb_count - 1u];
-    link->dword0          = (uint32_t)phys;
-    link->dword1          = (uint32_t)(phys >> 32);
-    link->dword2          = 0;
-    link->dword3          = 0;
-    link->control.trb_type = XHCI_TRB_TYPE_LINK;
-    link->control.tc       = 1;
+    struct xhci_trb *link   = &ring->trbs[trb_count - 1u];
+    link->dword0            = (uint32_t)phys;
+    link->dword1            = (uint32_t)(phys >> 32); // Upper 32 bits of ring base.
+    link->dword2            = 0;
+    link->dword3            = 0;
+    link->control.trb_type  = XHCI_TRB_TYPE_LINK;
+    link->control.tc        = 1;
     link->control.cycle_bit = 1;
 
     return true;
@@ -70,17 +70,17 @@ bool xhci_ring_init(struct xhci_ring *ring, const uint32_t trb_count)
 
 uintptr_t xhci_ring_enqueue(struct xhci_ring *ring, const struct xhci_trb *trb)
 {
-    const uint32_t index  = ring->enqueue;
-    struct xhci_trb *dest = &ring->trbs[index];
-    *dest                 = *trb;
+    const uint32_t index    = ring->enqueue;
+    struct xhci_trb *dest   = &ring->trbs[index];
+    *dest                   = *trb;
     dest->control.cycle_bit = ring->cycle ? 1u : 0u;
 
     ring->enqueue++;
     if (ring->enqueue >= ring->trb_count - 1u) {
-        struct xhci_trb *link = &ring->trbs[ring->trb_count - 1u];
+        struct xhci_trb *link   = &ring->trbs[ring->trb_count - 1u];
         link->control.cycle_bit = ring->cycle ? 1u : 0u;
-        ring->enqueue         = 0;
-        ring->cycle           = !ring->cycle;
+        ring->enqueue           = 0;
+        ring->cycle             = !ring->cycle;
     }
 
     return ring->phys + (index * sizeof(struct xhci_trb));
@@ -131,7 +131,7 @@ static void xhci_event_ring_advance(struct xhci_controller *xhci)
     }
 
     const uintptr_t erdp  = ring->phys + (ring->dequeue * sizeof(struct xhci_trb));
-    const uintptr_t value = erdp | XHCI_ERDP_EHB;
+    const uintptr_t value = erdp | XHCI_ERDP_EHB; // Set EHB when updating ERDP.
     auto ir_base          = (volatile uint8_t *)(xhci->rt_base + XHCI_RT_IR_BASE);
     xhci_write64(ir_base, XHCI_ERDP, value);
 }
@@ -150,8 +150,9 @@ bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
         if (cycle == ring->cycle) {
             const uint32_t type = xhci_trb_type(trb);
             if (type == XHCI_TRB_TYPE_CMD_COMPLETION) {
-                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
-                const uint32_t completion = trb->dword2 >> 24;
+                const uint64_t ptr =
+                    ((uint64_t)trb->dword1 << 32) | trb->dword0; // Rebuild 64-bit TRB pointer.
+                const uint32_t completion = trb->dword2 >> 24;    // Completion code field.
                 const uint8_t slot_id     = trb->event.slot_id;
                 xhci_event_ring_advance(xhci);
 
@@ -211,8 +212,9 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
         if (cycle == ring->cycle) {
             const uint32_t type = xhci_trb_type(trb);
             if (type == XHCI_TRB_TYPE_TRANSFER_EVENT) {
-                const uint64_t ptr        = ((uint64_t)trb->dword1 << 32) | trb->dword0;
-                const uint32_t completion = trb->dword2 >> 24;
+                const uint64_t ptr =
+                    ((uint64_t)trb->dword1 << 32) | trb->dword0; // Rebuild 64-bit TRB pointer.
+                const uint32_t completion = trb->dword2 >> 24;    // Completion code field.
                 const uint8_t event_slot  = trb->event.slot_id;
                 const uint8_t event_ep    = trb->event.ep_id;
                 xhci_event_ring_advance(xhci);

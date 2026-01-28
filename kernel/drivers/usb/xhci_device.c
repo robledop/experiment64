@@ -24,8 +24,8 @@ static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
 
     for (uint32_t i = 0; i < timeout_ms; i++) {
         portsc             = xhci_read32(xhci->op_base, offset);
-        const uint32_t pls = (portsc & XHCI_PORTSC_PLS_MASK) >> 5u;
-        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {
+        const uint32_t pls = (portsc & XHCI_PORTSC_PLS_MASK) >> 5u; // PORTSC PLS field.
+        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {          // Port enabled and in U0.
             if (portsc_out) {
                 *portsc_out = portsc;
             }
@@ -47,8 +47,9 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
     uint32_t portsc       = xhci_read32(xhci->op_base, offset);
 
-    const uint32_t preserve = (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK;
-    uint32_t write          = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;
+    const uint32_t preserve =
+        (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK; // Keep RWS bits, clear PLS.
+    uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;  // Set power and warm reset.
     xhci_write32(xhci->op_base, offset, write);
 
     if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
@@ -58,7 +59,8 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
     }
 
     portsc               = xhci_read32(xhci->op_base, offset);
-    uint32_t clear_reset = (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC;
+    uint32_t clear_reset =
+        (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC; // Clear warm reset bit.
     xhci_write32(xhci->op_base, offset, clear_reset);
 
     if (!xhci_wait_port_ready(xhci, port, XHCI_PORT_RESET_TIMEOUT_MS, &portsc)) {
@@ -96,7 +98,7 @@ bool xhci_disable_slot(struct xhci_controller *xhci, const uint8_t slot_id)
     return true;
 }
 
-bool xhci_alloc_device_context(struct xhci_controller *xhci, struct xhci_device *dev)
+bool xhci_alloc_device_context(const struct xhci_controller *xhci, struct xhci_device *dev)
 {
     if (!dev) {
         return false;
@@ -165,7 +167,7 @@ bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device 
     ep0_ctx->ep_info2_bits.ep_type     = XHCI_EP_TYPE_CONTROL;
     ep0_ctx->ep_info2_bits.max_packet  = max_packet;
     const uintptr_t deq = dev->ep0_ring.phys + (dev->ep0_ring.enqueue * sizeof(struct xhci_trb));
-    ep0_ctx->deq        = deq | (dev->ep0_ring.cycle ? 1u : 0u);
+    ep0_ctx->deq        = deq | (dev->ep0_ring.cycle ? 1u : 0u); // Set DCS from ring cycle.
     ep0_ctx->tx_info    = 8u;
 
     return true;
@@ -179,7 +181,7 @@ bool xhci_address_device(struct xhci_controller *xhci, struct xhci_device *dev)
 
     struct xhci_trb cmd = {0};
     cmd.dword0          = (uint32_t)dev->input_ctx_phys;
-    cmd.dword1          = (uint32_t)(dev->input_ctx_phys >> 32);
+    cmd.dword1          = (uint32_t)(dev->input_ctx_phys >> 32); // Upper 32 bits of input ctx.
     cmd.control.trb_type = XHCI_TRB_TYPE_ADDRESS_DEVICE;
     cmd.event.slot_id    = dev->slot_id;
     if (!xhci_cmd_submit(xhci, &cmd, nullptr)) {
@@ -206,8 +208,8 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
     uint64_t setup_data       = 0;
     memcpy(&setup_data, setup, sizeof(*setup));
     setup_trb.dword0 = (uint32_t)setup_data;
-    setup_trb.dword1 = (uint32_t)(setup_data >> 32);
-    setup_trb.dword2 = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0);
+    setup_trb.dword1 = (uint32_t)(setup_data >> 32); // Upper 32 bits of setup payload.
+    setup_trb.dword2 = XHCI_TRB_LEN(sizeof(*setup)) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
     setup_trb.setup.trb_type = XHCI_TRB_TYPE_SETUP_STAGE;
     setup_trb.setup.idt      = 1;
 
@@ -216,8 +218,8 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
         setup_trb.setup.trt = data_in ? XHCI_TRB_TRT_DATA_IN : XHCI_TRB_TRT_DATA_OUT;
 
         data_trb.dword0 = (uint32_t)data_phys;
-        data_trb.dword1 = (uint32_t)(data_phys >> 32);
-        data_trb.dword2 = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0);
+        data_trb.dword1 = (uint32_t)(data_phys >> 32); // Upper 32 bits of data buffer.
+        data_trb.dword2 = XHCI_TRB_LEN(data_len) | XHCI_TRB_INTR_TARGET(0); // Pack len/interrupt target.
         data_trb.control.trb_type = XHCI_TRB_TYPE_DATA_STAGE;
         if (data_in) {
             data_trb.data.dir_in = 1;
@@ -276,7 +278,7 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
     struct usb_setup_packet setup = {
         .bm_request_type = 0x80,
         .b_request = USB_REQ_GET_DESCRIPTOR,
-        .w_value = (USB_DESC_TYPE_DEVICE << 8),
+        .w_value = (USB_DESC_TYPE_DEVICE << 8), // Descriptor type in high byte.
         .w_index = 0,
         .w_length = 18,
     };
@@ -288,6 +290,7 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
 
     auto desc = (const struct usb_device_descriptor *)desc_buf;
 
+    // bcdUSB packs major/minor in the high/low bytes.
     boot_message(INFO,
                  "[xHCI] Slot %u USB %x.%02x VID=%04x (%s) PID=%04x class=%02x",
                  dev->slot_id,
@@ -313,7 +316,7 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     struct usb_setup_packet setup = {
         .bm_request_type = 0x80,
         .b_request = USB_REQ_GET_DESCRIPTOR,
-        .w_value = (USB_DESC_TYPE_CONFIGURATION << 8),
+        .w_value = (USB_DESC_TYPE_CONFIGURATION << 8), // Descriptor type in high byte.
         .w_index = 0,
         .w_length = sizeof(struct usb_config_descriptor),
     };

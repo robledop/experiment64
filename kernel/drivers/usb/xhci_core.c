@@ -32,15 +32,15 @@ static const char *xhci_speed_name(const uint32_t speed)
 static bool xhci_get_mmio_bar(const struct pci_device *device, uint64_t *base_out)
 {
     const uint32_t bar0 = device->bars[0];
-    if (bar0 == 0 || (bar0 & PCI_BAR_IO)) {
+    if (bar0 == 0 || (bar0 & PCI_BAR_IO)) { // Reject I/O BARs.
         return false;
     }
 
-    uint64_t base           = (uint64_t)(bar0 & ~0xFULL);
-    const uint32_t mem_type = (bar0 >> 1) & 0x3;
+    uint64_t base           = (uint64_t)(bar0 & ~0xFULL); // Mask off BAR flags (16-byte alignment).
+    const uint32_t mem_type = (bar0 >> 1) & 0x3;          // BAR memory type bits.
     if (mem_type == PCI_BAR_MEMORY_TYPE_64) {
         const uint32_t bar1 = device->bars[1];
-        base                |= (uint64_t)bar1 << 32;
+        base                |= (uint64_t)bar1 << 32; // Upper 32 bits for 64-bit BAR.
     }
 
     if (base == 0) {
@@ -79,13 +79,14 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     return true;
 }
 
-static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
+static void xhci_log_port_state(const struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
     const uint32_t portsc = xhci_read32(xhci->op_base, offset);
-    const uint32_t speed  = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-    const uint32_t pls    = (portsc & XHCI_PORTSC_PLS_MASK) >> XHCI_PORTSC_PLS_SHIFT;
+    const uint32_t speed = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // PORTSC speed field.
+    const uint32_t pls   = (portsc & XHCI_PORTSC_PLS_MASK) >> XHCI_PORTSC_PLS_SHIFT;     // PORTSC PLS field.
 
+    // Report PORTSC status bits: CCS/PP/PED/PR.
     boot_message(INFO,
                  "[xHCI] Port %u status=0x%08x ccs=%u pp=%u ped=%u pr=%u pls=0x%x speed=%s",
                  port,
@@ -98,7 +99,7 @@ static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t por
                  xhci_speed_name(speed));
 }
 
-static void xhci_dump_ports(struct xhci_controller *xhci)
+static void xhci_dump_ports(const struct xhci_controller *xhci)
 {
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         xhci_log_port_state(xhci, port);
@@ -119,12 +120,13 @@ static void xhci_intel_port_routing(const struct xhci_controller *xhci)
         return;
     }
 
-    const uint32_t mask = (xhci->max_ports >= 32u) ? 0xFFFFFFFFu : ((1u << xhci->max_ports) - 1u);
+    const uint32_t mask =
+        (xhci->max_ports >= 32u) ? 0xFFFFFFFFu : ((1u << xhci->max_ports) - 1u); // Mask for present ports.
     if (usb3_pssen != 0xFFFFFFFFu) {
-        xhci_pci_write32(&xhci->pci, XHCI_INTEL_USB3_PSSEN, usb3_pssen | mask);
+        xhci_pci_write32(&xhci->pci, XHCI_INTEL_USB3_PSSEN, usb3_pssen | mask); // Enable USB3 ports.
     }
     if (xusb2pr != 0xFFFFFFFFu) {
-        xhci_pci_write32(&xhci->pci, XHCI_INTEL_XUSB2PR, xusb2pr | mask);
+        xhci_pci_write32(&xhci->pci, XHCI_INTEL_XUSB2PR, xusb2pr | mask); // Enable USB2 ports.
     }
 
     const uint32_t usb3_after  = xhci_pci_read32(&xhci->pci, XHCI_INTEL_USB3_PSSEN);
@@ -135,13 +137,13 @@ static void xhci_intel_port_routing(const struct xhci_controller *xhci)
                  xusb2_after);
 }
 
-static void xhci_power_ports(struct xhci_controller *xhci)
+static void xhci_power_ports(const struct xhci_controller *xhci)
 {
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
         uint32_t portsc       = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_PP) == 0) {
-            portsc |= XHCI_PORTSC_PP;
+        if ((portsc & XHCI_PORTSC_PP) == 0) { // Power bit clear.
+            portsc |= XHCI_PORTSC_PP;         // Set port power.
             xhci_write32(xhci->op_base, offset, portsc);
         }
     }
@@ -197,7 +199,8 @@ static bool xhci_setup_slot_for_port(struct xhci_controller *xhci,
     dev->active        = true;
     dev->slot_id       = slot_id;
     dev->port_id       = (uint8_t)port;
-    uint32_t new_speed = (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+    uint32_t new_speed =
+        (portsc_after & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // Extract PORTSC speed.
     if (new_speed == 0) {
         new_speed = speed;
     }
@@ -268,11 +271,12 @@ static void xhci_scan_ports(struct xhci_controller *xhci)
     for (uint32_t port = 1; port <= xhci->max_ports; port++) {
         const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
         uint32_t portsc       = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_CCS) == 0) {
+        if ((portsc & XHCI_PORTSC_CCS) == 0) { // No device connected.
             continue;
         }
 
-        const uint32_t speed = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+        const uint32_t speed =
+            (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // PORTSC speed field.
         if (speed < 4u) {
             boot_message(WARNING,
                          "[xHCI] Port %u connected speed=%s portsc=0x%08x; unsupported",
@@ -305,18 +309,22 @@ static void xhci_init_registers(struct xhci_controller *xhci,
     xhci->pci  = *device;
     xhci->mmio = (volatile uint8_t *)(mmio_phys + g_hhdm_offset);
 
-    const uint32_t cap    = xhci_read32(xhci->mmio, XHCI_CAPLENGTH);
-    const uint32_t hcs    = xhci_read32(xhci->mmio, XHCI_HCSPARAMS1);
-    const uint32_t hcs2   = xhci_read32(xhci->mmio, XHCI_HCSPARAMS2);
-    const uint32_t hcc1   = xhci_read32(xhci->mmio, XHCI_HCCPARAMS1);
-    const uint32_t dboff  = xhci_read32(xhci->mmio, XHCI_DBOFF) & ~0x3u;
+    const uint32_t cap  = xhci_read32(xhci->mmio, XHCI_CAPLENGTH);
+    const uint32_t hcs  = xhci_read32(xhci->mmio, XHCI_HCSPARAMS1);
+    const uint32_t hcs2 = xhci_read32(xhci->mmio, XHCI_HCSPARAMS2);
+    const uint32_t hcc1 = xhci_read32(xhci->mmio, XHCI_HCCPARAMS1);
+    // Clear reserved low bits (32-bit alignment).
+    const uint32_t dboff = xhci_read32(xhci->mmio, XHCI_DBOFF) & ~0x3u;
+    // Clear reserved low bits (32-byte alignment).
     const uint32_t rtsoff = xhci_read32(xhci->mmio, XHCI_RTSOFF) & ~0x1Fu;
 
-    xhci->cap_len        = (uint8_t)(cap & 0xFFu);
-    xhci->op_base        = xhci->mmio + xhci->cap_len;
-    xhci->max_slots      = hcs & 0xFFu;
-    xhci->max_ports      = (hcs >> 24) & 0xFFu;
-    xhci->context_size   = (hcc1 & (1u << 2)) ? 64u : 32u;
+    xhci->cap_len      = (uint8_t)(cap & 0xFFu); // CAPLENGTH is low 8 bits.
+    xhci->op_base      = xhci->mmio + xhci->cap_len;
+    xhci->max_slots    = hcs & 0xFFu;                    // Max device slots (bits 7:0).
+    xhci->max_ports    = (hcs >> 24) & 0xFFu;            // Max ports (bits 31:24).
+    xhci->context_size = (hcc1 & (1u << 2)) ? 64u : 32u; // CSZ selects 64-byte vs 32-byte contexts.
+
+    // Scratchpad count is hi/lo 5-bit fields.
     xhci->max_scratchpad = (((hcs2 >> 27) & 0x1Fu) << 5) | ((hcs2 >> 21) & 0x1Fu);
     xhci->db_base        = xhci->mmio + dboff;
     xhci->rt_base        = xhci->mmio + rtsoff;
@@ -367,17 +375,17 @@ static bool xhci_setup_command_ring(struct xhci_controller *xhci)
     return true;
 }
 
-static bool xhci_reset_controller(struct xhci_controller *xhci)
+static bool xhci_reset_controller(const struct xhci_controller *xhci)
 {
     uint32_t cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
-    cmd          &= ~XHCI_USBCMD_RS;
+    cmd          &= ~XHCI_USBCMD_RS; // Clear Run/Stop to halt controller.
     xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
     if (!xhci_wait_for(xhci->op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, true, XHCI_TIMEOUT_MS)) {
         boot_message(WARNING, "[xHCI] Stop timeout");
     }
 
     cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
-    cmd |= XHCI_USBCMD_HCRST;
+    cmd |= XHCI_USBCMD_HCRST; // Request host controller reset.
     xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
 
     if (!xhci_wait_for(xhci->op_base,
@@ -431,7 +439,7 @@ static bool xhci_setup_event_ring(struct xhci_controller *xhci)
     xhci_write32(ir_base, XHCI_IMOD, 0);
     xhci_write32(ir_base, XHCI_ERSTSZ, 1u);
     xhci_write64(ir_base, XHCI_ERSTBA, xhci->event_ring.erst_phys);
-    xhci_write64(ir_base, XHCI_ERDP, xhci->event_ring.phys | XHCI_ERDP_EHB);
+    xhci_write64(ir_base, XHCI_ERDP, xhci->event_ring.phys | XHCI_ERDP_EHB); // Set EHB when updating ERDP.
 
     return true;
 }
@@ -442,13 +450,13 @@ static void xhci_configure_slots(const struct xhci_controller *xhci)
     xhci_write32(xhci->op_base, XHCI_OP_CONFIG, slots);
 }
 
-static void xhci_start_controller(struct xhci_controller *xhci)
+static void xhci_start_controller(const struct xhci_controller *xhci)
 {
-    xhci_write64(xhci->op_base, XHCI_OP_CRCR, xhci->cmd_ring.phys | XHCI_TRB_CYCLE);
+    xhci_write64(xhci->op_base, XHCI_OP_CRCR, xhci->cmd_ring.phys | XHCI_TRB_CYCLE); // CRCR with cycle bit.
 
     uint32_t cmd = xhci_read32(xhci->op_base, XHCI_OP_USBCMD);
-    cmd |= XHCI_USBCMD_RS;
-    cmd &= ~XHCI_USBCMD_INTE;
+    cmd          |= XHCI_USBCMD_RS;    // Start controller.
+    cmd          &= ~XHCI_USBCMD_INTE; // Disable interrupts (polled).
     xhci_write32(xhci->op_base, XHCI_OP_USBCMD, cmd);
     if (!xhci_wait_for(xhci->op_base, XHCI_OP_USBSTS, XHCI_USBSTS_HCH, false, XHCI_TIMEOUT_MS)) {
         boot_message(WARNING, "[xHCI] Start timeout");

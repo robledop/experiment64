@@ -660,7 +660,7 @@ bool xhci_enable_slot(struct xhci_controller *xhci,
                       uint8_t *slot_id_out);
 bool xhci_disable_slot(struct xhci_controller *xhci,
                        uint8_t slot_id);
-bool xhci_alloc_device_context(struct xhci_controller *xhci,
+bool xhci_alloc_device_context(const struct xhci_controller *xhci,
                                struct xhci_device *dev);
 bool xhci_prepare_slot_context(struct xhci_controller *xhci,
                                struct xhci_device *dev);
