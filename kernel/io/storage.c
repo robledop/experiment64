@@ -1,29 +1,38 @@
 #include <io/storage.h>
 #include <drivers/ahci.h>
 #include <drivers/ide.h>
+#include <drivers/usb/xhci.h>
 #include <task/sleeplock.h>
+
+enum
+{
+    STORAGE_DEVICE_COUNT = 3,
+    STORAGE_DEVICE_USB = 2
+};
 
 enum storage_backend
 {
     STORAGE_BACKEND_NONE = 0,
     STORAGE_BACKEND_AHCI,
     STORAGE_BACKEND_IDE,
+    STORAGE_BACKEND_USB,
 };
 
 struct storage_device
 {
-    enum storage_backend backend;
-    uint8_t port; // AHCI port index or IDE drive index depending on backend
+    enum storage_backend backend; // Storage backend type.
+    uint8_t port; // AHCI port index or IDE drive index; unused for USB.
 };
 
-static struct storage_device g_devices[2];
-static sleeplock_t storage_locks[2];
+static struct storage_device g_devices[STORAGE_DEVICE_COUNT];
+static sleeplock_t storage_locks[STORAGE_DEVICE_COUNT];
 static bool storage_lock_initialized = false;
 
 void storage_init(void)
 {
     sleeplock_init(&storage_locks[0], "storage0");
     sleeplock_init(&storage_locks[1], "storage1");
+    sleeplock_init(&storage_locks[2], "storage2");
     storage_lock_initialized = true;
 
     // Default: try AHCI on device 0, fallback to IDE drive 0.
@@ -53,6 +62,13 @@ void storage_init(void)
             break;
         }
     }
+
+    g_devices[STORAGE_DEVICE_USB].backend = STORAGE_BACKEND_NONE;
+    g_devices[STORAGE_DEVICE_USB].port = 0;
+    if (xhci_usb_storage_present())
+    {
+        g_devices[STORAGE_DEVICE_USB].backend = STORAGE_BACKEND_USB;
+    }
 }
 
 static int storage_read_backend(const struct storage_device* dev, uint32_t lba, uint8_t count, uint8_t* buffer)
@@ -63,6 +79,8 @@ static int storage_read_backend(const struct storage_device* dev, uint32_t lba, 
         return ahci_read(lba, count, buffer);
     case STORAGE_BACKEND_IDE:
         return ide_read_sectors(dev->port, lba, count, buffer);
+    case STORAGE_BACKEND_USB:
+        return xhci_usb_storage_read(lba, count, buffer);
     default:
         return -1;
     }
@@ -76,6 +94,8 @@ static int storage_write_backend(const struct storage_device* dev, uint32_t lba,
         return ahci_write(lba, count, buffer);
     case STORAGE_BACKEND_IDE:
         return ide_write_sectors(dev->port, lba, count, (uint8_t*)buffer);
+    case STORAGE_BACKEND_USB:
+        return xhci_usb_storage_write(lba, count, buffer);
     default:
         return -1;
     }
@@ -89,6 +109,8 @@ static int storage_flush_backend(const struct storage_device* dev)
         return ahci_flush();
     case STORAGE_BACKEND_IDE:
         return ide_flush_cache(dev->port);
+    case STORAGE_BACKEND_USB:
+        return -1;
     default:
         return -1;
     }

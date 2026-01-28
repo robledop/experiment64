@@ -6,19 +6,19 @@
 #include <mem/vmm.h>
 #include <stdint.h>
 
-#define EHCI_CAPLENGTH 0x00u
-#define EHCI_HCCPARAMS 0x08u
+#define EHCI_CAPLENGTH 0x00u // Capability register length offset.
+#define EHCI_HCCPARAMS 0x08u // Host controller capability parameters offset.
 
-#define EHCI_OP_USBCMD 0x00u
-#define EHCI_OP_USBSTS 0x04u
-#define EHCI_OP_USBINTR 0x08u
+#define EHCI_OP_USBCMD 0x00u // USBCMD operational register offset.
+#define EHCI_OP_USBSTS 0x04u // USBSTS operational register offset.
+#define EHCI_OP_USBINTR 0x08u // USBINTR operational register offset.
 
-#define EHCI_USBCMD_RUN (1u << 0)
-#define EHCI_USBSTS_HCH (1u << 12)
+#define EHCI_USBCMD_RUN (1u << 0) // Run/Stop command bit.
+#define EHCI_USBSTS_HCH (1u << 12) // Host controller halted status bit.
 
-#define EHCI_LEGACY_CAP_ID 0x01u
-#define EHCI_LEGSUP_BIOS_OWNED (1u << 16)
-#define EHCI_LEGSUP_OS_OWNED (1u << 24)
+#define EHCI_LEGACY_CAP_ID 0x01u // USB legacy support capability ID.
+#define EHCI_LEGSUP_BIOS_OWNED (1u << 16) // BIOS owned semaphore bit.
+#define EHCI_LEGSUP_OS_OWNED (1u << 24) // OS owned semaphore bit.
 
 static bool g_ehci_quiesced = false;
 
