@@ -38,6 +38,27 @@ TEST(test_storage_disk1_ext2_superblock)
     return true;
 }
 
+TEST(test_storage_usb_gpt_signature)
+{
+    uint8_t buf[512];
+    TEST_ASSERT(storage_read(2, 1, 1, buf) == 0);
+    TEST_ASSERT(memcmp(buf, gpt_sig, sizeof(gpt_sig)) == 0);
+    return true;
+}
+
+TEST(test_storage_usb_ext2_superblock)
+{
+    // Partition starts at LBA 2048; ext2 superblock at offset 1024 bytes -> LBA start + 2.
+    constexpr uint32_t part_start_lba = 2048;
+    uint8_t sb[1024];
+    TEST_ASSERT(storage_read(2, part_start_lba + 2, 2, sb) == 0);
+
+    // ext2 magic at offset 0x38.
+    const uint16_t magic = (uint16_t)(sb[56] | (sb[57] << 8));
+    TEST_ASSERT(magic == 0xEF53);
+    return true;
+}
+
 TEST(test_storage_device_helpers)
 {
     const uint8_t count = storage_device_count();
