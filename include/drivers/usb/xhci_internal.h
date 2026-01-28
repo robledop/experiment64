@@ -33,15 +33,6 @@
 #define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
 #define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
 #define XHCI_TRB_CYCLE 0x1u // TRB cycle bit.
-#define XHCI_TRB_TC (1u << 1) // Link TRB toggle cycle bit.
-#define XHCI_TRB_ISP (1u << 2) // Interrupt on short packet bit.
-#define XHCI_TRB_CHAIN (1u << 4) // TRB chain bit.
-#define XHCI_TRB_IOC (1u << 5) // Interrupt on completion bit.
-#define XHCI_TRB_IDT (1u << 6) // Immediate data bit.
-#define XHCI_TRB_DIR_IN (1u << 16) // Data-in direction bit.
-#define XHCI_TRB_TYPE_SHIFT 10u // TRB type field shift.
-#define XHCI_TRB_TYPE_MASK (0x3Fu << XHCI_TRB_TYPE_SHIFT) // TRB type field mask.
-#define XHCI_TRB_TRT_SHIFT 16u // Transfer type field shift for setup stage.
 #define XHCI_TRB_TRT_DATA_OUT 2u // Setup stage transfer type: data out.
 #define XHCI_TRB_TRT_DATA_IN 3u // Setup stage transfer type: data in.
 #define XHCI_TRB_LEN_MASK 0x1FFFFu // TRB transfer length mask.
@@ -84,13 +75,6 @@
 #define XHCI_EP_TYPE_CONTROL 4u // Endpoint type for control transfers.
 #define XHCI_EP_TYPE_BULK_OUT 2u // Endpoint type for bulk OUT transfers.
 #define XHCI_EP_TYPE_BULK_IN 6u // Endpoint type for bulk IN transfers.
-#define XHCI_EP_ERROR_COUNT_SHIFT 1u // Endpoint error count field shift.
-#define XHCI_EP_TYPE_SHIFT 3u // Endpoint type field shift.
-#define XHCI_EP_MAX_BURST_SHIFT 8u // Endpoint max burst field shift.
-#define XHCI_EP_MAX_PACKET_SHIFT 16u // Endpoint max packet size field shift.
-#define XHCI_SLOT_CTX_CTX_ENTRIES_SHIFT 27u // Slot context entry count field shift.
-#define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
-#define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
 #define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
 #define XHCI_OP_PORTSC_BASE 0x400u // Port status/control base offset.
 #define XHCI_OP_PORTSC_STRIDE 0x10u // Port status/control register stride.
