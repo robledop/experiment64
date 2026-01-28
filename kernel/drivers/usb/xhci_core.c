@@ -18,8 +18,6 @@
 #define XHCI_OP_CRCR 0x18u // Command ring control register offset.
 #define XHCI_OP_DCBAAP 0x30u // Device context base array pointer offset.
 #define XHCI_OP_CONFIG 0x38u // Configure register offset.
-#define XHCI_OP_PORTSC_BASE 0x400u // Port status/control base offset.
-#define XHCI_OP_PORTSC_STRIDE 0x10u // Port status/control register stride.
 #define XHCI_IMAN 0x00u // Interrupter management offset.
 #define XHCI_IMOD 0x04u // Interrupter moderation offset.
 #define XHCI_ERSTSZ 0x08u // Event ring segment table size offset.
@@ -31,17 +29,6 @@
 #define XHCI_USBSTS_HCH (1u << 0) // Host controller halted bit.
 #define XHCI_USBSTS_CNR (1u << 11) // Controller not ready bit.
 
-#define XHCI_PORTSC_CCS (1u << 0) // Port current connect status bit.
-#define XHCI_PORTSC_PED (1u << 1) // Port enabled/disabled bit.
-#define XHCI_PORTSC_PR (1u << 4) // Port reset bit.
-#define XHCI_PORTSC_PLS_SHIFT 5u // Port link state field shift.
-#define XHCI_PORTSC_PLS_MASK (0xFu << XHCI_PORTSC_PLS_SHIFT) // Port link state field mask.
-#define XHCI_PORTSC_PP (1u << 9) // Port power bit.
-#define XHCI_PORTSC_INDICATOR_MASK (0x3u << 14) // Port indicator control mask.
-#define XHCI_PORTSC_WRC (1u << 19) // Port warm reset change bit.
-#define XHCI_PORTSC_WK_MASK (0x7u << 25) // Port wake event mask.
-#define XHCI_PORTSC_WR (1u << 31) // Port warm reset bit.
-#define XHCI_PORTSC_RWS_MASK (XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_PP | XHCI_PORTSC_INDICATOR_MASK | XHCI_PORTSC_WK_MASK) // Port read/write settable bits.
 
 
 #define XHCI_MAX_DEVICES 256u // Max device slots tracked.
@@ -50,7 +37,6 @@
 #define XHCI_EVENT_RING_TRBS 256u // Event ring TRB count.
 
 #define XHCI_RESET_TIMEOUT_MS 1000u // Reset timeout in ms.
-#define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
 #define XHCI_PORT_POWER_DELAY_MS 20u // Port power settle delay in ms.
 #define XHCI_PORT_CONNECT_DELAY_MS 100u // Port connect debounce delay in ms.
 #define XHCI_ADDRESS_SETTLE_MS 50u // Address settle delay in ms.
@@ -85,29 +71,6 @@ static struct xhci_device *xhci_device_from_slot(const uint8_t slot_id)
     }
 
     return &g_xhci_devices[slot_id];
-}
-
-static bool xhci_wait_for(const volatile uint8_t *base,
-                          const uint32_t offset,
-                          const uint32_t mask,
-                          const bool set,
-                          const uint32_t timeout_ms)
-{
-    for (uint32_t i = 0; i < timeout_ms; i++) {
-        const uint32_t value = xhci_read32(base, offset);
-        if (set) {
-            if ((value & mask) == mask) {
-                return true;
-            }
-        } else {
-            if ((value & mask) == 0) {
-                return true;
-            }
-        }
-        tsc_sleep_ms(1);
-    }
-
-    return false;
 }
 
 static inline pml4_t xhci_current_pml4(void)
@@ -180,27 +143,6 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     return true;
 }
 
-bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
-{
-    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
-        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
-        const uint32_t portsc = xhci_read32(xhci->op_base, offset);
-        if ((portsc & XHCI_PORTSC_CCS) == 0) {
-            continue;
-        }
-
-        if (port_out) {
-            *port_out = port;
-        }
-        if (speed_out) {
-            *speed_out = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
-        }
-        return true;
-    }
-
-    return false;
-}
-
 static void xhci_log_port_state(struct xhci_controller *xhci, const uint32_t port)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -239,67 +181,6 @@ static void xhci_power_ports(struct xhci_controller *xhci)
     }
 
     tsc_sleep_ms(XHCI_PORT_POWER_DELAY_MS);
-}
-
-static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
-                                 const uint32_t port,
-                                 const uint32_t timeout_ms,
-                                 uint32_t *portsc_out)
-{
-    const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
-    uint32_t portsc       = 0;
-
-    for (uint32_t i = 0; i < timeout_ms; i++) {
-        portsc             = xhci_read32(xhci->op_base, offset);
-        const uint32_t pls = (portsc & XHCI_PORTSC_PLS_MASK) >> 5u;
-        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {
-            if (portsc_out) {
-                *portsc_out = portsc;
-            }
-            return true;
-        }
-        tsc_sleep_ms(1);
-    }
-
-    if (portsc_out) {
-        *portsc_out = portsc;
-    }
-    return false;
-}
-
-bool xhci_port_reset(const struct xhci_controller *xhci,
-                     const uint32_t port,
-                     uint32_t *portsc_out)
-{
-    const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
-    uint32_t portsc       = xhci_read32(xhci->op_base, offset);
-
-    const uint32_t preserve = (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK;
-    uint32_t write          = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;
-    xhci_write32(xhci->op_base, offset, write);
-
-    if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
-        portsc = xhci_read32(xhci->op_base, offset);
-        boot_message(WARNING, "[xHCI] Port %u warm reset timeout status=0x%08x", port, portsc);
-        return false;
-    }
-
-    portsc               = xhci_read32(xhci->op_base, offset);
-    uint32_t clear_reset = (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC;
-    xhci_write32(xhci->op_base, offset, clear_reset);
-
-    if (!xhci_wait_port_ready(xhci, port, XHCI_PORT_RESET_TIMEOUT_MS, &portsc)) {
-        boot_message(WARNING, "[xHCI] Port %u reset incomplete status=0x%08x", port, portsc);
-        if (portsc_out) {
-            *portsc_out = portsc;
-        }
-        return false;
-    }
-
-    if (portsc_out) {
-        *portsc_out = portsc;
-    }
-    return true;
 }
 
 void xhci_init(struct pci_device device)

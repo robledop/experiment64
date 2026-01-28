@@ -56,8 +56,21 @@
 #define XHCI_SLOT_CTX_SPEED_SHIFT 20u // Slot context speed field shift.
 #define XHCI_SLOT_CTX_ROOT_PORT_SHIFT 16u // Slot context root port field shift.
 #define XHCI_MAX_CONTEXTS 32u // Max context entries per device context.
+#define XHCI_OP_PORTSC_BASE 0x400u // Port status/control base offset.
+#define XHCI_OP_PORTSC_STRIDE 0x10u // Port status/control register stride.
+#define XHCI_PORTSC_CCS (1u << 0) // Port current connect status bit.
+#define XHCI_PORTSC_PED (1u << 1) // Port enabled/disabled bit.
+#define XHCI_PORTSC_PR (1u << 4) // Port reset bit.
+#define XHCI_PORTSC_PLS_SHIFT 5u // Port link state field shift.
+#define XHCI_PORTSC_PLS_MASK (0xFu << XHCI_PORTSC_PLS_SHIFT) // Port link state field mask.
+#define XHCI_PORTSC_PP (1u << 9) // Port power bit.
 #define XHCI_PORTSC_SPEED_SHIFT 10u // Port speed field shift.
 #define XHCI_PORTSC_SPEED_MASK (0xFu << XHCI_PORTSC_SPEED_SHIFT) // Port speed field mask.
+#define XHCI_PORTSC_INDICATOR_MASK (0x3u << 14) // Port indicator control mask.
+#define XHCI_PORTSC_WRC (1u << 19) // Port warm reset change bit.
+#define XHCI_PORTSC_WK_MASK (0x7u << 25) // Port wake event mask.
+#define XHCI_PORTSC_WR (1u << 31) // Port warm reset bit.
+#define XHCI_PORTSC_RWS_MASK (XHCI_PORTSC_PLS_MASK | XHCI_PORTSC_PP | XHCI_PORTSC_INDICATOR_MASK | XHCI_PORTSC_WK_MASK) // Port read/write settable bits.
 #define XHCI_EP0_RING_TRBS 256u // Endpoint 0 ring TRB count.
 
 #define USB_DESC_TYPE_DEVICE 0x01u // USB device descriptor type.
@@ -294,6 +307,29 @@ static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, c
 {
     auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
+}
+
+static inline bool xhci_wait_for(const volatile uint8_t *base,
+                                 const uint32_t offset,
+                                 const uint32_t mask,
+                                 const bool set,
+                                 const uint32_t timeout_ms)
+{
+    for (uint32_t i = 0; i < timeout_ms; i++) {
+        const uint32_t value = xhci_read32(base, offset);
+        if (set) {
+            if ((value & mask) == mask) {
+                return true;
+            }
+        } else {
+            if ((value & mask) == 0) {
+                return true;
+            }
+        }
+        tsc_sleep_ms(1);
+    }
+
+    return false;
 }
 
 static inline void xhci_mb(void)

@@ -3,6 +3,8 @@
 #include <drivers/terminal.h>
 #include <lib/string.h>
 
+#define XHCI_PORT_RESET_TIMEOUT_MS 500u // Port reset timeout in ms.
+
 static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
 {
     if (!trb) {
@@ -12,6 +14,88 @@ static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb 
     const uintptr_t phys = xhci_ring_enqueue(&xhci->cmd_ring, trb);
     xhci_ring_doorbell(xhci, 0, 0);
     return xhci_wait_for_cmd_completion(xhci, phys, slot_id_out);
+}
+
+static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
+                                 const uint32_t port,
+                                 const uint32_t timeout_ms,
+                                 uint32_t *portsc_out)
+{
+    const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+    uint32_t portsc       = 0;
+
+    for (uint32_t i = 0; i < timeout_ms; i++) {
+        portsc             = xhci_read32(xhci->op_base, offset);
+        const uint32_t pls = (portsc & XHCI_PORTSC_PLS_MASK) >> 5u;
+        if ((portsc & XHCI_PORTSC_PED) != 0 && pls == 0) {
+            if (portsc_out) {
+                *portsc_out = portsc;
+            }
+            return true;
+        }
+        tsc_sleep_ms(1);
+    }
+
+    if (portsc_out) {
+        *portsc_out = portsc;
+    }
+    return false;
+}
+
+bool xhci_find_connected_port(const struct xhci_controller *xhci, uint32_t *port_out, uint32_t *speed_out)
+{
+    for (uint32_t port = 1; port <= xhci->max_ports; port++) {
+        const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+        const uint32_t portsc = xhci_read32(xhci->op_base, offset);
+        if ((portsc & XHCI_PORTSC_CCS) == 0) {
+            continue;
+        }
+
+        if (port_out) {
+            *port_out = port;
+        }
+        if (speed_out) {
+            *speed_out = (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool xhci_port_reset(const struct xhci_controller *xhci,
+                     const uint32_t port,
+                     uint32_t *portsc_out)
+{
+    const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
+    uint32_t portsc       = xhci_read32(xhci->op_base, offset);
+
+    const uint32_t preserve = (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK;
+    uint32_t write          = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;
+    xhci_write32(xhci->op_base, offset, write);
+
+    if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
+        portsc = xhci_read32(xhci->op_base, offset);
+        boot_message(WARNING, "[xHCI] Port %u warm reset timeout status=0x%08x", port, portsc);
+        return false;
+    }
+
+    portsc               = xhci_read32(xhci->op_base, offset);
+    uint32_t clear_reset = (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC;
+    xhci_write32(xhci->op_base, offset, clear_reset);
+
+    if (!xhci_wait_port_ready(xhci, port, XHCI_PORT_RESET_TIMEOUT_MS, &portsc)) {
+        boot_message(WARNING, "[xHCI] Port %u reset incomplete status=0x%08x", port, portsc);
+        if (portsc_out) {
+            *portsc_out = portsc;
+        }
+        return false;
+    }
+
+    if (portsc_out) {
+        *portsc_out = portsc;
+    }
+    return true;
 }
 
 bool xhci_enable_slot(struct xhci_controller *xhci, uint8_t *slot_id_out)
