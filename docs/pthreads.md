@@ -9,14 +9,6 @@ Implemented:
 - `pthread_cond_*`
 - `pthread_once`
 
-Behavior and limits:
-
-- Mutexes and condition variables are process-local and use futex wait/wake.
-- Condition variables may wake spuriously; callers must re-check predicates.
-- No timed waits or cancellation.
-- The thread return value is stored in libc, not the kernel. Joining clears it.
-- Detached threads are non-joinable and discard return values.
-
 Example:
 
 ```c
