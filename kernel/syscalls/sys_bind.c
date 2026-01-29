@@ -1,3 +1,5 @@
+#include <syscall_common.h>
+
 #include <lib/string.h>
 #include <net/socket.h>
 #include <task/process.h>
@@ -24,7 +26,8 @@ int sys_bind(const int fd, const struct sockaddr *addr, const size_t addrlen)
         return -1;
 
     struct sockaddr_in in = {0};
-    memcpy(&in, addr, sizeof(in));
+    if (!copy_from_user(&in, addr, sizeof(in)))
+        return -1;
     if (in.sin_family != AF_INET)
         return -1;
 

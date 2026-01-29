@@ -1,3 +1,5 @@
+#include <syscall_common.h>
+
 #include <lib/string.h>
 #include <net/helpers.h>
 #include <net/icmp.h>
@@ -13,6 +15,7 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
     (void)flags;
     if (fd < 0 || fd >= MAX_FDS) return -1;
     if (!buf && len > 0) return -1;
+    if (len > 0 && !user_ptr_read_ok(buf, len, "sys_sendto")) return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode) return -1;
@@ -31,11 +34,13 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
         memcpy(src_ip, sock->local.ip, sizeof(src_ip));
 
     struct sockaddr_in in = {0};
+    const struct sockaddr* dest_check = nullptr;
     if (dest_addr)
     {
         if (addrlen < sizeof(struct sockaddr_in)) return -1;
-        memcpy(&in, dest_addr, sizeof(in));
+        if (!copy_from_user(&in, dest_addr, sizeof(in))) return -1;
         if (in.sin_family != AF_INET) return -1;
+        dest_check = (const struct sockaddr*)&in;
     }
     else if (sock->protocol != IPPROTO_TCP || sock->type != SOCK_STREAM)
     {
@@ -43,7 +48,7 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
     }
 
     if (sock->protocol == IPPROTO_TCP && sock->type == SOCK_STREAM)
-        return tcp_sendto(buf, len, dest_addr, sock, in);
+        return tcp_sendto(buf, len, dest_check, sock, in);
 
     if (sock->protocol == IPPROTO_UDP && sock->type == SOCK_DGRAM)
         return udp_sendto(buf, len, sock, in, my_ip, src_ip);

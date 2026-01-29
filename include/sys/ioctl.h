@@ -21,3 +21,6 @@ struct winsize
 
 // Keyboard ioctls
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers
+
+// Network ioctl
+#define GETNETINFO 0x4090

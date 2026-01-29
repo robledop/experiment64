@@ -5,6 +5,8 @@ int sys_wait(int* status)
 #ifdef TEST_MODE
     printk("sys_wait: pid=%d waiting...\n", current_process ? current_process->pid : -1);
 #endif
+    if (status && !user_ptr_write_ok(status, sizeof(*status), "sys_wait status"))
+        return -1;
     while (1)
     {
         uint64_t rflags;
@@ -34,8 +36,12 @@ int sys_wait(int* status)
         if (found)
         {
             int code = found->exit_code;
-            if (status)
-                copy_to_user(status, &code, sizeof(int));
+            if (status) {
+                if (!copy_to_user(status, &code, sizeof(int))) {
+                    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+                    return -1;
+                }
+            }
             int pid = found->pid;
 
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
