@@ -30,7 +30,7 @@ LD = $(TOOLPREFIX)ld
 INCLUDE = -I$(DOOMGENERIC_SRC) -I../libc/include -I../include -I../../include
 
 # Base flags for all code
-BASE_CFLAGS = -O3 -ggdb -std=gnu23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx -Wa,--noexecstack
+BASE_CFLAGS = -O3 -ggdb -std=c23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno-builtin -mavx -Wa,--noexecstack
 
 # CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
 DOOM_CFLAGS = $(BASE_CFLAGS) $(INCLUDE)
