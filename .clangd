@@ -25,6 +25,7 @@ CompileFlags:
     - -nostdlib
     - -static
     - -fPIE
+    - -std=c23
     - -m64
     - -march=x86-64
     - -masm=intel
@@ -40,6 +41,7 @@ CompileFlags:
     - -Ithird_party/doomgeneric/doomgeneric
     - -nostdlib
     - -static
+    - -std=c23
     - -fPIE
     - -m64
     - -march=x86-64
