@@ -16,7 +16,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 - `make run` – boot the kernel in QEMU with the generated image
 - `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
-- `make check` – formatting/lint/static-analysis wrapper (clangd + clang-tidy)
+- `make check` – lint/static-analysis wrapper (clangd + clang-tidy)
 - `make clangd-check` / `make clang-tidy` – language server / lint helpers (no .S files)
 
 ## Tests
@@ -50,7 +50,7 @@ To ensure code quality and consistency, run the following checks:
 make check
 ```
 
-This command will run formatting checks, linting and static analysis on the codebase.
+This command will run linting and static analysis on the codebase.
 
 ## Running
 
@@ -101,7 +101,8 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   client in userland.
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/` (new entries default to 0755/0644), FAT32
   mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`, USB ext2 (if
-  present) mounted at `/usb`. The boot disk is auto-detected across IDE/AHCI/USB by scanning GPT (ESP + root).
+  present and not the boot device) mounted at `/usb`. The boot disk is auto-detected across IDE/AHCI/USB by scanning
+  GPT (ESP + root).
 - **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user
   programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size, framebuffer queries, keyboard flush,
@@ -110,7 +111,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   user-mapped ranges
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB
-  controller interface logs (see docs/pci.md)
+  controller interface logs
 
 ## GUI
 

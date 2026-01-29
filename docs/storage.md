@@ -15,9 +15,9 @@ before power-off.
 ## Boot disk detection
 
 The boot disk is selected by scanning all available storage devices for GPT partitions. The first device with both an
-ESP and a Linux Filesystem partition is treated as the boot device. If no ESP is found, the first device with a Linux
-Filesystem partition is used, otherwise the first detected device is used as a fallback. Root, `/mnt`, and `/boot` are
-mounted from the boot device.
+ESP and a Linux Filesystem partition is treated as the boot device. If none is found, the first device with an ESP is
+chosen, then the first device with a Linux Filesystem partition, otherwise the first detected device is used as a
+fallback. Root, `/mnt`, and `/boot` are mounted from the boot device.
 
 To boot the USB path in QEMU, run `make run-usb` (the USB device uses the same image as `image.hdd`).
 
@@ -31,4 +31,4 @@ The QEMU targets attach these images by default:
 
 The VirtualBox launcher also attaches these images, including `image3.usb` as USB mass storage.
 
-When detected, the USB ext2 partition mounts at `/usb`.
+When detected and not the boot device, the USB ext2 partition mounts at `/usb`.

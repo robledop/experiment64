@@ -213,7 +213,6 @@ void network_receive(uint8_t* packet, const uint16_t len)
             break;
         }
     default:
-        // boot_message(WARNING, "Unknown ether type %d", ether_type);
         break;
     }
 }
