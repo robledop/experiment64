@@ -48,7 +48,10 @@ syscall_entry:
     mov r8, rsp         # R8 = pointer to regs
 
     call syscall_handler
-    
+
+    # Disable interrupts before restoring user RSP and swapgs.
+    cli
+
     # Restore registers
 .global syscall_return
 syscall_return:

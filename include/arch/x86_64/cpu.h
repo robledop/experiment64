@@ -26,7 +26,9 @@ typedef struct
 #define MSR_GS_BASE 0xC0000101          // GS Base Address
 #define MSR_KERNEL_GS_BASE 0xC0000102   // Kernel GS Base Address
 
-#define RFLAGS_IF 0x200                 // Interrupt Enable Flag
+#define RFLAGS_TF 0x100                // Trap Flag
+#define RFLAGS_IF 0x200                // Interrupt Enable Flag
+#define RFLAGS_DF 0x400                // Direction Flag
 
 struct Thread;
 
