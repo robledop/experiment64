@@ -106,7 +106,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
 - **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size and framebuffer queries), `mmap`/`munmap`
   for `/dev/fb0`, `link`/`unlink`, `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer
-  access
+  access, user pointer validation for canonical and user-mapped ranges
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB
   controller interface logs (see docs/pci.md)

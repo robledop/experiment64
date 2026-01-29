@@ -8,6 +8,7 @@
 - **Canonical addresses**: 48-bit; the kernel uses the higher half.
 - **PML4 split**: entries 0-255 are user space, 256-511 are kernel space.
 - **HHDM**: a higher-half direct map, `virt = phys + g_hhdm_offset`.
+- **Syscall user pointers**: validated for canonical addressing and user-mapped PTE permissions.
 
 ---
 
