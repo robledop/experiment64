@@ -5,11 +5,12 @@
 
 int sys_open(const char* path, int flags)
 {
-    if (!path || !*path)
+    if (!path)
         return -1;
     const bool want_write = (flags & O_WRONLY) || (flags & O_RDWR);
     char abs_path[PATH_MAX];
-    resolve_user_path(path, abs_path, sizeof(abs_path));
+    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        return -1;
     int fd = -1;
     for (int i = 3; i < MAX_FDS; i++)
     {

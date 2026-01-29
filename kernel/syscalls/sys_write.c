@@ -8,6 +8,10 @@ int sys_write(int fd, const char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
+    if (count == 0)
+        return 0;
+    if (!user_ptr_read_ok(buf, count, "sys_write"))
+        return -1;
 
     file_descriptor_t* desc = current_process->fd_table[fd];
 

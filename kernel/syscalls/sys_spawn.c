@@ -34,13 +34,14 @@ static void spawn_trampoline(void)
 
 int sys_spawn(const char* path)
 {
-    if (!path || !*path)
+    if (!path)
         return -1;
-    TEST_SYSCALL_LOG("sys_spawn: parent pid=%d path=%s\n", current_process ? current_process->pid : -1, path);
+    TEST_SYSCALL_LOG("sys_spawn: parent pid=%d path_ptr=%p\n", current_process ? current_process->pid : -1, path);
     char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         // ReSharper disable once CppDFAUnreachableCode
         return -1;
+    TEST_SYSCALL_LOG("sys_spawn: parent pid=%d path=%s\n", current_process ? current_process->pid : -1, abs_path);
 
     pml4_t new_pml4 = vmm_new_pml4();
     if (!new_pml4)
@@ -69,7 +70,7 @@ int sys_spawn(const char* path)
     constexpr uint64_t stack_base = guard_start + guard_size;
     constexpr uint64_t user_rsp = stack_top - 16;
 
-    process_t* proc = process_create(path);
+    process_t* proc = process_create(abs_path);
     if (!proc)
     {
         vmm_destroy_pml4(new_pml4);

@@ -4,10 +4,11 @@
 
 int sys_chdir(const char *path)
 {
-    if (!path || !*path)
+    if (!path)
         return -1;
     char abs_path[PATH_MAX];
-    resolve_user_path(path, abs_path, sizeof(abs_path));
+    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        return -1;
 
     vfs_inode_t *node = vfs_resolve_path(abs_path);
     if (!node)

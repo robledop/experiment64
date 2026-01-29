@@ -17,18 +17,13 @@ static int copy_in_args(const char *const*argv, char args[EXEC_MAX_ARGS][EXEC_MA
 
     int count = 0;
     while (count < EXEC_MAX_ARGS) {
-        const char *user_arg = argv[count];
+        const char *user_arg = nullptr;
+        if (!copy_from_user(&user_arg, &argv[count], sizeof(user_arg)))
+            return -1;
         if (!user_arg)
             break;
-
-        size_t len = 0;
-        while (len + 1 < EXEC_MAX_ARG_LEN && user_arg[len])
-            len++;
-        if (len + 1 >= EXEC_MAX_ARG_LEN && user_arg[len])
-            return -1; // argument too long
-
-        memcpy(args[count], user_arg, len);
-        args[count][len] = '\0';
+        if (!copy_from_user_str(args[count], user_arg, EXEC_MAX_ARG_LEN))
+            return -1;
         count++;
     }
     return count;
@@ -126,7 +121,7 @@ static void vm_area_free_list(list_item_t *head)
 int sys_execve(const char *path, const char *const argv[], [[maybe_unused]] const char *const envp[],
                struct syscall_regs *regs)
 {
-    if (!path || !*path)
+    if (!path)
         return -1;
 
     TEST_SYSCALL_LOG("sys_execve: enter pid=%d path_ptr=%p argv_ptr=%p envp_ptr=%p\n",
