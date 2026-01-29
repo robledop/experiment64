@@ -1,0 +1,25 @@
+From 2686f3c06893345beb825c0586d0acbf46b01523 Mon Sep 17 00:00:00 2001
+From: Robledo Pazotto <robledo@gmail.com>
+Date: Thu, 29 Jan 2026 12:55:31 -0300
+Subject: [PATCH] Remove unused `#include <assert.h>` in `sha1.c`
+
+---
+ doomgeneric/sha1.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/doomgeneric/sha1.c b/doomgeneric/sha1.c
+index 06ab40a..d78d9a8 100644
+--- a/doomgeneric/sha1.c
++++ b/doomgeneric/sha1.c
+@@ -32,7 +32,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include <assert.h>
++//#include <assert.h>
+ 
+ #include "i_swap.h"
+ #include "sha1.h"
+-- 
+2.52.0
+

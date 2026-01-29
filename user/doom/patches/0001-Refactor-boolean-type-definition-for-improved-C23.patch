@@ -1,0 +1,69 @@
+From 333b75e4a9a5372f6021abf3caf37b4f4e677583 Mon Sep 17 00:00:00 2001
+From: Robledo Pazotto <robledo@gmail.com>
+Date: Thu, 29 Jan 2026 12:49:20 -0300
+Subject: [PATCH] Refactor `boolean` type definition for improved C23
+ compatibility
+
+---
+ doomgeneric/doomtype.h | 23 +++++++++++++----------
+ doomgeneric/i_video.c  |  1 -
+ 2 files changed, 13 insertions(+), 11 deletions(-)
+
+diff --git a/doomgeneric/doomtype.h b/doomgeneric/doomtype.h
+index a225c64..02a8e0b 100644
+--- a/doomgeneric/doomtype.h
++++ b/doomgeneric/doomtype.h
+@@ -62,20 +62,24 @@
+ 
+ #include <inttypes.h>
+ 
+-#ifdef __cplusplus
++#ifndef __cplusplus
+ 
+-// Use builtin bool type with C++.
++typedef int boolean;
+ 
+-typedef bool boolean;
++#ifndef false
++#define false 0
++#endif
++#ifndef true
++#define true 1
++#endif
++#ifndef undef
++#define undef 0xFFFFFFFF
++#endif
+ 
+ #else
+ 
+-typedef enum 
+-{
+-    false	= 0,
+-    true	= 1,
+-	undef	= 0xFFFFFFFF
+-} boolean;
++#include <stdbool.h>
++typedef bool boolean;
+ 
+ #endif
+ 
+@@ -100,4 +104,3 @@ typedef uint8_t byte;
+ #define arrlen(array) (sizeof(array) / sizeof(*array))
+ 
+ #endif
+-
+diff --git a/doomgeneric/i_video.c b/doomgeneric/i_video.c
+index 84bebde..86402bd 100644
+--- a/doomgeneric/i_video.c
++++ b/doomgeneric/i_video.c
+@@ -39,7 +39,6 @@ rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
+ 
+ #include "doomgeneric.h"
+ 
+-#include <stdbool.h>
+ #include <stdlib.h>
+ 
+ #include <fcntl.h>
+-- 
+2.52.0
+

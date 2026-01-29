@@ -23,13 +23,13 @@ if [ ! -d "$DOOMGENERIC_ROOT/doomgeneric" ]; then
   exit 1
 fi
 
-#PATCH_DIR="$ROOT_DIR/user/doom/patches"
-#for patch in "$PATCH_DIR"/*.patch; do
-#  if [ ! -f "$patch" ]; then
-#    continue
-#  fi
-#  if git -C "$DOOMGENERIC_ROOT" apply --reverse --check "$patch" >/dev/null 2>&1; then
-#    continue
-#  fi
-#  git -C "$DOOMGENERIC_ROOT" apply "$patch"
-#done
+PATCH_DIR="$ROOT_DIR/user/doom/patches"
+for patch in "$PATCH_DIR"/*.patch; do
+  if [ ! -f "$patch" ]; then
+    continue
+  fi
+  if git -C "$DOOMGENERIC_ROOT" apply --reverse --check "$patch" >/dev/null 2>&1; then
+    continue
+  fi
+  git -C "$DOOMGENERIC_ROOT" apply "$patch"
+done
