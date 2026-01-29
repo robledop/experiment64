@@ -154,6 +154,34 @@ bool copy_from_user(void *dst, const void *src, size_t size)
     return true;
 }
 
+bool copy_from_user_str(char *dst, const char *src, size_t max_len)
+{
+    if (!dst || !src || max_len == 0)
+        return false;
+
+    size_t copied = 0;
+    while (copied < max_len) {
+        uintptr_t addr = (uintptr_t)src + copied;
+        size_t offset = addr & (PAGE_SIZE - 1);
+        size_t chunk = PAGE_SIZE - offset;
+        if (chunk > max_len - copied)
+            chunk = max_len - copied;
+        if (!user_ptr_access_ok((const void *)addr, chunk, false, "copy_from_user_str"))
+            return false;
+
+        for (size_t i = 0; i < chunk; i++) {
+            char c = ((const char *)src)[copied + i];
+            dst[copied + i] = c;
+            if (c == '\0')
+                return true;
+        }
+        copied += chunk;
+    }
+
+    dst[max_len - 1] = '\0';
+    return false;
+}
+
 bool map_user_anonymous_range(process_t *proc, pml4_t pml4, uint64_t start, uint64_t length, uint32_t vma_flags)
 {
     if (!proc || !pml4 || length == 0)
@@ -299,8 +327,15 @@ int resolve_user_path(const char *path, char *resolved, size_t size)
         // ReSharper disable once CppDFAUnreachableCode
         return -1;
 
+    char input_buf[PATH_MAX];
+    size_t max_len = size < sizeof(input_buf) ? size : sizeof(input_buf);
+    if (!copy_from_user_str(input_buf, path, max_len))
+        return -1;
+    if (input_buf[0] == '\0')
+        return -1;
+
     const char *base = (current_process && current_process->cwd[0]) ? current_process->cwd : "/";
-    path_build_absolute(base, path, resolved, size);
+    path_build_absolute(base, input_buf, resolved, size);
     return 0;
 }
 
