@@ -315,6 +315,24 @@ static uint8_t mknod_stub_bytes[] = {
     0x0F, 0x05 // syscall
 };
 
+static uint8_t pipe_bad_ptr_noncanonical_stub_bytes[] = {
+    0xB8, 0x1B, 0x00, 0x00, 0x00, // mov eax, 27 (SYS_PIPE)
+    0x48, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, // mov rdi, 0x0000800000000000
+    0x0F, 0x05, // syscall
+    0x89, 0xC7, // mov edi, eax
+    0xB8, 0x03, 0x00, 0x00, 0x00, // mov eax, 3 (SYS_EXIT)
+    0x0F, 0x05 // syscall
+};
+
+static uint8_t pipe_bad_ptr_unmapped_stub_bytes[] = {
+    0xB8, 0x1B, 0x00, 0x00, 0x00, // mov eax, 27 (SYS_PIPE)
+    0x48, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, // mov rdi, 0x0000100000000000
+    0x0F, 0x05, // syscall
+    0x89, 0xC7, // mov edi, eax
+    0xB8, 0x03, 0x00, 0x00, 0x00, // mov eax, 3 (SYS_EXIT)
+    0x0F, 0x05 // syscall
+};
+
 static void syscall_test_exit_handler(int code)
 {
     if (test_runner_pid != 0 && current_process->pid != test_runner_pid)
@@ -1034,6 +1052,94 @@ TEST_PRIO(test_syscall_mknod, 10)
         }
         else
             printk("Syscall Test: MKNOD failed, exit code %d\n", test_exit_code);
+        syscall_set_exit_hook(nullptr);
+        return passed;
+    }
+}
+
+TEST(test_syscall_user_ptr_noncanonical)
+{
+    test_runner_pid = current_process->pid;
+    void* phys_page = pmm_alloc_page();
+    if (!phys_page)
+        return false;
+
+    uint64_t user_base = 0x400000;
+    uint64_t cr3;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+    void* virt_page = (void*)((uint64_t)phys_page + g_hhdm_offset);
+    memcpy(virt_page, pipe_bad_ptr_noncanonical_stub_bytes, sizeof(pipe_bad_ptr_noncanonical_stub_bytes));
+
+    syscall_set_exit_hook(syscall_test_exit_handler);
+    thread_t* t = current_thread;
+    const bool old_is_user = t ? t->is_user : false;
+    if (t)
+        t->is_user = true;
+    test_exit_code = 0;
+
+    if (__builtin_setjmp(test_env) == 0)
+    {
+        uint64_t user_stack = user_base + 4096 - 16;
+        enter_user_mode(user_base, user_stack);
+        if (t)
+            t->is_user = old_is_user;
+        syscall_set_exit_hook(nullptr);
+        return false;
+    }
+    else
+    {
+        syscall_test_resume_after_longjmp();
+        if (t)
+            t->is_user = old_is_user;
+        bool passed = (test_exit_code == -1);
+        if (!passed)
+            printk("Syscall Test: Noncanonical ptr expected -1, got %d\n", test_exit_code);
+        syscall_set_exit_hook(nullptr);
+        return passed;
+    }
+}
+
+TEST(test_syscall_user_ptr_unmapped)
+{
+    test_runner_pid = current_process->pid;
+    void* phys_page = pmm_alloc_page();
+    if (!phys_page)
+        return false;
+
+    uint64_t user_base = 0x400000;
+    uint64_t cr3;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+    void* virt_page = (void*)((uint64_t)phys_page + g_hhdm_offset);
+    memcpy(virt_page, pipe_bad_ptr_unmapped_stub_bytes, sizeof(pipe_bad_ptr_unmapped_stub_bytes));
+
+    syscall_set_exit_hook(syscall_test_exit_handler);
+    thread_t* t = current_thread;
+    const bool old_is_user = t ? t->is_user : false;
+    if (t)
+        t->is_user = true;
+    test_exit_code = 0;
+
+    if (__builtin_setjmp(test_env) == 0)
+    {
+        uint64_t user_stack = user_base + 4096 - 16;
+        enter_user_mode(user_base, user_stack);
+        if (t)
+            t->is_user = old_is_user;
+        syscall_set_exit_hook(nullptr);
+        return false;
+    }
+    else
+    {
+        syscall_test_resume_after_longjmp();
+        if (t)
+            t->is_user = old_is_user;
+        bool passed = (test_exit_code == -1);
+        if (!passed)
+            printk("Syscall Test: Unmapped ptr expected -1, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }

@@ -9,21 +9,89 @@
 #include <arch/x86_64/smp.h>
 #include <arch/x86_64/cpu.h>
 
-/**
- * Check if a user pointer is writable within the current thread's context.
- * Returns true if the pointer is valid and writable, false otherwise.
- */
-bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
+static inline bool addr_is_canonical(uintptr_t addr)
 {
-    if (!dst)
+    const uintptr_t upper = addr >> 47;
+    return upper == 0 || upper == 0x1ffff;
+}
+
+static inline bool user_entry_ok(uint64_t entry, bool write)
+{
+    if ((entry & PTE_PRESENT) == 0)
+        return false;
+    if ((entry & PTE_USER) == 0)
+        return false;
+    if (write && (entry & PTE_WRITABLE) == 0)
+        return false;
+    return true;
+}
+
+static bool user_page_access_ok(pml4_t pml4, uintptr_t addr, bool write)
+{
+    if (!pml4)
+        return false;
+
+    const uint64_t mask = 0x000FFFFFFFFFF000;
+    const uint64_t *pml4_virt = (const uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
+
+    const size_t pml4_idx = (addr >> 39) & 0x1FF;
+    const size_t pdpt_idx = (addr >> 30) & 0x1FF;
+    const size_t pd_idx   = (addr >> 21) & 0x1FF;
+    const size_t pt_idx   = (addr >> 12) & 0x1FF;
+
+    const uint64_t pml4e = pml4_virt[pml4_idx];
+    if (!user_entry_ok(pml4e, write))
+        return false;
+
+    const uint64_t *pdpt = (const uint64_t *)((pml4e & mask) + g_hhdm_offset);
+    const uint64_t pdpte = pdpt[pdpt_idx];
+    if (!user_entry_ok(pdpte, write))
+        return false;
+    if (pdpte & PTE_HUGE)
+        return true;
+
+    const uint64_t *pd = (const uint64_t *)((pdpte & mask) + g_hhdm_offset);
+    const uint64_t pde = pd[pd_idx];
+    if (!user_entry_ok(pde, write))
+        return false;
+    if (pde & PTE_HUGE)
+        return true;
+
+    const uint64_t *pt = (const uint64_t *)((pde & mask) + g_hhdm_offset);
+    const uint64_t pte = pt[pt_idx];
+    if (!user_entry_ok(pte, write))
+        return false;
+
+    return true;
+}
+
+static bool user_range_access_ok(pml4_t pml4, uintptr_t addr, size_t size, bool write)
+{
+    if (size == 0)
+        return true;
+    uintptr_t end = addr + size - 1;
+    uintptr_t page = addr & ~(PAGE_SIZE - 1);
+    for (; page <= end; page += PAGE_SIZE) {
+        if (!user_page_access_ok(pml4, page, write))
+            return false;
+    }
+    return true;
+}
+
+static bool user_ptr_access_ok(const void *ptr, size_t size, bool write, const char *op)
+{
+    if (!ptr)
         return false;
     const thread_t *t  = get_current_thread();
     const bool userish = (t != nullptr && t->is_user);
     if (!userish)
         return true;
-    const uintptr_t addr = (uintptr_t)dst;
+    const uintptr_t addr = (uintptr_t)ptr;
     const uintptr_t end  = addr + size;
     if (end < addr)
+        return false;
+    const uintptr_t last = (size == 0) ? addr : (end - 1);
+    if (!addr_is_canonical(addr) || !addr_is_canonical(last))
         return false;
 
     const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
@@ -35,9 +103,10 @@ bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
 
     if (in_kernel || in_kstack) {
         const process_t *p = get_current_process();
+        const char *label  = op ? op : (write ? "user_ptr_write" : "user_ptr_read");
         printk("%s: bad dst=%p size=%zu pid=%d tid=%d in_kernel=%d in_kstack=%d ret=%p\n",
-               op ? op : "user_ptr_write",
-               dst,
+               label,
+               ptr,
                size,
                p != nullptr ? p->pid : -1,
                t->tid,
@@ -46,12 +115,23 @@ bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
                __builtin_return_address(0));
         return false;
     }
+    if (!user_range_access_ok(current_process ? current_process->pml4 : nullptr, addr, size, write))
+        return false;
     return true;
+}
+
+/**
+ * Check if a user pointer is writable within the current thread's context.
+ * Returns true if the pointer is valid and writable, false otherwise.
+ */
+bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
+{
+    return user_ptr_access_ok(dst, size, true, op);
 }
 
 bool user_ptr_read_ok(const void *src, size_t size, const char *op)
 {
-    return user_ptr_write_ok(src, size, op ? op : "user_ptr_read");
+    return user_ptr_access_ok(src, size, false, op);
 }
 
 bool copy_to_user(void *dst, const void *src, size_t size)
