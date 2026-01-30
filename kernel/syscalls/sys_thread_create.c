@@ -16,12 +16,23 @@ static inline uint64_t align_down_u64(uint64_t val, uint64_t align)
     return val & ~(align - 1);
 }
 
+/**
+ * Searches downward from a hint for a page-aligned, non-overlapping stack region of a given size in the process’s VM map.
+ * @param proc Process for which to find a stack region
+ * @param size Size of the stack region to find
+ * @param top_hint Hint for the top of the stack region
+ * @param out_start Output parameter for the start address of the found stack region
+ * @param out_end Output parameter for the end address of the found stack region
+ * @return True if a stack region was found, false otherwise
+ */
 static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, uint64_t* out_start, uint64_t* out_end)
 {
-    if (!proc || !out_start || !out_end) return false;
+    if (!proc || !out_start || !out_end)
+        return false;
 
     uint64_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
-    if (user_top <= PAGE_SIZE) return false;
+    if (user_top <= PAGE_SIZE)
+        return false;
 
     const uint64_t hint = top_hint != 0 ? top_hint : THREAD_STACK_TOP_HINT;
     uint64_t limit = min(hint, user_top - PAGE_SIZE);
@@ -52,13 +63,18 @@ static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, 
             return true;
         }
 
-        if (next_end >= limit) break;
+        if (next_end >= limit)
+            break;
         limit = align_down_u64(next_end, PAGE_SIZE);
     }
 
     return false;
 }
 
+/**
+ * Prepares a clean user-mode context and uses iretq to transition from kernel mode
+ * to user mode, passing one argument in rdi and starting at t->user_entry with t->user_stack.
+ */
 static void thread_user_trampoline(void)
 {
     constexpr uint64_t user_cs = 0x20 | 3;
@@ -76,8 +92,9 @@ static void thread_user_trampoline(void)
     const uint64_t stack = t->user_stack;
     const uint64_t arg = t->user_arg;
 
-    __asm__ volatile(
-        "cli\n"
+    __asm__ volatile (
+        
+    "cli\n"
         "swapgs\n"
         "mov ds, %0\n"
         "mov es, %0\n"
@@ -91,9 +108,13 @@ static void thread_user_trampoline(void)
         "mov rdi, %5\n"
         "xor rsi, rsi\n"
         "iretq\n"
-        :
-        : "r"(user_ss), "r"(stack), "r"(rflags), "r"(user_cs), "r"(entry), "r"(arg)
-        : "memory", "rdi", "rsi");
+    :
+    :
+    "r"(user_ss), "r"(stack), "r"(rflags), "r"(user_cs), "r"(entry), "r"(arg)
+    :
+    "memory", "rdi", "rsi"
+    )
+    ;
     __builtin_unreachable();
 }
 
@@ -118,16 +139,23 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     uint64_t range_start = 0;
     uint64_t range_end = 0;
     if (!find_stack_range(current_process, THREAD_STACK_TOTAL_SIZE, top_hint, &range_start, &range_end))
+    {
         return -1;
+    }
 
     uint64_t guard_start = range_start;
     uint64_t stack_start = guard_start + THREAD_GUARD_SIZE;
     uint64_t stack_end = range_end;
 
     constexpr uint32_t stack_vma_flags = VMA_READ | VMA_WRITE | VMA_USER | VMA_STACK | VMA_ANON;
-    if (!map_user_anonymous_range(current_process, current_process->pml4, stack_start, THREAD_STACK_SIZE,
+    if (!map_user_anonymous_range(current_process,
+                                  current_process->pml4,
+                                  stack_start,
+                                  THREAD_STACK_SIZE,
                                   stack_vma_flags))
+    {
         return -1;
+    }
 
     constexpr uint32_t guard_vma_flags = VMA_USER | VMA_STACK | VMA_ANON;
     if (!vm_area_add(current_process, guard_start, stack_start, guard_vma_flags))

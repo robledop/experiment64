@@ -13,7 +13,10 @@ void sys_thread_exit(int code)
                      self->tid,
                      code);
 
-    __asm__ volatile("cli");
+    __asm__ volatile (
+    "cli"
+    )
+    ;
 
     const uint64_t stack_start = self->user_stack_base;
     const uint64_t stack_end = self->user_stack_top;

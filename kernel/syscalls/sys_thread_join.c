@@ -6,7 +6,8 @@ int sys_thread_join(int tid, int* status)
     if (!current_thread || !current_thread->is_user || !current_process)
         return -1;
 
-    if (tid <= 0) return -1;
+    if (tid <= 0)
+        return -1;
     if (status && !user_ptr_write_ok(status, sizeof(*status), "sys_thread_join status"))
         return -1;
 

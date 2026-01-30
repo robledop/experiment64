@@ -278,7 +278,7 @@ void free_thread_resources(thread_t* t)
 
     if (t->kstack_top != 0)
     {
-        void* kstack_base = (void*)(t->kstack_top - KSTACK_SIZE);
+        auto kstack_base = (void*)(t->kstack_top - KSTACK_SIZE);
         kfree(kstack_base);
     }
     kfree(t);

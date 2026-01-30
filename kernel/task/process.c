@@ -138,6 +138,7 @@ void vm_area_clear(process_t* proc)
     while (1)
     {
         __asm__ volatile (
+                
         "hlt"
         )
         ;
@@ -265,6 +266,11 @@ static void collect_detached_terminated_threads(list_item_t* free_list)
         thread_t *t, *next_t;
         list_foreach_entry_safe(t, next_t, &p->threads, list)
         {
+            if (!t)
+            {
+                continue;
+            }
+
             if (!t->is_user || !t->detached)
                 continue;
 
@@ -457,6 +463,7 @@ void process_init(void)
 
     uint64_t cr3;
     __asm__ volatile (
+            
     "mov %0, cr3"
     :
     "=r"(cr3)
@@ -490,6 +497,7 @@ void process_init(void)
     }
     uint64_t curr_rsp;
     __asm__ volatile (
+            
     "mov %0, rsp"
     :
     "=r"(curr_rsp)
@@ -825,11 +833,11 @@ thread_t* thread_create(process_t * process, void(*entry)(void), bool is_user)
 
     // Reserve the very top of the stack for syscall entry pushes so they don't
     // clobber the context-switch frame we place near the top.
-    uint64_t* stack_ptr = (uint64_t*)(thread->kstack_top - KSTACK_SYSCALL_HEADROOM);
+    auto stack_ptr = (uint64_t*)(thread->kstack_top - KSTACK_SYSCALL_HEADROOM);
 
     // Reserve space for context
     stack_ptr -= sizeof(struct context) / sizeof(uint64_t);
-    struct context* ctx = (struct context*)stack_ptr;
+    auto ctx = (struct context*)stack_ptr;
 
     memset(ctx, 0, sizeof(struct context));
     ctx->rip = (uint64_t)thread_trampoline;
@@ -883,6 +891,7 @@ void smp_init_ap_scheduler(void)
         // from a synthetic "bootstrap" thread frame. We do NOT hold scheduler_lock here
         // because scheduler_loop() will acquire it at the start of each iteration.
         __asm__ volatile (
+                
         "cli"
         )
         ;
@@ -1070,6 +1079,7 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
             {
                 spinlock_release(&scheduler_lock);
                 __asm__ volatile (
+                        
                 "sti; hlt; cli"
                 )
                 ;
@@ -1140,10 +1150,12 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
         // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         list_foreach_entry_safe(free_t, free_next, &free_list, list)
         {
+            if (!free_t)
+                continue;
             list_del(&free_t->list);
             if (free_t->kstack_top != 0)
             {
-                void* kstack_base = (void*)(free_t->kstack_top - KSTACK_SIZE);
+                auto kstack_base = (void*)(free_t->kstack_top - KSTACK_SIZE);
                 kfree(kstack_base);
             }
             kfree(free_t);
@@ -1161,6 +1173,7 @@ void schedule(void)
     // Save interrupt state and disable interrupts
     uint64_t rflags;
     __asm__ volatile (
+            
     "pushfq; pop %0; cli"
     :
     "=r"(rflags)
@@ -1174,6 +1187,7 @@ void schedule(void)
     {
         if (rflags & RFLAGS_IF)
             __asm__ volatile (
+                    
         "sti"
         )
         ;
@@ -1199,6 +1213,7 @@ void schedule(void)
 
     if (rflags & RFLAGS_IF)
         __asm__ volatile (
+                
     "sti"
     )
     ;
@@ -1213,6 +1228,7 @@ void thread_sleep(void* chan, spinlock_t* lock)
     // Save interrupt state and disable interrupts to avoid deadlock with scheduler_lock
     uint64_t rflags;
     __asm__ volatile (
+            
     "pushfq; pop %0; cli"
     :
     "=r"(rflags)
@@ -1251,6 +1267,7 @@ void thread_sleep(void* chan, spinlock_t* lock)
 
     if (rflags & RFLAGS_IF)
         __asm__ volatile (
+                
     "sti"
     )
     ;
@@ -1278,7 +1295,7 @@ void thread_wakeup(void* chan)
                 continue;
             }
 
-            thread_state_t state = (thread_state_t)raw_state;
+            auto state = (thread_state_t)raw_state;
             if (state == THREAD_BLOCKED && t->chan == chan)
             {
                 thread_state_store(t, THREAD_READY);
