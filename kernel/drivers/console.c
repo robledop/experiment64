@@ -7,25 +7,27 @@
 #include <fs/devfs.h>
 #include <sys/ioctl.h>
 
-uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size,
-                      uint8_t *buffer)
+uint64_t console_read([[maybe_unused]] const vfs_inode_t* node, [[maybe_unused]] uint64_t offset, uint64_t size,
+                      uint8_t* buffer)
 {
-    for (uint64_t i = 0; i < size; i++) {
+    for (uint64_t i = 0; i < size; i++)
+    {
         buffer[i] = keyboard_get_char();
     }
     return size;
 }
 
-uint64_t console_write([[maybe_unused]] vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size,
-                       uint8_t *buffer)
+uint64_t console_write([[maybe_unused]] vfs_inode_t* node, [[maybe_unused]] uint64_t offset, uint64_t size,
+                       uint8_t* buffer)
 {
-    terminal_write((char *)buffer, size);
+    terminal_write((char*)buffer, size);
     return size;
 }
 
-static int console_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *arg)
+static int console_ioctl([[maybe_unused]] vfs_inode_t* node, int request, void* arg)
 {
-    if (request == TIOCGWINSZ) {
+    if (request == TIOCGWINSZ)
+    {
         if (!arg)
             return -1;
         int cols = 0, rows = 0, width = 0, height = 0;
@@ -41,6 +43,14 @@ static int console_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *
         memcpy(arg, &ws, sizeof(ws));
         return 0;
     }
+    if (request == TIOCSPGRP)
+    {
+        if (!arg)
+            return -1;
+        int pid = *(int*)arg;
+        keyboard_set_foreground_pid(pid);
+        return 0;
+    }
     return -1;
 }
 
@@ -50,7 +60,7 @@ struct inode_operations console_ops = {
     .ioctl = console_ioctl,
 };
 
-vfs_inode_t *console_device = nullptr;
+vfs_inode_t* console_device = nullptr;
 
 void console_init()
 {
@@ -59,7 +69,7 @@ void console_init()
         return;
     memset(console_device, 0, sizeof(vfs_inode_t));
     console_device->flags = VFS_CHARDEVICE;
-    console_device->iops  = &console_ops;
+    console_device->iops = &console_ops;
 
     devfs_register_device("console", console_device);
 }

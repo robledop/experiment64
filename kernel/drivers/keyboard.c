@@ -1,6 +1,7 @@
 #include <drivers/keyboard.h>
 #include <arch/x86_64/port_io.h>
 #include <task/process.h>
+#include <task/signal.h>
 #include <arch/x86_64/cpu.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
@@ -72,11 +73,12 @@ static struct inode_operations keyboard_dev_ops;
 
 static thread_t *keyboard_waiter = nullptr;
 
-static bool shift_pressed     = false;
-static bool ctrl_pressed      = false;
-static bool alt_pressed       = false;
-static bool caps_lock         = false;
-static bool extended_scancode = false;
+static bool shift_pressed                   = false;
+static bool ctrl_pressed                    = false;
+static bool alt_pressed                     = false;
+static bool caps_lock                       = false;
+static bool extended_scancode               = false;
+static volatile int keyboard_foreground_pid = 0;
 
 void keyboard_clear_modifiers(void)
 {
@@ -84,6 +86,34 @@ void keyboard_clear_modifiers(void)
     ctrl_pressed      = false;
     alt_pressed       = false;
     extended_scancode = false;
+}
+
+void keyboard_set_foreground_pid(int pid)
+{
+    if (pid < 0)
+        pid = 0;
+    keyboard_foreground_pid = pid;
+}
+
+int keyboard_get_foreground_pid(void)
+{
+    return keyboard_foreground_pid;
+}
+
+static void keyboard_deliver_sigint(void)
+{
+    int target_pid = keyboard_foreground_pid;
+    if (target_pid > 0) {
+        signal_queue_pid(target_pid, SIGINT);
+        return;
+    }
+
+    thread_t *t     = current_thread;
+    process_t *proc = current_process;
+    if (!proc || !t || !t->is_user)
+        return;
+
+    signal_queue_pid(proc->pid, SIGINT);
 }
 
 static void keyboard_enqueue_raw(uint8_t scancode)
@@ -240,6 +270,9 @@ static void keyboard_process_scancode(uint8_t scancode)
         }
 
         if (c) {
+            // CTRL+C to interrupt the current process
+            if (ctrl_pressed && c == 0x03)
+                keyboard_deliver_sigint();
             // Ctrl+P prints the process/thread list (xv6-style)
             if (c == 0x10) {
                 process_dump();
@@ -264,16 +297,17 @@ void keyboard_inject_scancode(uint8_t scancode)
 
 void keyboard_reset_state_for_test(void)
 {
-    write_ptr         = 0;
-    read_ptr          = 0;
-    raw_write_ptr     = 0;
-    raw_read_ptr      = 0;
-    shift_pressed     = false;
-    ctrl_pressed      = false;
-    alt_pressed       = false;
-    caps_lock         = false;
-    keyboard_waiter   = nullptr;
-    extended_scancode = false;
+    write_ptr               = 0;
+    read_ptr                = 0;
+    raw_write_ptr           = 0;
+    raw_read_ptr            = 0;
+    shift_pressed           = false;
+    ctrl_pressed            = false;
+    alt_pressed             = false;
+    caps_lock               = false;
+    keyboard_waiter         = nullptr;
+    extended_scancode       = false;
+    keyboard_foreground_pid = 0;
 }
 
 bool keyboard_has_char(void)

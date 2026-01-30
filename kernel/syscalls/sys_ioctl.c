@@ -7,9 +7,12 @@
 
 static size_t ioctl_arg_size(int request)
 {
-    switch (request) {
+    switch (request)
+    {
     case TIOCGWINSZ:
         return sizeof(struct winsize);
+    case TIOCSPGRP:
+        return sizeof(int);
     case FB_IOCTL_GET_WIDTH:
     case FB_IOCTL_GET_HEIGHT:
     case FB_IOCTL_GET_PITCH:
@@ -29,7 +32,8 @@ int sys_ioctl(int fd, int request, void* arg)
     file_descriptor_t* desc = current_process->fd_table[fd];
     if (!desc || !desc->inode) return -1;
 
-    if (request != KDFLUSH) {
+    if (request != KDFLUSH)
+    {
         size_t arg_size = ioctl_arg_size(request);
         if (arg_size == 0 || !arg)
             return -1;

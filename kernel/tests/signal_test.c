@@ -1,7 +1,12 @@
 #include <tests/test.h>
 #include <sys/signal.h>
 #include <sys/syscall.h>
+#include <drivers/keyboard.h>
 #include <drivers/terminal.h>
+
+#define SC_CTRL_PRESS 0x1D
+#define SC_CTRL_RELEASE 0x9D
+#define SC_C 0x2E
 
 static bool signal_wait_pid(const int target_pid, int* status_out)
 {
@@ -20,7 +25,7 @@ static bool signal_wait_pid(const int target_pid, int* status_out)
     }
 }
 
-TEST(test_signal_sigaction_invalid)
+TEST (test_signal_sigaction_invalid)
 {
     sigaction_t act = {};
     act.sa_handler = (sighandler_t)0x1234;
@@ -36,7 +41,7 @@ TEST(test_signal_sigaction_invalid)
     return true;
 }
 
-TEST(test_signal_user_handler)
+TEST (test_signal_user_handler)
 {
     const int pid = sys_spawn("/bin/sigtest_handler");
     TEST_ASSERT(pid > 1);
@@ -47,7 +52,7 @@ TEST(test_signal_user_handler)
     return true;
 }
 
-TEST(test_signal_default_terminate)
+TEST (test_signal_default_terminate)
 {
     const int pid = sys_spawn("/bin/sigtest_term");
     TEST_ASSERT(pid > 1);
@@ -57,5 +62,24 @@ TEST(test_signal_default_terminate)
     if (status != 128 + SIGTERM)
         printk("test_signal_default_terminate: pid=%d status=%d\n", pid, status);
     TEST_ASSERT(status == 128 + SIGTERM);
+    return true;
+}
+
+TEST (test_signal_ctrl_c)
+{
+    const int pid = sys_spawn("/bin/sigtest_int");
+    TEST_ASSERT(pid > 1);
+
+    keyboard_set_foreground_pid(pid);
+    keyboard_inject_scancode(SC_CTRL_PRESS);
+    keyboard_inject_scancode(SC_C);
+    keyboard_inject_scancode(SC_CTRL_RELEASE);
+    keyboard_set_foreground_pid(0);
+
+    int status = 0;
+    TEST_ASSERT(signal_wait_pid(pid, &status));
+    if (status != 128 + SIGINT)
+        printk("test_signal_ctrl_c: pid=%d status=%d\n", pid, status);
+    TEST_ASSERT(status == 128 + SIGINT);
     return true;
 }

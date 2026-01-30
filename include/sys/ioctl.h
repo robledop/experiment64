@@ -4,11 +4,13 @@
 
 // Terminal window size
 #define TIOCGWINSZ 0x5413
+// Set foreground process
+#define TIOCSPGRP 0x5410
 
 struct winsize
 {
-    uint16_t ws_row;    // rows, in characters
-    uint16_t ws_col;    // columns, in characters
+    uint16_t ws_row; // rows, in characters
+    uint16_t ws_col; // columns, in characters
     uint16_t ws_xpixel; // width, in pixels
     uint16_t ws_ypixel; // height, in pixels
 };

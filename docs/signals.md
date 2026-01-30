@@ -40,7 +40,10 @@ Signals are delivered only when returning to user mode:
 
 Signals are not delivered while running in kernel mode, and they are not
 delivered during exception handling. There is no automatic generation of
-signals such as `SIGCHLD` or `SIGPIPE` yet; the only source is `kill`.
+signals such as `SIGCHLD` or `SIGPIPE` yet. Signals are sourced from `kill`
+and the console keyboard: Ctrl+C queues `SIGINT` for the console foreground
+PID (set via `TIOCSPGRP`), or the current user process when no foreground is
+set.
 
 When a signal is sent to a process with blocked threads, the kernel marks any
 blocked threads as runnable so that one can return to user mode and receive the

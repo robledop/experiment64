@@ -6,6 +6,7 @@ returns -1.
 ## /dev/console
 
 - `TIOCGWINSZ`: writes a `struct winsize` to the user pointer.
+- `TIOCSPGRP`: reads an `int` foreground PID from the user pointer.
 
 ## /dev/fb0
 
