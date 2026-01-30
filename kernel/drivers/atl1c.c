@@ -18,6 +18,7 @@
 #include <mem/vmm.h>
 #include <arch/x86_64/apic.h>
 #include <arch/x86_64/idt.h>
+#include <task/spinlock.h>
 
 #define ATL1C_RESET_DELAY_MS 10
 #define ATL1C_MDIO_MAX_WAIT 200
@@ -43,6 +44,7 @@ static uintptr_t tx_phys[ATL1C_TX_RING_SIZE];
 static uint16_t rrd_cur;
 static uint16_t tpd_cur;
 static uint16_t rfd_prod;
+static spinlock_t atl1c_tx_lock;
 static uint32_t rx_rrd_updates;
 static uint32_t rx_packets;
 static uint32_t tx_packets;
@@ -1131,6 +1133,7 @@ void atl1c_init(struct pci_device device)
     register_interrupt_handler(atl1c_irq_vector, atl1c_interrupt_handler);
     atl1c_enable_interrupts();
 
+    spinlock_init(&atl1c_tx_lock);
     atl1c_initialized = true;
     network_register_driver(atl1c_send_packet);
     arp_init();
@@ -1181,6 +1184,9 @@ int atl1c_send_packet(const void *data, const uint16_t len)
     //     tx_debug_left--;
     // }
 
+    uint64_t flags = 0;
+    SPIN_LOCK_INT_SAVE(atl1c_tx_lock, flags);
+
     const uint16_t tx_cons = (uint16_t)(atl1c_read32(REG_TPD_PRI0_CIDX) & 0xFFFFu);
     const uint16_t next    = (uint16_t)((tpd_cur + 1) % ATL1C_TX_RING_SIZE);
     if (next == tx_cons) {
@@ -1191,6 +1197,7 @@ int atl1c_send_packet(const void *data, const uint16_t len)
                          tx_cons);
             tx_fail_debug_left--;
         }
+        SPIN_UNLOCK_INT_RESTORE(atl1c_tx_lock, flags);
         return -1;
     }
 
@@ -1206,6 +1213,7 @@ int atl1c_send_packet(const void *data, const uint16_t len)
     tx_packets++;
     atl1c_mb();
     atl1c_write32(REG_TPD_PRI0_PIDX, tpd_cur);
+    SPIN_UNLOCK_INT_RESTORE(atl1c_tx_lock, flags);
 
     return 0;
 }
