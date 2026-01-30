@@ -138,7 +138,6 @@ void vm_area_clear(process_t* proc)
     while (1)
     {
         __asm__ volatile (
-                
         "hlt"
         )
         ;
@@ -463,7 +462,8 @@ void process_init(void)
 
     uint64_t cr3;
     __asm__ volatile (
-            
+
+    
     "mov %0, cr3"
     :
     "=r"(cr3)
@@ -497,7 +497,8 @@ void process_init(void)
     }
     uint64_t curr_rsp;
     __asm__ volatile (
-            
+
+    
     "mov %0, rsp"
     :
     "=r"(curr_rsp)
@@ -891,7 +892,8 @@ void smp_init_ap_scheduler(void)
         // from a synthetic "bootstrap" thread frame. We do NOT hold scheduler_lock here
         // because scheduler_loop() will acquire it at the start of each iteration.
         __asm__ volatile (
-                
+
+        
         "cli"
         )
         ;
@@ -1079,7 +1081,8 @@ static thread_t* find_any_runnable_thread_rr(cpu_t* cpu, const bool allow_user)
             {
                 spinlock_release(&scheduler_lock);
                 __asm__ volatile (
-                        
+
+                
                 "sti; hlt; cli"
                 )
                 ;
@@ -1173,7 +1176,8 @@ void schedule(void)
     // Save interrupt state and disable interrupts
     uint64_t rflags;
     __asm__ volatile (
-            
+
+    
     "pushfq; pop %0; cli"
     :
     "=r"(rflags)
@@ -1187,7 +1191,8 @@ void schedule(void)
     {
         if (rflags & RFLAGS_IF)
             __asm__ volatile (
-                    
+
+        
         "sti"
         )
         ;
@@ -1213,7 +1218,8 @@ void schedule(void)
 
     if (rflags & RFLAGS_IF)
         __asm__ volatile (
-                
+
+    
     "sti"
     )
     ;
@@ -1228,7 +1234,8 @@ void thread_sleep(void* chan, spinlock_t* lock)
     // Save interrupt state and disable interrupts to avoid deadlock with scheduler_lock
     uint64_t rflags;
     __asm__ volatile (
-            
+
+    
     "pushfq; pop %0; cli"
     :
     "=r"(rflags)
@@ -1267,7 +1274,8 @@ void thread_sleep(void* chan, spinlock_t* lock)
 
     if (rflags & RFLAGS_IF)
         __asm__ volatile (
-                
+
+    
     "sti"
     )
     ;
