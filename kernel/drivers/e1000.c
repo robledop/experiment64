@@ -14,6 +14,7 @@
 #include <drivers/terminal.h>
 #include <drivers/tsc.h>
 #include <mem/vmm.h>
+#include <task/spinlock.h>
 
 #include "arpa/inet.h"
 #include "fs/devfs.h"
@@ -35,6 +36,7 @@ static uint8_t *rx_buffers[E1000_RX_RING_SIZE];            // Virtual receive bu
 static uint8_t *tx_buffers[E1000_TX_RING_SIZE];            // Virtual transmit buffers
 static uint16_t rx_cur;                                    // Current Receive Descriptor Buffer
 static uint16_t tx_cur;                                    // Current Transmit Descriptor Buffer
+static spinlock_t e1000_tx_lock;
 static struct pci_device pci_device;
 static bool e1000_initialized;
 
@@ -350,6 +352,7 @@ static bool e1000_start(void)
     e1000_enable_interrupt();
     e1000_rx_init();
     e1000_tx_init();
+    spinlock_init(&e1000_tx_lock);
 
     // Mark as initialized before sending DHCP discover so e1000_send_packet works
     e1000_initialized = true;
@@ -477,12 +480,16 @@ int e1000_send_packet(const void *data, const uint16_t len)
         return -1;
     }
 
-    const uint8_t slot = tx_cur;
+    if (len == 0 || len > PAGE_SIZE) {
+        return -1;
+    }
 
-    // Wait for the descriptor to be available
-    while ((tx_descs[slot]->status & TSTA_DD) == 0);
+    uint64_t flags = 0;
+    SPIN_LOCK_INT_SAVE(e1000_tx_lock, flags);
 
-    if (len > PAGE_SIZE) {
+    const uint16_t slot = tx_cur;
+    if ((tx_descs[slot]->status & TSTA_DD) == 0) {
+        SPIN_UNLOCK_INT_RESTORE(e1000_tx_lock, flags);
         return -1;
     }
 
@@ -493,10 +500,10 @@ int e1000_send_packet(const void *data, const uint16_t len)
     tx_descs[slot]->status = 0;
 
     tx_cur = (tx_cur + 1) % E1000_TX_RING_SIZE;
+    __asm__ volatile("" ::: "memory");
     e1000_write_command(REG_TXDESCTAIL, tx_cur);
 
-    // Wait for transmission to complete
-    while ((tx_descs[slot]->status & TSTA_DD) == 0);
+    SPIN_UNLOCK_INT_RESTORE(e1000_tx_lock, flags);
 
     return 0;
 }
