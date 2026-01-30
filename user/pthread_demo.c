@@ -16,12 +16,13 @@ static void* thread_entry(void* arg)
         pthread_mutex_unlock(&g_mutex);
     }
 
-    thread_exit(0);
+    pthread_exit(nullptr);
 }
 
 long fib_recursive(long n)
 {
-    if (n <= 1) return n;
+    if (n <= 1)
+        return n;
     return fib_recursive(n - 1) + fib_recursive(n - 2);
 }
 
@@ -32,7 +33,7 @@ static void* fibonacci(void* arg)
     pthread_mutex_lock(&g_mutex);
     printf("tid: %d, fibonacci(50): %ld\n", pthread_self(), b);
     pthread_mutex_unlock(&g_mutex);
-    thread_exit(0);
+    pthread_exit(nullptr);
 }
 
 int main(void)
@@ -64,5 +65,5 @@ int main(void)
     }
 
     printf("thread_demo: exiting\n");
-    return 0;
+    pthread_exit(nullptr);
 }

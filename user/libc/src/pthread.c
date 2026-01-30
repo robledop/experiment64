@@ -58,7 +58,9 @@ int pthread_mutex_lock(pthread_mutex_t* mutex)
         int expected = 0;
         if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false,
                                         __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+        {
             return 0;
+        }
         futex_wait(&mutex->__state, 1);
     }
 }
@@ -71,7 +73,9 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex)
     int expected = 0;
     if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false,
                                     __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+    {
         return 0;
+    }
     return -1;
 }
 
@@ -133,7 +137,7 @@ int pthread_cond_broadcast(pthread_cond_t* cond)
     return 0;
 }
 
-int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
+int pthread_once(pthread_once_t * once_control, void(*init_routine)(void))
 {
     if (!once_control || !init_routine)
         return -1;
@@ -259,7 +263,7 @@ static void* pthread_ret_take(int tid)
 
 static void pthread_trampoline(void* arg)
 {
-    struct pthread_start* start = (struct pthread_start*)arg;
+    auto start = (struct pthread_start*)arg;
     void* ret = nullptr;
     if (start && start->start)
         ret = start->start(start->arg);
