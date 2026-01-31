@@ -64,6 +64,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_FUTEX_WAIT 45
 #define SYS_FUTEX_WAKE 46
 #define SYS_THREAD_DETACH 47
+#define SYS_WAITPID 48
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -75,6 +76,7 @@ int sys_readdir(int fd, vfs_dirent_t* dent);
 int64_t sys_sbrk(int64_t increment);
 void sys_exit(int code);
 int sys_wait(int* status);
+int sys_waitpid(int pid, int* status, int options);
 int sys_getpid(void);
 int sys_read(int fd, char* buf, size_t count);
 int sys_write(int fd, const char* buf, size_t count);

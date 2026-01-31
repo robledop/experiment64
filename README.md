@@ -105,8 +105,8 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   GPT (ESP + root).
 - **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user
   programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `wc`, etc.)
-- **Syscalls & features**: `execve` with argv/envp, `ioctl` (TTY window size, foreground PID, framebuffer queries,
-  keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`,
+- **Syscalls & features**: `execve` with argv/envp, `waitpid`, `ioctl` (TTY window size, foreground PID, framebuffer
+  queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`,
   `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access, user pointer
   validation for canonical and user-mapped ranges
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush

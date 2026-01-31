@@ -48,6 +48,7 @@
 #define SYS_FUTEX_WAIT 45
 #define SYS_FUTEX_WAKE 46
 #define SYS_THREAD_DETACH 47
+#define SYS_WAITPID 48
 
 #ifndef __ASSEMBLER__
 static inline long syscall0(long n)

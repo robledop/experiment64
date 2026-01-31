@@ -110,6 +110,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_WAIT:
         ret = sys_wait((int*)arg1);
         break;
+    case SYS_WAITPID:
+        ret = sys_waitpid((int)arg1, (int*)arg2, (int)arg3);
+        break;
     case SYS_GETPID:
         ret = sys_getpid();
         break;

@@ -124,6 +124,11 @@ int wait(int* status)
     return clamp_signed_to_int(syscall1(SYS_WAIT, (long)status));
 }
 
+int waitpid(int pid, int* status, int options)
+{
+    return clamp_signed_to_int(syscall3(SYS_WAITPID, pid, (long)status, options));
+}
+
 int getpid(void)
 {
     return clamp_signed_to_int(syscall0(SYS_GETPID));

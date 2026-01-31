@@ -17,6 +17,7 @@ int exec(const char *path);
 int execve(const char *path, char *const argv[], char *const envp[]);
 int fork(void);
 int wait(int *status);
+int waitpid(int pid, int *status, int options);
 int getpid(void);
 int gettid(void);
 void yield(void);
