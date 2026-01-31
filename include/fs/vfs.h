@@ -51,6 +51,8 @@ struct inode_operations
     int (*link)(struct vfs_inode *parent, const char *name, struct vfs_inode *target);
     int (*unlink)(struct vfs_inode *parent, const char *name);
     int (*stat)(const struct vfs_inode *node, struct stat *st);
+    int (*rename)(struct vfs_inode *old_parent, const char *old_name,
+                  struct vfs_inode *new_parent, const char *new_name);
 };
 
 typedef struct vfs_inode
@@ -67,18 +69,19 @@ typedef struct vfs_inode
 extern vfs_inode_t *vfs_root;
 
 void vfs_init();
-uint64_t vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
+uint64_t vfs_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 uint64_t vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 int vfs_truncate(vfs_inode_t *node);
-void vfs_open(vfs_inode_t *node);
+void vfs_open(const vfs_inode_t *node);
 void vfs_close(vfs_inode_t *node);
-vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index);
+vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index);
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
 vfs_inode_t *vfs_resolve_path(const char *path);
 int vfs_mknod(char *path, int mode, int dev);
 int vfs_ioctl(vfs_inode_t *node, int request, void *arg);
 int vfs_link(const char *oldpath, const char *newpath);
 int vfs_unlink(const char *path);
+int vfs_rename(const char *oldpath, const char *newpath);
 
 void vfs_mount_root(void);
 void vfs_register_mount(const char *name, vfs_inode_t *root);

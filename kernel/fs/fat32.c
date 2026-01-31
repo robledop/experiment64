@@ -7,8 +7,6 @@
 #include <stddef.h>
 #include <limits.h>
 
-#include "debug.h"
-
 static struct inode_operations fat32_iops;
 static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name);
 
@@ -882,6 +880,87 @@ static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name)
     return 0;
 }
 
+static int fat32_direntry_update_name(fat32_fs_t *fs, uint32_t dir_cluster, uint32_t dir_offset, const char *name)
+{
+    uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
+    if (!cluster_buf)
+        return -1;
+    defer(cleanup_kfree, &cluster_buf);
+
+    if (fat32_read_cluster(fs, dir_cluster, cluster_buf) != 0)
+        return -1;
+
+    fat32_directory_entry_t *entries = (fat32_directory_entry_t *)cluster_buf;
+    size_t idx                       = dir_offset / sizeof(fat32_directory_entry_t);
+    if (idx >= fs->bytes_per_cluster / sizeof(fat32_directory_entry_t))
+        return -1;
+
+    str_to_fat_name(name, (char *)entries[idx].name);
+    if (fat32_write_cluster(fs, dir_cluster, cluster_buf) != 0)
+        return -1;
+
+    return 0;
+}
+
+static int fat32_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
+                            vfs_inode_t *new_parent, const char *new_name)
+{
+    if (!old_parent || !new_parent || !old_name || !new_name)
+        return -1;
+    if ((old_parent->flags & VFS_DIRECTORY) == 0)
+        return -1;
+    if ((new_parent->flags & VFS_DIRECTORY) == 0)
+        return -1;
+
+    fat32_inode_data_t *old_data = (fat32_inode_data_t *)old_parent->device;
+    fat32_inode_data_t *new_data = (fat32_inode_data_t *)new_parent->device;
+    if (!old_data || !new_data)
+        return -1;
+    fat32_fs_t *fs = old_data->fs;
+    if (!fs || new_data->fs != fs)
+        return -1;
+
+    fat32_directory_entry_t old_entry;
+    uint32_t old_dir_cluster;
+    uint32_t old_dir_offset;
+    if (fat32_find_entry(fs, old_parent->inode, old_name, &old_entry, &old_dir_cluster, &old_dir_offset) != 0)
+        return -1;
+
+    if (old_entry.attr & ATTR_DIRECTORY)
+        return -1;
+
+    if (old_parent == new_parent && strcmp(old_name, new_name) == 0)
+        return 0;
+
+    fat32_directory_entry_t new_entry;
+    uint32_t new_dir_cluster;
+    uint32_t new_dir_offset;
+    if (fat32_find_entry(fs, new_parent->inode, new_name, &new_entry, &new_dir_cluster, &new_dir_offset) == 0) {
+        if (new_entry.attr & ATTR_DIRECTORY)
+            return -1;
+
+        if (fat32_unlink_entry(fs, new_parent->inode, new_name) != 0)
+            return -1;
+
+        uint32_t cluster = (new_entry.fst_clus_hi << 16) | new_entry.fst_clus_lo;
+        if (cluster != 0)
+            fat32_free_chain(fs, cluster);
+    }
+
+    if (old_parent == new_parent) {
+        return fat32_direntry_update_name(fs, old_dir_cluster, old_dir_offset, new_name);
+    }
+
+    uint32_t cluster = (old_entry.fst_clus_hi << 16) | old_entry.fst_clus_lo;
+    if (fat32_add_entry(fs, new_parent->inode, new_name, old_entry.attr, cluster, old_entry.file_size) != 0)
+        return -1;
+
+    if (fat32_unlink_entry(fs, old_parent->inode, old_name) != 0)
+        return -1;
+
+    return 0;
+}
+
 static int fat32_vfs_truncate(vfs_inode_t *node)
 {
     if (!node || (node->flags & VFS_DIRECTORY))
@@ -974,6 +1053,7 @@ static struct inode_operations fat32_iops = {
     .mknod = fat32_vfs_mknod,
     .unlink = fat32_vfs_unlink,
     .stat = fat32_vfs_stat,
+    .rename = fat32_vfs_rename,
 };
 
 vfs_inode_t *fat32_mount(uint8_t drive_index, uint32_t partition_lba)

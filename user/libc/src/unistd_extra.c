@@ -24,12 +24,7 @@ int remove(const char *path)
 
 int rename(const char *oldpath, const char *newpath)
 {
-    if (link(oldpath, newpath) == 0)
-    {
-        unlink(oldpath);
-        return 0;
-    }
-    return -1;
+    return (int)syscall2(SYS_RENAME, (long)oldpath, (long)newpath);
 }
 
 int isatty(int fd)

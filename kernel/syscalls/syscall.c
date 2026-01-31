@@ -168,6 +168,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_UNLINK:
         ret = sys_unlink((const char*)arg1);
         break;
+    case SYS_RENAME:
+        ret = sys_rename((const char*)arg1, (const char*)arg2);
+        break;
     case SYS_GETCWD:
         ret = sys_getcwd((char*)arg1, (size_t)arg2);
         break;

@@ -2,8 +2,8 @@
 
 
 #include <stddef.h>
+#include <attributes.h>
 
-#define UNUSED __attribute__((unused)) // To silence unused function warnings
 
 typedef struct list_item
 {
@@ -23,7 +23,7 @@ typedef struct list_item
  * Initialize a list head.
  * @param list The list head to initialize.
  */
-static inline UNUSED void list_init_head(list_item_t* list)
+static inline USED void list_init_head(list_item_t* list)
 {
     list->next = list;
     list->prev = list;
@@ -45,7 +45,7 @@ static inline void list_add_helper(list_item_t* new,
  * @param new The new entry to add.
  * @param head The head of the list.
  */
-static inline UNUSED void list_add(list_item_t* new, list_item_t* head)
+static inline USED void list_add(list_item_t* new, list_item_t* head)
 {
     list_add_helper(new, head, head->next);
 }
@@ -55,7 +55,7 @@ static inline UNUSED void list_add(list_item_t* new, list_item_t* head)
  * @param new The new entry to add.
  * @param head The head of the list.
  */
-static inline UNUSED void list_add_tail(list_item_t* new, list_item_t* head)
+static inline USED void list_add_tail(list_item_t* new, list_item_t* head)
 {
     list_add_helper(new, head->prev, head);
 }
@@ -64,7 +64,7 @@ static inline UNUSED void list_add_tail(list_item_t* new, list_item_t* head)
  * Remove an entry from a list.
  * @param entry The entry to remove from the list.
  */
-static inline UNUSED void list_del(list_item_t* entry)
+static inline USED void list_del(list_item_t* entry)
 {
     entry->next->prev = entry->prev;
     entry->prev->next = entry->next;
@@ -77,7 +77,7 @@ static inline UNUSED void list_del(list_item_t* entry)
  * @param head The head of the list.
  * @return True if the list is empty, false otherwise.
  */
-static inline UNUSED bool list_empty(const list_item_t* head)
+static inline USED bool list_empty(const list_item_t* head)
 {
     return head->next == head;
 }

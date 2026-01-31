@@ -26,7 +26,7 @@ static inline bool user_entry_ok(uint64_t entry, bool write)
     return true;
 }
 
-static bool user_page_access_ok(pml4_t pml4, uintptr_t addr, bool write)
+static bool user_page_access_ok(const uint64_t *pml4, uintptr_t addr, bool write)
 {
     if (!pml4)
         return false;
@@ -65,7 +65,7 @@ static bool user_page_access_ok(pml4_t pml4, uintptr_t addr, bool write)
     return true;
 }
 
-static bool user_range_access_ok(pml4_t pml4, uintptr_t addr, size_t size, bool write)
+static bool user_range_access_ok(const uint64_t *pml4, uintptr_t addr, size_t size, bool write)
 {
     if (size == 0)
         return true;

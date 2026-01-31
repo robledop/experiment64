@@ -65,6 +65,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_FUTEX_WAKE 46
 #define SYS_THREAD_DETACH 47
 #define SYS_WAITPID 48
+#define SYS_RENAME 49
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -97,6 +98,7 @@ int sys_stat(const char* path, struct stat* st);
 int sys_fstat(int fd, struct stat* st);
 int sys_link(const char* oldpath, const char* newpath);
 int sys_unlink(const char* path);
+int sys_rename(const char* oldpath, const char* newpath);
 int sys_gettimeofday(struct timeval* tv, struct timezone* tz);
 int sys_pipe(int pipefd[2]);
 long sys_lseek(int fd, long offset, int whence);

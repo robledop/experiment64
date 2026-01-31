@@ -16,5 +16,7 @@ Built-ins:
 - `reboot`
 - `shutdown`
 
+Common userland commands include `ls`, `cat`, `grep`, `mv`, `rm`, and `wc`.
+
 Notes:
 - There is no job control; background tasks are detached and not tracked.

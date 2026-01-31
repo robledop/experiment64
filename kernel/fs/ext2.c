@@ -259,10 +259,10 @@ static uint32_t ext2_ensure_ptr(uint32_t dev, uint32_t block, uint32_t slot, uin
 // Allocate a zeroed disk block.
 static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
 {
-    struct ext2_super_block *sb      = ext2_get_sb(dev);
-    const uint32_t bgcount           = (sb->s_blocks_count + sb->s_blocks_per_group - 1) / sb->s_blocks_per_group;
-    const int preferred_gno          = GET_GROUP_NO(inum, *sb);
-    const uint32_t sectors_per_block = EXT2_BSIZE / 512;
+    struct ext2_super_block *sb          = ext2_get_sb(dev);
+    const uint32_t bgcount               = (sb->s_blocks_count + sb->s_blocks_per_group - 1) / sb->s_blocks_per_group;
+    const int preferred_gno              = GET_GROUP_NO(inum, *sb);
+    constexpr uint32_t sectors_per_block = EXT2_BSIZE / 512;
 
     // Search all block groups, starting with the inode's group
     for (uint32_t gi = 0; gi < bgcount; gi++) {
@@ -400,10 +400,10 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(group_desc_buf);
 
         // Search inode bitmap (may span multiple sectors)
-        const uint32_t ibitmap_first_sector = BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + ext2_part_offset(dev);
-        const uint32_t sectors_per_block    = EXT2_BSIZE / 512;
-        int fbit                            = -1;
-        buffer_head_t *ibitmap_buff         = nullptr;
+        const uint32_t ibitmap_first_sector  = BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + ext2_part_offset(dev);
+        constexpr uint32_t sectors_per_block = EXT2_BSIZE / 512;
+        int fbit                             = -1;
+        buffer_head_t *ibitmap_buff          = nullptr;
 
         for (uint32_t sec = 0; sec < sectors_per_block && fbit < 0; sec++) {
             ibitmap_buff = bread(dev, ibitmap_first_sector + sec);
@@ -1244,11 +1244,151 @@ static int ext2_vfs_unlink(vfs_inode_t *parent, const char *name)
     return 0;
 }
 
+static int ext2_direntry_clear(struct ext2_inode *dp, uint32_t off)
+{
+    uint32_t zero = 0;
+    if (ext2_write_inode(dp, (char *)&zero, off, sizeof(zero)) != sizeof(zero))
+        return -1;
+    return 0;
+}
+
+static int ext2_direntry_update_inode(struct ext2_inode *dp, uint32_t off, uint32_t inum, uint8_t file_type)
+{
+    struct ext2_dir_entry_2 de;
+    if (ext2_read_inode(dp, (char *)&de, off, 8) != 8)
+        return -1;
+    de.inode     = inum;
+    de.file_type = file_type;
+    if (ext2_write_inode(dp, (char *)&de, off, 8) != 8)
+        return -1;
+    return 0;
+}
+
+static int ext2_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
+                           vfs_inode_t *new_parent, const char *new_name)
+{
+    if (!old_parent || !new_parent || !old_name || !new_name)
+        return -1;
+    if ((old_parent->flags & 0x07) != VFS_DIRECTORY)
+        return -1;
+    if ((new_parent->flags & 0x07) != VFS_DIRECTORY)
+        return -1;
+
+    auto old_dp = (struct ext2_inode *)old_parent->device;
+    auto new_dp = (struct ext2_inode *)new_parent->device;
+    if (!old_dp || !new_dp)
+        return -1;
+    if (old_dp->dev != new_dp->dev)
+        return -1;
+
+    int res                   = -1;
+    struct ext2_inode *old_ip = nullptr;
+    struct ext2_inode *new_ip = nullptr;
+    bool old_locked           = false;
+    bool new_locked           = false;
+
+    ext2_lock(old_dp->dev);
+
+    if (ext2fs_ilock(old_dp) != 0)
+        goto out;
+    old_locked = true;
+    if (new_dp != old_dp) {
+        if (ext2fs_ilock(new_dp) != 0)
+            goto out;
+        new_locked = true;
+    }
+
+    uint32_t old_off = 0;
+    old_ip           = ext2fs_dirlookup(old_dp, old_name, &old_off);
+    if (!old_ip)
+        goto out;
+    if (old_ip->type == T_DIR)
+        goto out;
+
+    if (old_dp == new_dp && strcmp(old_name, new_name) == 0) {
+        res = 0;
+        goto out;
+    }
+
+    uint32_t new_off = 0;
+    new_ip           = ext2fs_dirlookup(new_dp, new_name, &new_off);
+    if (new_ip) {
+        if (new_ip->type == T_DIR)
+            goto out;
+
+        if (new_ip->inum == old_ip->inum) {
+            if (ext2_direntry_clear(old_dp, old_off) != 0)
+                goto out;
+            if (ext2fs_ilock(old_ip) != 0)
+                goto out;
+            if (old_ip->nlink > 0)
+                old_ip->nlink--;
+            ext2fs_iupdate(old_ip);
+            ext2fs_iunlock(old_ip);
+            res = 0;
+            goto out;
+        }
+
+        if (ext2fs_ilock(new_ip) != 0)
+            goto out;
+        if (ext2fs_ilock(old_ip) != 0) {
+            ext2fs_iunlock(new_ip);
+            goto out;
+        }
+
+        if (ext2_direntry_update_inode(new_dp, new_off, old_ip->inum, (uint8_t)old_ip->type) != 0) {
+            ext2fs_iunlock(old_ip);
+            ext2fs_iunlock(new_ip);
+            goto out;
+        }
+
+        if (new_ip->nlink > 0)
+            new_ip->nlink--;
+        ext2fs_iupdate(new_ip);
+        ext2fs_iunlock(new_ip);
+
+        old_ip->nlink++;
+        ext2fs_iupdate(old_ip);
+        ext2fs_iunlock(old_ip);
+    } else {
+        if (ext2fs_dirlink(new_dp, new_name, old_ip->inum) < 0)
+            goto out;
+        if (ext2fs_ilock(old_ip) != 0)
+            goto out;
+        old_ip->nlink++;
+        ext2fs_iupdate(old_ip);
+        ext2fs_iunlock(old_ip);
+    }
+
+    if (ext2_direntry_clear(old_dp, old_off) != 0)
+        goto out;
+    if (ext2fs_ilock(old_ip) != 0)
+        goto out;
+    if (old_ip->nlink > 0)
+        old_ip->nlink--;
+    ext2fs_iupdate(old_ip);
+    ext2fs_iunlock(old_ip);
+
+    res = 0;
+
+out:
+    if (new_ip)
+        ext2fs_iput(new_ip);
+    if (old_ip)
+        ext2fs_iput(old_ip);
+    if (new_locked)
+        ext2fs_iunlock(new_dp);
+    if (old_locked)
+        ext2fs_iunlock(old_dp);
+    ext2_unlock(old_dp->dev);
+    return res;
+}
+
 static vfs_inode_t *ext2_vfs_finddir(const vfs_inode_t *node, const char *name)
 {
     if (!node || !node->device || !name)
         return nullptr;
-    struct ext2_inode *dp = (struct ext2_inode *)node->device;
+    auto dp = (struct ext2_inode *)node->device;
     if (!dp)
         return nullptr;
 
@@ -1307,7 +1447,7 @@ static vfs_dirent_t *ext2_vfs_readdir(const vfs_inode_t *node, uint32_t index)
 {
     if (!node || !node->device)
         return nullptr;
-    struct ext2_inode *dp = (struct ext2_inode *)node->device;
+    auto dp = (struct ext2_inode *)node->device;
     if (!dp)
         return nullptr;
     if (ext2fs_ilock(dp) != 0)
@@ -1455,6 +1595,7 @@ static struct inode_operations ext2_vfs_ops = {
     .link = ext2_vfs_link,
     .unlink = ext2_vfs_unlink,
     .stat = ext2_vfs_stat,
+    .rename = ext2_vfs_rename,
 };
 
 vfs_inode_t *ext2_mount(uint8_t drive_index, uint32_t partition_lba)

@@ -9,7 +9,6 @@
 #include <mem/heap.h>
 #include <lib/path.h>
 
-
 vfs_inode_t *vfs_root = nullptr;
 
 struct mount_point
@@ -255,7 +254,7 @@ void vfs_mount_root(void)
     boot_log_flush();
 }
 
-uint64_t vfs_read(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
+uint64_t vfs_read(const vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer)
 {
     if (node->iops && node->iops->read)
         return node->iops->read(node, offset, size, buffer);
@@ -283,7 +282,7 @@ int vfs_ioctl(vfs_inode_t *node, int request, void *arg)
     return -1;
 }
 
-void vfs_open(vfs_inode_t *node)
+void vfs_open(const vfs_inode_t *node)
 {
     if (node->iops && node->iops->open)
         node->iops->open(node);
@@ -295,10 +294,10 @@ void vfs_close(vfs_inode_t *node)
         node->iops->close(node);
 }
 
-vfs_dirent_t *vfs_readdir(vfs_inode_t *node, uint32_t index)
+vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
 {
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->readdir) {
-        // Try to get entry from underlying filesystem
+        // Try to get entry from the underlying filesystem
         vfs_dirent_t *dirent = node->iops->readdir(node, index);
 
         if (dirent || node != vfs_root) {
@@ -376,7 +375,14 @@ vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
     return nullptr;
 }
 
-vfs_inode_t *vfs_resolve_path(const char *path)
+static void vfs_put_inode_hold(vfs_inode_t *node, const vfs_inode_t *hold)
+{
+    if (!node || node == hold)
+        return;
+    vfs_put_inode(node);
+}
+
+static vfs_inode_t *vfs_resolve_path_hold(const char *path, const vfs_inode_t *hold)
 {
     if (!path || !vfs_root)
         return nullptr;
@@ -399,10 +405,10 @@ vfs_inode_t *vfs_resolve_path(const char *path)
             if (name_idx > 0) {
                 vfs_inode_t *next = vfs_finddir(current, name);
                 if (!next) {
-                    vfs_put_inode(current);
+                    vfs_put_inode_hold(current, hold);
                     return nullptr;
                 }
-                vfs_put_inode(current);
+                vfs_put_inode_hold(current, hold);
                 current = next;
             }
             name_idx = 0;
@@ -418,14 +424,19 @@ vfs_inode_t *vfs_resolve_path(const char *path)
         name[name_idx]    = 0;
         vfs_inode_t *next = vfs_finddir(current, name);
         if (!next) {
-            vfs_put_inode(current);
+            vfs_put_inode_hold(current, hold);
             return nullptr;
         }
-        vfs_put_inode(current);
+        vfs_put_inode_hold(current, hold);
         current = next;
     }
 
     return current;
+}
+
+vfs_inode_t *vfs_resolve_path(const char *path)
+{
+    return vfs_resolve_path_hold(path, nullptr);
 }
 
 int vfs_mknod(char *path, int mode, int dev)
@@ -585,5 +596,101 @@ int vfs_unlink(const char *path)
         vfs_close(parent);
         kfree(parent);
     }
+    return res;
+}
+
+int vfs_rename(const char *oldpath, const char *newpath)
+{
+    if (!oldpath || !newpath || !vfs_root)
+        return -1;
+
+    char old_parent_path[PATH_MAX];
+    char old_name[128];
+    char *last_slash = strrchr(oldpath, '/');
+
+    if (last_slash) {
+        ptrdiff_t len = last_slash - oldpath;
+        if (len <= 0) {
+            strcpy(old_parent_path, "/");
+        } else {
+            if ((size_t)len >= PATH_MAX)
+                return -1;
+            strncpy(old_parent_path, oldpath, (size_t)len);
+            old_parent_path[len] = 0;
+        }
+        if (strlen(last_slash + 1) >= sizeof(old_name))
+            return -1;
+        strcpy(old_name, last_slash + 1);
+    } else {
+        strcpy(old_parent_path, "/");
+        if (strlen(oldpath) >= sizeof(old_name))
+            return -1;
+        strcpy(old_name, oldpath);
+    }
+
+    if (old_name[0] == '\0')
+        return -1;
+
+    char new_parent_path[PATH_MAX];
+    char new_name[128];
+    last_slash = strrchr(newpath, '/');
+
+    if (last_slash) {
+        ptrdiff_t len = last_slash - newpath;
+        if (len <= 0) {
+            strcpy(new_parent_path, "/");
+        } else {
+            if ((size_t)len >= PATH_MAX)
+                return -1;
+            strncpy(new_parent_path, newpath, (size_t)len);
+            new_parent_path[len] = 0;
+        }
+        if (strlen(last_slash + 1) >= sizeof(new_name))
+            return -1;
+        strcpy(new_name, last_slash + 1);
+    } else {
+        strcpy(new_parent_path, "/");
+        if (strlen(newpath) >= sizeof(new_name))
+            return -1;
+        strcpy(new_name, newpath);
+    }
+
+    if (new_name[0] == '\0')
+        return -1;
+
+    vfs_inode_t *new_parent = vfs_resolve_path(new_parent_path);
+    if (!new_parent)
+        return -1;
+
+    vfs_inode_t *new_parent_hold = new_parent;
+    if (new_parent_hold != vfs_root) {
+        if (new_parent_hold->iops && new_parent_hold->iops->clone) {
+            new_parent = new_parent_hold->iops->clone(new_parent_hold);
+        } else {
+            new_parent = kmalloc(sizeof(vfs_inode_t));
+            if (new_parent)
+                memcpy(new_parent, new_parent_hold, sizeof(vfs_inode_t));
+        }
+
+        vfs_put_inode(new_parent_hold);
+        if (!new_parent)
+            return -1;
+    }
+
+    vfs_inode_t *old_parent = vfs_resolve_path_hold(old_parent_path, new_parent);
+    if (!old_parent) {
+        vfs_put_inode(new_parent);
+        return -1;
+    }
+
+    int res = -1;
+    if ((old_parent->flags & VFS_DIRECTORY) && (new_parent->flags & VFS_DIRECTORY) &&
+        old_parent->iops && old_parent->iops == new_parent->iops && old_parent->iops->rename) {
+        res = old_parent->iops->rename(old_parent, old_name, new_parent, new_name);
+    }
+
+    vfs_put_inode(old_parent);
+    if (new_parent != old_parent)
+        vfs_put_inode(new_parent);
     return res;
 }

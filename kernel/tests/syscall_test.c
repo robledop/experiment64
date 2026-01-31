@@ -1750,6 +1750,72 @@ TEST(test_syscall_link_basic)
     return true;
 }
 
+TEST(test_syscall_rename_basic)
+{
+    sys_unlink("/rename_src.txt");
+    sys_unlink("/rename_dst.txt");
+
+    int fd = sys_open("/rename_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    const char *content = "rename test";
+    sys_write(fd, content, strlen(content));
+    sys_close(fd);
+
+    int fd2 = sys_open("/rename_dst.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd2 >= 3);
+    sys_write(fd2, "old", 3);
+    sys_close(fd2);
+
+    TEST_ASSERT(sys_rename("/rename_src.txt", "/rename_dst.txt") == 0);
+
+    stat_t st;
+    TEST_ASSERT(sys_stat("/rename_src.txt", &st) == -1);
+
+    fd = sys_open("/rename_dst.txt", O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+    char buf[16] = {0};
+    int bytes    = sys_read(fd, buf, strlen(content));
+    TEST_ASSERT(bytes == (int)strlen(content));
+    TEST_ASSERT(strncmp(buf, content, strlen(content)) == 0);
+    sys_close(fd);
+
+    sys_unlink("/rename_dst.txt");
+    return true;
+}
+
+TEST(test_syscall_rename_fat32)
+{
+    sys_unlink("/mnt/REN_SRC.TXT");
+    sys_unlink("/mnt/REN_DST.TXT");
+
+    int fd = sys_open("/mnt/REN_SRC.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    const char *content = "fat32 rename";
+    sys_write(fd, content, strlen(content));
+    sys_close(fd);
+
+    int fd2 = sys_open("/mnt/REN_DST.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd2 >= 3);
+    sys_write(fd2, "old", 3);
+    sys_close(fd2);
+
+    TEST_ASSERT(sys_rename("/mnt/REN_SRC.TXT", "/mnt/REN_DST.TXT") == 0);
+
+    stat_t st;
+    TEST_ASSERT(sys_stat("/mnt/REN_SRC.TXT", &st) == -1);
+
+    fd = sys_open("/mnt/REN_DST.TXT", O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+    char buf[16] = {0};
+    int bytes    = sys_read(fd, buf, strlen(content));
+    TEST_ASSERT(bytes == (int)strlen(content));
+    TEST_ASSERT(strncmp(buf, content, strlen(content)) == 0);
+    sys_close(fd);
+
+    sys_unlink("/mnt/REN_DST.TXT");
+    return true;
+}
+
 TEST(test_syscall_unlink_basic)
 {
     // Create a file

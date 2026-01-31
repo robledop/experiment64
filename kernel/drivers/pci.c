@@ -295,7 +295,7 @@ const char *pci_find_vendor(const uint16_t vendor_id)
     return "Unknown Vendor";
 }
 
-static UNUSED const char *pci_cap_name(const uint8_t cap_id)
+static USED const char *pci_cap_name(const uint8_t cap_id)
 {
     switch (cap_id) {
     case 0x01:
@@ -325,7 +325,7 @@ static const char *pci_usb_prog_if_name(const uint8_t prog_if)
     }
 }
 
-static UNUSED void pci_dump_bars(const struct pci_header *pci)
+static USED void pci_dump_bars(const struct pci_header *pci)
 {
     bool logged = false;
     for (uint8_t i = 0; i < 6; i++) {
@@ -373,7 +373,7 @@ static UNUSED void pci_dump_bars(const struct pci_header *pci)
     }
 }
 
-static UNUSED void pci_dump_capabilities(const uint8_t bus,
+static USED void pci_dump_capabilities(const uint8_t bus,
                                          const uint8_t device,
                                          const uint8_t function,
                                          const struct pci_header *pci)
@@ -415,7 +415,7 @@ static UNUSED void pci_dump_capabilities(const uint8_t bus,
     }
 }
 
-static UNUSED void pci_dump_config_space(const uint8_t bus, const uint8_t device, const uint8_t function)
+static USED void pci_dump_config_space(const uint8_t bus, const uint8_t device, const uint8_t function)
 {
     for (uint16_t offset = 0; offset < 0x100; offset += 0x10) {
         const uint16_t w0 = pci_config_read_word(bus, device, function, (uint8_t)(offset + 0x0));
@@ -441,7 +441,7 @@ static UNUSED void pci_dump_config_space(const uint8_t bus, const uint8_t device
     }
 }
 
-static UNUSED void pci_dump_device_config(const struct pci_header *pci,
+static USED void pci_dump_device_config(const struct pci_header *pci,
                                           const uint8_t bus,
                                           const uint8_t device,
                                           const uint8_t function)
