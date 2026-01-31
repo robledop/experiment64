@@ -367,8 +367,9 @@ void interrupt_handler(struct interrupt_frame *frame)
         apic_send_eoi();
     }
 
-    if (frame->int_no >= 32)
-        signal_deliver_interrupt(frame);
+    if (frame->int_no >= 32) {
+        signal_deliver_after_interrupt(frame);
+    }
 }
 
 void idt_init(void)

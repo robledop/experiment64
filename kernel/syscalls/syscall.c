@@ -244,6 +244,6 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         __builtin_unreachable();
     }
 
-    signal_deliver_syscall(regs, &ret);
+    signal_deliver_after_syscall(regs, &ret);
     return ret;
 }

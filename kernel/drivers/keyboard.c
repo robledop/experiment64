@@ -104,7 +104,7 @@ static void keyboard_deliver_sigint(void)
 {
     int target_pid = keyboard_foreground_pid;
     if (target_pid > 0) {
-        signal_queue_pid(target_pid, SIGINT);
+        signal_send_pid(target_pid, SIGINT);
         return;
     }
 
@@ -113,7 +113,7 @@ static void keyboard_deliver_sigint(void)
     if (!proc || !t || !t->is_user)
         return;
 
-    signal_queue_pid(proc->pid, SIGINT);
+    signal_send_pid(proc->pid, SIGINT);
 }
 
 static void keyboard_enqueue_raw(uint8_t scancode)

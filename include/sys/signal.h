@@ -5,9 +5,9 @@
 typedef void (*sighandler_t)(int);
 typedef uint64_t sigset_t;
 
-#define SIG_DFL ((sighandler_t)0)
-#define SIG_IGN ((sighandler_t)1)
-#define SIG_ERR ((sighandler_t)-1)
+#define SIG_DFL ((sighandler_t)0) // Default signal handler.
+#define SIG_IGN ((sighandler_t)1) // Ignore signal.
+#define SIG_ERR ((sighandler_t)-1) // Error return.
 
 // Hangup detected on controlling terminal or session ended.
 #define SIGHUP 1
