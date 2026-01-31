@@ -247,6 +247,7 @@ static inline void thread_state_store(thread_t *t, thread_state_t state)
  */
 static void collect_detached_terminated_threads(list_item_t *free_list)
 {
+    spinlock_assert_held(&scheduler_lock);
     process_t *p;
     list_foreach_entry(p, &process_list, list) {
         thread_t *t, *next_t;
@@ -277,6 +278,7 @@ static void collect_detached_terminated_threads(list_item_t *free_list)
 
 static bool process_in_list(const process_t *proc)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!proc)
         return false;
 
@@ -291,6 +293,7 @@ static bool process_in_list(const process_t *proc)
 // ReSharper disable once CppDFAConstantParameter
 static inline bool thread_is_ready(thread_t *t, bool allow_user, const char *ctx)
 {
+    spinlock_assert_held(&scheduler_lock);
     uint32_t raw_state = thread_state_load_raw(t);
     if (!thread_state_valid_raw(raw_state)) {
         boot_message(ERROR,
@@ -589,6 +592,7 @@ void process_copy_fds(process_t *dest, const process_t *src)
 
 static void process_collect_threads_locked(const process_t *proc, list_item_t *free_list)
 {
+    spinlock_assert_held(&scheduler_lock);
     thread_t *t, *next_t;
     list_foreach_entry_safe(t, next_t, &proc->threads, list) {
         if (!t)
@@ -835,6 +839,7 @@ process_t *get_current_process(void)
  */
 static bool thread_is_active_on_any_cpu(thread_t *t)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!t)
         return false;
 
@@ -849,6 +854,7 @@ static bool thread_is_active_on_any_cpu(thread_t *t)
 
 bool process_can_reap_locked(process_t *proc)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!proc)
         return false;
 
@@ -877,6 +883,7 @@ bool process_can_reap_locked(process_t *proc)
 // ReSharper disable once CppDFAConstantParameter
 static thread_t *find_any_runnable_thread(const bool allow_user)
 {
+    spinlock_assert_held(&scheduler_lock);
     process_t *p;
     list_foreach_entry(p, &process_list, list) {
         thread_t *t;
@@ -901,6 +908,7 @@ static process_t *rr_last_proc[MAX_CPUS] = {nullptr};
 // ReSharper disable once CppDFAConstantParameter
 static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!cpu)
         return find_any_runnable_thread(allow_user);
 

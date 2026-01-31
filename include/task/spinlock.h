@@ -10,6 +10,7 @@ typedef struct
 void spinlock_init(spinlock_t *lock);
 void spinlock_acquire(spinlock_t *lock);
 void spinlock_release(spinlock_t *lock);
+void spinlock_assert_held(const spinlock_t *lock);
 
 // Interrupt-safe spinlock macros
 // Usage:

@@ -23,6 +23,7 @@ static bool socket_addr_is_any(const uint8_t ip[static 4])
 
 static bool socket_port_conflict_locked(const uint16_t port, const uint8_t ip[static 4], const int protocol, const socket_t* skip)
 {
+    spinlock_assert_held(&socket_lock);
     socket_t* s;
     list_foreach_entry(s, &socket_list, list)
     {

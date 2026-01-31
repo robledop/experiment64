@@ -1,5 +1,6 @@
 #include <task/sleeplock.h>
 #include <task/process.h>
+#include <debug.h>
 
 void sleeplock_init(sleeplock_t *lk, const char *name)
 {
@@ -35,4 +36,11 @@ bool sleeplock_holding(sleeplock_t *lk)
     bool r = lk->locked && (get_current_process() ? (lk->pid == get_current_process()->pid) : false);
     spinlock_release(&lk->lock);
     return r;
+}
+
+void sleeplock_assert_held(sleeplock_t *lk)
+{
+    if (!lk || !sleeplock_holding(lk)) {
+        panic("sleeplock not held");
+    }
 }

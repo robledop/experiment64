@@ -1,9 +1,9 @@
 #include <task/spinlock.h>
+#include <debug.h>
 
 #ifdef TEST_MODE
 #include <lib/string.h>
 #include <tests/test.h>
-#include <debug.h>
 extern spinlock_t scheduler_lock;
 #endif
 
@@ -43,4 +43,11 @@ void spinlock_acquire(spinlock_t *lock)
 void spinlock_release(spinlock_t *lock)
 {
     __atomic_clear(&lock->locked, __ATOMIC_RELEASE);
+}
+
+void spinlock_assert_held(const spinlock_t *lock)
+{
+    if (!lock || !__atomic_load_n(&lock->locked, __ATOMIC_RELAXED)) {
+        panic("spinlock not held");
+    }
 }

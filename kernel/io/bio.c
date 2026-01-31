@@ -47,6 +47,7 @@ static void move_to_head(buffer_head_t *bh)
 // Returns a buffer with ref_count incremented but NOT locked.
 static buffer_head_t *get_blk(uint8_t device, uint32_t block)
 {
+    spinlock_assert_held(&bio_lock);
     int retries = 0;
     constexpr int max_retries = 100;  // Prevent infinite loop
 
@@ -209,6 +210,8 @@ void bwrite(buffer_head_t *bh)
 {
     if (!bh)
         return;
+
+    sleeplock_assert_held(&bh->lock);
 
     // Write to disk (we hold the sleeplock so data is stable)
     int rc = storage_write(bh->device, bh->block, 1, bh->data);

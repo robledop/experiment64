@@ -14,3 +14,4 @@ void sleeplock_init(sleeplock_t *lk, const char *name);
 void sleeplock_acquire(sleeplock_t *lk);
 void sleeplock_release(sleeplock_t *lk);
 bool sleeplock_holding(sleeplock_t *lk);
+void sleeplock_assert_held(sleeplock_t *lk);
