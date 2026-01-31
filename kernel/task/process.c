@@ -634,8 +634,9 @@ void process_destroy(process_t *proc)
 
 void process_reap(process_t *proc)
 {
-    if (!proc)
+    if (!proc) {
         return;
+    }
     process_destroy_now(proc);
 }
 
@@ -949,11 +950,12 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
     if (!cpu)
         hcf();
 
-    thread_t *schedt = cpu->scheduler_thread;
-    if (!schedt)
+    thread_t *scheduler_thread = cpu->scheduler_thread;
+    if (!scheduler_thread) {
         hcf();
+    }
 
-    cpu_set_active_thread(cpu, schedt);
+    cpu_set_active_thread(cpu, scheduler_thread);
     cpu->user_rsp = 0;
 
     for (;;) {
@@ -1018,8 +1020,9 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
             continue;
         }
 
-        if (next->process && next->process->pml4)
+        if (next->process && next->process->pml4) {
             vmm_switch_pml4(next->process->pml4);
+        }
 
         syscall_set_stack(next->kstack_top);
 
@@ -1035,8 +1038,9 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
         thread_t *free_t, *free_next;
         // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         list_foreach_entry_safe(free_t, free_next, &free_list, list) {
-            if (!free_t)
+            if (!free_t) {
                 continue;
+            }
             list_del(&free_t->list);
             if (free_t->kstack_top != 0) {
                 auto kstack_base = (void *)(free_t->kstack_top - KSTACK_SIZE);
@@ -1044,10 +1048,10 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
             }
             kfree(free_t);
         }
-        switch_to(schedt, next);
+        switch_to(scheduler_thread, next);
 
         vmm_switch_pml4(kernel_process->pml4);
-        cpu_set_active_thread(cpu, schedt);
+        cpu_set_active_thread(cpu, scheduler_thread);
         cpu->user_rsp = 0;
     }
 }

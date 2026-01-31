@@ -74,6 +74,8 @@ typedef struct Process
     int exit_code;
     bool terminated;
     sigaction_t sigactions[SIG_MAX];
+    // A signal mask is a set of signals a process or thread tells
+    // the operating system to block from immediate delivery
     sigset_t sig_mask;
     sigset_t sig_pending;
     int sig_inflight;
