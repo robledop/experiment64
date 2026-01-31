@@ -38,15 +38,17 @@ Signals are delivered only when returning to user mode:
   only).
 
 Signals are not delivered while running in kernel mode, and they are not
-delivered during exception handling. There is no automatic generation of
-signals such as `SIGCHLD` or `SIGPIPE` yet. Signals are sourced from `kill`
-and the console keyboard: Ctrl+C queues `SIGINT` for the console foreground
-PID (set via `TIOCSPGRP`), or the current user process when no foreground is
-set.
+delivered during exception handling. Signals are sourced from `kill`, the
+console keyboard (Ctrl+C queues `SIGINT` for the console foreground PID set
+via `TIOCSPGRP`, or the current user process when no foreground is set), and
+child termination (`SIGCHLD` is generated when a child exits or is terminated
+by a signal). `SIGPIPE` is not generated yet.
 
 When a signal is sent to a process with blocked threads, the kernel marks any
 blocked threads as runnable so that one can return to user mode and receive the
-signal.
+signal. For `SIGCHLD`, the pending bit is only set (and threads marked runnable)
+when the parent has a non-default, non-ignored handler installed; otherwise the
+pending bit is cleared.
 
 Signals are delivered in ascending numeric order (the lowest-numbered pending
 signal wins).
