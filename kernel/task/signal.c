@@ -3,6 +3,16 @@
 #include <lib/string.h>
 #include <task/spinlock.h>
 #include <syscall_common.h>
+#include <debug.h>
+
+
+static inline sigset_t signal_valid_mask(void)
+{
+    static_assert(SIG_MAX <= 64, "Signal number too large for signal mask");
+
+    // The first SIG_MAX bits are valid
+    return (SIG_MAX == 64) ? ~((sigset_t)0) : (((sigset_t)1 << SIG_MAX) - 1);
+}
 
 static inline sigset_t signal_bit(const int sig)
 {
@@ -26,6 +36,7 @@ static bool signal_default_terminate(int sig)
 
 static void signal_mark_threads_ready(process_t *target)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!target) {
         return;
     }
@@ -39,12 +50,14 @@ static void signal_mark_threads_ready(process_t *target)
 
 static void signal_terminate_locked(process_t *target, int sig, process_t **parent_out)
 {
+    spinlock_assert_held(&scheduler_lock);
     if (!target) {
         return;
     }
 
     target->exit_code  = 128 + sig;
     target->terminated = true;
+    signal_send_sigchld(target);
 
     thread_t *t;
     list_foreach_entry(t, &target->threads, list) {
@@ -107,16 +120,22 @@ void signal_copy_on_fork(process_t *child, const process_t *parent)
     child->sig_inflight = 0;
 }
 
+/**
+ * Extract one signal bit from the pending set
+ */
 static int signal_claim_pending_locked(process_t *proc, sigaction_t *action_out, sigset_t *bit_out)
 {
-    if (!proc)
+    spinlock_assert_held(&scheduler_lock);
+    if (!proc) {
         return 0;
+    }
 
     sigset_t pending = proc->sig_pending & ~proc->sig_mask;
     for (int sig = 1; sig <= SIG_MAX; sig++) {
         sigset_t bit = signal_bit(sig);
-        if ((pending & bit) == 0)
+        if ((pending & bit) == 0) {
             continue;
+        }
 
         sigaction_t action = proc->sigactions[sig - 1];
         if (action.sa_handler == SIG_IGN || (action.sa_handler == SIG_DFL && signal_default_ignore(sig))) {
@@ -126,10 +145,12 @@ static int signal_claim_pending_locked(process_t *proc, sigaction_t *action_out,
         }
 
         proc->sig_pending &= ~bit; // Clear bit
-        if (action_out)
+        if (action_out) {
             *action_out = action;
-        if (bit_out)
+        }
+        if (bit_out) {
             *bit_out = bit;
+        }
         return sig;
     }
     return 0;
@@ -157,6 +178,24 @@ static bool signal_setup_user_frame(uint64_t user_rsp, const sigcontext_t *ctx,
 
     *out_rsp = ret_addr;
     return true;
+}
+
+void signal_send_sigchld(process_t *process)
+{
+    spinlock_assert_held(&scheduler_lock);
+    if (!process || !process->parent) {
+        return;
+    }
+    process_t *parent  = process->parent;
+    sigaction_t action = parent->sigactions[SIGCHLD - 1];
+    if (action.sa_handler == SIG_IGN || action.sa_handler == SIG_DFL) {
+        parent->sig_pending &= ~signal_bit(SIGCHLD); // Clear bit
+    } else {
+        parent->sig_pending |= signal_bit(SIGCHLD); // Set bit
+        if ((parent->sig_mask & signal_bit(SIGCHLD)) == 0) {
+            signal_mark_threads_ready(parent);
+        }
+    }
 }
 
 int signal_send_pid(int pid, int sig)
@@ -281,9 +320,8 @@ bool signal_deliver_after_syscall(struct syscall_regs *regs, const uint64_t *ret
         return true;
     }
 
-    static_assert(SIG_MAX <= 64, "Signal number too large for signal mask");
     sigset_t old_mask  = proc->sig_mask;
-    proc->sig_mask     = proc->sig_mask | action.sa_mask | bit;
+    proc->sig_mask     = (proc->sig_mask | action.sa_mask | bit) & signal_valid_mask();
     proc->sig_inflight = sig;
 
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
@@ -347,12 +385,15 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
 
     process_t *proc = current_process;
     thread_t *t     = current_thread;
-    if (!proc || !t || !t->is_user || proc->terminated)
+    if (!proc || !t || !t->is_user || proc->terminated) {
         return false;
+    }
 
     uint64_t flags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, flags);
 
+    // Check sig_inflight after the lock to prevent race conditions
+    // where two handlers can be delivered concurrently
     if (proc->sig_inflight) {
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
         return false;
@@ -370,16 +411,6 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         process_t *parent = nullptr;
         signal_terminate_locked(proc, sig, &parent);
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
-        if (parent)
-            thread_wakeup(parent);
-        schedule();
-        return true;
-    }
-
-    if (!action.sa_restorer) {
-        process_t *parent = nullptr;
-        signal_terminate_locked(proc, SIGSEGV, &parent);
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
         if (parent) {
             thread_wakeup(parent);
         }
@@ -387,9 +418,22 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         return true;
     }
 
-    static_assert(SIG_MAX <= 64, "Signal number too large for signal mask");
+    // If there's no sa_restorer, segfault.
+    // sa_restorer is supposed to be set by libc.
+    if (!action.sa_restorer) {
+        panic("Signal handler missing sa_restorer");
+        // process_t *parent = nullptr;
+        // signal_terminate_locked(proc, SIGSEGV, &parent);
+        // SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
+        // if (parent) {
+        //     thread_wakeup(parent);
+        // }
+        // schedule();
+        // return true;
+    }
+
     sigset_t old_mask  = proc->sig_mask;
-    proc->sig_mask     = proc->sig_mask | action.sa_mask | bit;
+    proc->sig_mask     = (proc->sig_mask | action.sa_mask | bit) & signal_valid_mask();
     proc->sig_inflight = sig;
 
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);

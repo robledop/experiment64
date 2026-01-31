@@ -1,5 +1,7 @@
 #include <syscall_common.h>
 
+#include "task/signal.h"
+
 void sys_exit(int code)
 {
     TEST_SYSCALL_LOG("sys_exit: pid=%d code=%d (exit_hook=%p)\n", current_process->pid, code, syscall_exit_hook);
@@ -57,6 +59,7 @@ void sys_exit(int code)
     {
         proc->exit_code = code;
         proc->terminated = true;
+        signal_send_sigchld(proc);
 
         process_t* new_parent = init_process ? init_process : kernel_process;
         process_t* p;

@@ -305,6 +305,7 @@ void interrupt_handler(struct interrupt_frame *frame)
                 if (p) {
                     p->exit_code  = -1;
                     p->terminated = true;
+                    signal_send_sigchld(p);
                 }
                 if (p) {
                     thread_t *tt;
@@ -328,7 +329,7 @@ void interrupt_handler(struct interrupt_frame *frame)
 
                 spinlock_release(&scheduler_lock);
 
-                // Wake up parent outside the lock (thread_wakeup acquires its own lock)
+                // Wake up the parent outside the lock (thread_wakeup acquires its own lock)
                 if (parent) {
                     thread_wakeup(parent);
                 }

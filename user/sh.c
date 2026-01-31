@@ -70,6 +70,12 @@ static void shell_sigint_handler(const int sig)
     (void)sig;
 }
 
+static void shell_sigchld_handler([[maybe_unused]] const int sig)
+{
+    // printf("Child process exited.\n");
+    // wait(nullptr);
+}
+
 int fork1(void); // Fork but panics on failure.
 struct cmd *parsecmd(char *);
 
@@ -315,6 +321,7 @@ int main(void)
     printf(KWHT "User mode shell started. Press CTRL + P to list active threads.\n");
     // Set an empty signal handler for SIGINT so that CTRL+C doesn't interrupt the shell itself
     signal(SIGINT, shell_sigint_handler);
+    signal(SIGCHLD, shell_sigchld_handler);
 
     // Read and run input commands.
     while (true) {
