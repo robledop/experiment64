@@ -11,8 +11,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <wm/calculator.h>
-
-#include "pthread.h"
+#include <pthread.h>
 
 static uint32_t *fb;
 static desktop_t *desktop;
@@ -90,7 +89,6 @@ static void clear_screen()
 
 int main(void)
 {
-    // pthread_cleanup_push(clear_screen, nullptr);
     atexit(clear_screen);
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
@@ -161,13 +159,9 @@ int main(void)
 
     window_paint((window_t *)desktop, nullptr, 1);
 
-    // wm_process_events();
     pthread_t thread;
     pthread_create(&thread, nullptr, wm_process_mouse_events, nullptr);
 
     pthread_join(thread, nullptr);
     return 0;
-
-    // pthread_exit(nullptr);
-    // pthread_cleanup_pop(0);
 }
