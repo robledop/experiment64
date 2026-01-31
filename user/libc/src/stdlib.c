@@ -6,8 +6,9 @@ static int atexit_count = 0;
 
 int atexit(void (*func)(void))
 {
-    if (!func || atexit_count >= (int)(sizeof(atexit_handlers) / sizeof(atexit_handlers[0])))
+    if (!func || atexit_count >= (int)(sizeof(atexit_handlers) / sizeof(atexit_handlers[0]))) {
         return -1;
+    }
     atexit_handlers[atexit_count++] = func;
     return 0;
 }

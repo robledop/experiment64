@@ -14,16 +14,16 @@
 #include "doomgeneric.h"
 
 static int FrameBufferFd = -1;
-static int *FrameBuffer = 0;
+static int *FrameBuffer  = 0;
 
-static int KeyboardFd = -1;
+static int KeyboardFd          = -1;
 static int KeyboardUsesConsole = 0;
 
 #define KEYQUEUE_SIZE 16
 
 static unsigned short s_KeyQueue[KEYQUEUE_SIZE];
 static unsigned int s_KeyQueueWriteIndex = 0;
-static unsigned int s_KeyQueueReadIndex = 0;
+static unsigned int s_KeyQueueReadIndex  = 0;
 
 typedef struct
 {
@@ -39,16 +39,15 @@ static unsigned int s_PendingKeyUpCount = 0;
 static unsigned int s_PositionX = 0;
 static unsigned int s_PositionY = 0;
 
-static unsigned int s_ScreenWidth = 0;
+static unsigned int s_ScreenWidth  = 0;
 static unsigned int s_ScreenHeight = 0;
-static unsigned int s_ScreenPitch = 0; // Bytes per row (may differ from width*4 due to alignment)
+static unsigned int s_ScreenPitch  = 0; // Bytes per row (may differ from width*4 due to alignment)
 
 static unsigned char convertConsoleKey(unsigned char scancode)
 {
     unsigned char key = 0;
 
-    switch (scancode)
-    {
+    switch (scancode) {
     case 226: // up arrow
         key = KEY_UPARROW;
         break;
@@ -96,12 +95,9 @@ static unsigned char convertConsoleKey(unsigned char scancode)
         key = 'y';
         break;
     default:
-        if (scancode >= 'A' && scancode <= 'Z')
-        {
+        if (scancode >= 'A' && scancode <= 'Z') {
             key = (unsigned char)tolower(scancode);
-        }
-        else
-        {
+        } else {
             key = scancode;
         }
         break;
@@ -114,8 +110,7 @@ static unsigned char convertScancode(unsigned char scancode)
 {
     unsigned char key = 0;
 
-    switch (scancode)
-    {
+    switch (scancode) {
     case 0x11: // W
         key = KEY_UPARROW;
         break;
@@ -174,11 +169,10 @@ static unsigned char convertScancode(unsigned char scancode)
 static void addKeyToQueueRaw(int pressed, unsigned char rawCode)
 {
     unsigned char key = KeyboardUsesConsole
-                            ? convertConsoleKey(rawCode)
-                            : convertScancode(rawCode);
+        ? convertConsoleKey(rawCode)
+        : convertScancode(rawCode);
 
-    if (key == 0)
-    {
+    if (key == 0) {
         return;
     }
 
@@ -188,20 +182,16 @@ static void addKeyToQueueRaw(int pressed, unsigned char rawCode)
     s_KeyQueueWriteIndex++;
     s_KeyQueueWriteIndex %= KEYQUEUE_SIZE;
 
-    if (KeyboardUsesConsole && pressed)
-    {
-        for (unsigned int i = 0; i < s_PendingKeyUpCount; ++i)
-        {
-            if (s_PendingKeyUps[i].key == key)
-            {
+    if (KeyboardUsesConsole && pressed) {
+        for (unsigned int i = 0; i < s_PendingKeyUpCount; ++i) {
+            if (s_PendingKeyUps[i].key == key) {
                 s_PendingKeyUps[i].ticks = CONSOLE_HOLD_TICKS;
                 return;
             }
         }
 
-        if (s_PendingKeyUpCount < KEYQUEUE_SIZE)
-        {
-            s_PendingKeyUps[s_PendingKeyUpCount].key = key;
+        if (s_PendingKeyUpCount < KEYQUEUE_SIZE) {
+            s_PendingKeyUps[s_PendingKeyUpCount].key   = key;
             s_PendingKeyUps[s_PendingKeyUpCount].ticks = CONSOLE_HOLD_TICKS;
             ++s_PendingKeyUpCount;
         }
@@ -215,16 +205,12 @@ static void flushPendingKeyUps(void)
 
     unsigned int writeIndex = 0;
 
-    for (unsigned int i = 0; i < s_PendingKeyUpCount; ++i)
-    {
+    for (unsigned int i = 0; i < s_PendingKeyUpCount; ++i) {
         pending_key_t entry = s_PendingKeyUps[i];
         entry.ticks--;
-        if (entry.ticks <= 0)
-        {
+        if (entry.ticks <= 0) {
             addKeyToQueueRaw(0, entry.key);
-        }
-        else
-        {
+        } else {
             s_PendingKeyUps[writeIndex++] = entry;
         }
     }
@@ -236,19 +222,16 @@ struct termios orig_termios;
 
 void disableRawMode()
 {
-    if (!KeyboardUsesConsole)
-    {
+    if (!KeyboardUsesConsole) {
         // Flush keyboard buffers before closing
-        if (KeyboardFd >= 0)
-        {
+        if (KeyboardFd >= 0) {
             ioctl(KeyboardFd, KDFLUSH, NULL);
         }
         return;
     }
     // Flush keyboard buffers to prevent leftover keys from reaching the shell
     int kb = open("/dev/keyboard", O_RDONLY);
-    if (kb >= 0)
-    {
+    if (kb >= 0) {
         ioctl(kb, KDFLUSH, NULL);
         close(kb);
     }
@@ -256,8 +239,7 @@ void disableRawMode()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
     // Drain any remaining buffered input
     unsigned char discard;
-    while (read(STDIN_FILENO, &discard, 1) > 0)
-        ;
+    while (read(STDIN_FILENO, &discard, 1) > 0);
     // Clear screen on exit
     write(STDOUT_FILENO, "\x1b[2J", 4);
 }
@@ -267,17 +249,16 @@ void enableRawMode()
     // Always register cleanup handler to flush keyboard buffers on exit
     atexit(disableRawMode);
 
-    if (!KeyboardUsesConsole)
-    {
+    if (!KeyboardUsesConsole) {
         return;
     }
     tcgetattr(STDIN_FILENO, &orig_termios);
     struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);
-    raw.c_iflag &= ~(IXON | ICRNL);
-    raw.c_oflag &= ~(OPOST);
-    raw.c_cc[VMIN] = 0;
-    raw.c_cc[VTIME] = 0;
+    raw.c_lflag        &= ~(ECHO | ICANON);
+    raw.c_iflag        &= ~(IXON | ICRNL);
+    raw.c_oflag        &= ~(OPOST);
+    raw.c_cc[VMIN]     = 0;
+    raw.c_cc[VTIME]    = 0;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
@@ -285,8 +266,7 @@ void DG_Init()
 {
     FrameBufferFd = open("/dev/fb0", O_RDWR);
 
-    if (FrameBufferFd >= 0)
-    {
+    if (FrameBufferFd >= 0) {
         printf("Getting screen width...");
         ioctl(FrameBufferFd, FB_IOCTL_GET_WIDTH, &s_ScreenWidth);
         printf("%d\n", s_ScreenWidth);
@@ -295,8 +275,7 @@ void DG_Init()
         ioctl(FrameBufferFd, FB_IOCTL_GET_HEIGHT, &s_ScreenHeight);
         printf("%d\n", s_ScreenHeight);
 
-        if (0 == s_ScreenWidth || 0 == s_ScreenHeight)
-        {
+        if (0 == s_ScreenWidth || 0 == s_ScreenHeight) {
             printf("Unable to obtain screen info!");
             exit();
         }
@@ -313,29 +292,23 @@ void DG_Init()
                            FrameBufferFd,
                            0);
 
-        if (FrameBuffer != MAP_FAILED)
-        {
+        if (FrameBuffer != MAP_FAILED) {
             printf("FrameBuffer mmap success\n");
-        }
-        else
-        {
+        } else {
             printf("FrameBuffermmap failed\n");
             FrameBuffer = NULL;
             close(FrameBufferFd);
             FrameBufferFd = -1;
             exit();
         }
-    }
-    else
-    {
+    } else {
         printf("Opening FrameBuffer device failed!\n");
         exit();
     }
 
     KeyboardFd = open("/dev/keyboard", O_RDONLY);
-    if (KeyboardFd < 0)
-    {
-        KeyboardFd = STDIN_FILENO;
+    if (KeyboardFd < 0) {
+        KeyboardFd          = STDIN_FILENO;
         KeyboardUsesConsole = 1;
     }
 
@@ -345,14 +318,12 @@ void DG_Init()
     int argPosY = 0;
 
     argPosX = M_CheckParmWithArgs("-posx", 1);
-    if (argPosX > 0)
-    {
+    if (argPosX > 0) {
         sscanf(myargv[argPosX + 1], "%d", &s_PositionX);
     }
 
     argPosY = M_CheckParmWithArgs("-posy", 1);
-    if (argPosY > 0)
-    {
+    if (argPosY > 0) {
         sscanf(myargv[argPosY + 1], "%d", &s_PositionY);
     }
 
@@ -362,49 +333,39 @@ void DG_Init()
 
 static void handleKeyInput()
 {
-    if (KeyboardFd < 0)
-    {
+    if (KeyboardFd < 0) {
         return;
     }
 
-    unsigned char scancode = 0;
+    unsigned char scancode  = 0;
     static int extendedScan = 0;
-    static int escState = 0;
+    static int escState     = 0;
 
-    while (read(KeyboardFd, &scancode, 1) > 0)
-    {
-        if (scancode == 0)
-        {
+    while (read(KeyboardFd, &scancode, 1) > 0) {
+        if (scancode == 0) {
             continue;
         }
 
-        if (KeyboardUsesConsole)
-        {
-            switch (escState)
-            {
+        if (KeyboardUsesConsole) {
+            switch (escState) {
             case 0:
-                if (scancode == 0x1b)
-                {
+                if (scancode == 0x1b) {
                     escState = 1;
                     continue;
                 }
                 addKeyToQueueRaw(1, scancode);
                 break;
             case 1:
-                if (scancode == '[')
-                {
+                if (scancode == '[') {
                     escState = 2;
-                }
-                else
-                {
+                } else {
                     addKeyToQueueRaw(1, 0x1b);
                     addKeyToQueueRaw(1, scancode);
                     escState = 0;
                 }
                 break;
             case 2:
-                switch (scancode)
-                {
+                switch (scancode) {
                 case 'A':
                     addKeyToQueueRaw(1, 226);
                     break;
@@ -426,16 +387,14 @@ static void handleKeyInput()
             continue;
         }
 
-        if (scancode == 0xE0)
-        {
+        if (scancode == 0xE0) {
             extendedScan = 1;
             continue;
         }
 
         unsigned char code = scancode & 0x7F;
-        if (extendedScan)
-        {
-            code |= 0x80;
+        if (extendedScan) {
+            code         |= 0x80;
             extendedScan = 0;
         }
 
@@ -447,32 +406,28 @@ static void handleKeyInput()
 void DG_DrawFrame()
 {
     static int raw_enabled;
-    if (!raw_enabled)
-    {
+    if (!raw_enabled) {
         enableRawMode();
         raw_enabled = 1;
     }
     flushPendingKeyUps();
 
-    if (FrameBuffer)
-    {
-        uint32_t *src = (uint32_t *)DG_ScreenBuffer;
-        uint32_t *dst = (uint32_t *)FrameBuffer;
-        const int srcW = DOOMGENERIC_RESX;
-        const int srcH = DOOMGENERIC_RESY;
-        const int dstW = s_ScreenWidth;
-        const int dstH = s_ScreenHeight;
+    if (FrameBuffer) {
+        uint32_t *src            = (uint32_t *)DG_ScreenBuffer;
+        uint32_t *dst            = (uint32_t *)FrameBuffer;
+        const int srcW           = DOOMGENERIC_RESX;
+        const int srcH           = DOOMGENERIC_RESY;
+        const int dstW           = s_ScreenWidth;
+        const int dstH           = s_ScreenHeight;
         const int dstPitchPixels = s_ScreenPitch / 4; // Convert bytes to pixels
 
-        for (int y = 0; y < dstH; ++y)
-        {
-            int srcY = (y * srcH) / dstH;
+        for (int y = 0; y < dstH; ++y) {
+            int srcY         = (y * srcH) / dstH;
             uint32_t *srcRow = src + srcY * srcW;
             uint32_t *dstRow = dst + (y + s_PositionY) * dstPitchPixels + s_PositionX;
 
-            for (int x = 0; x < dstW; ++x)
-            {
-                int srcX = (x * srcW) / dstW;
+            for (int x = 0; x < dstW; ++x) {
+                int srcX  = (x * srcW) / dstW;
                 dstRow[x] = srcRow[srcX];
             }
         }
@@ -498,14 +453,11 @@ uint32_t DG_GetTicksMs()
 
 int DG_GetKey(int *pressed, unsigned char *doomKey)
 {
-    if (s_KeyQueueReadIndex == s_KeyQueueWriteIndex)
-    {
+    if (s_KeyQueueReadIndex == s_KeyQueueWriteIndex) {
         // key queue is empty
 
         return 0;
-    }
-    else
-    {
+    } else {
         unsigned short keyData = s_KeyQueue[s_KeyQueueReadIndex];
         s_KeyQueueReadIndex++;
         s_KeyQueueReadIndex %= KEYQUEUE_SIZE;
@@ -521,9 +473,17 @@ void DG_SetWindowTitle([[maybe_unused]] const char *title)
 {
 }
 
+void clear_screen(void)
+{
+    printf("\033[2J\033[H");
+}
+
 int main(int argc, char **argv)
 {
-    const char *default_iwad = "/doom.wad";
+
+    atexit(clear_screen);
+
+    const char *default_iwad      = "/doom.wad";
     const char *candidate_iwads[] = {
         "/doom.wad",
         "/bin/doom.wad",
@@ -531,23 +491,18 @@ int main(int argc, char **argv)
         "doom.wad",
     };
     int need_default_iwad = 1;
-    for (int i = 1; i < argc; i++)
-    {
-        if (strcmp(argv[i], "-iwad") == 0)
-        {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-iwad") == 0) {
             need_default_iwad = 0;
             break;
         }
     }
 
     const char *found_wad = nullptr;
-    if (need_default_iwad)
-    {
-        for (size_t i = 0; i < sizeof(candidate_iwads) / sizeof(candidate_iwads[0]); i++)
-        {
+    if (need_default_iwad) {
+        for (size_t i = 0; i < sizeof(candidate_iwads) / sizeof(candidate_iwads[0]); i++) {
             int fd = open(candidate_iwads[i], O_RDONLY);
-            if (fd >= 0)
-            {
+            if (fd >= 0) {
                 close(fd);
                 found_wad = candidate_iwads[i];
                 break;
@@ -556,21 +511,19 @@ int main(int argc, char **argv)
     }
 
     const char *argv_buf[64];
-    int new_argc = argc;
+    int new_argc    = argc;
     char **new_argv = argv;
-    if (need_default_iwad && found_wad && argc + 2 < (int)(sizeof(argv_buf) / sizeof(argv_buf[0])))
-    {
+    if (need_default_iwad && found_wad && argc + 2 < (int)(sizeof(argv_buf) / sizeof(argv_buf[0]))) {
         for (int i = 0; i < argc; i++)
             argv_buf[i] = argv[i];
         argv_buf[new_argc++] = "-iwad";
         argv_buf[new_argc++] = found_wad;
-        new_argv = (char **)argv_buf;
+        new_argv             = (char **)argv_buf;
     }
 
     doomgeneric_Create(new_argc, new_argv);
 
-    while (1)
-    {
+    while (1) {
         doomgeneric_Tick();
     }
 
