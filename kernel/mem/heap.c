@@ -286,22 +286,8 @@ void heap_init(uint64_t hhdm_offset)
     g_hhdm_offset = hhdm_offset;
     // Enforce supervisor write-protect so RO PTEs fault on kernel writes
     uint64_t cr0;
-    __asm__ volatile (
-    "mov %0, cr0"
-    :
-    "=r"(cr0)
-    )
-    ;
-    cr0 |= (1ull << 16); // CR0.WP
-    __asm__ volatile (
-    "mov cr0, %0"
-    :
-    :
-    "r"(cr0)
-    :
-    "memory"
-    )
-    ;
+    __asm__ volatile ("mov %0, cr0" : "=r"(cr0) ) ; cr0 |= (1ull << 16); // CR0.WP
+    __asm__ volatile ("mov cr0, %0" : : "r"(cr0) : "memory");
 
     spinlock_init(&heap_lock);
     for (size_t i = 0; i < CACHE_COUNT; i++)

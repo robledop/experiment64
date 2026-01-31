@@ -18,10 +18,7 @@ void sys_exit(int code)
 #endif
     TEST_SYSCALL_LOG("Process %d exited with code %d\n", current_process->pid, code);
 
-    __asm__ volatile (
-    "cli"
-    )
-    ;
+    __asm__ volatile ("cli");
 
     spinlock_acquire(&scheduler_lock);
 

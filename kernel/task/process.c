@@ -130,10 +130,7 @@ void vm_area_clear(process_t *proc)
 [[noreturn]] static void idle_task(void)
 {
     while (1) {
-        __asm__ volatile (
-                "hlt"
-            )
-            ;
+        __asm__ volatile("hlt");
     }
 }
 
@@ -431,14 +428,7 @@ void process_init(void)
     signal_init_process(kernel_process);
 
     uint64_t cr3;
-    __asm__ volatile (
-
-
-            "mov %0, cr3"
-            :
-            "=r"(cr3)
-        )
-        ;
+    __asm__ volatile ("mov %0, cr3" : "=r"(cr3));
     kernel_process->pml4 = (pml4_t)cr3;
 
     thread_t *kernel_thread = kmalloc(sizeof(thread_t));
@@ -464,14 +454,8 @@ void process_init(void)
         return;
     }
     uint64_t curr_rsp;
-    __asm__ volatile (
+    __asm__ volatile ("mov %0, rsp" : "=r"(curr_rsp));
 
-
-            "mov %0, rsp"
-            :
-            "=r"(curr_rsp)
-        )
-        ;
     uint64_t aligned_base     = curr_rsp & ~(uint64_t)(KSTACK_SIZE - 1);
     kernel_thread->kstack_top = aligned_base + KSTACK_SIZE;
     kernel_thread->rsp        = curr_rsp;
@@ -801,9 +785,9 @@ void smp_init_ap_scheduler(void)
     uint32_t cpu_idx = (uint32_t)cpu->cpu_index;
 
     if (cpu_idx < MAX_CPUS && cpu->scheduler_thread) {
-        thread_t *schedt   = cpu->scheduler_thread;
+        thread_t *schedt = cpu->scheduler_thread;
         cpu_set_active_thread(cpu, schedt);
-        schedt->state      = THREAD_RUNNING;
+        schedt->state = THREAD_RUNNING;
 
         // Ensure the syscall / TSS stack uses the scheduler stack for this CPU.
         cpu->kernel_rsp = schedt->kstack_top;
@@ -817,7 +801,7 @@ void smp_init_ap_scheduler(void)
         // Switch onto the scheduler thread stack by performing a one-way context switch
         // from a synthetic "bootstrap" thread frame. We do NOT hold scheduler_lock here
         // because scheduler_loop() will acquire it at the start of each iteration.
-        __asm__ volatile ( "cli" ) ;
+        __asm__ volatile ("cli");
         thread_t bootstrap = {};
         bootstrap.tid      = -1;
         bootstrap.process  = kernel_process;
@@ -970,7 +954,7 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
         hcf();
 
     cpu_set_active_thread(cpu, schedt);
-    cpu->user_rsp      = 0;
+    cpu->user_rsp = 0;
 
     for (;;) {
         spinlock_acquire(&scheduler_lock);
@@ -987,7 +971,7 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
                 idle = idle_threads[0];
             if (!idle) {
                 spinlock_release(&scheduler_lock);
-                __asm__ volatile ( "sti; hlt; cli" ) ;
+                __asm__ volatile ("sti; hlt; cli");
                 continue;
             }
             next = idle;
@@ -1064,7 +1048,7 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
 
         vmm_switch_pml4(kernel_process->pml4);
         cpu_set_active_thread(cpu, schedt);
-        cpu->user_rsp      = 0;
+        cpu->user_rsp = 0;
     }
 }
 
@@ -1072,14 +1056,14 @@ void schedule(void)
 {
     // Save interrupt state and disable interrupts
     uint64_t rflags;
-    __asm__ volatile ( "pushfq; pop %0; cli" : "=r"(rflags) ) ;
+    __asm__ volatile ("pushfq; pop %0; cli" : "=r"(rflags));
 
     cpu_t *cpu       = get_cpu();
     thread_t *curr   = cpu ? cpu->active_thread : nullptr;
     thread_t *schedt = cpu ? cpu->scheduler_thread : nullptr;
     if (!curr || !schedt) {
         if (rflags & RFLAGS_IF)
-            __asm__ volatile ( "sti" ) ;
+            __asm__ volatile ("sti");
         return;
     }
 
@@ -1100,7 +1084,7 @@ void schedule(void)
     switch_to(curr, schedt);
 
     if (rflags & RFLAGS_IF)
-        __asm__ volatile ( "sti" ) ;
+        __asm__ volatile ("sti");
 }
 
 void thread_sleep(void *chan, spinlock_t *lock)
@@ -1111,7 +1095,7 @@ void thread_sleep(void *chan, spinlock_t *lock)
 
     // Save interrupt state and disable interrupts to avoid deadlock with scheduler_lock
     uint64_t rflags;
-    __asm__ volatile ( "pushfq; pop %0; cli" : "=r"(rflags) ) ;
+    __asm__ volatile ("pushfq; pop %0; cli" : "=r"(rflags));
 
     // Acquire scheduler lock for state transition; release any provided lock.
     const bool caller_had_scheduler_lock = (lock == &scheduler_lock);
@@ -1140,12 +1124,7 @@ void thread_sleep(void *chan, spinlock_t *lock)
     }
 
     if (rflags & RFLAGS_IF)
-        __asm__ volatile (
-
-
-                "sti"
-            )
-            ;
+        __asm__ volatile ("sti");
 }
 
 void thread_wakeup(void *chan)
