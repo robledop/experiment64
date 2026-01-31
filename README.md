@@ -91,7 +91,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
 
 - **Arch/boot**: x86_64, Limine bootloader, Intel-syntax asm, SMP bring-up, APIC + IOAPIC, IDT/GDT, syscall entry
 - **Memory**: physical allocator (bitmap), DMA allocator (contiguous, HHDM-mapped), virtual memory manager (4 KiB pages),
-  kernel heap (slab + big allocs), stack protector, UBSan, VMA tracking for mmap, address space layout in
+  kernel heap (slab + big allocs, panics on OOM), stack protector, UBSan, VMA tracking for mmap, address space layout in
   `docs/address_space.md`
 - **Timing**: PIT for ticks, TSC calibration for timing
 - **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, USB xHCI (

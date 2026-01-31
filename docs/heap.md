@@ -6,7 +6,7 @@ https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwic
 https://hammertux.github.io/slab-allocator 
 
 The kernel heap provides dynamic allocations via `kmalloc`/`kfree`. It is a
-hybrid allocator:
+hybrid allocator and panics on out-of-memory (except for size 0).
 
 - Small allocations (<= 2048 bytes) use fixed-size slab caches.
 - Large allocations use contiguous page ranges from the PMM.
@@ -84,7 +84,8 @@ The returned pointer is immediately after the header in the same page.
 ## API Summary
 
 ### `kmalloc(size)`
-Returns a heap pointer or `nullptr` for size 0 or OOM.
+
+Returns a heap pointer or `nullptr` for size 0. Panics on OOM.
 
 ### `kzalloc(size)`
 `kmalloc` + `memset` to zero.

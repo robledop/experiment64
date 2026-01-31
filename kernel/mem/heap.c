@@ -5,6 +5,7 @@
 #include <drivers/terminal.h>
 #include <lib/list.h>
 #include <task/spinlock.h>
+#include <debug.h>
 
 // A SIMPLE (naive) SLAB ALLOCATOR
 
@@ -42,7 +43,11 @@ typedef struct slab_header
     void* free_list;
     // Big alloc specific
     size_t page_count;
-} __attribute__((aligned(16))) slab_header_t;
+} __attribute__((aligned (16)
+
+)
+)
+slab_header_t;
 
 extern uint64_t g_hhdm_offset;
 static spinlock_t heap_lock;
@@ -58,7 +63,12 @@ static const size_t slab_cache_sizes[] = {32, 64, 128, 256, 512, 1024, 2048};
 #define CACHE_COUNT (sizeof(slab_cache_sizes) / sizeof(slab_cache_sizes[0]))
 
 static list_item_t slab_caches[CACHE_COUNT];
-static bool slab_guard_valid(slab_header_t* slab);
+static bool slab_guard_valid(slab_header_t * slab);
+
+static void heap_panic_oom(const char* kind, const size_t size, const size_t pages)
+{
+    panic("heap: out of memory (%s) size=%zu pages=%zu", kind, size, pages);
+}
 
 static inline void slab_fill(void* dst, const int c, size_t n)
 {
@@ -276,9 +286,22 @@ void heap_init(uint64_t hhdm_offset)
     g_hhdm_offset = hhdm_offset;
     // Enforce supervisor write-protect so RO PTEs fault on kernel writes
     uint64_t cr0;
-    __asm__ volatile("mov %0, cr0" : "=r"(cr0));
+    __asm__ volatile (
+    "mov %0, cr0"
+    :
+    "=r"(cr0)
+    )
+    ;
     cr0 |= (1ull << 16); // CR0.WP
-    __asm__ volatile("mov cr0, %0" : : "r"(cr0) : "memory");
+    __asm__ volatile (
+    "mov cr0, %0"
+    :
+    :
+    "r"(cr0)
+    :
+    "memory"
+    )
+    ;
 
     spinlock_init(&heap_lock);
     for (size_t i = 0; i < CACHE_COUNT; i++)
@@ -294,7 +317,11 @@ static void* alloc_big(const size_t size)
     const size_t pages = (total_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
     void* phys = pmm_alloc_pages(pages);
-    if (!phys) return nullptr;
+    if (!phys)
+    {
+        heap_panic_oom("big", size, pages);
+        return nullptr;
+    }
 
     void* virt = phys_to_virt(phys);
     auto header = (slab_header_t*)virt;
@@ -346,7 +373,11 @@ static void* alloc_slab(const int index)
     if (!slab) // Slab not found, allocate a new one
     {
         void* phys = pmm_alloc_page();
-        if (!phys) return nullptr;
+        if (!phys)
+        {
+            heap_panic_oom("slab", get_cache_size(index), 1);
+            return nullptr;
+        }
 
         void* virt = phys_to_virt(phys);
         slab = (slab_header_t*)virt;
