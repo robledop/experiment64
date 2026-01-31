@@ -65,6 +65,19 @@ TEST (test_signal_sigchld)
     return true;
 }
 
+TEST (test_signal_nocldwait)
+{
+    const int pid = sys_spawn("/bin/sigtest_nocldwait");
+    TEST_ASSERT(pid > 1);
+
+    int status = 0;
+    TEST_ASSERT(signal_wait_pid(pid, &status));
+    if (status != 12)
+        printk("test_signal_nocldwait: pid=%d status=%d\n", pid, status);
+    TEST_ASSERT(status == 12);
+    return true;
+}
+
 TEST (test_signal_mask)
 {
     const int pid = sys_spawn("/bin/sigtest_mask");

@@ -12,6 +12,12 @@ int sys_wait(int* status)
         uint64_t rflags;
         SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
+        sigaction_t action = current_process->sigactions[SIGCHLD - 1];
+        if (action.sa_handler == SIG_IGN || (action.sa_flags & SA_NOCLDWAIT)) {
+            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+            return -1;
+        }
+
         bool has_children = false;
         process_t* found = nullptr;
         bool has_unreapable_zombie = false;
@@ -20,6 +26,8 @@ int sys_wait(int* status)
         {
             if (p->parent == current_process)
             {
+                if (p->auto_reap)
+                    continue;
                 has_children = true;
                 if (p->terminated)
                 {

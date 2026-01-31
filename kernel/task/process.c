@@ -181,8 +181,7 @@ static thread_t *create_idle_thread(void)
 /**
  * Create a scheduler thread for a CPU.
  * Each scheduler thread is responsible for managing the scheduling of threads
- * on a specific CPU. It runs at a higher priority than regular threads and
- * ensures fair and efficient thread execution.
+ * on a specific CPU. It runs at a higher priority than regular threads
  *
  * @param cpu_idx CPU index
  * @return Scheduler thread or nullptr on failure
@@ -214,8 +213,8 @@ static thread_t *create_scheduler_thread(uint32_t cpu_idx)
     uint64_t stack_ptr = thread->kstack_top - KSTACK_SYSCALL_HEADROOM;
     stack_ptr          -= sizeof(struct context);
     // Align for direct C entry (scheduler_loop). SysV expects 16B alignment at call sites.
-    stack_ptr           &= ~0xFULL;
-    struct context *ctx = (struct context *)stack_ptr;
+    stack_ptr &= ~0xFULL;
+    auto ctx  = (struct context *)stack_ptr;
     memset(ctx, 0, sizeof(struct context));
     ctx->rip = (uint64_t)scheduler_loop;
 
@@ -232,8 +231,8 @@ static inline bool thread_state_valid_raw(uint32_t raw_state)
 
 static inline uint32_t thread_state_load_raw(const thread_t *t)
 {
-    return __atomic_load_n((const uint32_t *)&t->state, __ATOMIC_RELAXED);
     // __ATOMIC_RELAXED means no memory ordering constraints
+    return __atomic_load_n((const uint32_t *)&t->state, __ATOMIC_RELAXED);
 }
 
 static inline void thread_state_store(thread_t *t, thread_state_t state)
@@ -317,8 +316,8 @@ static inline bool thread_is_ready(thread_t *t, bool allow_user, const char *ctx
         return false;
     }
 
-    thread_state_t state = (thread_state_t)raw_state;
-    const bool userish   = t->is_user || (t->saved_user_rsp != 0);
+    auto state         = (thread_state_t)raw_state;
+    const bool userish = t->is_user || (t->saved_user_rsp != 0);
     // ReSharper disable once CppDFAUnreachableCode
     return state == THREAD_READY && !t->is_idle && (allow_user || !userish);
 }
@@ -875,6 +874,21 @@ bool process_can_reap_locked(process_t *proc)
     return true;
 }
 
+static process_t *claim_auto_reap_locked(void)
+{
+    spinlock_assert_held(&scheduler_lock);
+    process_t *p;
+    list_foreach_entry(p, &process_list, list) {
+        if (!p || !p->terminated || !p->auto_reap || p->auto_reap_claimed)
+            continue;
+        if (!process_can_reap_locked(p))
+            continue;
+        p->auto_reap_claimed = true;
+        return p;
+    }
+    return nullptr;
+}
+
 /**
  * Scan all processes and return the first runnable thread.
  * @warning Caller must hold scheduler_lock.
@@ -968,6 +982,15 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
 
     for (;;) {
         spinlock_acquire(&scheduler_lock);
+
+        // Processes that have the SA_NOCLDWAIT flag set for the SIGCHLD signal
+        // have their children automatically reaped
+        process_t *reap_proc = claim_auto_reap_locked();
+        if (reap_proc) {
+            spinlock_release(&scheduler_lock);
+            process_reap(reap_proc);
+            continue;
+        }
         list_item_t free_list = LIST_HEAD_INIT(free_list);
         collect_detached_terminated_threads(&free_list);
         constexpr bool allow_user = true;

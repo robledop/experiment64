@@ -73,6 +73,8 @@ typedef struct Process
     struct Process *parent; // Parent process
     int exit_code;
     bool terminated;
+    bool auto_reap;
+    bool auto_reap_claimed;
     sigaction_t sigactions[SIG_MAX];
     // A signal mask is a set of signals a process or thread tells
     // the operating system to block from immediate delivery

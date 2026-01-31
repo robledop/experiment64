@@ -188,6 +188,9 @@ void signal_send_sigchld(process_t *process)
     }
     process_t *parent  = process->parent;
     sigaction_t action = parent->sigactions[SIGCHLD - 1];
+    if (action.sa_handler == SIG_IGN || (action.sa_flags & SA_NOCLDWAIT)) {
+        process->auto_reap = true;
+    }
     if (action.sa_handler == SIG_IGN || action.sa_handler == SIG_DFL) {
         parent->sig_pending &= ~signal_bit(SIGCHLD); // Clear bit
     } else {

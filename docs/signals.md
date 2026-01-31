@@ -68,7 +68,10 @@ Handler installation uses `sigaction`:
 
 - `SIGKILL` and `SIGSTOP` cannot be overridden (attempts fail).
 - `SIG_IGN` clears any pending instance of that signal.
-- `sa_flags` is stored but currently ignored (`SA_RESTART` is not implemented).
+- `SA_NOCLDWAIT` on `SIGCHLD` enables auto-reap: exited children do not become
+  zombies and `wait` returns `-1` for the parent.
+- Setting `SIGCHLD` to `SIG_IGN` also enables auto-reap.
+- Other `sa_flags` are stored but currently ignored (`SA_RESTART` is not implemented).
 
 When a handler runs, the kernel sets the mask to:
 
