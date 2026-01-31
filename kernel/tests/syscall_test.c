@@ -1600,8 +1600,11 @@ TEST(test_syscall_dup_invalid)
     TEST_ASSERT(sys_dup(-1) == -1);
     TEST_ASSERT(sys_dup(999) == -1);
 
-    // Unopened fd
-    TEST_ASSERT(sys_dup(5) == -1); // Assuming fd 5 is not open
+    int fd = sys_open("/dup_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_dup(fd) == -1);
+    sys_unlink("/dup_invalid.txt");
 
     return true;
 }
