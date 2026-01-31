@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 int main(void)
 {
@@ -9,30 +10,37 @@ int main(void)
         return 1;
     }
     if (pid == 0) {
+        sleep(50);
         return 42;
     }
 
     int status = 0;
-    int rc = waitpid(pid, &status, 1);
+    int rc = waitpid(pid, &status, WNOHANG);
+    if (rc != 0) {
+        printf("waitpid_test: WNOHANG rc=%d\n", rc);
+        return 2;
+    }
+
+    rc = waitpid(pid, &status, 2);
     if (rc != -1) {
         printf("waitpid_test: invalid options rc=%d\n", rc);
-        return 2;
+        return 3;
     }
 
     const int waited = waitpid(pid, &status, 0);
     if (waited != pid) {
         printf("waitpid_test: waitpid returned %d (expected %d)\n", waited, pid);
-        return 3;
+        return 4;
     }
     if (status != 42) {
         printf("waitpid_test: unexpected status %d\n", status);
-        return 4;
+        return 5;
     }
 
     rc = waitpid(pid, &status, 0);
     if (rc >= 0) {
         printf("waitpid_test: second waitpid returned %d\n", rc);
-        return 5;
+        return 6;
     }
 
     return 14;
