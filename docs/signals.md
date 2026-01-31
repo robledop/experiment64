@@ -1,7 +1,6 @@
 # Signals
 
-This document describes the current signal support in experiment64. The
-implementation is intentionally small and favors simple, predictable behavior.
+https://www.youtube.com/watch?v=d0gS5TXarXc&t=1009s
 
 ---
 

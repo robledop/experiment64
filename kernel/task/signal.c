@@ -192,6 +192,7 @@ void signal_send_sigchld(process_t *process)
         parent->sig_pending &= ~signal_bit(SIGCHLD); // Clear bit
     } else {
         parent->sig_pending |= signal_bit(SIGCHLD); // Set bit
+        // Only send signal immediately if not masked
         if ((parent->sig_mask & signal_bit(SIGCHLD)) == 0) {
             signal_mark_threads_ready(parent);
         }
@@ -241,7 +242,10 @@ int signal_send_pid(int pid, int sig)
         target->sig_pending &= ~signal_bit(sig); // Clear bit
     } else {
         target->sig_pending |= signal_bit(sig); // Set bit
-        signal_mark_threads_ready(target);
+        // Only send signal immediately if not masked
+        if ((target->sig_mask & signal_bit(sig)) == 0) {
+            signal_mark_threads_ready(parent);
+        }
     }
 
     spinlock_release(&scheduler_lock);

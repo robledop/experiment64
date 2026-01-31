@@ -52,6 +52,32 @@ TEST (test_signal_user_handler)
     return true;
 }
 
+TEST (test_signal_sigchld)
+{
+    const int pid = sys_spawn("/bin/sigtest_sigchld");
+    TEST_ASSERT(pid > 1);
+
+    int status = 0;
+    TEST_ASSERT(signal_wait_pid(pid, &status));
+    if (status != 10)
+        printk("test_signal_sigchld: pid=%d status=%d\n", pid, status);
+    TEST_ASSERT(status == 10);
+    return true;
+}
+
+TEST (test_signal_mask)
+{
+    const int pid = sys_spawn("/bin/sigtest_mask");
+    TEST_ASSERT(pid > 1);
+
+    int status = 0;
+    TEST_ASSERT(signal_wait_pid(pid, &status));
+    if (status != 11)
+        printk("test_signal_mask: pid=%d status=%d\n", pid, status);
+    TEST_ASSERT(status == 11);
+    return true;
+}
+
 TEST (test_signal_default_terminate)
 {
     const int pid = sys_spawn("/bin/sigtest_term");
