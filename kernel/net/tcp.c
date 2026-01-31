@@ -167,9 +167,10 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
             return;
 
         const int backlog = (listener->backlog > 0) ? listener->backlog : 1;
-        spinlock_acquire(&listener->accept_lock);
+        uint64_t rflags;
+        SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
         const bool backlog_full = listener->accept_queue_len >= (size_t)backlog;
-        spinlock_release(&listener->accept_lock);
+        SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
         if (backlog_full)
             return;
 
@@ -209,14 +210,15 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
             {
                 const int backlog = (listener->backlog > 0) ? listener->backlog : 1;
                 bool queued = false;
-                spinlock_acquire(&listener->accept_lock);
+                uint64_t rflags;
+                SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
                 if (listener->accept_queue_len < (size_t)backlog)
                 {
                     list_add_tail(&sock->accept_list, &listener->accept_queue);
                     listener->accept_queue_len++;
                     queued = true;
                 }
-                spinlock_release(&listener->accept_lock);
+                SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
                 if (queued)
                     thread_wakeup(listener);
                 else

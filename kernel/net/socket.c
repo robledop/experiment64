@@ -43,22 +43,23 @@ static bool socket_port_conflict_locked(const uint16_t port, const uint8_t ip[st
 
 static void socket_rx_purge(socket_t* sock)
 {
-    spinlock_acquire(&sock->rx_lock);
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
     while (!list_empty(&sock->rx_queue))
     {
         socket_rx_packet_t* pkt = list_entry(sock->rx_queue.next, socket_rx_packet_t, list);
         list_del(&pkt->list);
         if (sock->rx_queue_len > 0)
             sock->rx_queue_len--;
-        spinlock_release(&sock->rx_lock);
+        SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
 
         if (pkt->data)
             kfree(pkt->data);
         kfree(pkt);
 
-        spinlock_acquire(&sock->rx_lock);
+        SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
     }
-    spinlock_release(&sock->rx_lock);
+    SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
 }
 
 static void socket_accept_purge(socket_t* sock)
@@ -67,10 +68,11 @@ static void socket_accept_purge(socket_t* sock)
 
     while (true)
     {
-        spinlock_acquire(&sock->accept_lock);
+        uint64_t rflags;
+        SPIN_LOCK_INT_SAVE(sock->accept_lock, rflags);
         if (list_empty(&sock->accept_queue))
         {
-            spinlock_release(&sock->accept_lock);
+            SPIN_UNLOCK_INT_RESTORE(sock->accept_lock, rflags);
             break;
         }
 
@@ -78,7 +80,7 @@ static void socket_accept_purge(socket_t* sock)
         list_del(&child->accept_list);
         if (sock->accept_queue_len > 0)
             sock->accept_queue_len--;
-        spinlock_release(&sock->accept_lock);
+        SPIN_UNLOCK_INT_RESTORE(sock->accept_lock, rflags);
 
         socket_unregister(child);
         kfree(child);
@@ -195,10 +197,11 @@ static int socket_enqueue_rx(socket_t* sock, const uint8_t* payload, const size_
         memcpy(pkt->data, payload, payload_len);
     }
 
-    spinlock_acquire(&sock->rx_lock);
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
     if (sock->rx_queue_len >= SOCKET_RX_MAX_PACKETS)
     {
-        spinlock_release(&sock->rx_lock);
+        SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
         if (pkt->data)
             kfree(pkt->data);
         kfree(pkt);
@@ -206,7 +209,7 @@ static int socket_enqueue_rx(socket_t* sock, const uint8_t* payload, const size_
     }
     list_add_tail(&pkt->list, &sock->rx_queue);
     sock->rx_queue_len++;
-    spinlock_release(&sock->rx_lock);
+    SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
 
     thread_wakeup(sock);
     return 0;
@@ -216,12 +219,13 @@ socket_rx_packet_t* socket_rx_pop(socket_t* sock, const bool block)
 {
     if (!sock) return nullptr;
 
-    spinlock_acquire(&sock->rx_lock);
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
     while (list_empty(&sock->rx_queue))
     {
         if (!block)
         {
-            spinlock_release(&sock->rx_lock);
+            SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
             return nullptr;
         }
         thread_sleep(sock, &sock->rx_lock);
@@ -231,7 +235,7 @@ socket_rx_packet_t* socket_rx_pop(socket_t* sock, const bool block)
     list_del(&pkt->list);
     if (sock->rx_queue_len > 0)
         sock->rx_queue_len--;
-    spinlock_release(&sock->rx_lock);
+    SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
     return pkt;
 }
 
