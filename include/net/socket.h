@@ -27,6 +27,7 @@
 #define SOCKET_FLAG_TCP_SYN_RCVD 0x00000001u
 #define SOCKET_FLAG_TCP_ESTABLISHED 0x00000002u
 #define SOCKET_FLAG_TCP_FIN_SENT 0x00000004u
+#define SOCKET_FLAG_HEAP_ALLOC 0x80000000u
 
 typedef enum
 {
@@ -95,6 +96,8 @@ typedef struct
 
 void socket_register(socket_t* sock);
 void socket_unregister(socket_t* sock);
+void socket_hold(socket_t* sock);
+void socket_put(socket_t* sock);
 int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requested_port, uint16_t* out_port);
 socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t dest_port);
 socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t dest_port,

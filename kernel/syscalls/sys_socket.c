@@ -14,9 +14,14 @@ static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint
 
     auto sock = (socket_t*)node->device;
     if (!sock) return 0;
+    socket_hold(sock);
 
     socket_rx_packet_t* pkt = socket_rx_pop(sock, true);
-    if (!pkt) return 0;
+    if (!pkt)
+    {
+        socket_put(sock);
+        return 0;
+    }
 
     const size_t copy_len = (pkt->len < size) ? pkt->len : size;
     if (copy_len > 0)
@@ -24,6 +29,7 @@ static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint
 
     if (pkt->data) kfree(pkt->data);
     kfree(pkt);
+    socket_put(sock);
     return copy_len;
 }
 
@@ -54,9 +60,8 @@ static void socket_inode_close(vfs_inode_t* node)
     if (sock)
     {
         if (sock->protocol == IPPROTO_TCP) socket_send_tcp_fin(sock);
-        socket_unregister(sock);
         node->device = nullptr;
-        kfree(sock);
+        socket_unregister(sock);
     }
 }
 
@@ -105,12 +110,13 @@ int sys_socket(const int domain, const int type, int protocol)
     sock->type = type;
     sock->protocol = protocol;
     sock->state = SOCKET_STATE_UNBOUND;
+    sock->flags |= SOCKET_FLAG_HEAP_ALLOC;
     sock->ref = 1;
 
     auto const inode = (vfs_inode_t*)kzalloc(sizeof(vfs_inode_t));
     if (!inode)
     {
-        kfree(sock);
+        socket_put(sock);
         return -1;
     }
     inode->flags = VFS_PIPE;
@@ -122,7 +128,7 @@ int sys_socket(const int domain, const int type, int protocol)
     if (!desc)
     {
         kfree(inode);
-        kfree(sock);
+        socket_put(sock);
         return -1;
     }
     desc->inode = inode;

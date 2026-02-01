@@ -172,11 +172,17 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
         const bool backlog_full = listener->accept_queue_len >= (size_t)backlog;
         SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
         if (backlog_full)
+        {
+            socket_put(listener);
             return;
+        }
 
         auto child = (socket_t*)kzalloc(sizeof(socket_t));
         if (!child)
+        {
+            socket_put(listener);
             return;
+        }
         child->domain = listener->domain;
         child->type = listener->type;
         child->protocol = listener->protocol;
@@ -185,12 +191,13 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
         child->local.port = listener->local.port;
         memcpy(child->remote.ip, ipv4_header->source_ip, sizeof(child->remote.ip));
         child->remote.port = tcp_header->src_port;
-        child->flags = SOCKET_FLAG_TCP_SYN_RCVD;
+        child->flags = SOCKET_FLAG_TCP_SYN_RCVD | SOCKET_FLAG_HEAP_ALLOC;
         child->tcp_recv_next = seq_num + 1;
         const uint32_t isn = tcp_generate_isn();
         child->tcp_send_next = isn + 1;
         socket_register(child);
 
+        socket_put(listener);
         tcp_send_segment(child, ipv4_header->source_ip, tcp_header->src_port,
                          isn, child->tcp_recv_next, (uint8_t)(TCP_FLAG_SYN | TCP_FLAG_ACK),
                          nullptr, 0, ether_header->src_host);
@@ -224,19 +231,20 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
                 else
                 {
                     socket_unregister(sock);
-                    kfree(sock);
-                    return;
+                    socket_put(listener);
+                    goto out;
                 }
+                socket_put(listener);
             }
         }
         else
         {
-            return;
+            goto out;
         }
     }
 
     if ((sock->flags & SOCKET_FLAG_TCP_ESTABLISHED) == 0)
-        return;
+        goto out;
 
     bool should_ack = false;
     if (payload_len > 0)
@@ -267,6 +275,8 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
                          sock->tcp_send_next, sock->tcp_recv_next,
                          TCP_FLAG_ACK, nullptr, 0, ether_header->src_host);
     }
+out:
+    socket_put(sock);
 }
 
 int tcp_sendto(const void* buf, const size_t len, const struct sockaddr* dest_addr, socket_t* const sock,

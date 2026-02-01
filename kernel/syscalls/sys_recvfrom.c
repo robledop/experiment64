@@ -22,10 +22,15 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
 
     socket_t* sock = (socket_t*)desc->inode->device;
     if (!sock) return -1;
+    socket_hold(sock);
 
     const bool block = (flags & MSG_DONTWAIT) == 0;
     socket_rx_packet_t* pkt = socket_rx_pop(sock, block);
-    if (!pkt) return -1;
+    if (!pkt)
+    {
+        socket_put(sock);
+        return -1;
+    }
 
     size_t copy_len = (pkt->len < len) ? pkt->len : len;
     if (copy_len > 0) memcpy(buf, pkt->data, copy_len);
@@ -41,6 +46,7 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
             if (pkt->data)
                 kfree(pkt->data);
             kfree(pkt);
+            socket_put(sock);
             return -1;
         }
     }
@@ -52,11 +58,13 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
         {
             if (pkt->data) kfree(pkt->data);
             kfree(pkt);
+            socket_put(sock);
             return -1;
         }
     }
 
     if (pkt->data) kfree(pkt->data);
     kfree(pkt);
+    socket_put(sock);
     return clamp_to_int(copy_len);
 }

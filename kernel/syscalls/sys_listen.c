@@ -12,10 +12,20 @@ int sys_listen(const int fd, const int backlog)
 
     auto const sock = (socket_t*)desc->inode->device;
     if (!sock) return -1;
-    if (sock->type != SOCK_STREAM || sock->protocol != IPPROTO_TCP) return -1;
-    if (sock->state != SOCKET_STATE_BOUND && sock->state != SOCKET_STATE_LISTENING) return -1;
+    socket_hold(sock);
+    if (sock->type != SOCK_STREAM || sock->protocol != IPPROTO_TCP)
+    {
+        socket_put(sock);
+        return -1;
+    }
+    if (sock->state != SOCKET_STATE_BOUND && sock->state != SOCKET_STATE_LISTENING)
+    {
+        socket_put(sock);
+        return -1;
+    }
 
     sock->backlog = (backlog > 0) ? backlog : 1;
     sock->state = SOCKET_STATE_LISTENING;
+    socket_put(sock);
     return 0;
 }

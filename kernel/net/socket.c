@@ -16,6 +16,24 @@ static void socket_lock_init_once(void)
     socket_lock_ready = true;
 }
 
+void socket_hold(socket_t* sock)
+{
+    if (!sock) return;
+    __atomic_add_fetch(&sock->ref, 1, __ATOMIC_RELAXED);
+}
+
+void socket_put(socket_t* sock)
+{
+    if (!sock) return;
+    uint32_t ref = __atomic_sub_fetch(&sock->ref, 1, __ATOMIC_RELEASE);
+    if (ref == 0)
+    {
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+        if (sock->flags & SOCKET_FLAG_HEAP_ALLOC)
+            kfree(sock);
+    }
+}
+
 static bool socket_addr_is_any(const uint8_t ip[static 4])
 {
     return ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
@@ -84,7 +102,6 @@ static void socket_accept_purge(socket_t* sock)
         SPIN_UNLOCK_INT_RESTORE(sock->accept_lock, rflags);
 
         socket_unregister(child);
-        kfree(child);
     }
 }
 
@@ -102,6 +119,8 @@ void socket_register(socket_t* sock)
     sock->rx_queue_len = 0;
     sock->accept_queue_len = 0;
     sock->backlog = 0;
+    if (sock->ref == 0)
+        sock->ref = 1;
 
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
@@ -124,6 +143,7 @@ void socket_unregister(socket_t* sock)
     socket_accept_purge(sock);
     socket_rx_purge(sock);
     thread_wakeup(sock);
+    socket_put(sock);
 }
 
 /**
@@ -260,6 +280,7 @@ socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t des
             memcmp(s->local.ip, dest_ip, sizeof(s->local.ip)) != 0)
             continue;
 
+        socket_hold(s);
         SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
         return s;
     }
@@ -293,6 +314,7 @@ socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t de
         if (s->remote.port != 0 && s->remote.port != src_port)
             continue;
 
+        socket_hold(s);
         SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
         return s;
     }

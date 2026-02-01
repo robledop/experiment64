@@ -28,10 +28,12 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
     auto const sock = (socket_t*)desc->inode->device;
     if (!sock)
         return -1;
+    socket_hold(sock);
 
+    int res = -1;
     const uint8_t* my_ip = network_get_my_ip_address();
     if (!my_ip)
-        return -1;
+        goto out;
     uint8_t src_ip[4];
     // If the IP is 0.0.0.0, that is local, so use our own IP
     if (ip_is_zero(sock->local.ip))
@@ -44,26 +46,37 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
     if (dest_addr)
     {
         if (addrlen < sizeof(struct sockaddr_in))
-            return -1;
+            goto out;
         if (!copy_from_user(&in, dest_addr, sizeof(in)))
-            return -1;
+            goto out;
         if (in.sin_family != AF_INET)
-            return -1;
+            goto out;
         dest_check = (const struct sockaddr*)&in;
     }
     else if (sock->protocol != IPPROTO_TCP || sock->type != SOCK_STREAM)
     {
-        return -1;
+        goto out;
     }
 
     if (sock->protocol == IPPROTO_TCP && sock->type == SOCK_STREAM)
-        return tcp_sendto(buf, len, dest_check, sock, in);
+    {
+        res = tcp_sendto(buf, len, dest_check, sock, in);
+        goto out;
+    }
 
     if (sock->protocol == IPPROTO_UDP && sock->type == SOCK_DGRAM)
-        return udp_sendto(buf, len, sock, in, my_ip, src_ip);
+    {
+        res = udp_sendto(buf, len, sock, in, my_ip, src_ip);
+        goto out;
+    }
 
     if (sock->protocol == IPPROTO_ICMP && sock->type == SOCK_RAW)
-        return icmp_sendto(buf, len, in, src_ip);
+    {
+        res = icmp_sendto(buf, len, in, src_ip);
+        goto out;
+    }
 
-    return -1;
+out:
+    socket_put(sock);
+    return res;
 }

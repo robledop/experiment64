@@ -2139,6 +2139,7 @@ TEST(test_syscall_accept_basic)
         remote_seq + 1, pending->tcp_send_next, TCP_FLAG_ACK,
         nullptr, 0));
     tcp_receive(ack_packet, (uint16_t)sizeof(ack_packet), ack_ip_len, ip_header_len);
+    socket_put(pending);
 
     sockaddr_in_t client = {0};
     const int conn_fd    = sys_accept(listen_fd, (sockaddr_t *)&client, sizeof(client));

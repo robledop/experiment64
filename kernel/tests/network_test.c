@@ -463,6 +463,7 @@ TEST(test_tcp_receive_basic)
         kfree(pkt->data);
     kfree(pkt);
 
+    socket_put(child);
     socket_unregister(&sock);
     return true;
 }

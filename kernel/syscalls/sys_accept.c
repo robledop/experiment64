@@ -20,14 +20,27 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     auto listener = (socket_t*)desc->inode->device;
     if (!listener)
         return -1;
+    socket_hold(listener);
     if (listener->type != SOCK_STREAM || listener->protocol != IPPROTO_TCP)
+    {
+        socket_put(listener);
         return -1;
+    }
     if (listener->state != SOCKET_STATE_LISTENING)
+    {
+        socket_put(listener);
         return -1;
+    }
     if (addr && addrlen < sizeof(struct sockaddr_in))
+    {
+        socket_put(listener);
         return -1;
+    }
     if (addr && !user_ptr_write_ok(addr, sizeof(struct sockaddr_in), "sys_accept"))
+    {
+        socket_put(listener);
         return -1;
+    }
 
     socket_t* child = nullptr;
     uint64_t rflags;
@@ -52,7 +65,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     if (new_fd == -1)
     {
         socket_unregister(child);
-        kfree(child);
+        socket_put(listener);
         return -1;
     }
 
@@ -60,7 +73,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     if (!inode)
     {
         socket_unregister(child);
-        kfree(child);
+        socket_put(listener);
         return -1;
     }
     inode->flags = VFS_PIPE;
@@ -73,7 +86,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     {
         kfree(inode);
         socket_unregister(child);
-        kfree(child);
+        socket_put(listener);
         return -1;
     }
     new_desc->inode = inode;
@@ -91,9 +104,11 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         if (!copy_to_user(addr, &out, sizeof(out)))
         {
             sys_close(new_fd);
+            socket_put(listener);
             return -1;
         }
     }
 
+    socket_put(listener);
     return new_fd;
 }
