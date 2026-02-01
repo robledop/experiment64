@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-#include "stdint.h"
-
 #define HEADER_SIZE 12
 
 // ###############################################
@@ -25,6 +23,14 @@
 
 #define DNS_CLASS_IN 1
 #define DNS_TYPE_A 1
+#define DNS_TYPE_NS 2
+#define DNS_TYPE_CNAME 5
+#define DNS_TYPE_SOA 6
+#define DNS_TYPE_PTR 12
+#define DNS_TYPE_MX 15
+#define DNS_TYPE_TXT 16
+#define DNS_TYPE_AAAA 28
+#define DNS_TYPE_SRV 33
 
 #define DNS_OPCODE_QUERY 0
 #define DNS_OPCODE_IQUERY 1
@@ -46,13 +52,15 @@
 
 struct dns_header
 {
-    uint16_t id;            // Packet ID
-    uint16_t flags;         // Flags/Opcode (network order)
-    uint16_t qdcount;       // Question count
-    uint16_t ancount;       // Answer count
-    uint16_t nscount;       // Authority record count
-    uint16_t arcount;       // Additional record count
+    uint16_t id;      // Packet ID
+    uint16_t flags;   // Flags/Opcode (network order)
+    uint16_t qdcount; // Question count
+    uint16_t ancount; // Answer count
+    uint16_t nscount; // Authority record count
+    uint16_t arcount; // Additional record count
 } __attribute__((packed));
+
+static_assert(sizeof(struct dns_header) == HEADER_SIZE, "dns header size mismatch");
 
 struct dns_question
 {
@@ -74,10 +82,10 @@ struct dns_record
 struct dns_message
 {
     struct dns_header header;
-    struct dns_question* questions;
-    struct dns_record* answers;
-    struct dns_record* authorities;
-    struct dns_record* additionals;
+    struct dns_question *questions;
+    struct dns_record *answers;
+    struct dns_record *authorities;
+    struct dns_record *additionals;
 };
 
 struct q_name
@@ -89,9 +97,9 @@ struct q_name
 
 struct dns_pool_item
 {
-    struct sockaddr_in* address;
-    struct dns_message* message;
-    struct dns_pool_item* next;
+    struct sockaddr_in *address;
+    struct dns_message *message;
+    struct dns_pool_item *next;
 };
 
-uint32_t gethostbyname(const char* name, struct sockaddr_in* address);
+uint32_t gethostbyname(const char *name, struct sockaddr_in *address);

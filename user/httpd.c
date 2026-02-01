@@ -31,25 +31,25 @@ typedef struct http_conn
 
 static ht_str_entry_t mime_table_entries[MIME_TABLE_SIZE];
 static ht_str_table_t mime_table;
-static int mime_table_ready = 0;
+static int mime_table_ready      = 0;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
-static FILE* log_file = nullptr;
+static FILE *log_file            = nullptr;
 
-http_request_t parse_http_request(const char* buf)
+http_request_t parse_http_request(const char *buf)
 {
     http_request_t request = {0};
     sscanf(buf, "%7s %255s %15s", request.method, request.path, request.protocol);
     return request;
 }
 
-static ssize_t send_all(const int sockfd, const void* buf, const size_t len)
+static ssize_t send_all(const int sockfd, const void *buf, const size_t len)
 {
-    auto data = (const char*)buf;
+    auto data         = (const char *)buf;
     size_t sent_total = 0;
-    while (sent_total < len)
-    {
+    while (sent_total < len) {
         const ssize_t sent = send(sockfd, data + sent_total, len - sent_total, 0);
-        if (sent <= 0) return sent;
+        if (sent <= 0)
+            return sent;
         sent_total += (size_t)sent;
     }
     return (ssize_t)sent_total;
@@ -98,8 +98,7 @@ static void mime_table_init(void)
         {".zst", "application/zstd"},
     };
 
-    if (ht_str_init(&mime_table, mime_table_entries, MIME_TABLE_SIZE) != 0)
-    {
+    if (ht_str_init(&mime_table, mime_table_entries, MIME_TABLE_SIZE) != 0) {
         mime_table_ready = 1;
         return;
     }
@@ -108,28 +107,31 @@ static void mime_table_init(void)
     mime_table_ready = 1;
 }
 
-static const char* mime_table_lookup(const char* ext)
+static const char *mime_table_lookup(const char *ext)
 {
-    if (!mime_table_ready) mime_table_init();
+    if (!mime_table_ready)
+        mime_table_init();
 
     return ht_str_get(&mime_table, ext);
 }
 
-static const char* get_content_type(const char* path)
+static const char *get_content_type(const char *path)
 {
-    const char* ext = strrchr(path, '.');
-    if (ext == nullptr) return "application/octet-stream";
+    const char *ext = strrchr(path, '.');
+    if (ext == nullptr)
+        return "application/octet-stream";
 
-    const char* type = mime_table_lookup(ext);
+    const char *type = mime_table_lookup(ext);
     return type ? type : "application/octet-stream";
 }
 
-static int send_file_response(const int sockfd, const int fd, const char* content_type)
+static int send_file_response(const int sockfd, const int fd, const char *content_type)
 {
     struct stat st = {0};
-    if (fstat(fd, &st) < 0) return -1;
+    if (fstat(fd, &st) < 0)
+        return -1;
 
-    char header[256] = {0};
+    char header[256]     = {0};
     const int header_len = snprintf(
         header,
         sizeof(header),
@@ -137,7 +139,8 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
         content_type,
         (long)st.size);
 
-    if (header_len <= 0) return -1;
+    if (header_len <= 0)
+        return -1;
 
     if (send_all(sockfd, header, (size_t)header_len) <= 0)
         return -1;
@@ -145,22 +148,21 @@ static int send_file_response(const int sockfd, const int fd, const char* conten
     char buf[4096];
 
     ssize_t nread = 0;
-    while ((nread = read(fd, buf, sizeof(buf))) > 0)
-    {
+    while ((nread = read(fd, buf, sizeof(buf))) > 0) {
         if (send_all(sockfd, buf, (size_t)nread) <= 0)
             return -1;
     }
     return 0;
 }
 
-static void handle_connection(http_conn_t* conn)
+static void handle_connection(http_conn_t *conn)
 {
-    if (!conn) return;
+    if (!conn)
+        return;
 
-    char buf[2048] = {0};
+    char buf[2048]        = {0};
     const ssize_t req_len = read(conn->connfd, buf, sizeof(buf) - 1);
-    if (req_len <= 0)
-    {
+    if (req_len <= 0) {
         close(conn->connfd);
         return;
     }
@@ -168,44 +170,38 @@ static void handle_connection(http_conn_t* conn)
 
     http_request_t request = parse_http_request(buf);
     pthread_mutex_lock(&log_mutex);
-    if (log_file)
-    {
-        fprintf(log_file, "thread %d request from %s: %s %s %s\n", pthread_self(),
-                conn->client_ip_buf, request.method, request.path, request.protocol);
+    if (log_file) {
+        fprintf(log_file,
+                "thread %d request from %s: %s %s %s\n",
+                pthread_self(),
+                conn->client_ip_buf,
+                request.method,
+                request.path,
+                request.protocol);
     }
     pthread_mutex_unlock(&log_mutex);
 
-    if (strcmp(request.method, "GET") != 0)
-    {
+    if (strcmp(request.method, "GET") != 0) {
         send(conn->connfd, METHOD_NOT_ALLOWED, sizeof(METHOD_NOT_ALLOWED), 0);
         close(conn->connfd);
         return;
     }
 
-    if (strcmp(request.path, "/") == 0)
-    {
+    if (strcmp(request.path, "/") == 0) {
         const int homefd = open("/web/index.html", O_RDONLY);
-        if (homefd < 0)
-        {
+        if (homefd < 0) {
             send(conn->connfd, NOT_FOUND, sizeof(NOT_FOUND), 0);
-        }
-        else
-        {
+        } else {
             send_file_response(conn->connfd, homefd, "text/html");
             close(homefd);
         }
-    }
-    else
-    {
+    } else {
         char path[256] = {0};
         snprintf(path, sizeof(path), "/web%s", request.path);
         const int filefd = open(path, O_RDONLY);
-        if (filefd < 0)
-        {
+        if (filefd < 0) {
             send(conn->connfd, NOT_FOUND, sizeof(NOT_FOUND), 0);
-        }
-        else
-        {
+        } else {
             send_file_response(conn->connfd, filefd, get_content_type(path));
             close(filefd);
         }
@@ -214,9 +210,9 @@ static void handle_connection(http_conn_t* conn)
     close(conn->connfd);
 }
 
-static void* connection_entry(void* arg)
+static void *connection_entry(void *arg)
 {
-    auto conn = (http_conn_t*)arg;
+    auto conn = (http_conn_t *)arg;
     handle_connection(conn);
     free(conn);
     return nullptr;
@@ -225,7 +221,8 @@ static void* connection_entry(void* arg)
 [[noreturn]] int main()
 {
     const int fd = open("/dev/eth0", O_RDONLY);
-    if (fd < 0) panic("httpd: cannot open /dev/eth0\n");
+    if (fd < 0)
+        panic("httpd: cannot open /dev/eth0\n");
     struct netinfo netinfo;
     ioctl(fd, GETNETINFO, &netinfo);
     close(fd);
@@ -234,31 +231,33 @@ static void* connection_entry(void* arg)
     printf("running httpd on ip %s port %d\n", ip_buf, 80);
 
     const int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sockfd < 0) panic("httpd: socket failed\n");
+    if (sockfd < 0)
+        panic("httpd: socket failed\n");
 
     struct sockaddr_in addr = {0};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(80);
+    addr.sin_family         = AF_INET;
+    addr.sin_port           = htons(80);
 
-    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+    if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
         panic("httpd: bind failed\n");
 
-    if (listen(sockfd, 10) < 0) panic("httpd: listen failed\n");
+    if (listen(sockfd, 10) < 0)
+        panic("httpd: listen failed\n");
 
     log_file = fopen("/var/log/httpd", "a");
-    if (log_file == nullptr) panic("httpd: failed to open log file\n");
+    if (log_file == nullptr)
+        panic("httpd: failed to open log file\n");
 
-    while (1)
-    {
+    while (1) {
         struct sockaddr_in client_addr = {0};
-        const int connfd = accept(sockfd, (struct sockaddr*)&client_addr, sizeof(client_addr));
-        if (connfd < 0) continue;
+        const int connfd               = accept(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr));
+        if (connfd < 0)
+            continue;
 
         uint32_t client_ip = 0;
         bytes_to_ip(client_addr.sin_addr, &client_ip);
-        http_conn_t* conn = malloc(sizeof(*conn));
-        if (!conn)
-        {
+        http_conn_t *conn = malloc(sizeof(*conn));
+        if (!conn) {
             close(connfd);
             continue;
         }
@@ -266,8 +265,7 @@ static void* connection_entry(void* arg)
         inet_ntoa_r(ntohl(client_ip), conn->client_ip_buf);
 
         pthread_t thread;
-        if (pthread_create(&thread, nullptr, connection_entry, conn) != 0)
-        {
+        if (pthread_create(&thread, nullptr, connection_entry, conn) != 0) {
             close(connfd);
             free(conn);
             continue;
