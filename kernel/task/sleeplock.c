@@ -11,15 +11,14 @@ static void sleeplock_log_misuse(const sleeplock_t *lk, const char *reason, cons
     const uint32_t hits   = __atomic_add_fetch(&sleeplock_guard_hits, 1, __ATOMIC_RELAXED);
     const process_t *proc = current_process;
     const thread_t *t     = current_thread;
-    boot_message(ERROR,
-                 "sleeplock misuse: %s lock=%s pid=%d tid=%d rflags=0x%lx intr=%d hits=%u",
-                 reason,
-                 (lk != nullptr && lk->name) ? lk->name : "?",
-                 proc != nullptr ? proc->pid : -1,
-                 t != nullptr ? t->tid : -1,
-                 rflags,
-                 cpu_in_interrupt() ? 1 : 0,
-                 hits);
+    printk("sleeplock misuse: %s lock=%s pid=%d tid=%d rflags=0x%lx intr=%d hits=%u\n",
+           reason,
+           (lk != nullptr && lk->name) ? lk->name : "?",
+           proc != nullptr ? proc->pid : -1,
+           t != nullptr ? t->tid : -1,
+           rflags,
+           cpu_in_interrupt() ? 1 : 0,
+           hits);
 }
 
 static void sleeplock_check_context(const sleeplock_t *lk)
