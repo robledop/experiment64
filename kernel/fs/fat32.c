@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include "lib/ansi.h"
+
 static struct inode_operations fat32_iops;
 static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name);
 
@@ -639,7 +641,7 @@ static uint64_t fat32_vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t siz
 
 static void fat32_vfs_open([[maybe_unused]] const vfs_inode_t *node)
 {
-    printk("fat32_vfs_open not implemented");
+    printk(KRED "fat32_vfs_open not implemented\n" KRESET);
 }
 
 static void fat32_vfs_close(vfs_inode_t *node)

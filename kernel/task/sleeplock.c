@@ -17,7 +17,8 @@ void sleeplock_acquire(sleeplock_t *lk)
         thread_sleep(lk, &lk->lock);
     }
     lk->locked = true;
-    lk->pid    = get_current_process() ? get_current_process()->pid : 0;
+    lk->pid    = current_process ? current_process->pid : 0;
+    lk->tid    = current_thread ? current_thread->tid : 0;
     spinlock_release(&lk->lock);
 }
 
@@ -26,6 +27,7 @@ void sleeplock_release(sleeplock_t *lk)
     spinlock_acquire(&lk->lock);
     lk->locked = false;
     lk->pid    = 0;
+    lk->tid    = 0;
     thread_wakeup(lk);
     spinlock_release(&lk->lock);
 }

@@ -7,6 +7,7 @@ typedef struct
     spinlock_t lock;
     bool locked;
     int pid; // For debugging
+    int tid; // For debugging
     const char *name;
 } sleeplock_t;
 
