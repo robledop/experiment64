@@ -120,7 +120,8 @@ If `need_resched` is true, the ISR calls `schedule()` after EOI.
 does not force an immediate reschedule.
 
 Sleeplocks rely on `thread_sleep()` and therefore require the scheduler to be
-initialized. They must not be acquired or released from interrupt context.
+initialized. They must not be acquired or released from interrupt context or
+with interrupts disabled.
 
 ---
 
