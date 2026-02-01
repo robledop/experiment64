@@ -5,6 +5,7 @@
 #include <drivers/terminal.h>
 #include <mem/vmm.h>
 #include <sys/syscall.h>
+#include <syscall_common.h>
 #include <task/spinlock.h>
 #include <arch/x86_64/apic.h>
 #include <arch/x86_64/smp.h>
@@ -47,6 +48,7 @@ void vm_area_init(process_t *proc)
 {
     if (!proc)
         return;
+    spinlock_init(&proc->vm_lock);
     list_init_head(&proc->vm_areas);
     proc->vm_area_count = 0;
 }
@@ -64,6 +66,7 @@ vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t f
     if (!proc || start >= end)
         return nullptr;
 
+    spinlock_acquire(&proc->vm_lock);
     if (!list_empty(&proc->vm_areas)) {
         list_item_t *head = &proc->vm_areas;
         for (list_item_t *pos = head->next; pos != head; pos = pos->next) {
@@ -73,20 +76,24 @@ vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t f
                 continue;
             if (!(end <= existing->start || start >= existing->end)) // NOLINT(clang-analyzer-security.ArrayBound)
             {
+                spinlock_release(&proc->vm_lock);
                 return nullptr; // overlap
             }
         }
     }
 
     vm_area_t *area = kmalloc(sizeof(vm_area_t));
-    if (!area)
+    if (!area) {
+        spinlock_release(&proc->vm_lock);
         return nullptr;
+    }
 
     area->start = start;
     area->end   = end;
     area->flags = flags;
     list_add_tail(&area->list, &proc->vm_areas);
     proc->vm_area_count++;
+    spinlock_release(&proc->vm_lock);
     return area;
 }
 
@@ -95,18 +102,22 @@ vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t f
  * @param dest Destination process
  * @param src Source process
  */
-void vm_area_clone(process_t *dest, const process_t *src)
+void vm_area_clone(process_t *dest, process_t *src)
 {
     if (!dest || !src)
         return;
 
+    spinlock_acquire(&dest->vm_lock);
     list_init_head(&dest->vm_areas);
     dest->vm_area_count = 0;
+    spinlock_release(&dest->vm_lock);
 
+    spinlock_acquire(&src->vm_lock);
     vm_area_t *area;
     list_foreach_entry(area, &src->vm_areas, list) {
         vm_area_add(dest, area->start, area->end, area->flags);
     }
+    spinlock_release(&src->vm_lock);
 }
 
 /**
@@ -118,6 +129,7 @@ void vm_area_clear(process_t *proc)
     if (!proc)
         return;
 
+    spinlock_acquire(&proc->vm_lock);
     vm_area_t *area, *tmp;
     list_foreach_entry_safe(area, tmp, &proc->vm_areas, list) {
         list_del(&area->list);
@@ -125,6 +137,7 @@ void vm_area_clear(process_t *proc)
     }
     list_init_head(&proc->vm_areas);
     proc->vm_area_count = 0;
+    spinlock_release(&proc->vm_lock);
 }
 
 [[noreturn]] static void idle_task(void)
@@ -426,6 +439,7 @@ void process_init(void)
     strcpy(kernel_process->name, "kernel");
     kernel_process->cwd[0] = '/';
     kernel_process->cwd[1] = '\0';
+    spinlock_init(&kernel_process->fd_lock);
     vm_area_init(kernel_process);
     signal_init_process(kernel_process);
 
@@ -515,6 +529,7 @@ process_t *process_create(const char *name)
     if (!proc)
         return nullptr;
     memset(proc, 0, sizeof(process_t));
+    spinlock_init(&proc->fd_lock);
     vm_area_init(proc);
     signal_init_process(proc);
 
@@ -543,11 +558,21 @@ process_t *process_create(const char *name)
     return proc;
 }
 
-void process_copy_fds(process_t *dest, const process_t *src)
+void process_copy_fds(process_t *dest, process_t *src)
 {
+    file_descriptor_t *fds[MAX_FDS] = {0};
+    uint64_t fd_flags;
+    SPIN_LOCK_INT_SAVE(src->fd_lock, fd_flags);
     for (int i = 0; i < MAX_FDS; i++) {
-        if (src->fd_table[i]) {
-            file_descriptor_t *old_desc = src->fd_table[i];
+        fds[i] = src->fd_table[i];
+        if (fds[i])
+            __atomic_add_fetch(&fds[i]->ref, 1, __ATOMIC_RELAXED);
+    }
+    SPIN_UNLOCK_INT_RESTORE(src->fd_lock, fd_flags);
+
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (fds[i]) {
+            file_descriptor_t *old_desc = fds[i];
             file_descriptor_t *new_desc = kmalloc(sizeof(file_descriptor_t));
             if (new_desc) {
                 memset(new_desc, 0, sizeof(file_descriptor_t));
@@ -588,6 +613,7 @@ void process_copy_fds(process_t *dest, const process_t *src)
             } else {
                 dest->fd_table[i] = nullptr;
             }
+            fd_put(old_desc);
         } else {
             dest->fd_table[i] = nullptr;
         }
@@ -679,43 +705,18 @@ static void process_destroy_now(process_t *proc)
         kfree(t);
     }
 
-    // Free file descriptors (respecting reference counts)
-    // Note: Multiple fd entries can point to the same descriptor due to dup()
+    file_descriptor_t *fds[MAX_FDS] = {0};
+    uint64_t fd_flags;
+    SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
     for (int i = 0; i < MAX_FDS; i++) {
-        if (proc->fd_table[i]) {
-            file_descriptor_t *desc = proc->fd_table[i];
+        fds[i] = proc->fd_table[i];
+        proc->fd_table[i] = nullptr;
+    }
+    SPIN_UNLOCK_INT_RESTORE(proc->fd_lock, fd_flags);
 
-            // Clear all fd table entries pointing to this descriptor first
-            // This prevents double-processing the same descriptor
-            for (int j = i; j < MAX_FDS; j++) {
-                if (proc->fd_table[j] == desc) {
-                    proc->fd_table[j] = nullptr;
-                    if (j > i) {
-                        // Another fd points to the same descriptor, decrement ref
-                        if (desc->ref > 0)
-                            desc->ref--;
-                    }
-                }
-            }
-
-            // Now handle this descriptor's cleanup
-            // Decrement file descriptor ref count (for cross-process sharing)
-            if (desc->ref > 1) {
-                desc->ref--;
-                continue; // Other processes still reference this descriptor
-            }
-
-            // Last reference to this descriptor - close the inode
-            if (desc->inode && desc->inode != vfs_root) {
-                if (desc->inode->ref <= 1) {
-                    vfs_close(desc->inode);
-                    kfree(desc->inode);
-                } else {
-                    desc->inode->ref--;
-                }
-            }
-            kfree(desc);
-        }
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (fds[i])
+            fd_put(fds[i]);
     }
 
     vm_area_clear(proc);

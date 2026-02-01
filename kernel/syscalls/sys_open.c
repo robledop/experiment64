@@ -11,18 +11,6 @@ int sys_open(const char* path, int flags)
     char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
         return -1;
-    int fd = -1;
-    for (int i = 3; i < MAX_FDS; i++)
-    {
-        if (current_process->fd_table[i] == nullptr)
-        {
-            fd = i;
-            break;
-        }
-    }
-    if (fd == -1)
-        return -1;
-
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode && (flags & O_CREATE))
     {
@@ -69,7 +57,15 @@ int sys_open(const char* path, int flags)
         desc->offset = inode->size;
     desc->flags = flags;
     desc->ref = 1;
-    current_process->fd_table[fd] = desc;
+    int fd = fd_assign(desc, 3);
+    if (fd == -1)
+    {
+        kfree(desc);
+        vfs_close(inode);
+        if (inode != vfs_root)
+            kfree(inode);
+        return -1;
+    }
 
     vfs_open(inode);
     return fd;

@@ -45,6 +45,7 @@ static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, 
         bool overlap = false;
         uint64_t next_end = limit;
 
+        spinlock_acquire(&proc->vm_lock);
         vm_area_t* area;
         list_foreach_entry(area, &proc->vm_areas, list)
         {
@@ -55,6 +56,7 @@ static bool find_stack_range(process_t* proc, uint64_t size, uint64_t top_hint, 
                     next_end = area->start;
             }
         }
+        spinlock_release(&proc->vm_lock);
 
         if (!overlap)
         {

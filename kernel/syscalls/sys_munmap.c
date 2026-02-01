@@ -20,7 +20,9 @@ int sys_munmap(void* addr, size_t length)
 
     constexpr uint32_t allowed_flags = VMA_MMAP | VMA_STACK;
     bool unmapped = false;
+    int result = -1;
 
+    spinlock_acquire(&current_process->vm_lock);
     vm_area_t* area;
     vm_area_t* tmp;
     list_foreach_entry_safe(area, tmp, &current_process->vm_areas, list)
@@ -38,7 +40,7 @@ int sys_munmap(void* addr, size_t length)
         {
             tail = kmalloc(sizeof(vm_area_t));
             if (!tail)
-                return -1;
+                goto out;
             tail->start = overlap_end;
             tail->end = area->end;
             tail->flags = area->flags;
@@ -85,5 +87,9 @@ int sys_munmap(void* addr, size_t length)
         current_process->vm_area_count++;
     }
 
-    return unmapped ? 0 : -1;
+    result = unmapped ? 0 : -1;
+
+out:
+    spinlock_release(&current_process->vm_lock);
+    return result;
 }

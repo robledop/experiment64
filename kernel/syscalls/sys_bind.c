@@ -2,7 +2,6 @@
 
 #include <lib/string.h>
 #include <net/socket.h>
-#include <task/process.h>
 
 int sys_bind(const int fd, const struct sockaddr *addr, const size_t addrlen)
 {
@@ -13,16 +12,28 @@ int sys_bind(const int fd, const struct sockaddr *addr, const size_t addrlen)
     if (addrlen < sizeof(struct sockaddr_in))
         return -1;
 
-    file_descriptor_t *desc = current_process->fd_table[fd];
-    if (!desc || !desc->inode)
+    file_descriptor_t *desc = fd_get(fd);
+    if (!desc)
         return -1;
+    if (!desc->inode)
+    {
+        fd_put(desc);
+        return -1;
+    }
     if (desc->inode->iops != &socket_iops)
+    {
+        fd_put(desc);
         return -1;
+    }
 
     auto const sock = (socket_t *)desc->inode->device;
     if (!sock)
+    {
+        fd_put(desc);
         return -1;
+    }
     socket_hold(sock);
+    fd_put(desc);
     if (sock->state != SOCKET_STATE_UNBOUND)
     {
         socket_put(sock);

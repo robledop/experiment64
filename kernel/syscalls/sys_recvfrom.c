@@ -16,13 +16,27 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
     if (addrlen && !user_ptr_write_ok(addrlen, sizeof(socklen_t), "sys_recvfrom"))
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
-    if (!desc || !desc->inode) return -1;
-    if (desc->inode->iops != &socket_iops) return -1;
+    file_descriptor_t* desc = fd_get(fd);
+    if (!desc) return -1;
+    if (!desc->inode)
+    {
+        fd_put(desc);
+        return -1;
+    }
+    if (desc->inode->iops != &socket_iops)
+    {
+        fd_put(desc);
+        return -1;
+    }
 
     socket_t* sock = (socket_t*)desc->inode->device;
-    if (!sock) return -1;
+    if (!sock)
+    {
+        fd_put(desc);
+        return -1;
+    }
     socket_hold(sock);
+    fd_put(desc);
 
     const bool block = (flags & MSG_DONTWAIT) == 0;
     socket_rx_packet_t* pkt = socket_rx_pop(sock, block);

@@ -76,10 +76,12 @@ static void vm_area_detach(process_t* proc, list_item_t* out_head, uint32_t* out
     if (!proc)
         return;
 
+    spinlock_acquire(&proc->vm_lock);
     *out_count = proc->vm_area_count;
     if (list_empty(&proc->vm_areas))
     {
         proc->vm_area_count = 0;
+        spinlock_release(&proc->vm_lock);
         return;
     }
 
@@ -89,6 +91,7 @@ static void vm_area_detach(process_t* proc, list_item_t* out_head, uint32_t* out
     out_head->prev->next = out_head;
     list_init_head(&proc->vm_areas);
     proc->vm_area_count = 0;
+    spinlock_release(&proc->vm_lock);
 }
 
 static void vm_area_restore(process_t* proc, list_item_t* head, uint32_t count)
@@ -96,6 +99,7 @@ static void vm_area_restore(process_t* proc, list_item_t* head, uint32_t count)
     if (!proc || !head)
         return;
 
+    spinlock_acquire(&proc->vm_lock);
     if (list_empty(head))
     {
         list_init_head(&proc->vm_areas);
@@ -108,6 +112,7 @@ static void vm_area_restore(process_t* proc, list_item_t* head, uint32_t count)
         head->prev->next = &proc->vm_areas;
     }
     proc->vm_area_count = count;
+    spinlock_release(&proc->vm_lock);
     list_init_head(head);
 }
 

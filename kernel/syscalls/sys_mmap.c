@@ -46,18 +46,29 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
         if (fd < 0 || fd >= MAX_FDS)
             return MAP_FAILED;
 
-        file_descriptor_t* desc = current_process->fd_table[fd];
-        if (!desc || !desc->inode)
+        file_descriptor_t* desc = fd_get(fd);
+        if (!desc)
             return MAP_FAILED;
+        if (!desc->inode)
+        {
+            fd_put(desc);
+            return MAP_FAILED;
+        }
 
         // Require this to be the framebuffer device.
         struct limine_framebuffer* fb = framebuffer_current();
         if (!fb || desc->inode->device != fb)
+        {
+            fd_put(desc);
             return MAP_FAILED;
+        }
 
         uint64_t fb_size = (uint64_t)fb->pitch * fb->height;
         if (offset >= fb_size)
+        {
+            fd_put(desc);
             return MAP_FAILED;
+        }
 
         uint64_t map_len = length;
         if (offset + map_len > fb_size)
@@ -68,11 +79,15 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
         in_page_delta = offset - page_offset;
         total_len = page_len + in_page_delta;
         if (total_len < map_len)
+        {
+            fd_put(desc);
             return MAP_FAILED;
+        }
 
         uint64_t fb_addr = (uint64_t)fb->address;
         phys_base = (fb_addr >= g_hhdm_offset) ? (fb_addr - g_hhdm_offset) : fb_addr;
         phys_base += page_offset;
+        fd_put(desc);
     }
 
     // Choose a base address if none provided.
@@ -88,6 +103,7 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
     while (true)
     {
         bool overlap = false;
+        spinlock_acquire(&current_process->vm_lock);
         vm_area_t* area;
         list_foreach_entry(area, &current_process->vm_areas, list)
         {
@@ -98,6 +114,7 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, size_t of
                 break;
             }
         }
+        spinlock_release(&current_process->vm_lock);
         if (!overlap)
             break;
         if (base >= 0x7FFFFFFFF000)

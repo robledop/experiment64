@@ -11,16 +11,28 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     if (fd < 0 || fd >= MAX_FDS)
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
-    if (!desc || !desc->inode)
+    file_descriptor_t* desc = fd_get(fd);
+    if (!desc)
         return -1;
+    if (!desc->inode)
+    {
+        fd_put(desc);
+        return -1;
+    }
     if (desc->inode->iops != &socket_iops)
+    {
+        fd_put(desc);
         return -1;
+    }
 
     auto listener = (socket_t*)desc->inode->device;
     if (!listener)
+    {
+        fd_put(desc);
         return -1;
+    }
     socket_hold(listener);
+    fd_put(desc);
     if (listener->type != SOCK_STREAM || listener->protocol != IPPROTO_TCP)
     {
         socket_put(listener);
@@ -53,22 +65,6 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         listener->accept_queue_len--;
     SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
 
-    int new_fd = -1;
-    for (int i = 3; i < MAX_FDS; i++)
-    {
-        if (current_process->fd_table[i] == nullptr)
-        {
-            new_fd = i;
-            break;
-        }
-    }
-    if (new_fd == -1)
-    {
-        socket_unregister(child);
-        socket_put(listener);
-        return -1;
-    }
-
     auto const inode = (vfs_inode_t*)kzalloc(sizeof(vfs_inode_t));
     if (!inode)
     {
@@ -93,7 +89,15 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     new_desc->offset = 0;
     new_desc->flags = O_RDWR;
     new_desc->ref = 1;
-    current_process->fd_table[new_fd] = new_desc;
+    int new_fd = fd_assign(new_desc, 3);
+    if (new_fd == -1)
+    {
+        kfree(new_desc);
+        kfree(inode);
+        socket_unregister(child);
+        socket_put(listener);
+        return -1;
+    }
 
     if (addr)
     {

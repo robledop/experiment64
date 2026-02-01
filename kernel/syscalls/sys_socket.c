@@ -1,9 +1,9 @@
-#include <lib/string.h>
+#include <syscall_common.h>
+
 #include <mem/heap.h>
 #include <net/socket.h>
 #include <net/tcp.h>
 #include <sys/fcntl.h>
-#include <task/process.h>
 #include <net/helpers.h>
 
 static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
@@ -93,17 +93,6 @@ int sys_socket(const int domain, const int type, int protocol)
         return -1;
     }
 
-    int fd = -1;
-    for (int i = 3; i < MAX_FDS; i++)
-    {
-        if (current_process->fd_table[i] == nullptr)
-        {
-            fd = i;
-            break;
-        }
-    }
-    if (fd == -1) return -1;
-
     auto const sock = (socket_t*)kzalloc(sizeof(socket_t));
     if (!sock) return -1;
     sock->domain = domain;
@@ -135,8 +124,14 @@ int sys_socket(const int domain, const int type, int protocol)
     desc->offset = 0;
     desc->flags = O_RDWR;
     desc->ref = 1;
-
-    current_process->fd_table[fd] = desc;
+    int fd = fd_assign(desc, 3);
+    if (fd == -1)
+    {
+        kfree(desc);
+        kfree(inode);
+        socket_put(sock);
+        return -1;
+    }
     socket_register(sock);
     return fd;
 }

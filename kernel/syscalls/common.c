@@ -300,6 +300,63 @@ bool fd_can_write(const file_descriptor_t* desc)
     return mode == O_WRONLY || mode == O_RDWR || mode == (O_WRONLY | O_RDWR);
 }
 
+file_descriptor_t* fd_get(int fd)
+{
+    if (!current_process)
+        return nullptr;
+    if (fd < 0 || fd >= MAX_FDS)
+        return nullptr;
+
+    uint64_t flags;
+    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
+    file_descriptor_t* desc = current_process->fd_table[fd];
+    if (desc)
+        __atomic_add_fetch(&desc->ref, 1, __ATOMIC_RELAXED);
+    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
+    return desc;
+}
+
+void fd_put(file_descriptor_t* desc)
+{
+    if (!desc)
+        return;
+    uint32_t ref = __atomic_sub_fetch(&desc->ref, 1, __ATOMIC_RELEASE);
+    if (ref != 0)
+        return;
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+
+    if (desc->inode && desc->inode != vfs_root) {
+        if (desc->inode->ref <= 1) {
+            vfs_close(desc->inode);
+            kfree(desc->inode);
+        } else {
+            desc->inode->ref--;
+        }
+    }
+    kfree(desc);
+}
+
+int fd_assign(file_descriptor_t* desc, int start_fd)
+{
+    if (!current_process || !desc)
+        return -1;
+    if (start_fd < 0)
+        start_fd = 0;
+
+    uint64_t flags;
+    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
+    int fd = -1;
+    for (int i = start_fd; i < MAX_FDS; i++) {
+        if (current_process->fd_table[i] == nullptr) {
+            current_process->fd_table[i] = desc;
+            fd = i;
+            break;
+        }
+    }
+    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
+    return fd;
+}
+
 void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st)
 {
     if (!inode || !st)

@@ -7,6 +7,7 @@
 #include <fs/vfs.h>
 #include <io/storage.h>
 #include <mem/heap.h>
+#include <task/process.h>
 #include <stdarg.h>
 #include <limits.h>
 
@@ -28,6 +29,17 @@ static size_t boot_log_flushed_len    = 0;
 static bool boot_log_ready            = false;
 static bool boot_log_flushing         = false;
 static constexpr char boot_log_path[] = "/var/log/boot";
+
+static bool boot_log_can_flush(void)
+{
+    if (!scheduler_is_ready())
+        return false;
+    if (cpu_in_interrupt())
+        return false;
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0" : "=r"(rflags));
+    return (rflags & RFLAGS_IF) != 0;
+}
 
 // Get the active drawing surface (framebuffer)
 static inline uint8_t *get_draw_surface(void)
@@ -743,7 +755,7 @@ static void boot_log_record(const char *line)
     boot_log_busy = false;
 
 #ifndef TEST_MODE
-    if (!boot_log_flushing)
+    if (!boot_log_flushing && boot_log_can_flush())
         boot_log_flush();
 #endif
 }
@@ -754,6 +766,8 @@ void boot_log_flush(void)
     return;
 #endif
     if (boot_log_flushing)
+        return;
+    if (!boot_log_can_flush())
         return;
     if (!vfs_root)
         return;

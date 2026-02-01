@@ -112,7 +112,7 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.usb *.vdi $(DOOM_BIN)
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.usb *.vdi $(DOOM_BIN) scripts/stress_logs
 	$(MAKE) -C user clean
 
 limine:

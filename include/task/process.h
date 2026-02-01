@@ -83,7 +83,9 @@ typedef struct Process
     int sig_inflight;
     uint64_t heap_end; // Current program break
     file_descriptor_t *fd_table[MAX_FDS];
+    spinlock_t fd_lock;
     char cwd[PATH_MAX];
+    spinlock_t vm_lock;
     list_item_t vm_areas; // List of vm_area_t
     uint32_t vm_area_count;
 } process_t;
@@ -125,10 +127,10 @@ process_t *process_create(const char *name);
 void process_destroy(process_t *process);
 void process_reap(process_t *process);
 bool process_can_reap_locked(process_t *proc);
-void process_copy_fds(process_t *dest, const process_t *src);
+void process_copy_fds(process_t *dest, process_t *src);
 void vm_area_init(process_t *proc);
 vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t flags);
-void vm_area_clone(process_t *dest, const process_t *src);
+void vm_area_clone(process_t *dest, process_t *src);
 void vm_area_clear(process_t *proc);
 thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user);
 void thread_make_ready(thread_t *thread);

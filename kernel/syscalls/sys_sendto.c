@@ -19,16 +19,28 @@ int sys_sendto(const int fd, const void* buf, const size_t len, const int flags,
     if (len > 0 && !user_ptr_read_ok(buf, len, "sys_sendto"))
         return -1;
 
-    file_descriptor_t* desc = current_process->fd_table[fd];
-    if (!desc || !desc->inode)
+    file_descriptor_t* desc = fd_get(fd);
+    if (!desc)
         return -1;
+    if (!desc->inode)
+    {
+        fd_put(desc);
+        return -1;
+    }
     if (desc->inode->iops != &socket_iops)
+    {
+        fd_put(desc);
         return -1;
+    }
 
     auto const sock = (socket_t*)desc->inode->device;
     if (!sock)
+    {
+        fd_put(desc);
         return -1;
+    }
     socket_hold(sock);
+    fd_put(desc);
 
     int res = -1;
     const uint8_t* my_ip = network_get_my_ip_address();
