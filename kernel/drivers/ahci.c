@@ -1,5 +1,5 @@
 #include <drivers/ahci.h>
-#include <task/spinlock.h>
+#include <task/sleeplock.h>
 #include <lib/string.h>
 #include <mem/dma.h>
 #include <drivers/terminal.h>
@@ -126,7 +126,7 @@ struct ahci_port_state
 
 static volatile struct ahci_memory *hba_memory;
 static struct ahci_port_state active_port;
-static spinlock_t ahci_lock;
+static sleeplock_t ahci_lock;
 static bool ahci_lock_initialized;
 
 static const char *ahci_det_to_string(const uint8_t det)
@@ -230,7 +230,7 @@ static uint32_t ahci_calculate_chunk(const uint8_t *buffer, const uint32_t reque
 static void ahci_init_lock()
 {
     if (!ahci_lock_initialized) {
-        spinlock_init(&ahci_lock);
+        sleeplock_init(&ahci_lock, "ahci");
         ahci_lock_initialized = true;
     }
 }
@@ -663,7 +663,7 @@ int ahci_read(uint64_t lba, uint32_t sector_count, void *buffer)
         return -1;
     }
 
-    spinlock_acquire(&ahci_lock);
+    sleeplock_acquire(&ahci_lock);
 
     auto byte_buffer   = (uint8_t *)buffer;
     uint32_t remaining = sector_count;
@@ -688,7 +688,7 @@ int ahci_read(uint64_t lba, uint32_t sector_count, void *buffer)
         remaining   -= chunk;
     }
 
-    spinlock_release(&ahci_lock);
+    sleeplock_release(&ahci_lock);
     return result;
 }
 
@@ -702,7 +702,7 @@ int ahci_write(uint64_t lba, uint32_t sector_count, const void *buffer)
         return -1;
     }
 
-    spinlock_acquire(&ahci_lock);
+    sleeplock_acquire(&ahci_lock);
 
     auto byte_buffer_const = (const uint8_t *)buffer;
     uint32_t remaining     = sector_count;
@@ -727,7 +727,7 @@ int ahci_write(uint64_t lba, uint32_t sector_count, const void *buffer)
         remaining         -= chunk;
     }
 
-    spinlock_release(&ahci_lock);
+    sleeplock_release(&ahci_lock);
     return result;
 }
 
@@ -737,13 +737,13 @@ int ahci_flush(void)
         return -1;
     }
 
-    spinlock_acquire(&ahci_lock);
+    sleeplock_acquire(&ahci_lock);
 
     int result = ahci_issue_nodata(AHCI_CMD_FLUSH_CACHE_EXT);
     if (result != 0) {
         result = ahci_issue_nodata(AHCI_CMD_FLUSH_CACHE);
     }
 
-    spinlock_release(&ahci_lock);
+    sleeplock_release(&ahci_lock);
     return result;
 }

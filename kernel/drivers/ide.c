@@ -3,7 +3,7 @@
 #include <lib/string.h>
 #include <arch/x86_64/apic.h>
 #include <drivers/terminal.h>
-#include <task/spinlock.h>
+#include <task/sleeplock.h>
 
 #define IDE_BSY 0x80
 #define IDE_DRDY 0x40
@@ -25,9 +25,8 @@ static uint16_t ide_control[2]  = {0x3F6, 0x376};
 // Note: we use polling (DRQ/BSY) for PIO transfers to avoid SMP/IRQ routing issues.
 // The IRQ handler remains to ACK the device interrupt by reading status.
 
-// Serialize PIO operations per channel. Even if higher layers try to serialize,
-// keep IDE safe under SMP and during early boot/test mode.
-static spinlock_t ide_channel_lock[2];
+// Serialize PIO operations per channel.
+static sleeplock_t ide_channel_lock[2];
 static bool ide_channel_lock_inited = false;
 
 void ide_irq_handler(uint8_t channel)
@@ -97,8 +96,8 @@ void ide_init(void)
     memset(ide_devices, 0, sizeof(ide_devices));
 
     if (!ide_channel_lock_inited) {
-        spinlock_init(&ide_channel_lock[0]);
-        spinlock_init(&ide_channel_lock[1]);
+        sleeplock_init(&ide_channel_lock[0], "ide0");
+        sleeplock_init(&ide_channel_lock[1], "ide1");
         ide_channel_lock_inited = true;
     }
 
@@ -170,10 +169,10 @@ int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *
     uint8_t slave   = ide_devices[drive_index].drive;
 
     // Serialize operations on the channel, but keep interrupts enabled so IRQ handlers can run.
-    spinlock_acquire(&ide_channel_lock[channel]);
+    sleeplock_acquire(&ide_channel_lock[channel]);
 
     if (ide_wait_ready(channel) != 0) {
-        spinlock_release(&ide_channel_lock[channel]);
+        sleeplock_release(&ide_channel_lock[channel]);
         return 1;
     }
 
@@ -190,13 +189,13 @@ int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *
     for (int i = 0; i < count; i++) {
         // Poll DRQ instead of waiting for IRQ; avoids SMP/IRQ routing issues.
         if (ide_wait_drq(channel) != 0) {
-            spinlock_release(&ide_channel_lock[channel]);
+            sleeplock_release(&ide_channel_lock[channel]);
             return 1;
         }
         insw(ide_channels[channel] + 0, (void *)(buffer + i * 512), 256);
     }
 
-    spinlock_release(&ide_channel_lock[channel]);
+    sleeplock_release(&ide_channel_lock[channel]);
     return 0;
 }
 
@@ -208,10 +207,10 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
     uint8_t channel = ide_devices[drive_index].channel;
     uint8_t slave   = ide_devices[drive_index].drive;
 
-    spinlock_acquire(&ide_channel_lock[channel]);
+    sleeplock_acquire(&ide_channel_lock[channel]);
 
     if (ide_wait_ready(channel) != 0) {
-        spinlock_release(&ide_channel_lock[channel]);
+        sleeplock_release(&ide_channel_lock[channel]);
         return 1;
     }
 
@@ -227,7 +226,7 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
 
     for (int i = 0; i < count; i++) {
         if (ide_wait_drq(channel) != 0) {
-            spinlock_release(&ide_channel_lock[channel]);
+            sleeplock_release(&ide_channel_lock[channel]);
             return 1;
         }
 
@@ -235,12 +234,12 @@ int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t 
 
         // Wait for the device to finish the sector (BSY clear).
         if (ide_wait_not_bsy(channel) != 0) {
-            spinlock_release(&ide_channel_lock[channel]);
+            sleeplock_release(&ide_channel_lock[channel]);
             return 1;
         }
     }
 
-    spinlock_release(&ide_channel_lock[channel]);
+    sleeplock_release(&ide_channel_lock[channel]);
     return 0;
 }
 
@@ -252,10 +251,10 @@ int ide_flush_cache(uint8_t drive_index)
     uint8_t channel = ide_devices[drive_index].channel;
     uint8_t slave   = ide_devices[drive_index].drive;
 
-    spinlock_acquire(&ide_channel_lock[channel]);
+    sleeplock_acquire(&ide_channel_lock[channel]);
 
     if (ide_wait_ready(channel) != 0) {
-        spinlock_release(&ide_channel_lock[channel]);
+        sleeplock_release(&ide_channel_lock[channel]);
         return -1;
     }
 
@@ -264,10 +263,10 @@ int ide_flush_cache(uint8_t drive_index)
     outb(ide_channels[channel] + 7, IDE_CMD_FLUSH_CACHE);
 
     if (ide_wait_not_bsy(channel) != 0) {
-        spinlock_release(&ide_channel_lock[channel]);
+        sleeplock_release(&ide_channel_lock[channel]);
         return -1;
     }
 
-    spinlock_release(&ide_channel_lock[channel]);
+    sleeplock_release(&ide_channel_lock[channel]);
     return 0;
 }
