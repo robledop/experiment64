@@ -42,8 +42,9 @@ int sys_recvfrom(const int fd, void* buf, const size_t len, const int flags,
     socket_rx_packet_t* pkt = socket_rx_pop(sock, block);
     if (!pkt)
     {
+        const int res = socket_rx_is_closed(sock) ? 0 : -1;
         socket_put(sock);
-        return -1;
+        return res;
     }
 
     size_t copy_len = (pkt->len < len) ? pkt->len : len;

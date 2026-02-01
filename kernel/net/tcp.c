@@ -206,6 +206,12 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
 
     if (!sock) return;
 
+    if (flags & TCP_FLAG_RST)
+    {
+        socket_mark_rx_closed(sock);
+        goto out;
+    }
+
     if ((sock->flags & SOCKET_FLAG_TCP_SYN_RCVD) != 0)
     {
         if ((flags & TCP_FLAG_ACK) && ack_num == sock->tcp_send_next)
@@ -267,6 +273,7 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
     {
         sock->tcp_recv_next += 1;
         should_ack = true;
+        socket_mark_rx_closed(sock);
     }
 
     if (should_ack)

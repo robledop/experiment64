@@ -92,12 +92,15 @@ typedef struct
     list_item_t rx_queue;
     size_t rx_queue_len;
     spinlock_t rx_lock;
+    bool rx_closed;
 } socket_t;
 
 void socket_register(socket_t* sock);
 void socket_unregister(socket_t* sock);
 void socket_hold(socket_t* sock);
 void socket_put(socket_t* sock);
+void socket_mark_rx_closed(socket_t* sock);
+bool socket_rx_is_closed(const socket_t* sock);
 int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requested_port, uint16_t* out_port);
 socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t dest_port);
 socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t dest_port,

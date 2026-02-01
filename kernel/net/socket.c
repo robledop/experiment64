@@ -119,6 +119,7 @@ void socket_register(socket_t* sock)
     sock->rx_queue_len = 0;
     sock->accept_queue_len = 0;
     sock->backlog = 0;
+    sock->rx_closed = false;
     if (sock->ref == 0)
         sock->ref = 1;
 
@@ -133,6 +134,7 @@ void socket_unregister(socket_t* sock)
     if (!sock) return;
 
     socket_lock_init_once();
+    socket_mark_rx_closed(sock);
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     if (sock->list.next && sock->list.prev)
@@ -144,6 +146,24 @@ void socket_unregister(socket_t* sock)
     socket_rx_purge(sock);
     thread_wakeup(sock);
     socket_put(sock);
+}
+
+void socket_mark_rx_closed(socket_t* sock)
+{
+    if (!sock)
+        return;
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
+    sock->rx_closed = true;
+    SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
+    thread_wakeup(sock);
+}
+
+bool socket_rx_is_closed(const socket_t* sock)
+{
+    if (!sock)
+        return false;
+    return __atomic_load_n(&sock->rx_closed, __ATOMIC_ACQUIRE);
 }
 
 /**
@@ -244,6 +264,11 @@ socket_rx_packet_t* socket_rx_pop(socket_t* sock, const bool block)
     SPIN_LOCK_INT_SAVE(sock->rx_lock, rflags);
     while (list_empty(&sock->rx_queue))
     {
+        if (sock->rx_closed)
+        {
+            SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);
+            return nullptr;
+        }
         if (!block)
         {
             SPIN_UNLOCK_INT_RESTORE(sock->rx_lock, rflags);

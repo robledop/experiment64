@@ -5,6 +5,7 @@ BASE_URL="${1:-http://localhost:8080}"
 OUT_DIR="${2:-./stress_logs}"
 DURATION="${DURATION:-30s}"
 
+rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
