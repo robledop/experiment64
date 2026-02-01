@@ -144,6 +144,28 @@ cpu_t *get_cpu(void)
     return cpu;
 }
 
+void cpu_interrupt_enter(void)
+{
+    cpu_t *cpu = get_cpu();
+    if (cpu)
+        cpu->interrupt_depth++;
+}
+
+void cpu_interrupt_exit(void)
+{
+    cpu_t *cpu = get_cpu();
+    if (!cpu)
+        return;
+    if (cpu->interrupt_depth > 0)
+        cpu->interrupt_depth--;
+}
+
+bool cpu_in_interrupt(void)
+{
+    cpu_t *cpu = get_cpu();
+    return cpu && cpu->interrupt_depth != 0;
+}
+
 void hcf(void)
 {
     __asm__ volatile ("cli");

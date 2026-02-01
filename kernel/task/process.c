@@ -324,7 +324,7 @@ static inline bool thread_is_ready(thread_t *t, bool allow_user, const char *ctx
 
 bool scheduler_tick(void)
 {
-    if (!scheduler_ready)
+    if (!__atomic_load_n(&scheduler_ready, __ATOMIC_ACQUIRE))
         return false;
 
     scheduler_ticks++;
@@ -499,9 +499,14 @@ void process_init(void)
                  "Process: Initialized kernel process PID %d with %d idle threads",
                  kernel_process->pid,
                  cpu_count);
-    scheduler_ready = true;
+    __atomic_store_n(&scheduler_ready, true, __ATOMIC_RELEASE);
 
     smp_ap_scheduler_ready();
+}
+
+bool scheduler_is_ready(void)
+{
+    return __atomic_load_n(&scheduler_ready, __ATOMIC_ACQUIRE);
 }
 
 process_t *process_create(const char *name)

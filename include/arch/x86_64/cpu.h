@@ -43,9 +43,13 @@ typedef struct cpu
     int cpu_index; // Index into cpus[] array (0 = BSP)
     struct gdt_desc gdt[7];
     struct tss_entry tss;
+    uint32_t interrupt_depth;
 } cpu_t;
 
 cpu_t* get_cpu(void);
+void cpu_interrupt_enter(void);
+void cpu_interrupt_exit(void);
+bool cpu_in_interrupt(void);
 
 [[noreturn]] void hcf(void);
 void wrmsr(uint32_t msr, uint64_t value);

@@ -2,6 +2,14 @@
 #include <task/process.h>
 #include <debug.h>
 
+static void sleeplock_check_context(void)
+{
+    if (!scheduler_is_ready())
+        panic("sleeplock: scheduler not ready");
+    if (cpu_in_interrupt())
+        panic("sleeplock: interrupt context");
+}
+
 void sleeplock_init(sleeplock_t *lk, const char *name)
 {
     spinlock_init(&lk->lock);
@@ -12,6 +20,7 @@ void sleeplock_init(sleeplock_t *lk, const char *name)
 
 void sleeplock_acquire(sleeplock_t *lk)
 {
+    sleeplock_check_context();
     spinlock_acquire(&lk->lock);
     while (lk->locked) {
         thread_sleep(lk, &lk->lock);
@@ -24,6 +33,7 @@ void sleeplock_acquire(sleeplock_t *lk)
 
 void sleeplock_release(sleeplock_t *lk)
 {
+    sleeplock_check_context();
     spinlock_acquire(&lk->lock);
     lk->locked = false;
     lk->pid    = 0;

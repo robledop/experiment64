@@ -139,6 +139,7 @@ process_t *get_current_process(void);
 #define current_process (get_current_process())
 
 bool scheduler_tick(void);
+bool scheduler_is_ready(void);
 
 void schedule(void);
 void yield(void);

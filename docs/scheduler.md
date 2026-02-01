@@ -119,6 +119,9 @@ If `need_resched` is true, the ISR calls `schedule()` after EOI.
 `thread_wakeup(chan)` scans all threads and marks matches as `THREAD_READY`. It
 does not force an immediate reschedule.
 
+Sleeplocks rely on `thread_sleep()` and therefore require the scheduler to be
+initialized. They must not be acquired or released from interrupt context.
+
 ---
 
 ## Process Exit and Reaping

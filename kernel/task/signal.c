@@ -421,7 +421,13 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         if (parent) {
             thread_wakeup(parent);
         }
-        schedule();
+        if (cpu_in_interrupt()) {
+            cpu_interrupt_exit();
+            schedule();
+            cpu_interrupt_enter();
+        } else {
+            schedule();
+        }
         return true;
     }
 
@@ -475,7 +481,13 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags2);
         if (parent)
             thread_wakeup(parent);
-        schedule();
+        if (cpu_in_interrupt()) {
+            cpu_interrupt_exit();
+            schedule();
+            cpu_interrupt_enter();
+        } else {
+            schedule();
+        }
         return true;
     }
 

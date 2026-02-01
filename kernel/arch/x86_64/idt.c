@@ -108,8 +108,11 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     bool need_resched = scheduler_tick();
     apic_send_eoi();
-    if (need_resched)
+    if (need_resched) {
+        cpu_interrupt_exit();
         schedule();
+        cpu_interrupt_enter();
+    }
 }
 
 static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
@@ -133,7 +136,9 @@ static void ide_secondary_isr([[maybe_unused]] struct interrupt_frame *frame)
 static void reschedule_ipi_handler([[maybe_unused]] struct interrupt_frame *frame)
 {
     apic_send_eoi();
+    cpu_interrupt_exit();
     schedule();
+    cpu_interrupt_enter();
 }
 
 static void dump_panic_context(const struct interrupt_frame *frame, const struct interrupt_frame *snapshot)
@@ -253,6 +258,7 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
 
 void interrupt_handler(struct interrupt_frame *frame)
 {
+    cpu_interrupt_enter();
     if (isr_handlers[frame->int_no]) {
         isr_handlers[frame->int_no](frame);
     } else if (frame->int_no < 32) {
@@ -336,6 +342,7 @@ void interrupt_handler(struct interrupt_frame *frame)
 
                 // schedule() will switch to another thread; interrupts will be re-enabled
                 // when the new thread runs.
+                cpu_interrupt_exit();
                 schedule();
                 // schedule() should not return to the faulting context, but bail out defensively.
                 return;
@@ -371,6 +378,8 @@ void interrupt_handler(struct interrupt_frame *frame)
     if (frame->int_no >= 32) {
         signal_deliver_after_interrupt(frame);
     }
+
+    cpu_interrupt_exit();
 }
 
 void idt_init(void)
