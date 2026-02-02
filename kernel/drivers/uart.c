@@ -30,11 +30,11 @@ void uart_init(void)
 {
     outb(UART_IER_REG, 0x00);                // Disable all interrupts
     outb(UART_LCR_REG, UART_LCR_DLAB);       // Enable DLAB (set baud rate divisor)
-    outb(UART_DATA_REG, UART_DIVISOR_38400); // Set divisor to 3 (lo byte) 38400 baud
+    outb(UART_DATA_REG, UART_DIVISOR_38400); // Set divisor to 3 (lo byte) 38,400 baud
     outb(UART_IER_REG, 0x00);                //                  (hi byte)
     outb(UART_LCR_REG, UART_LCR_8BIT);       // 8 bits, no parity, one stop bit
     outb(UART_FCR_REG, UART_FCR_ENABLE | UART_FCR_CLEAR_RX | UART_FCR_CLEAR_TX | UART_FCR_TRIGGER_14);
-    // Enable FIFO, clear them, with 14-byte threshold
+    // Enable FIFO, clear them, with a 14-byte threshold
     outb(UART_MCR_REG, UART_MCR_OUT2 | UART_MCR_RTS | UART_MCR_DTR); // IRQs enabled, RTS/DSR set
 }
 
@@ -45,7 +45,7 @@ int uart_is_transmit_empty(void)
 
 void uart_putc(char c)
 {
-    while (uart_is_transmit_empty() == 0);
+    while (uart_is_transmit_empty() == 0) {}
     outb(UART_DATA_REG, c);
 }
 
