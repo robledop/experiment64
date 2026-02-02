@@ -462,9 +462,9 @@ static void atl1c_reset_pcie(const struct pci_device device)
     if (status & PCI_STATUS_CAPABILITIES_LIST) {
         constexpr uint8_t PCI_CAP_PTR_OFFSET = 0x34;
         uint8_t cap_ptr                      = (uint8_t)(pci_config_read_word(device.bus,
-                                                                              device.slot,
-                                                                              device.function,
-                                                                              PCI_CAP_PTR_OFFSET) & 0xFFu);
+                                                         device.slot,
+                                                         device.function,
+                                                         PCI_CAP_PTR_OFFSET) & 0xFFu);
         for (uint8_t i = 0; cap_ptr != 0 && i < 48; i++) {
             const uint16_t cap_hdr = pci_config_read_word(device.bus, device.slot, device.function, cap_ptr);
             const uint8_t cap_id   = (uint8_t)(cap_hdr & 0xFFu);

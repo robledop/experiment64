@@ -374,9 +374,9 @@ static USED void pci_dump_bars(const struct pci_header *pci)
 }
 
 static USED void pci_dump_capabilities(const uint8_t bus,
-                                         const uint8_t device,
-                                         const uint8_t function,
-                                         const struct pci_header *pci)
+                                       const uint8_t device,
+                                       const uint8_t function,
+                                       const struct pci_header *pci)
 {
     if ((pci->status & PCI_STATUS_CAPABILITIES_LIST) == 0) {
         boot_message(INFO, "  caps: none");
@@ -442,9 +442,9 @@ static USED void pci_dump_config_space(const uint8_t bus, const uint8_t device, 
 }
 
 static USED void pci_dump_device_config(const struct pci_header *pci,
-                                          const uint8_t bus,
-                                          const uint8_t device,
-                                          const uint8_t function)
+                                        const uint8_t bus,
+                                        const uint8_t device,
+                                        const uint8_t function)
 {
     boot_message(INFO,
                  "PCI %02x:%02x.%u vendor=0x%04x device=0x%04x",
