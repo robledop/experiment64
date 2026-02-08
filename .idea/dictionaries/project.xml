@@ -47,6 +47,7 @@
       <w>returncode</w>
       <w>rflags</w>
       <w>setjmp</w>
+      <w>sleeplock</w>
       <w>usercopy</w>
       <w>vprintk</w>
     </words>
