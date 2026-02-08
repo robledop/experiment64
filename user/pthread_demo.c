@@ -2,15 +2,14 @@
 #include <pthread.h>
 
 static constexpr char pthread_msg[] = "thread_demo: worker tick ";
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_mutex      = PTHREAD_MUTEX_INITIALIZER;
 #define ITERATIONS 10
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
-static void* thread_entry(void* arg)
+static void *thread_entry(void *arg)
 {
-    auto msg = (const char*)arg;
-    for (int i = 0; i < ITERATIONS; i++)
-    {
+    auto msg = (const char *)arg;
+    for (int i = 0; i < ITERATIONS; i++) {
         pthread_mutex_lock(&g_mutex);
         printf("%s%d\n", msg, i);
         pthread_mutex_unlock(&g_mutex);
@@ -26,7 +25,7 @@ long fib_recursive(long n)
     return fib_recursive(n - 1) + fib_recursive(n - 2);
 }
 
-static void* fibonacci(void* arg)
+static void *fibonacci(void *arg)
 {
     (void)arg;
     long b = fib_recursive(50);
@@ -42,23 +41,20 @@ int main(void)
 
     printf("thread_demo: starting\n");
     pthread_t thread;
-    if (pthread_create(&thread, nullptr, thread_entry, (void*)pthread_msg) != 0)
-    {
+    if (pthread_create(&thread, nullptr, thread_entry, (void *)pthread_msg) != 0) {
         printf("thread_demo: thread_create failed\n");
         return 1;
     }
     pthread_detach(thread);
 
-    for (int i = 0; i < ITERATIONS; i++)
-    {
+    for (int i = 0; i < ITERATIONS; i++) {
         pthread_mutex_lock(&g_mutex);
         printf("thread_demo: main tick %d\n", i);
         pthread_mutex_unlock(&g_mutex);
     }
 
     printf("Calculating fibonacci in 20 threads. Press CTRL+P to see the list of threads\n");
-    for (int i = 0; i < 20; i++)
-    {
+    for (int i = 0; i < 20; i++) {
         pthread_t t;
         pthread_create(&t, nullptr, fibonacci, nullptr);
         pthread_detach(t);
