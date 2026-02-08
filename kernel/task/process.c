@@ -39,18 +39,11 @@ vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t f
         return nullptr;
 
     spinlock_acquire(&proc->vm_lock);
-    if (!list_empty(&proc->vm_areas)) {
-        list_item_t *head = &proc->vm_areas;
-        for (list_item_t *pos = head->next; pos != head; pos = pos->next) {
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-            vm_area_t *existing = list_entry(pos, vm_area_t, list);
-            if (!existing)
-                continue;
-            if (!(end <= existing->start || start >= existing->end)) // NOLINT(clang-analyzer-security.ArrayBound)
-            {
-                spinlock_release(&proc->vm_lock);
-                return nullptr; // overlap
-            }
+    vm_area_t *existing;
+    list_foreach_entry(existing, &proc->vm_areas, list) {
+        if (!(end <= existing->start || start >= existing->end)) {
+            spinlock_release(&proc->vm_lock);
+            return nullptr; // overlap
         }
     }
 
@@ -149,7 +142,7 @@ process_t *process_create(const char *name)
 
 void process_copy_fds(process_t *dest, process_t *src)
 {
-    file_descriptor_t *fds[MAX_FDS] = {0};
+    file_descriptor_t *fds[MAX_FDS] = {nullptr};
     uint64_t fd_flags;
     SPIN_LOCK_INT_SAVE(src->fd_lock, fd_flags);
     for (int i = 0; i < MAX_FDS; i++) {
@@ -257,7 +250,7 @@ static void process_destroy_now(process_t *proc)
         kfree(t);
     }
 
-    file_descriptor_t *fds[MAX_FDS] = {0};
+    file_descriptor_t *fds[MAX_FDS] = {nullptr};
     uint64_t fd_flags;
     SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
     for (int i = 0; i < MAX_FDS; i++) {
