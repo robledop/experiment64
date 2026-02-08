@@ -8,7 +8,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 
 - Cross toolchain: `x86_64-elf-gcc` and binutils
 - QEMU for running and for `make tests` / `make run`
-- Optional: `clangd` / `clang-tidy` if you use the provided targets
+- Optional: `clang-tidy` if you use the provided targets
 
 ## Common targets
 
@@ -16,8 +16,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 - `make run` – boot the kernel in QEMU with the generated image
 - `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
-- `make check` – lint/static-analysis wrapper (clangd + clang-tidy)
-- `make clangd-check` / `make clang-tidy` – language server / lint helpers (no .S files)
+- `make clang-tidy` – lint/static-analysis
 
 ## Tests
 
@@ -47,7 +46,7 @@ To know the tests completed, you need to see either "ALL TESTS PASSED" or "SOME 
 To ensure code quality and consistency, run the following checks:
 
 ```bash
-make check
+make clang-tidy
 ```
 
 This command will run linting and static analysis on the codebase.
