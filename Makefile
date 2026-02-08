@@ -140,7 +140,7 @@ image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
 
 .PHONY: disk
-disk: clean
+disk: bear
 	$(MAKE) image.hdd
 	./scripts/install-on-disk.sh
 
@@ -149,32 +149,32 @@ qemu-nobuild:
 	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run
-run: clean
+run: bear
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-usb
-run-usb: clean
+run-usb: bear
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES_USBBOOT) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-nox
-run-nox: clean
+run-nox: bear
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
 .PHONY: run-tap
-run-tap: clean
+run-tap: bear
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox
-vbox: clean
+vbox: bear
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
 	./scripts/start_vbox.sh
 
 .PHONY: run-gdb
-run-gdb: clean
+run-gdb: bear
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
