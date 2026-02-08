@@ -124,6 +124,8 @@ USER_BUILD_DIR = user/build
 LIBC_A = user/build/libc/libc.a
 USERLAND_FLAGS = $(filter -DDEBUG -DTEST_MODE,$(CFLAGS))
 
+all: $(KERNEL) userland
+
 .PHONY: userland
 userland:
 	$(MAKE) -C user CFLAGS="$(USERLAND_FLAGS)"

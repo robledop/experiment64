@@ -70,7 +70,6 @@ void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
 void syscall_set_stack(uint64_t stack_top);
 
-
 int sys_close(int fd);
 int sys_readdir(int fd, vfs_dirent_t* dent);
 int64_t sys_sbrk(int64_t increment);
