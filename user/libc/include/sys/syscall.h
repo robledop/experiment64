@@ -2,7 +2,7 @@
 
 #define SYS_WRITE 0
 #define SYS_READ 1
-#define SYS_EXEC 2
+#define SYS_EXECVE 2
 #define SYS_EXIT 3
 #define SYS_FORK 4
 #define SYS_WAIT 5
@@ -19,7 +19,6 @@
 #define SYS_IOCTL 16
 #define SYS_MMAP 17
 #define SYS_MUNMAP 18
-#define SYS_EXECVE 19
 #define SYS_STAT 20
 #define SYS_FSTAT 21
 #define SYS_LINK 22

@@ -17,6 +17,8 @@
       <w>fbline</w>
       <w>finddir</w>
       <w>fsize</w>
+      <w>gettid</w>
+      <w>gettimeofday</w>
       <w>hhdm</w>
       <w>ifree</w>
       <w>iget</w>
@@ -30,6 +32,7 @@
       <w>masix</w>
       <w>mountpoint</w>
       <w>msyntax</w>
+      <w>munmap</w>
       <w>nbits</w>
       <w>ndev</w>
       <w>newptr</w>

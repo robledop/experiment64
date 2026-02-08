@@ -248,33 +248,6 @@ static uint8_t sleep_stub_bytes[] = {
     0x0F, 0x05                                // syscall
 };
 
-static uint8_t exec_stub_bytes[] = {
-    0xB8, 0x04, 0x00, 0x00, 0x00,             // mov eax, 4 (FORK)
-    0x0F, 0x05,                               // syscall
-    0x83, 0xF8, 0x00,                         // cmp eax, 0
-    0x74, 0x31,                               // je child (+49)
-    0xB8, 0x05, 0x00, 0x00, 0x00,             // mov eax, 5 (WAIT)
-    0x48, 0xC7, 0xC7, 0x00, 0x02, 0x40, 0x00, // mov rdi, 0x400200
-    0x0F, 0x05,                               // syscall
-    0x8B, 0x04, 0x25, 0x00, 0x02, 0x40, 0x00, // mov eax, [0x400200]
-    0x3D, 0x7B, 0x00, 0x00, 0x00,             // cmp eax, 123
-    0x75, 0x09,                               // jne error (+9)
-    0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
-    0x31, 0xFF,                               // xor edi, edi
-    0x0F, 0x05,                               // syscall
-    // error:
-    0xB8, 0x03, 0x00, 0x00, 0x00, // mov eax, 3
-    0xBF, 0x01, 0x00, 0x00, 0x00, // mov edi, 1
-    0x0F, 0x05,                   // syscall
-    // child:
-    0xB8, 0x02, 0x00, 0x00, 0x00,             // mov eax, 2 (EXEC)
-    0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100
-    0x0F, 0x05,                               // syscall
-    0xB8, 0x03, 0x00, 0x00, 0x00,             // mov eax, 3
-    0xBF, 0x7B, 0x00, 0x00, 0x00,             // mov edi, 123
-    0x0F, 0x05                                // syscall
-};
-
 static uint8_t execve_stub_bytes[] = {
     0xB8, 0x04, 0x00, 0x00, 0x00,             // mov eax, 4 (FORK)
     0x0F, 0x05,                               // syscall
@@ -294,7 +267,7 @@ static uint8_t execve_stub_bytes[] = {
     0xBF, 0x01, 0x00, 0x00, 0x00, // mov edi, 1
     0x0F, 0x05,                   // syscall
     // child:
-    0xB8, 0x13, 0x00, 0x00, 0x00,             // mov eax, 19 (EXECVE)
+    0xB8, 0x02, 0x00, 0x00, 0x00,             // mov eax, 2 (EXECVE)
     0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100 (path)
     0x48, 0xC7, 0xC6, 0x80, 0x01, 0x40, 0x00, // mov rsi, 0x400180 (argv)
     0x48, 0x31, 0xD2,                         // xor rdx, rdx (envp = nullptr)
@@ -956,45 +929,6 @@ TEST(test_syscall_sleep)
     }
 }
 
-TEST(test_syscall_exec)
-{
-    test_runner_pid = current_process->pid;
-    void *phys_page = pmm_alloc_page();
-    if (!phys_page)
-        return false;
-
-    uint64_t user_base = 0x400000;
-    uint64_t cr3;
-    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
-    uint64_t hhdm_offset = 0xffff800000000000;
-    vmm_map_page((pml4_t)cr3, user_base, (uint64_t)phys_page, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-
-    void *virt_page = (void *)((uint64_t)phys_page + hhdm_offset);
-    memcpy(virt_page, exec_stub_bytes, sizeof(exec_stub_bytes));
-
-    const char *path = "/bin/prog";
-    memcpy((void *)((uint64_t)virt_page + 0x100), path, strlen(path) + 1);
-    uint32_t expected_status = 123;
-    memcpy((void *)((uint64_t)virt_page + 0x200), &expected_status, sizeof(uint32_t));
-
-    syscall_set_exit_hook(syscall_test_exit_handler);
-
-    if (__builtin_setjmp(test_env) == 0) {
-        uint64_t user_stack = user_base + 4096 - 16;
-        enter_user_mode(user_base, user_stack);
-        return false;
-    } else {
-        syscall_test_resume_after_longjmp();
-        bool passed = (test_exit_code == 0);
-        if (passed)
-            printk("Syscall Test: EXEC successful\n");
-        else
-            printk("Syscall Test: EXEC failed, exit code %d\n", test_exit_code);
-        syscall_set_exit_hook(nullptr);
-        return passed;
-    }
-}
-
 TEST(test_syscall_execve)
 {
     test_runner_pid = current_process->pid;
@@ -1402,14 +1336,6 @@ TEST(test_syscall_invalid_paths_and_fds)
     // Read on closed/invalid descriptors should return 0.
     TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
     TEST_ASSERT(sys_read(42, buf, sizeof(buf)) == 0);
-    return true;
-}
-
-TEST(test_syscall_exec_nonexistent_path)
-{
-    syscall_regs_t dummy = {0};
-    int res              = sys_exec("/does/not/exist", &dummy);
-    TEST_ASSERT(res < 0);
     return true;
 }
 

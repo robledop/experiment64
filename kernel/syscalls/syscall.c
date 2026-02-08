@@ -95,9 +95,6 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_EXIT:
         sys_exit((int)arg1);
         return 0;
-    case SYS_EXEC:
-        ret = sys_exec((const char*)arg1, regs);
-        break;
     case SYS_EXECVE:
         ret = sys_execve((const char*)arg1, (const char*const *)arg2, (const char*const *)arg3, regs);
         break;
