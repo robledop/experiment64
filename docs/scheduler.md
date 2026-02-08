@@ -1,4 +1,4 @@
-# Scheduler (`process.c`, `switch.S`)
+# Scheduler (`scheduler.c`, `thread.c`, `switch.S`)
 
 The scheduler is xv6-style: each CPU runs a dedicated scheduler loop on its own
 scheduler thread stack. Runnable threads live on a global process list, and the

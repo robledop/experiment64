@@ -116,11 +116,40 @@ typedef struct Thread
     bool detached; // User thread detached from join
 } thread_t;
 
+USED static inline bool thread_state_valid_raw(uint32_t raw_state)
+{
+    return raw_state <= THREAD_TERMINATED;
+}
+
+USED static inline uint32_t thread_state_load_raw(const thread_t *t)
+{
+    return __atomic_load_n((const uint32_t *)&t->state, __ATOMIC_RELAXED);
+}
+
+USED static inline void thread_state_store(thread_t *t, thread_state_t state)
+{
+    __atomic_store_n((uint32_t *)&t->state, (uint32_t)state, __ATOMIC_RELAXED);
+}
+
 extern list_item_t process_list;
 extern process_t *kernel_process;
 extern process_t *init_process;
 extern spinlock_t scheduler_lock;
 extern volatile uint64_t scheduler_ticks;
+
+USED static inline bool process_in_list(const process_t *proc)
+{
+    spinlock_assert_held(&scheduler_lock);
+    if (!proc)
+        return false;
+
+    list_item_t *pos;
+    list_foreach(pos, &process_list) {
+        if (list_entry(pos, process_t, list) == proc)
+            return true;
+    }
+    return false;
+}
 
 void process_init(void);
 process_t *process_create(const char *name);
