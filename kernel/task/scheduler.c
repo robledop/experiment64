@@ -390,17 +390,16 @@ bool scheduler_is_ready(void)
 
 void smp_init_ap_scheduler(void)
 {
-    // Set this CPU's scheduler thread as active
     cpu_t *cpu       = get_cpu();
     uint32_t cpu_idx = (uint32_t)cpu->cpu_index;
 
     if (cpu_idx < MAX_CPUS && cpu->scheduler_thread) {
-        thread_t *schedt = cpu->scheduler_thread;
-        cpu_set_active_thread(cpu, schedt);
-        schedt->state = THREAD_RUNNING;
+        thread_t *scheduler_thread = cpu->scheduler_thread;
+        cpu_set_active_thread(cpu, scheduler_thread);
+        scheduler_thread->state = THREAD_RUNNING;
 
         // Ensure the syscall / TSS stack uses the scheduler stack for this CPU.
-        cpu->kernel_rsp = schedt->kstack_top;
+        cpu->kernel_rsp = scheduler_thread->kstack_top;
         tss_set_stack(cpu->kernel_rsp);
 
         // The AP enters `ap_main` on a Limine-provided bootstrap stack, not on the
@@ -416,7 +415,7 @@ void smp_init_ap_scheduler(void)
         bootstrap.tid      = -1;
         bootstrap.process  = kernel_process;
         bootstrap.state    = THREAD_RUNNING;
-        switch_to(&bootstrap, schedt);
+        switch_to(&bootstrap, scheduler_thread);
         __builtin_unreachable();
     }
 }
