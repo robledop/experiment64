@@ -70,6 +70,17 @@ TEST(test_sys_pthread_detach_basic)
     return true;
 }
 
+TEST(test_sys_semaphore_basic)
+{
+    int pid = sys_spawn("/bin/sem_test");
+    TEST_ASSERT(pid > 1);
+    int status = -1;
+    int waited = sys_wait(&status);
+    TEST_ASSERT(waited == pid);
+    TEST_ASSERT(status == 0);
+    return true;
+}
+
 TEST(test_sys_gettimeofday_basic)
 {
     struct timeval tv = {0};
