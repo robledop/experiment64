@@ -15,6 +15,7 @@
       <w>envp</w>
       <w>execve</w>
       <w>fbline</w>
+      <w>fileno</w>
       <w>finddir</w>
       <w>fsize</w>
       <w>gettid</w>
@@ -31,15 +32,18 @@
       <w>limine</w>
       <w>masix</w>
       <w>mknod</w>
+      <w>mmap</w>
       <w>mountpoint</w>
       <w>msyntax</w>
       <w>munmap</w>
       <w>nbits</w>
       <w>ndev</w>
+      <w>newpath</w>
       <w>newptr</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
       <w>oldfd</w>
+      <w>oldpath</w>
       <w>outsl</w>
       <w>pathlib</w>
       <w>pipefd</w>
