@@ -2,15 +2,16 @@
 #include <semaphore.h>
 #include <unistd.h>
 
+// Minimal semaphore behavior checks: fast path, blocking, and multi-waiter.
 static sem_t g_sem;
-static volatile int g_state = 0;
+static volatile int g_state        = 0;
 static volatile int g_waiter_ready = 0;
-static volatile int g_waiter_done = 0;
+static volatile int g_waiter_done  = 0;
 
-static int spin_wait_state(volatile int *state, int expected, int max_iters)
+// Spin with acquire loads and yield to avoid hard busy-waiting.
+static int spin_wait_state(const volatile int *state, int expected, int max_iters)
 {
-    for (int i = 0; i < max_iters; i++)
-    {
+    for (int i = 0; i < max_iters; i++) {
         if (__atomic_load_n(state, __ATOMIC_ACQUIRE) == expected)
             return 1;
         yield();
@@ -18,10 +19,10 @@ static int spin_wait_state(volatile int *state, int expected, int max_iters)
     return 0;
 }
 
-static int spin_wait_at_least(volatile int *value, int expected, int max_iters)
+// Spin until a shared counter reaches the required minimum.
+static int spin_wait_at_least(const volatile int *value, int expected, int max_iters)
 {
-    for (int i = 0; i < max_iters; i++)
-    {
+    for (int i = 0; i < max_iters; i++) {
         if (__atomic_load_n(value, __ATOMIC_ACQUIRE) >= expected)
             return 1;
         yield();
@@ -29,7 +30,8 @@ static int spin_wait_at_least(volatile int *value, int expected, int max_iters)
     return 0;
 }
 
-static void* sem_fast_waiter(void* arg)
+// Wait on the semaphore and mark completion for the fast-path test.
+static void *sem_fast_waiter(void *arg)
 {
     (void)arg;
     sem_wait(&g_sem);
@@ -37,7 +39,8 @@ static void* sem_fast_waiter(void* arg)
     return nullptr;
 }
 
-static void* sem_blocking_waiter(void* arg)
+// Mark "ready", then block on the semaphore, then mark "done".
+static void *sem_blocking_waiter(void *arg)
 {
     (void)arg;
     __atomic_store_n(&g_state, 1, __ATOMIC_RELEASE);
@@ -46,7 +49,8 @@ static void* sem_blocking_waiter(void* arg)
     return nullptr;
 }
 
-static void* sem_multi_waiter(void* arg)
+// Used for the multi-waiter test: track ready and done counts.
+static void *sem_multi_waiter(void *arg)
 {
     (void)arg;
     __atomic_fetch_add(&g_waiter_ready, 1, __ATOMIC_RELEASE);
@@ -59,6 +63,7 @@ int main(void)
 {
     constexpr int k_spin_limit = 20000;
 
+    // Test 1: semaphore with initial count, waiter should pass immediately.
     sem_init(&g_sem, 1);
     g_state = 0;
     pthread_t fast_thread;
@@ -69,6 +74,7 @@ int main(void)
     if (pthread_join(fast_thread, nullptr) != 0)
         return 3;
 
+    // Test 2: semaphore starts at 0, waiter blocks until post.
     sem_init(&g_sem, 0);
     g_state = 0;
     pthread_t block_thread;
@@ -76,8 +82,7 @@ int main(void)
         return 4;
     if (!spin_wait_state(&g_state, 1, k_spin_limit))
         return 5;
-    for (int i = 0; i < 1000; i++)
-    {
+    for (int i = 0; i < 1000; i++) {
         if (__atomic_load_n(&g_state, __ATOMIC_ACQUIRE) != 1)
             return 6;
         yield();
@@ -88,9 +93,10 @@ int main(void)
     if (pthread_join(block_thread, nullptr) != 0)
         return 8;
 
+    // Test 3: two waiters block, then both are released by two posts.
     sem_init(&g_sem, 0);
     g_waiter_ready = 0;
-    g_waiter_done = 0;
+    g_waiter_done  = 0;
     pthread_t waiter_a;
     pthread_t waiter_b;
     if (pthread_create(&waiter_a, nullptr, sem_multi_waiter, nullptr) != 0)
