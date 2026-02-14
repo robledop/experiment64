@@ -20,11 +20,19 @@ PROGRAM_SOURCES = $(wildcard *.c)
 PROGRAMS = $(basename $(PROGRAM_SOURCES))
 PROGRAM_OBJS = $(PROGRAMS:%=$(BUILD_DIR)/%.o)
 
+OSTEP_SOURCES = $(wildcard ostep/*.c)
+OSTEP_PROGRAMS = $(basename $(OSTEP_SOURCES))
+OSTEP_OBJS = $(OSTEP_PROGRAMS:%=$(BUILD_DIR)/%.o)
+
+TEST_SOURCES = $(wildcard tests/*.c)
+TEST_PROGRAMS = $(basename $(TEST_SOURCES))
+TEST_OBJS = $(TEST_PROGRAMS:%=$(BUILD_DIR)/%.o)
+
 WM_SRC = $(wildcard wm/*.c)
 WM_OBJ = $(WM_SRC:wm/%.c=$(BUILD_DIR)/wm/%.o)
 WM_TARGET = $(BUILD_DIR)/wm/main
 
-TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
+TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(OSTEP_PROGRAMS:%=$(BUILD_DIR)/%) $(TEST_PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
 
 .PHONY: all
 all: $(TARGETS)

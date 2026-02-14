@@ -20,3 +20,4 @@ Common userland commands include `ls`, `cat`, `grep`, `mv`, `rm`, and `wc`.
 
 Notes:
 - There is no job control; background tasks are detached and not tracked.
+- Test helper binaries used by the kernel test suite are installed under `/tests`.

@@ -43,7 +43,7 @@ TEST (test_signal_sigaction_invalid)
 
 TEST (test_signal_user_handler)
 {
-    const int pid = sys_spawn("/bin/sigtest_handler");
+    const int pid = sys_spawn("/tests/sigtest_handler");
     TEST_ASSERT(pid > 1);
 
     int status = 0;
@@ -54,7 +54,7 @@ TEST (test_signal_user_handler)
 
 TEST (test_signal_sigchld)
 {
-    const int pid = sys_spawn("/bin/sigtest_sigchld");
+    const int pid = sys_spawn("/tests/sigtest_sigchld");
     TEST_ASSERT(pid > 1);
 
     int status = 0;
@@ -67,7 +67,7 @@ TEST (test_signal_sigchld)
 
 TEST (test_signal_nocldwait)
 {
-    const int pid = sys_spawn("/bin/sigtest_nocldwait");
+    const int pid = sys_spawn("/tests/sigtest_nocldwait");
     TEST_ASSERT(pid > 1);
 
     int status = 0;
@@ -80,7 +80,7 @@ TEST (test_signal_nocldwait)
 
 TEST (test_signal_mask)
 {
-    const int pid = sys_spawn("/bin/sigtest_mask");
+    const int pid = sys_spawn("/tests/sigtest_mask");
     TEST_ASSERT(pid > 1);
 
     int status = 0;
@@ -93,7 +93,7 @@ TEST (test_signal_mask)
 
 TEST (test_signal_default_terminate)
 {
-    const int pid = sys_spawn("/bin/sigtest_term");
+    const int pid = sys_spawn("/tests/sigtest_term");
     TEST_ASSERT(pid > 1);
 
     int status = 0;
@@ -106,7 +106,7 @@ TEST (test_signal_default_terminate)
 
 TEST (test_signal_ctrl_c)
 {
-    const int pid = sys_spawn("/bin/sigtest_int");
+    const int pid = sys_spawn("/tests/sigtest_int");
     TEST_ASSERT(pid > 1);
 
     keyboard_set_foreground_pid(pid);

@@ -6,7 +6,7 @@
 
 TEST(test_sys_thread_join_basic)
 {
-    int pid = sys_spawn("/bin/thread_join_test");
+    int pid = sys_spawn("/tests/thread_join_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -17,7 +17,7 @@ TEST(test_sys_thread_join_basic)
 
 TEST(test_sys_thread_stack_alignment)
 {
-    int pid = sys_spawn("/bin/thread_stack_align_test");
+    int pid = sys_spawn("/tests/thread_stack_align_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -28,7 +28,7 @@ TEST(test_sys_thread_stack_alignment)
 
 TEST(test_sys_waitpid_basic)
 {
-    int pid = sys_spawn("/bin/waitpid_test");
+    int pid = sys_spawn("/tests/waitpid_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -39,7 +39,7 @@ TEST(test_sys_waitpid_basic)
 
 TEST(test_sys_gettid_basic)
 {
-    int pid = sys_spawn("/bin/gettid_test");
+    int pid = sys_spawn("/tests/gettid_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -50,7 +50,7 @@ TEST(test_sys_gettid_basic)
 
 TEST(test_sys_pthread_basic)
 {
-    int pid = sys_spawn("/bin/pthread_test");
+    int pid = sys_spawn("/tests/pthread_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -61,7 +61,7 @@ TEST(test_sys_pthread_basic)
 
 TEST(test_sys_pthread_detach_basic)
 {
-    int pid = sys_spawn("/bin/pthread_detach_test");
+    int pid = sys_spawn("/tests/pthread_detach_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);
@@ -72,7 +72,7 @@ TEST(test_sys_pthread_detach_basic)
 
 TEST(test_sys_semaphore_basic)
 {
-    int pid = sys_spawn("/bin/sem_test");
+    int pid = sys_spawn("/tests/sem_test");
     TEST_ASSERT(pid > 1);
     int status = -1;
     int waited = sys_wait(&status);

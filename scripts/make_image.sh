@@ -88,6 +88,8 @@ rm -rf build/rootfs_esp build/rootfs_ext2 build/rootfs_data
 mkdir -p build/rootfs_esp/EFI/BOOT
 mkdir -p build/rootfs_esp/boot/limine
 mkdir -p build/rootfs_ext2/bin
+mkdir -p build/rootfs_ext2/ostep
+mkdir -p build/rootfs_ext2/tests
 mkdir -p build/rootfs_ext2/mnt
 mkdir -p build/rootfs_ext2/disk1
 mkdir -p build/rootfs_ext2/usb
@@ -133,6 +135,26 @@ done
 if [ -f "$USER_BUILD_DIR/wm/main" ]; then
     cp -v "$USER_BUILD_DIR/wm/main" "build/rootfs_ext2/bin/wm"
 fi
+for ostep_bin in "$USER_BUILD_DIR"/ostep/*; do
+    if [ ! -f "$ostep_bin" ]; then
+        continue
+    fi
+    base=$(basename "$ostep_bin")
+    case "$base" in
+        *.o|*.a|*.d) continue ;;
+    esac
+    cp -v "$ostep_bin" "build/rootfs_ext2/ostep/$base"
+done
+for test_bin in "$USER_BUILD_DIR"/tests/*; do
+    if [ ! -f "$test_bin" ]; then
+        continue
+    fi
+    base=$(basename "$test_bin")
+    case "$base" in
+        *.o|*.a|*.d) continue ;;
+    esac
+    cp -v "$test_bin" "build/rootfs_ext2/tests/$base"
+done
 echo "Hello Ext2" > build/rootfs_ext2/test.txt
 echo "Hello Ext2 Upper" > build/rootfs_ext2/TEST.TXT
 
