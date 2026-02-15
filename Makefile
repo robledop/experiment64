@@ -48,7 +48,6 @@ QEMU_DRIVES_USBBOOT :=  \
 	-drive if=none,file=image.hdd,format=raw,id=usbboot \
 	-device usb-storage,bus=xhci.0,drive=usbboot,bootindex=1
 
-# User-mode networking (has built-in DHCP server)
 QEMU_NETWORK_USER=-netdev user,id=net0,hostfwd=tcp::8080-:80 -device e1000,netdev=net0
 QEMU_NETWORK_TAP=-netdev tap,id=net0,ifname=tap1,script=no,downscript=no -device e1000,netdev=net0
 QEMU_NETWORK_BRIDGE=-netdev bridge,id=n0,br=br0 -device e1000,netdev=n0

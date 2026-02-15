@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>asfiles</w>
+      <w>atof</w>
+      <w>atoi</w>
       <w>bfree</w>
       <w>blockdevice</w>
       <w>bsize</w>
@@ -47,6 +49,7 @@
       <w>oldpath</w>
       <w>outsl</w>
       <w>pathlib</w>
+      <w>perror</w>
       <w>pipefd</w>
       <w>poff</w>
       <w>printk</w>
@@ -61,12 +64,18 @@
       <w>snprintf</w>
       <w>sscanf</w>
       <w>strnlen</w>
+      <w>strtol</w>
       <w>usercopy</w>
       <w>vcbprintf</w>
       <w>vformat</w>
       <w>vprintf</w>
       <w>vprintk</w>
       <w>vsnprintf</w>
+      <w>wexitstatus</w>
+      <w>wifexited</w>
+      <w>wifsignaled</w>
+      <w>wnohang</w>
+      <w>wtermsig</w>
     </words>
   </dictionary>
 </component>

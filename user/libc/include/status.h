@@ -1,4 +1,5 @@
 #pragma once
+#include <attributes.h>
 
 #define ALL_OK 0
 // Input/output error
@@ -38,7 +39,7 @@
 // Is a directory
 #define EISDIR 18
 
-static inline char *strerror(const int error)
+USED static inline char *strerror(const int error)
 {
     switch (error) {
     case -EIO:
