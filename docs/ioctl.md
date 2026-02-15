@@ -7,6 +7,7 @@ returns -1.
 
 - `TIOCGWINSZ`: writes a `struct winsize` to the user pointer.
 - `TIOCSPGRP`: reads an `int` foreground PID from the user pointer.
+- Reads consume console input from keyboard and serial (COM1).
 
 ## /dev/fb0
 

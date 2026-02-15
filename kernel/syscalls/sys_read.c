@@ -1,5 +1,5 @@
 #include <syscall_common.h>
-#include <drivers/keyboard.h>
+#include <drivers/console.h>
 #include <lib/util.h>
 
 int sys_read(int fd, char *buf, size_t count)
@@ -27,7 +27,7 @@ int sys_read(int fd, char *buf, size_t count)
             return clamp_to_int(read);
         }
 
-        // No descriptor or no inode - fall back to keyboard
+        // No descriptor or no inode - fall back to console input
         if (desc && !fd_can_read(desc)) {
             fd_put(desc);
             return -1;
@@ -35,17 +35,12 @@ int sys_read(int fd, char *buf, size_t count)
 
         size_t read = 0;
         while (read < count) {
-            if (read > 0 && !keyboard_has_char()) {
+            if (read > 0 && !console_has_char()) {
                 break;
             }
 
-            char c = keyboard_get_char();
-            if (c) {
-                buf[read++] = c;
-            }
+            buf[read++] = console_get_char();
         }
-        if (read == 0 && !keyboard_has_char())
-            keyboard_clear_modifiers();
         if (desc)
             fd_put(desc);
         return clamp_to_int(read);

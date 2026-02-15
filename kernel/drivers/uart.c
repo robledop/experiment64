@@ -22,9 +22,24 @@
 #define UART_MCR_DTR 0x01
 #define UART_MCR_RTS 0x02
 #define UART_MCR_OUT2 0x08
+#define UART_LSR_DR 0x01
 #define UART_LSR_THRE 0x20
 
 #define UART_DIVISOR_38400 0x03
+#define UART_TEST_INPUT_BUFFER_SIZE 256
+
+static volatile uint32_t uart_test_read_ptr  = 0;
+static volatile uint32_t uart_test_write_ptr = 0;
+static char uart_test_input_buffer[UART_TEST_INPUT_BUFFER_SIZE];
+
+static bool uart_pop_test_char(char *out)
+{
+    if (uart_test_read_ptr == uart_test_write_ptr)
+        return false;
+    *out              = uart_test_input_buffer[uart_test_read_ptr];
+    uart_test_read_ptr = (uart_test_read_ptr + 1) % UART_TEST_INPUT_BUFFER_SIZE;
+    return true;
+}
 
 void uart_init(void)
 {
@@ -54,4 +69,38 @@ void uart_puts(const char *str)
     while (*str) {
         uart_putc(*str++);
     }
+}
+
+bool uart_has_rx(void)
+{
+    if (uart_test_read_ptr != uart_test_write_ptr)
+        return true;
+    return (inb(UART_LSR_REG) & UART_LSR_DR) != 0;
+}
+
+bool uart_try_getc(char *out)
+{
+    if (!out)
+        return false;
+    if (uart_pop_test_char(out))
+        return true;
+    if ((inb(UART_LSR_REG) & UART_LSR_DR) == 0)
+        return false;
+    *out = (char)inb(UART_DATA_REG);
+    return true;
+}
+
+void uart_inject_input_for_test(char c)
+{
+    uint32_t next = (uart_test_write_ptr + 1) % UART_TEST_INPUT_BUFFER_SIZE;
+    if (next == uart_test_read_ptr)
+        uart_test_read_ptr = (uart_test_read_ptr + 1) % UART_TEST_INPUT_BUFFER_SIZE;
+    uart_test_input_buffer[uart_test_write_ptr] = c;
+    uart_test_write_ptr                          = next;
+}
+
+void uart_reset_input_for_test(void)
+{
+    uart_test_read_ptr  = 0;
+    uart_test_write_ptr = 0;
 }

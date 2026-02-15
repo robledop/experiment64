@@ -1,17 +1,46 @@
 #include <fs/vfs.h>
 #include <drivers/keyboard.h>
 #include <drivers/terminal.h>
+#include <drivers/uart.h>
 #include <lib/string.h>
 #include <mem/heap.h>
 #include <drivers/console.h>
 #include <fs/devfs.h>
 #include <sys/ioctl.h>
+#include <task/process.h>
+
+bool console_has_char(void)
+{
+    return keyboard_has_char() || uart_has_rx();
+}
+
+char console_get_char(void)
+{
+    while (1) {
+        if (keyboard_has_char())
+            return keyboard_get_char();
+
+        char c = 0;
+        if (uart_try_getc(&c)) {
+            if (c == '\r')
+                return '\n';
+            if (c == 0x7F)
+                return '\b';
+            return c;
+        }
+
+        if (scheduler_is_ready() && get_current_thread())
+            schedule();
+        else
+            __asm__ volatile("pause");
+    }
+}
 
 uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]] uint64_t offset, uint64_t size,
                       uint8_t *buffer)
 {
     for (uint64_t i = 0; i < size; i++) {
-        buffer[i] = keyboard_get_char();
+        buffer[i] = console_get_char();
     }
     return size;
 }

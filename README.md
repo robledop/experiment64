@@ -14,6 +14,7 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 
 - `make image.hdd` – build kernel + userland and assemble disk images
 - `make run` – boot the kernel in QEMU with the generated image
+- `make run-nox` – boot headless (`-nographic`) with console I/O on serial
 - `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
 - `make clang-tidy` – lint/static-analysis
@@ -65,6 +66,12 @@ To boot the disk image as a USB mass storage device:
 make run-usb
 ```
 
+To run headless in a terminal:
+
+```bash
+make run-nox
+```
+
 ## Running on real hardware
 
 To write the disk image to a real disk, use the following command:
@@ -93,7 +100,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   kernel heap (slab + big allocs, panics on OOM), stack protector, UBSan, VMA tracking for mmap, address space layout in
   `docs/address_space.md`
 - **Timing**: PIT for ticks, TSC calibration for timing
-- **Drivers**: serial/uart, framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, USB xHCI (
+- **Drivers**: serial/uart (TX + RX), framebuffer console, keyboard, mouse, IDE/ATA and AHCI via PCI scan, GPT parsing, USB xHCI (
   USB 3.x enumeration + BOT mass storage read/write; EHCI quiesce + port routing), e1000 NIC, framebuffer device
   `/dev/fb0`
 - **Networking**: e1000 and Atheros AR8162 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client, and a little DNS
