@@ -441,6 +441,15 @@ int snprintf(char *buf, size_t size, const char *format, ...)
 
 int printf(const char *format, ...)
 {
+    va_list args;
+    va_start(args, format);
+    int res = vprintf(format, args);
+    va_end(args);
+    return res;
+}
+
+int vprintf(const char *format, va_list args)
+{
     struct out_ctx ctx = {
         .buf = nullptr,
         .size = 0,
@@ -448,10 +457,7 @@ int printf(const char *format, ...)
         .count = 0,
         .is_buffer = false,
     };
-    va_list args;
-    va_start(args, format);
     vformat(&ctx, format, args);
-    va_end(args);
     return ctx.count;
 }
 

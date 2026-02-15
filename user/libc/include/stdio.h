@@ -40,6 +40,7 @@ extern FILE *__stderr_file;
 #define stderr __stderr_file
 
 int printf(const char *format, ...);
+int vprintf(const char *format, va_list args);
 int vsnprintf(char *restrict buf, size_t size, const char *restrict format, va_list args);
 int snprintf(char *restrict buf, size_t size, const char *restrict format, ...);
 int getchar(void);
