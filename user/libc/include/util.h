@@ -1,9 +1,9 @@
 #pragma once
 
+#include <attributes.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <attributes.h>
 
 static inline USED int clamp_to_int(const uint64_t value)
 {
@@ -21,8 +21,7 @@ static inline USED int clamp_signed_to_int(int64_t value)
 
 typedef void (*defer_func_t)(void *);
 
-struct defer_action
-{
+struct defer_action {
     defer_func_t func;
     void *arg;
 };
@@ -35,7 +34,8 @@ static inline USED void defer_cleanup(const struct defer_action *action)
 
 #define DEFER_NAME(base, line) base##line
 #define DEFER(base, line) DEFER_NAME(base, line)
-#define defer(func, arg) __attribute__((cleanup(defer_cleanup))) struct defer_action DEFER(_defer_, __LINE__) = {func, arg}
+#define defer(func, arg)                                                                                               \
+    __attribute__((cleanup(defer_cleanup))) struct defer_action DEFER(_defer_, __LINE__) = {func, arg}
 
 static inline USED void cleanup_free(void *ptr)
 {
@@ -47,3 +47,9 @@ static inline USED void cleanup_free(void *ptr)
         free(*p);
     }
 }
+
+#define CHECK_SUCCESS(expr)                                                                                            \
+    do {                                                                                                               \
+        if ((expr) != 0)                                                                                               \
+            return -1;                                                                                                 \
+    } while (0)

@@ -21,7 +21,6 @@
 barrier_t barrier;
 pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
 void *child_1([[maybe_unused]] void *arg)
 {
     Mutex_lock(&print_mutex);
@@ -32,7 +31,6 @@ void *child_1([[maybe_unused]] void *arg)
     pthread_barrier_wait(&barrier);
     sleep(1);
 
-    sleep(1);
     Mutex_lock(&print_mutex);
     printf("child 1: after\n");
     Mutex_unlock(&print_mutex);

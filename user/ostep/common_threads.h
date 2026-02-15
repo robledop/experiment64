@@ -33,7 +33,7 @@
         panic("Failed to wait on condition variable");
 
 #define Mutex_init(m)                                                                                                  \
-    if (pthread_mutex_init(m, NULL) != 0)                                                                              \
+    if (pthread_mutex_init(m, nullptr) != 0)                                                                              \
         panic("Failed to init mutex");
 #define Mutex_lock(m)                                                                                                  \
     if (pthread_mutex_lock(m) != 0)                                                                                    \
@@ -43,7 +43,7 @@
         panic("Failed unlock mutex");
 
 #define Cond_init(cond)                                                                                                \
-    if (pthread_cond_init(cond, NULL) != 0)                                                                            \
+    if (pthread_cond_init(cond, nullptr) != 0)                                                                            \
         panic("Failed to init condition variable");
 #define Cond_signal(cond)                                                                                              \
     if (pthread_cond_signal(cond) != 0)                                                                                \
