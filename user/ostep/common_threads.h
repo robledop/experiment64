@@ -1,28 +1,63 @@
 #pragma once
 
-#include <pthread.h>
 #include <assert.h>
+#include <pthread.h>
 #include <semaphore.h>
+#include <stdlib.h>
 
-#define Pthread_create(thread, attr, start_routine, arg) assert(pthread_create(thread, attr, start_routine, arg) == 0);
-#define Pthread_join(thread, value_ptr)                  assert(pthread_join(thread, value_ptr) == 0);
+#define Pthread_create(thread, attr, start_routine, arg)                                                               \
+    if (pthread_create(thread, attr, start_routine, arg) != 0)                                                         \
+        panic("Failed to create thread");
+#define Pthread_join(thread, value_ptr)                                                                                \
+    if (pthread_join(thread, value_ptr) != 0)                                                                          \
+        panic("Failed to join thread");
 
-#define Pthread_mutex_init(m, v)                         assert(pthread_mutex_init(m, v) == 0);
-#define Pthread_mutex_lock(m)                            assert(pthread_mutex_lock(m) == 0);
-#define Pthread_mutex_unlock(m)                          assert(pthread_mutex_unlock(m) == 0);
+#define Pthread_mutex_init(m, v)                                                                                       \
+    if (pthread_mutex_init(m, v) != 0)                                                                                 \
+        panic("Failed to init mutex");
+#define Pthread_mutex_lock(m)                                                                                          \
+    if (pthread_mutex_lock(m) != 0)                                                                                    \
+        panic("Failed to lock mutex");
+#define Pthread_mutex_unlock(m)                                                                                        \
+    if (pthread_mutex_unlock(m) != 0)                                                                                  \
+        panic("Failed to unlock mutex");
 
-#define Pthread_cond_init(cond, v)                       assert(pthread_cond_init(cond, v) == 0);
-#define Pthread_cond_signal(cond)                        assert(pthread_cond_signal(cond) == 0);
-#define Pthread_cond_wait(cond, mutex)                   assert(pthread_cond_wait(cond, mutex) == 0);
+#define Pthread_cond_init(cond, v)                                                                                     \
+    if (pthread_cond_init(cond, v) != 0)                                                                               \
+        panic("Failed to init condition variable");
+#define Pthread_cond_signal(cond)                                                                                      \
+    if (pthread_cond_signal(cond) != 0)                                                                                \
+        panic("Failed to signal condition variable");
+#define Pthread_cond_wait(cond, mutex)                                                                                 \
+    if (pthread_cond_wait(cond, mutex) != 0)                                                                           \
+        panic("Failed to wait on condition variable");
 
-#define Mutex_init(m)                                    assert(pthread_mutex_init(m, NULL) == 0);
-#define Mutex_lock(m)                                    assert(pthread_mutex_lock(m) == 0);
-#define Mutex_unlock(m)                                  assert(pthread_mutex_unlock(m) == 0);
+#define Mutex_init(m)                                                                                                  \
+    if (pthread_mutex_init(m, NULL) != 0)                                                                              \
+        panic("Failed to init mutex");
+#define Mutex_lock(m)                                                                                                  \
+    if (pthread_mutex_lock(m) != 0)                                                                                    \
+        panic("Failed to lock mutex");
+#define Mutex_unlock(m)                                                                                                \
+    if (pthread_mutex_unlock(m) != 0)                                                                                  \
+        panic("Failed unlock mutex");
 
-#define Cond_init(cond)                                  assert(pthread_cond_init(cond, NULL) == 0);
-#define Cond_signal(cond)                                assert(pthread_cond_signal(cond) == 0);
-#define Cond_wait(cond, mutex)                           assert(pthread_cond_wait(cond, mutex) == 0);
+#define Cond_init(cond)                                                                                                \
+    if (pthread_cond_init(cond, NULL) != 0)                                                                            \
+        panic("Failed to init condition variable");
+#define Cond_signal(cond)                                                                                              \
+    if (pthread_cond_signal(cond) != 0)                                                                                \
+        panic("Failed to signal condition variable");
+#define Cond_wait(cond, mutex)                                                                                         \
+    if (pthread_cond_wait(cond, mutex) != 0)                                                                           \
+        panic("Failed to wait on condition variable");
 
-#define Sem_init(sem, value)                             assert(sem_init(sem, value) == 0);
-#define Sem_wait(sem)                                    assert(sem_wait(sem) == 0);
-#define Sem_post(sem)                                    assert(sem_post(sem) == 0);
+#define Sem_init(sem, value)                                                                                           \
+    if (sem_init(sem, value) != 0)                                                                                     \
+        panic("Failed to init semaphore");
+#define Sem_wait(sem)                                                                                                  \
+    if (sem_wait(sem) != 0)                                                                                            \
+        panic("Failed to wait on semaphore");
+#define Sem_post(sem)                                                                                                  \
+    if (sem_post(sem) != 0)                                                                                            \
+        panic("Failed to post semaphore");
