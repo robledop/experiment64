@@ -7,6 +7,6 @@ typedef struct semaphore {
     pthread_mutex_t lock;
 } sem_t;
 
-void sem_init(sem_t *s, int value);
-void sem_wait(sem_t *s);
-void sem_post(sem_t *s);
+int sem_init(sem_t *s, int value);
+int sem_wait(sem_t *s);
+int sem_post(sem_t *s);
