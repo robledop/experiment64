@@ -1,6 +1,6 @@
-#include <semaphore.h>
 #include <stdio.h>
 #include <unistd.h>
+#include "common_threads.h"
 
 // Homework Semaphores 2
 // Let’s now generalize this a bit by investigating the rendezvous problem.
@@ -15,31 +15,29 @@
 
 sem_t s1, s2;
 
-void *child_1(void *arg)
-{
+void *child_1(void *arg) {
     printf("child 1: before\n");
     // what goes here?
     printf("child 1: after\n");
-    return nullptr;
+    return NULL;
 }
 
-void *child_2(void *arg)
-{
+void *child_2(void *arg) {
     printf("child 2: before\n");
     // what goes here?
     printf("child 2: after\n");
-    return nullptr;
+    return NULL;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     pthread_t p1, p2;
     printf("parent: begin\n");
     // init semaphores here
-    pthread_create(&p1, nullptr, child_1, nullptr);
-    pthread_create(&p2, nullptr, child_2, nullptr);
-    pthread_join(p1, nullptr);
-    pthread_join(p2, nullptr);
+    Pthread_create(&p1, NULL, child_1, NULL);
+    Pthread_create(&p2, NULL, child_2, NULL);
+    Pthread_join(p1, NULL);
+    Pthread_join(p2, NULL);
     printf("parent: end\n");
     return 0;
 }
+

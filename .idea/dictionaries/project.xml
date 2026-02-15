@@ -57,8 +57,15 @@
       <w>setjmp</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
+      <w>snprintf</w>
+      <w>sscanf</w>
+      <w>strnlen</w>
       <w>usercopy</w>
+      <w>vcbprintf</w>
+      <w>vformat</w>
+      <w>vprintf</w>
       <w>vprintk</w>
+      <w>vsnprintf</w>
     </words>
   </dictionary>
 </component>

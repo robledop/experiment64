@@ -1,6 +1,8 @@
-#include <semaphore.h>
+#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include "common_threads.h"
 
 // Homework Semaphores 3:
 // Now go one step further by implementing a general solution to barrier syn-
@@ -47,3 +49,4 @@ int main(int argc, char *argv[])
     printf("parent: end\n");
     return 0;
 }
+
