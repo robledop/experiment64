@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "common_threads.h"
 
-// NOTE: Homework Semaphores 2
+// Homework Semaphores 2
 // Let’s now generalize this a bit by investigating the rendezvous problem.
 // The problem is as follows: you have two threads, each of which are about
 // to enter the rendezvous point in the code. Neither should exit this part of

@@ -1,17 +1,16 @@
-#include <pthread.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <limits.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <semaphore.h>
 
-struct pthread_start
-{
-    void * (*start)(void *);
+struct pthread_start {
+    void *(*start)(void *);
     void *arg;
 };
 
-struct pthread_ret_entry
-{
+struct pthread_ret_entry {
     void *value;
     int tid;
     bool used;
@@ -22,8 +21,7 @@ struct pthread_ret_entry
 static pthread_mutex_t g_ret_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct pthread_ret_entry g_ret_table[PTHREAD_RET_MAX];
 
-struct pthread_detached_entry
-{
+struct pthread_detached_entry {
     int tid;
     bool used;
 };
@@ -55,12 +53,7 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
 
     for (;;) {
         int expected = 0;
-        if (__atomic_compare_exchange_n(&mutex->__state,
-                                        &expected,
-                                        1,
-                                        false,
-                                        __ATOMIC_ACQUIRE,
-                                        __ATOMIC_RELAXED)) {
+        if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
             return 0;
         }
         futex_wait(&mutex->__state, 1);
@@ -73,12 +66,7 @@ int pthread_mutex_trylock(pthread_mutex_t *mutex)
         return -1;
 
     int expected = 0;
-    if (__atomic_compare_exchange_n(&mutex->__state,
-                                    &expected,
-                                    1,
-                                    false,
-                                    __ATOMIC_ACQUIRE,
-                                    __ATOMIC_RELAXED)) {
+    if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         return 0;
     }
     return -1;
@@ -152,12 +140,7 @@ int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
         return 0;
 
     int expected = 0;
-    if (__atomic_compare_exchange_n(&once_control->__state,
-                                    &expected,
-                                    1,
-                                    false,
-                                    __ATOMIC_ACQUIRE,
-                                    __ATOMIC_RELAXED)) {
+    if (__atomic_compare_exchange_n(&once_control->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         init_routine();
         __atomic_store_n(&once_control->__state, 2, __ATOMIC_RELEASE);
         futex_wake(&once_control->__state, INT_MAX);
@@ -166,6 +149,57 @@ int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
 
     while (__atomic_load_n(&once_control->__state, __ATOMIC_ACQUIRE) != 2)
         futex_wait(&once_control->__state, 1);
+    return 0;
+}
+
+int pthread_barrier_init(barrier_t *barrier, const void *attr, unsigned count)
+{
+    (void)attr;
+    if (!barrier || count == 0)
+        return -1;
+
+    barrier->n     = count;
+    barrier->count = 0;
+    pthread_mutex_init(&barrier->lock, nullptr);
+    sem_init(&barrier->turnstile1, 0);
+    sem_init(&barrier->turnstile2, 1);
+    return 0;
+}
+
+int pthread_barrier_destroy(barrier_t *barrier)
+{
+    if (!barrier)
+        return -1;
+
+    pthread_mutex_destroy(&barrier->lock);
+    sem_destroy(&barrier->turnstile1);
+    sem_destroy(&barrier->turnstile2);
+    return 0;
+}
+
+int pthread_barrier_wait(barrier_t *barrier)
+{
+    if (!barrier)
+        return -1;
+
+    pthread_mutex_lock(&barrier->lock);
+    barrier->count++;
+    if (barrier->count == barrier->n) {
+        sem_wait(&barrier->turnstile2);
+        sem_post(&barrier->turnstile1);
+    }
+    pthread_mutex_unlock(&barrier->lock);
+
+    sem_wait(&barrier->turnstile1);
+    sem_post(&barrier->turnstile1);
+
+    pthread_mutex_lock(&barrier->lock);
+    barrier->count--;
+    if (barrier->count == 0) {
+        sem_wait(&barrier->turnstile1);
+        sem_post(&barrier->turnstile2);
+    }
+    pthread_mutex_unlock(&barrier->lock);
     return 0;
 }
 
@@ -269,8 +303,7 @@ static void pthread_trampoline(void *arg)
     thread_exit(0);
 }
 
-int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
-                   void * (*start_routine)(void *), void *arg)
+int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg)
 {
     (void)attr;
     if (!thread || !start_routine)

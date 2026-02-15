@@ -52,3 +52,13 @@ int sem_post(sem_t *s)
 
     return 0;
 }
+int sem_destroy(sem_t *s)
+{
+    if (pthread_mutex_destroy(&s->lock) != 0) {
+        return -1;
+    }
+    if (pthread_cond_destroy(&s->cond) != 0) {
+        return -1;
+    }
+    return 0;
+}
