@@ -28,6 +28,8 @@
 #define UART_DIVISOR_38400 0x03
 #define UART_TEST_INPUT_BUFFER_SIZE 256
 
+static bool uart_present = false;
+
 static volatile uint32_t uart_test_read_ptr  = 0;
 static volatile uint32_t uart_test_write_ptr = 0;
 static char uart_test_input_buffer[UART_TEST_INPUT_BUFFER_SIZE];
@@ -43,6 +45,16 @@ static bool uart_pop_test_char(char *out)
 
 void uart_init(void)
 {
+    // Scratch register test: detect whether a UART chip is present at COM1.
+    // Without this, machines lacking a serial port return 0xFF for all port
+    // reads, which makes uart_has_rx() permanently true and floods console
+    // input with garbage bytes.
+    outb(UART_SCR_REG, 0xA5);
+    if (inb(UART_SCR_REG) != 0xA5) {
+        uart_present = false;
+        return;
+    }
+
     outb(UART_IER_REG, 0x00);                // Disable all interrupts
     outb(UART_LCR_REG, UART_LCR_DLAB);       // Enable DLAB (set baud rate divisor)
     outb(UART_DATA_REG, UART_DIVISOR_38400); // Set divisor to 3 (lo byte) 38,400 baud
@@ -51,6 +63,7 @@ void uart_init(void)
     outb(UART_FCR_REG, UART_FCR_ENABLE | UART_FCR_CLEAR_RX | UART_FCR_CLEAR_TX | UART_FCR_TRIGGER_14);
     // Enable FIFO, clear them, with a 14-byte threshold
     outb(UART_MCR_REG, UART_MCR_OUT2 | UART_MCR_RTS | UART_MCR_DTR); // IRQs enabled, RTS/DSR set
+    uart_present = true;
 }
 
 int uart_is_transmit_empty(void)
@@ -75,6 +88,8 @@ bool uart_has_rx(void)
 {
     if (uart_test_read_ptr != uart_test_write_ptr)
         return true;
+    if (!uart_present)
+        return false;
     return (inb(UART_LSR_REG) & UART_LSR_DR) != 0;
 }
 
@@ -84,6 +99,8 @@ bool uart_try_getc(char *out)
         return false;
     if (uart_pop_test_char(out))
         return true;
+    if (!uart_present)
+        return false;
     if ((inb(UART_LSR_REG) & UART_LSR_DR) == 0)
         return false;
     *out = (char)inb(UART_DATA_REG);
