@@ -103,9 +103,10 @@ typedef struct Thread
     uint64_t saved_user_rsp;  // Saved user RSP during syscalls
     uint64_t user_stack_base; // User stack mapping start
     uint64_t user_stack_top;  // User stack mapping end
+    uint64_t fs_base;         // User FS base (TLS pointer)
     void *chan;               // Sleep channel
     uint64_t ticks_remaining; // Time slice remaining
-    uint64_t _align[2];       // Padding to keep list 16-byte aligned relative to start
+    uint64_t _align[1];       // Padding to keep list 16-byte aligned relative to start
     list_item_t list;         // Thread list node
     int tid;
     int last_cpu; // Last CPU the thread ran on (for debugging)

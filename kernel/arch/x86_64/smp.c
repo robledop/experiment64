@@ -19,6 +19,7 @@ static uint32_t bsp_lapic_id = 0;
 static void ap_main(struct limine_smp_info *info)
 {
     enable_simd();
+    enable_fsgsbase();
     cpu_t *cpu = (cpu_t *)info->extra_argument;
     wrmsr(MSR_GS_BASE, (uint64_t)cpu);
     wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu);
