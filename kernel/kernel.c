@@ -105,6 +105,7 @@ void kernel_splash(void)
 void _start(void) // NOLINT(*-reserved-identifier)
 {
     enable_simd();
+    enable_fsgsbase();
     uart_init();
     boot_init();
     boot_init_terminal();

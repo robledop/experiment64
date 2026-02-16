@@ -1,5 +1,6 @@
 #include <lib/string.h>
 #include <arch/x86_64/cpu.h>
+#include <debug.h>
 #include <task/process.h>
 
 static bool g_use_xsave         = false;
@@ -115,6 +116,19 @@ bool cpu_is_hypervisor(void)
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
     cpuid(1, 0, &eax, &ebx, &ecx, &edx);
     return (ecx & (1u << 31)) != 0;
+}
+
+void enable_fsgsbase(void)
+{
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+    cpuid(7, 0, &eax, &ebx, &ecx, &edx);
+    if (!(ebx & (1u << 0)))
+        panic("CPU does not support FSGSBASE");
+
+    uint64_t cr4;
+    __asm__ volatile ("mov %0, cr4" : "=r"(cr4));
+    cr4 |= (1ull << 16);
+    __asm__ volatile ("mov cr4, %0" :: "r"(cr4));
 }
 
 void cpu_set_active_thread(cpu_t *cpu, thread_t *thread)

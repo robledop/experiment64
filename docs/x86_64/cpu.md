@@ -162,6 +162,12 @@ void hcf(void) {
 
 ---
 
+### `enable_fsgsbase()` — Enable FSGSBASE Instructions
+Called once per CPU during initialization. Checks CPUID.7.0:EBX bit 0 for
+FSGSBASE support and sets CR4 bit 16. This enables unprivileged
+`RDFSBASE`/`WRFSBASE`/`RDGSBASE`/`WRGSBASE` instructions, used for fast
+thread-local storage access. Panics if the CPU does not support FSGSBASE.
+
 ### `cpu_is_hypervisor()` — Detect Virtualization
 Checks if running inside a VM (CPUID.1:ECX bit 31).
 

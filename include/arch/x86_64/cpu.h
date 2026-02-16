@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <arch/x86_64/gdt.h>
+#include <attributes.h>
 
 // XCR0 feature bits
 #define XCR0_X87 (1u << 0)
@@ -55,6 +56,7 @@ bool cpu_in_interrupt(void);
 void wrmsr(uint32_t msr, uint64_t value);
 uint64_t rdmsr(uint32_t msr);
 void enable_simd(void);
+void enable_fsgsbase(void);
 void init_fpu_state(fpu_state_t* state);
 void save_fpu_state(fpu_state_t* state);
 void restore_fpu_state(fpu_state_t* state);
@@ -62,7 +64,19 @@ bool cpu_has_avx(void);
 uint32_t cpu_fpu_save_size(void);
 bool cpu_is_hypervisor(void);
 
-static inline uint64_t rdtsc(void)
+USED static inline uint64_t rdfsbase(void)
+{
+    uint64_t val;
+    __asm__ volatile ("rdfsbase %0" : "=r"(val));
+    return val;
+}
+
+USED static inline void wrfsbase(uint64_t val)
+{
+    __asm__ volatile ("wrfsbase %0" :: "r"(val));
+}
+
+USED static inline uint64_t rdtsc(void)
 {
     uint32_t low, high;
     __asm__ volatile("rdtsc" : "=a"(low), "=d"(high));
