@@ -644,6 +644,7 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
         syscall_set_stack(next->kstack_top);
 
         cpu->user_rsp = next->saved_user_rsp;
+        wrfsbase(next->fs_base);
         restore_fpu_state(&next->fpu_state);
 
         cpu_set_active_thread(cpu, next);
@@ -697,8 +698,8 @@ void schedule(void)
         thread_list_move_to_tail(curr);
     }
 
-    // Preserve per-thread user rsp scratch and FPU state before switching out.
     curr->saved_user_rsp = cpu ? cpu->user_rsp : 0;
+    curr->fs_base = rdfsbase();
     save_fpu_state(&curr->fpu_state);
 
     spinlock_release(&scheduler_lock);

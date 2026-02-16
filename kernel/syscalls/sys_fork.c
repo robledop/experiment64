@@ -60,7 +60,8 @@ int sys_fork(struct syscall_regs *regs)
     child_thread->context        = child_ctx;
     child_thread->rsp            = (uint64_t)child_ctx;
     cpu_t *cpu                   = get_cpu();
-    child_thread->saved_user_rsp = cpu->user_rsp; // Inherit user stack pointer
+    child_thread->saved_user_rsp = cpu->user_rsp;
+    child_thread->fs_base        = current_thread->fs_base;
     thread_make_ready(child_thread);
 
 

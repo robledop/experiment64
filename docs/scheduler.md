@@ -89,7 +89,7 @@ When a runnable thread is found, the scheduler:
 
 1. Switches to the target process's `pml4`.
 2. Programs the syscall stack with `syscall_set_stack(next->kstack_top)`.
-3. Restores FPU state and sets `THREAD_RUNNING`.
+3. Restores FS base (TLS pointer) and FPU state, then sets `THREAD_RUNNING`.
 4. Releases `scheduler_lock` and `switch_to(schedt, next)`.
 
 When the thread yields or is preempted, control returns to the scheduler thread,

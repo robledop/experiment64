@@ -239,6 +239,8 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
         current_thread->saved_user_rsp = user_rsp;
         current_thread->user_stack_base = guard_start;
         current_thread->user_stack_top = stack_top;
+        current_thread->fs_base = 0;
+        wrfsbase(0);
     }
 
     if (old_pml4 && old_pml4 != new_pml4)

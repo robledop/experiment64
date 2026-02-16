@@ -65,6 +65,10 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_THREAD_DETACH 47
 #define SYS_WAITPID 48
 #define SYS_RENAME 49
+#define SYS_ARCH_PRCTL 50
+
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
 
 void syscall_init(void);
 void syscall_set_exit_hook(void (*hook)(int));
@@ -119,6 +123,7 @@ int sys_gettid(void);
 int sys_futex_wait(uint32_t* uaddr, uint32_t expected);
 int sys_futex_wake(uint32_t* uaddr, int count);
 int sys_thread_detach(int tid);
+int sys_arch_prctl(int code, uint64_t addr);
 void sys_shutdown();
 void sys_reboot();
 

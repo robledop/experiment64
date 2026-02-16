@@ -49,6 +49,10 @@
 #define SYS_THREAD_DETACH 47
 #define SYS_WAITPID 48
 #define SYS_RENAME 49
+#define SYS_ARCH_PRCTL 50
+
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
 
 #ifndef __ASSEMBLER__
 static inline long syscall0(long n)

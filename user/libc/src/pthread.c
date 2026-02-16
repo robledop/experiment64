@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdlib.h>
+#include <tls.h>
 #include <unistd.h>
 #include <util.h>
 
@@ -293,11 +294,13 @@ static void *pthread_ret_take(int tid)
 
 static void pthread_trampoline(void *arg)
 {
+    __tls_init_thread();
     auto start = (struct pthread_start *)arg;
     void *ret  = nullptr;
     if (start && start->start)
         ret = start->start(start->arg);
     free(start);
+    __tls_destroy_thread();
     pthread_ret_store(gettid(), ret);
     thread_exit(0);
 }

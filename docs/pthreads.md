@@ -9,6 +9,9 @@ Implemented:
 - `pthread_cond_*`
 - `pthread_once`
 
+Each new thread created via `pthread_create` gets its own TLS block
+initialized before the user start routine runs. See `docs/tls.md` for details.
+
 Example:
 
 ```c
