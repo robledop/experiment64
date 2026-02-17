@@ -182,25 +182,45 @@ int pthread_barrier_wait(barrier_t *barrier)
     if (!barrier)
         return -1;
 
+    bool locked = false;
+
     CHECK_SUCCESS(pthread_mutex_lock(&barrier->lock));
+    locked = true;
+
     barrier->count++;
     if (barrier->count == barrier->n) {
-        CHECK_SUCCESS(sem_wait(&barrier->turnstile2));
-        CHECK_SUCCESS(sem_post(&barrier->turnstile1));
+        if (sem_wait(&barrier->turnstile2) != 0) {
+            goto fail;
+        }
+        if (sem_post(&barrier->turnstile1) != 0) {
+            goto fail;
+        }
     }
-    CHECK_SUCCESS(pthread_mutex_unlock(&barrier->lock));
 
+    CHECK_SUCCESS(pthread_mutex_unlock(&barrier->lock));
     CHECK_SUCCESS(sem_wait(&barrier->turnstile1));
     CHECK_SUCCESS(sem_post(&barrier->turnstile1));
-
     CHECK_SUCCESS(pthread_mutex_lock(&barrier->lock));
+    locked = true;
+
     barrier->count--;
     if (barrier->count == 0) {
-        CHECK_SUCCESS(sem_wait(&barrier->turnstile1));
-        CHECK_SUCCESS(sem_post(&barrier->turnstile2));
+        if (sem_wait(&barrier->turnstile1) != 0) {
+            goto fail;
+        }
+        if (sem_post(&barrier->turnstile2) != 0) {
+            goto fail;
+        }
     }
+
     CHECK_SUCCESS(pthread_mutex_unlock(&barrier->lock));
     return 0;
+
+fail:
+    if (locked) {
+        pthread_mutex_unlock(&barrier->lock);
+    }
+    return -1;
 }
 
 static bool pthread_detached_add_locked(int tid)

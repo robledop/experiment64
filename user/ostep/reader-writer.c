@@ -11,56 +11,64 @@ typedef struct __rwlock_t {
 } rwlock_t;
 
 
-void rwlock_init(rwlock_t *rw) {
+void rwlock_init(rwlock_t *rw)
+{
 }
 
-void rwlock_acquire_readlock(rwlock_t *rw) {
+void rwlock_acquire_readlock(rwlock_t *rw)
+{
 }
 
-void rwlock_release_readlock(rwlock_t *rw) {
+void rwlock_release_readlock(rwlock_t *rw)
+{
 }
 
-void rwlock_acquire_writelock(rwlock_t *rw) {
+void rwlock_acquire_writelock(rwlock_t *rw)
+{
 }
 
-void rwlock_release_writelock(rwlock_t *rw) {
+void rwlock_release_writelock(rwlock_t *rw)
+{
 }
 
 //
 // Don't change the code below (just use it!)
-// 
+//
 
 int loops;
 int value = 0;
 
 rwlock_t lock;
 
-void *reader(void *arg) {
+void *reader(void *arg)
+{
     int i;
     for (i = 0; i < loops; i++) {
-	rwlock_acquire_readlock(&lock);
-	printf("read %d\n", value);
-	rwlock_release_readlock(&lock);
+        rwlock_acquire_readlock(&lock);
+        printf("read %d\n", value);
+        rwlock_release_readlock(&lock);
     }
-    return NULL;
+    return nullptr;
 }
 
-void *writer(void *arg) {
+void *writer(void *arg)
+{
     int i;
     for (i = 0; i < loops; i++) {
-	rwlock_acquire_writelock(&lock);
-	value++;
-	printf("write %d\n", value);
-	rwlock_release_writelock(&lock);
+        rwlock_acquire_writelock(&lock);
+        value++;
+        printf("write %d\n", value);
+        rwlock_release_writelock(&lock);
     }
-    return NULL;
+    return nullptr;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     assert(argc == 4);
     int num_readers = atoi(argv[1]);
     int num_writers = atoi(argv[2]);
-    loops = atoi(argv[3]);
+    loops           = atoi(argv[3]);
 
     pthread_t pr[num_readers], pw[num_writers];
 
@@ -70,17 +78,16 @@ int main(int argc, char *argv[]) {
 
     int i;
     for (i = 0; i < num_readers; i++)
-	Pthread_create(&pr[i], NULL, reader, NULL);
+        Pthread_create(&pr[i], nullptr, reader, nullptr);
     for (i = 0; i < num_writers; i++)
-	Pthread_create(&pw[i], NULL, writer, NULL);
+        Pthread_create(&pw[i], nullptr, writer, nullptr);
 
     for (i = 0; i < num_readers; i++)
-	Pthread_join(pr[i], NULL);
+        Pthread_join(pr[i], nullptr);
     for (i = 0; i < num_writers; i++)
-	Pthread_join(pw[i], NULL);
+        Pthread_join(pw[i], nullptr);
 
     printf("end: value %d\n", value);
 
     return 0;
 }
-
