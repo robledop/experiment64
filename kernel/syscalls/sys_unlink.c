@@ -25,7 +25,5 @@ int sys_unlink(const char* path)
     }
     release_resolved_inode(node);
 
-    if (vfs_unlink(abs_path) != 0)
-        return -EIO;
-    return ALL_OK;
+    return vfs_unlink(abs_path);
 }

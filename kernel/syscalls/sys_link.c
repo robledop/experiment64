@@ -54,9 +54,5 @@ int sys_link(const char* oldpath, const char* newpath)
     release_resolved_inode(new_parent);
     release_resolved_inode(target);
 
-    if (vfs_link(abs_old, abs_new) != 0) {
-        return -EIO;
-    }
-
-    return ALL_OK;
+    return vfs_link(abs_old, abs_new);
 }

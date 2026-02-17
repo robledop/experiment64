@@ -54,9 +54,7 @@ int sys_rename(const char *oldpath, const char *newpath)
     }
 
     if (strcmp(abs_old, abs_new) == 0)
-        return 0;
+        return ALL_OK;
 
-    if (vfs_rename(abs_old, abs_new) != 0)
-        return -EIO;
-    return ALL_OK;
+    return vfs_rename(abs_old, abs_new);
 }

@@ -26,3 +26,6 @@ Syscall groups with differentiated status returns:
 - Core fd/data-path syscalls (`SYS_OPEN`, `SYS_CLOSE`, `SYS_READ`, `SYS_WRITE`, `SYS_LSEEK`, `SYS_DUP`, `SYS_READDIR`)
 - Path/metadata syscalls (`SYS_CHDIR`, `SYS_GETCWD`, `SYS_STAT`, `SYS_FSTAT`, `SYS_LINK`, `SYS_UNLINK`, `SYS_RENAME`,
   `SYS_MKNOD`)
+
+For path/metadata operations, syscall wrappers return VFS/backend status codes directly when available rather than
+coalescing all backend failures to `-EIO`.

@@ -40,7 +40,5 @@ int sys_mknod(const char* path, int mode, int dev)
     }
     release_resolved_inode(parent);
 
-    if (vfs_mknod(abs_path, mode, dev) != 0)
-        return -EIO;
-    return ALL_OK;
+    return vfs_mknod(abs_path, mode, dev);
 }

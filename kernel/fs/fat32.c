@@ -6,6 +6,7 @@
 #include <lib/util.h>
 #include <stddef.h>
 #include <limits.h>
+#include <status.h>
 
 #include "lib/ansi.h"
 
@@ -758,30 +759,33 @@ static vfs_inode_t *fat32_vfs_finddir(const vfs_inode_t *node, const char *name)
 static int fat32_vfs_mknod(const vfs_inode_t *node, const char *name, int mode, [[maybe_unused]] int dev)
 {
     if (!node || !name)
-        return -1;
-    if ((node->flags & VFS_DIRECTORY) == 0)
-        return -1;
+        return -EINVAL;
+    if ((node->flags & 0x07) != VFS_DIRECTORY)
+        return -ENOTDIR;
+    if (mode != VFS_FILE && mode != VFS_DIRECTORY)
+        return -ENOTSUP;
 
     fat32_inode_data_t *data = (fat32_inode_data_t *)node->device;
     if (!data)
-        return -1;
+        return -EIO;
     fat32_fs_t *fs = data->fs;
     if (!fs)
-        return -1;
+        return -EIO;
 
     // Reject existing entry.
     if (fat32_find_entry(fs, node->inode, name, nullptr, nullptr, nullptr) == 0)
-        return -1;
+        return -EINSTKN;
 
     if (mode == VFS_DIRECTORY) {
         uint32_t cluster = fat32_find_free_cluster(fs);
         if (cluster == 0)
-            return -1;
-        fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
+            return -EBUFFULL;
+        if (fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK) != 0)
+            return -EIO;
 
         uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
         if (!cluster_buf)
-            return -1;
+            return -ENOMEM;
         defer(cleanup_kfree, &cluster_buf);
         memset(cluster_buf, 0, fs->bytes_per_cluster);
 
@@ -802,24 +806,28 @@ static int fat32_vfs_mknod(const vfs_inode_t *node, const char *name, int mode, 
         entry[1].fst_clus_hi = (parent_link >> 16) & 0xFFFF;
         entry[1].fst_clus_lo = parent_link & 0xFFFF;
 
-        fat32_write_cluster(fs, cluster, cluster_buf);
+        if (fat32_write_cluster(fs, cluster, cluster_buf) != 0)
+            return -EIO;
 
-        return fat32_add_entry(fs, node->inode, name, ATTR_DIRECTORY, cluster, 0);
+        return (fat32_add_entry(fs, node->inode, name, ATTR_DIRECTORY, cluster, 0) == 0) ? 0 : -EIO;
     }
 
     // Regular file
     uint32_t cluster = fat32_find_free_cluster(fs);
     if (cluster == 0)
-        return -1;
-    fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK); // EOC
+        return -EBUFFULL;
+    if (fat32_write_fat_entry(fs, cluster, FAT32_EOC_MARK) != 0)
+        return -EIO;
 
     uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
     if (!cluster_buf)
-        return -1;
+        return -ENOMEM;
+    defer(cleanup_kfree, &cluster_buf);
     memset(cluster_buf, 0, fs->bytes_per_cluster);
-    fat32_write_cluster(fs, cluster, cluster_buf);
+    if (fat32_write_cluster(fs, cluster, cluster_buf) != 0)
+        return -EIO;
 
-    return fat32_add_entry(fs, node->inode, name, ATTR_ARCHIVE, cluster, 0);
+    return (fat32_add_entry(fs, node->inode, name, ATTR_ARCHIVE, cluster, 0) == 0) ? 0 : -EIO;
 }
 
 static vfs_inode_t *fat32_vfs_clone(const vfs_inode_t *node)
@@ -852,27 +860,29 @@ static vfs_inode_t *fat32_vfs_clone(const vfs_inode_t *node)
 static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name)
 {
     if (!parent || !name)
-        return -1;
+        return -EINVAL;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+        return -ENOTDIR;
     fat32_inode_data_t *pdata = (fat32_inode_data_t *)parent->device;
     if (!pdata)
-        return -1;
+        return -EIO;
     fat32_fs_t *fs = pdata->fs;
     if (!fs)
-        return -1;
+        return -EIO;
 
     fat32_directory_entry_t entry;
     uint32_t dir_cluster_num;
     uint32_t dir_offset;
     if (fat32_find_entry(fs, parent->inode, name, &entry, &dir_cluster_num, &dir_offset) != 0)
-        return -1;
+        return -ENOENT;
 
     // Prevent removing directories.
     if (entry.attr & ATTR_DIRECTORY)
-        return -1;
+        return -EISDIR;
 
     // Mark entry deleted.
     if (fat32_unlink_entry(fs, parent->inode, name) != 0)
-        return -1;
+        return -EIO;
 
     // Free data clusters if any.
     uint32_t cluster = (entry.fst_clus_hi << 16) | entry.fst_clus_lo;
@@ -884,22 +894,25 @@ static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name)
 
 static int fat32_direntry_update_name(fat32_fs_t *fs, uint32_t dir_cluster, uint32_t dir_offset, const char *name)
 {
+    if (!fs || !name)
+        return -EINVAL;
+
     uint8_t *cluster_buf = kmalloc(fs->bytes_per_cluster);
     if (!cluster_buf)
-        return -1;
+        return -ENOMEM;
     defer(cleanup_kfree, &cluster_buf);
 
     if (fat32_read_cluster(fs, dir_cluster, cluster_buf) != 0)
-        return -1;
+        return -EIO;
 
     fat32_directory_entry_t *entries = (fat32_directory_entry_t *)cluster_buf;
     size_t idx                       = dir_offset / sizeof(fat32_directory_entry_t);
     if (idx >= fs->bytes_per_cluster / sizeof(fat32_directory_entry_t))
-        return -1;
+        return -EINVAL;
 
     str_to_fat_name(name, (char *)entries[idx].name);
     if (fat32_write_cluster(fs, dir_cluster, cluster_buf) != 0)
-        return -1;
+        return -EIO;
 
     return 0;
 }
@@ -908,28 +921,28 @@ static int fat32_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
                             vfs_inode_t *new_parent, const char *new_name)
 {
     if (!old_parent || !new_parent || !old_name || !new_name)
-        return -1;
-    if ((old_parent->flags & VFS_DIRECTORY) == 0)
-        return -1;
-    if ((new_parent->flags & VFS_DIRECTORY) == 0)
-        return -1;
+        return -EINVAL;
+    if ((old_parent->flags & 0x07) != VFS_DIRECTORY)
+        return -ENOTDIR;
+    if ((new_parent->flags & 0x07) != VFS_DIRECTORY)
+        return -ENOTDIR;
 
     fat32_inode_data_t *old_data = (fat32_inode_data_t *)old_parent->device;
     fat32_inode_data_t *new_data = (fat32_inode_data_t *)new_parent->device;
     if (!old_data || !new_data)
-        return -1;
+        return -EIO;
     fat32_fs_t *fs = old_data->fs;
     if (!fs || new_data->fs != fs)
-        return -1;
+        return -ENOTSUP;
 
     fat32_directory_entry_t old_entry;
     uint32_t old_dir_cluster;
     uint32_t old_dir_offset;
     if (fat32_find_entry(fs, old_parent->inode, old_name, &old_entry, &old_dir_cluster, &old_dir_offset) != 0)
-        return -1;
+        return -ENOENT;
 
     if (old_entry.attr & ATTR_DIRECTORY)
-        return -1;
+        return -EPERM;
 
     if (old_parent == new_parent && strcmp(old_name, new_name) == 0)
         return 0;
@@ -939,10 +952,10 @@ static int fat32_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
     uint32_t new_dir_offset;
     if (fat32_find_entry(fs, new_parent->inode, new_name, &new_entry, &new_dir_cluster, &new_dir_offset) == 0) {
         if (new_entry.attr & ATTR_DIRECTORY)
-            return -1;
+            return -EISDIR;
 
         if (fat32_unlink_entry(fs, new_parent->inode, new_name) != 0)
-            return -1;
+            return -EIO;
 
         uint32_t cluster = (new_entry.fst_clus_hi << 16) | new_entry.fst_clus_lo;
         if (cluster != 0)
@@ -955,10 +968,10 @@ static int fat32_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
 
     uint32_t cluster = (old_entry.fst_clus_hi << 16) | old_entry.fst_clus_lo;
     if (fat32_add_entry(fs, new_parent->inode, new_name, old_entry.attr, cluster, old_entry.file_size) != 0)
-        return -1;
+        return -EIO;
 
     if (fat32_unlink_entry(fs, old_parent->inode, old_name) != 0)
-        return -1;
+        return -EIO;
 
     return 0;
 }

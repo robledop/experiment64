@@ -1678,6 +1678,42 @@ TEST(test_syscall_link_basic)
     return true;
 }
 
+TEST(test_syscall_link_fat32_not_supported)
+{
+    sys_unlink("/mnt/LINKSRC.TXT");
+    sys_unlink("/mnt/LINKDST.TXT");
+
+    int fd = sys_open("/mnt/LINKSRC.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    sys_close(fd);
+
+    TEST_ASSERT(sys_link("/mnt/LINKSRC.TXT", "/mnt/LINKDST.TXT") == -ENOTSUP);
+
+    sys_unlink("/mnt/LINKSRC.TXT");
+    sys_unlink("/mnt/LINKDST.TXT");
+    return true;
+}
+
+TEST(test_syscall_link_cross_filesystem_not_supported)
+{
+    sys_unlink("/mnt/LINKXFS.TXT");
+    sys_unlink("/link_from_mnt.txt");
+
+    int fd = sys_open("/mnt/LINKXFS.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    sys_close(fd);
+
+    TEST_ASSERT(sys_link("/mnt/LINKXFS.TXT", "/link_from_mnt.txt") == -ENOTSUP);
+
+    stat_t st = {0};
+    TEST_ASSERT(sys_stat("/mnt/LINKXFS.TXT", &st) == 0);
+    TEST_ASSERT(sys_stat("/link_from_mnt.txt", &st) == -ENOENT);
+
+    sys_unlink("/mnt/LINKXFS.TXT");
+    sys_unlink("/link_from_mnt.txt");
+    return true;
+}
+
 TEST(test_syscall_rename_basic)
 {
     sys_unlink("/rename_src.txt");
@@ -1708,6 +1744,27 @@ TEST(test_syscall_rename_basic)
     sys_close(fd);
 
     sys_unlink("/rename_dst.txt");
+    return true;
+}
+
+TEST(test_syscall_rename_cross_filesystem_not_supported)
+{
+    sys_unlink("/rename_xfs_src.txt");
+    sys_unlink("/mnt/RENXFS.TXT");
+
+    int fd = sys_open("/rename_xfs_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+    sys_write(fd, "xfs", 3);
+    sys_close(fd);
+
+    TEST_ASSERT(sys_rename("/rename_xfs_src.txt", "/mnt/RENXFS.TXT") == -ENOTSUP);
+
+    stat_t st = {0};
+    TEST_ASSERT(sys_stat("/rename_xfs_src.txt", &st) == 0);
+    TEST_ASSERT(sys_stat("/mnt/RENXFS.TXT", &st) == -ENOENT);
+
+    sys_unlink("/rename_xfs_src.txt");
+    sys_unlink("/mnt/RENXFS.TXT");
     return true;
 }
 
@@ -1956,6 +2013,13 @@ TEST(test_syscall_mknod_invalid_path)
 {
     TEST_ASSERT(sys_mknod(nullptr, VFS_CHARDEVICE, 0) == -EINVAL);
     TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -EBADPATH);
+    return true;
+}
+
+TEST(test_syscall_mknod_fat32_char_device_not_supported)
+{
+    sys_unlink("/mnt/CHRDEV.TST");
+    TEST_ASSERT(sys_mknod("/mnt/CHRDEV.TST", VFS_CHARDEVICE, 0) == -ENOTSUP);
     return true;
 }
 

@@ -8,6 +8,7 @@
 #include <io/storage.h>
 #include <mem/heap.h>
 #include <lib/path.h>
+#include <status.h>
 
 vfs_inode_t *vfs_root = nullptr;
 
@@ -439,228 +440,233 @@ vfs_inode_t *vfs_resolve_path(const char *path)
     return vfs_resolve_path_hold(path, nullptr);
 }
 
-int vfs_mknod(char *path, int mode, int dev)
+static int vfs_normalize_status(int status)
 {
-    if (!path || !vfs_root)
-        return -1;
+    if (status == 0)
+        return 0;
+    if (status < 0)
+        return (status == -1) ? -EIO : status;
+    return -EIO;
+}
 
-    char parent_path[PATH_MAX];
-    char filename[128];
-    char *last_slash = strrchr(path, '/');
+static int vfs_split_parent_name(const char *path, char *parent, size_t parent_size,
+                                 char *name, size_t name_size)
+{
+    if (!path || !parent || !name || parent_size == 0 || name_size == 0)
+        return -EINVAL;
+    if (path[0] == '\0')
+        return -EBADPATH;
 
+    const char *last_slash = strrchr(path, '/');
     if (last_slash) {
         ptrdiff_t len = last_slash - path;
         if (len <= 0) {
-            strcpy(parent_path, "/");
+            path_safe_copy(parent, parent_size, "/");
         } else {
-            if ((size_t)len >= PATH_MAX)
-                return -1;
-            strncpy(parent_path, path, (size_t)len);
-            parent_path[len] = 0;
+            if ((size_t)len >= parent_size)
+                return -EBADPATH;
+            strncpy(parent, path, (size_t)len);
+            parent[len] = '\0';
         }
-        if (strlen(last_slash + 1) >= 128)
-            return -1;
-        strcpy(filename, last_slash + 1);
-    } else {
-        strcpy(parent_path, "/");
-        if (strlen(path) >= 128)
-            return -1;
-        strcpy(filename, path);
+
+        const char *base = last_slash + 1;
+        if (base[0] == '\0' || strlen(base) >= name_size)
+            return -EBADPATH;
+        path_safe_copy(name, name_size, base);
+        return ALL_OK;
+    }
+
+    path_safe_copy(parent, parent_size, "/");
+    if (strlen(path) >= name_size)
+        return -EBADPATH;
+    path_safe_copy(name, name_size, path);
+    return ALL_OK;
+}
+
+int vfs_mknod(char *path, int mode, int dev)
+{
+    if (!path)
+        return -EINVAL;
+    if (!vfs_root)
+        return -EIO;
+    if (strcmp(path, "/") == 0)
+        return -EPERM;
+
+    char parent_path[PATH_MAX];
+    char filename[128];
+    int split_status = vfs_split_parent_name(path, parent_path, sizeof(parent_path), filename, sizeof(filename));
+    if (split_status != 0)
+        return split_status;
+
+    vfs_inode_t *existing = vfs_resolve_path(path);
+    if (existing) {
+        vfs_put_inode(existing);
+        return -EINSTKN;
     }
 
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
-    if (!parent) {
-        printk("vfs_mknod: failed to resolve parent path '%s'\n", parent_path);
-        return -1;
+    if (!parent)
+        return -ENOENT;
+
+    int res = ALL_OK;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+        res = -ENOTDIR;
+    } else if (!parent->iops || !parent->iops->mknod) {
+        res = -ENOTSUP;
+    } else {
+        res = vfs_normalize_status(parent->iops->mknod(parent, filename, mode, dev));
     }
 
-    int res = -1;
-    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->mknod) {
-        res = parent->iops->mknod(parent, filename, mode, dev);
-    }
-
-    if (parent != vfs_root) {
-        vfs_close(parent);
-        kfree(parent);
-    }
+    vfs_put_inode(parent);
     return res;
 }
 
 int vfs_link(const char *oldpath, const char *newpath)
 {
-    if (!oldpath || !newpath || !vfs_root)
-        return -1;
+    if (!oldpath || !newpath)
+        return -EINVAL;
+    if (!vfs_root)
+        return -EIO;
+    if (strcmp(newpath, "/") == 0)
+        return -EPERM;
 
     vfs_inode_t *target = vfs_resolve_path(oldpath);
     if (!target)
-        return -1;
+        return -ENOENT;
+    if ((target->flags & 0x07) == VFS_DIRECTORY) {
+        vfs_put_inode(target);
+        return -EPERM;
+    }
+
+    vfs_inode_t *existing = vfs_resolve_path(newpath);
+    if (existing) {
+        vfs_put_inode(existing);
+        vfs_put_inode(target);
+        return -EINSTKN;
+    }
 
     char parent_path[PATH_MAX];
     char filename[128];
-    char *last_slash = strrchr(newpath, '/');
-
-    if (last_slash) {
-        ptrdiff_t len = last_slash - newpath;
-        if (len <= 0) {
-            strcpy(parent_path, "/");
-        } else {
-            if ((size_t)len >= PATH_MAX) {
-                vfs_close(target);
-                if (target != vfs_root)
-                    kfree(target);
-                return -1;
-            }
-            strncpy(parent_path, newpath, (size_t)len);
-            parent_path[len] = 0;
-        }
-        if (strlen(last_slash + 1) >= sizeof(filename)) {
-            vfs_close(target);
-            if (target != vfs_root)
-                kfree(target);
-            return -1;
-        }
-        strcpy(filename, last_slash + 1);
-    } else {
-        strcpy(parent_path, "/");
-        if (strlen(newpath) >= sizeof(filename)) {
-            vfs_close(target);
-            if (target != vfs_root)
-                kfree(target);
-            return -1;
-        }
-        strcpy(filename, newpath);
+    int split_status = vfs_split_parent_name(newpath, parent_path, sizeof(parent_path), filename, sizeof(filename));
+    if (split_status != 0) {
+        vfs_put_inode(target);
+        return split_status;
     }
 
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent) {
-        vfs_close(target);
-        if (target != vfs_root)
-            kfree(target);
-        return -1;
+        vfs_put_inode(target);
+        return -ENOENT;
     }
 
-    int res = -1;
-    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->link) {
-        res = parent->iops->link(parent, filename, target);
+    int res = ALL_OK;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+        res = -ENOTDIR;
+    } else if (!parent->iops || !parent->iops->link || parent->iops != target->iops) {
+        res = -ENOTSUP;
+    } else {
+        res = vfs_normalize_status(parent->iops->link(parent, filename, target));
     }
 
-    if (parent != vfs_root) {
-        vfs_close(parent);
-        kfree(parent);
-    }
-    if (target != vfs_root) {
-        vfs_close(target);
-        kfree(target);
-    }
+    vfs_put_inode(parent);
+    vfs_put_inode(target);
     return res;
 }
 
 int vfs_unlink(const char *path)
 {
-    if (!path || !vfs_root)
-        return -1;
+    if (!path)
+        return -EINVAL;
+    if (!vfs_root)
+        return -EIO;
+    if (strcmp(path, "/") == 0)
+        return -EPERM;
 
     char parent_path[PATH_MAX];
     char filename[128];
-    char *last_slash = strrchr(path, '/');
+    int split_status = vfs_split_parent_name(path, parent_path, sizeof(parent_path), filename, sizeof(filename));
+    if (split_status != 0)
+        return split_status;
 
-    if (last_slash) {
-        ptrdiff_t len = last_slash - path;
-        if (len <= 0) {
-            strcpy(parent_path, "/");
-        } else {
-            if ((size_t)len >= PATH_MAX)
-                return -1;
-            strncpy(parent_path, path, (size_t)len);
-            parent_path[len] = 0;
-        }
-        if (strlen(last_slash + 1) >= sizeof(filename))
-            return -1;
-        strcpy(filename, last_slash + 1);
-    } else {
-        strcpy(parent_path, "/");
-        if (strlen(path) >= sizeof(filename))
-            return -1;
-        strcpy(filename, path);
+    vfs_inode_t *target = vfs_resolve_path(path);
+    if (!target)
+        return -ENOENT;
+    if ((target->flags & 0x07) == VFS_DIRECTORY) {
+        vfs_put_inode(target);
+        return -EISDIR;
     }
+    vfs_put_inode(target);
 
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent)
-        return -1;
+        return -ENOENT;
 
-    int res = -1;
-    if ((parent->flags & VFS_DIRECTORY) && parent->iops && parent->iops->unlink)
-        res = parent->iops->unlink(parent, filename);
-
-    if (parent != vfs_root) {
-        vfs_close(parent);
-        kfree(parent);
+    int res = ALL_OK;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+        res = -ENOTDIR;
+    } else if (!parent->iops || !parent->iops->unlink) {
+        res = -ENOTSUP;
+    } else {
+        res = vfs_normalize_status(parent->iops->unlink(parent, filename));
     }
+
+    vfs_put_inode(parent);
     return res;
 }
 
 int vfs_rename(const char *oldpath, const char *newpath)
 {
-    if (!oldpath || !newpath || !vfs_root)
-        return -1;
+    if (!oldpath || !newpath)
+        return -EINVAL;
+    if (!vfs_root)
+        return -EIO;
+    if (strcmp(oldpath, "/") == 0 || strcmp(newpath, "/") == 0)
+        return -EPERM;
 
     char old_parent_path[PATH_MAX];
     char old_name[128];
-    char *last_slash = strrchr(oldpath, '/');
-
-    if (last_slash) {
-        ptrdiff_t len = last_slash - oldpath;
-        if (len <= 0) {
-            strcpy(old_parent_path, "/");
-        } else {
-            if ((size_t)len >= PATH_MAX)
-                return -1;
-            strncpy(old_parent_path, oldpath, (size_t)len);
-            old_parent_path[len] = 0;
-        }
-        if (strlen(last_slash + 1) >= sizeof(old_name))
-            return -1;
-        strcpy(old_name, last_slash + 1);
-    } else {
-        strcpy(old_parent_path, "/");
-        if (strlen(oldpath) >= sizeof(old_name))
-            return -1;
-        strcpy(old_name, oldpath);
-    }
-
-    if (old_name[0] == '\0')
-        return -1;
+    int split_status = vfs_split_parent_name(oldpath,
+                                             old_parent_path,
+                                             sizeof(old_parent_path),
+                                             old_name,
+                                             sizeof(old_name));
+    if (split_status != 0)
+        return split_status;
 
     char new_parent_path[PATH_MAX];
     char new_name[128];
-    last_slash = strrchr(newpath, '/');
+    split_status = vfs_split_parent_name(newpath,
+                                         new_parent_path,
+                                         sizeof(new_parent_path),
+                                         new_name,
+                                         sizeof(new_name));
+    if (split_status != 0)
+        return split_status;
 
-    if (last_slash) {
-        ptrdiff_t len = last_slash - newpath;
-        if (len <= 0) {
-            strcpy(new_parent_path, "/");
-        } else {
-            if ((size_t)len >= PATH_MAX)
-                return -1;
-            strncpy(new_parent_path, newpath, (size_t)len);
-            new_parent_path[len] = 0;
+    vfs_inode_t *old_node = vfs_resolve_path(oldpath);
+    if (!old_node)
+        return -ENOENT;
+    if ((old_node->flags & 0x07) == VFS_DIRECTORY) {
+        vfs_put_inode(old_node);
+        return -EPERM;
+    }
+    vfs_put_inode(old_node);
+
+    vfs_inode_t *new_node = vfs_resolve_path(newpath);
+    if (new_node) {
+        if ((new_node->flags & 0x07) == VFS_DIRECTORY) {
+            vfs_put_inode(new_node);
+            return -EISDIR;
         }
-        if (strlen(last_slash + 1) >= sizeof(new_name))
-            return -1;
-        strcpy(new_name, last_slash + 1);
-    } else {
-        strcpy(new_parent_path, "/");
-        if (strlen(newpath) >= sizeof(new_name))
-            return -1;
-        strcpy(new_name, newpath);
+        vfs_put_inode(new_node);
     }
 
-    if (new_name[0] == '\0')
-        return -1;
+    if (strcmp(oldpath, newpath) == 0)
+        return 0;
 
     vfs_inode_t *new_parent = vfs_resolve_path(new_parent_path);
     if (!new_parent)
-        return -1;
+        return -ENOENT;
 
     vfs_inode_t *new_parent_hold = new_parent;
     if (new_parent_hold != vfs_root) {
@@ -674,19 +680,22 @@ int vfs_rename(const char *oldpath, const char *newpath)
 
         vfs_put_inode(new_parent_hold);
         if (!new_parent)
-            return -1;
+            return -ENOMEM;
     }
 
     vfs_inode_t *old_parent = vfs_resolve_path_hold(old_parent_path, new_parent);
     if (!old_parent) {
         vfs_put_inode(new_parent);
-        return -1;
+        return -ENOENT;
     }
 
-    int res = -1;
-    if ((old_parent->flags & VFS_DIRECTORY) && (new_parent->flags & VFS_DIRECTORY) &&
-        old_parent->iops && old_parent->iops == new_parent->iops && old_parent->iops->rename) {
-        res = old_parent->iops->rename(old_parent, old_name, new_parent, new_name);
+    int res = ALL_OK;
+    if ((old_parent->flags & 0x07) != VFS_DIRECTORY || (new_parent->flags & 0x07) != VFS_DIRECTORY) {
+        res = -ENOTDIR;
+    } else if (!old_parent->iops || old_parent->iops != new_parent->iops || !old_parent->iops->rename) {
+        res = -ENOTSUP;
+    } else {
+        res = vfs_normalize_status(old_parent->iops->rename(old_parent, old_name, new_parent, new_name));
     }
 
     vfs_put_inode(old_parent);
