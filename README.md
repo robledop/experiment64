@@ -104,7 +104,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   USB 3.x enumeration + BOT mass storage read/write; EHCI quiesce + port routing), e1000 NIC, framebuffer device
   `/dev/fb0`
 - **Networking**: e1000 and Atheros AR8162 driver, Ethernet/IPv4/UDP, ARP, ICMP (ping), DHCP client, and a little DNS
-  client in userland.
+  client in userland. Socket syscall notes are in `docs/networking.md`.
 - **VFS & filesystems**: VFS layer with devfs nodes, ext2 mounted at `/` (new entries default to 0755/0644), FAT32
   mounted at `/mnt`, ESP FAT32 mounted at `/boot`, second-disk ext2 (if present) mounted at `/disk1`, USB ext2 (if
   present and not the boot device) mounted at `/usb`. The boot disk is auto-detected across IDE/AHCI/USB by scanning
@@ -116,7 +116,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
 - **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID, framebuffer
   queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`/`rename`,
   `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access, user pointer
-  validation for canonical and user-mapped ranges
+  validation for canonical and user-mapped ranges, and differentiated negative status returns for thread and socket syscalls
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB
   controller interface logs

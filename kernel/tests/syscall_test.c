@@ -15,6 +15,7 @@
 #include <net/ethernet.h>
 #include <net/ipv4.h>
 #include <arpa/inet.h>
+#include <status.h>
 #ifdef TEST_MODE
 #include <drivers/tsc.h>
 #endif
@@ -1261,9 +1262,9 @@ TEST(test_syscall_bind_ptr_unmapped)
         syscall_test_resume_after_longjmp();
         if (t)
             t->is_user = old_is_user;
-        bool passed = (test_exit_code == -1);
+        bool passed = (test_exit_code == -EFAULT);
         if (!passed)
-            printk("Syscall Test: bind unmapped expected -1, got %d\n", test_exit_code);
+            printk("Syscall Test: bind unmapped expected -EFAULT, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }
@@ -1311,9 +1312,9 @@ TEST(test_syscall_sendto_buf_ptr_unmapped)
         syscall_test_resume_after_longjmp();
         if (t)
             t->is_user = old_is_user;
-        bool passed = (test_exit_code == -1);
+        bool passed = (test_exit_code == -EFAULT);
         if (!passed)
-            printk("Syscall Test: sendto unmapped expected -1, got %d\n", test_exit_code);
+            printk("Syscall Test: sendto unmapped expected -EFAULT, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }
@@ -1964,6 +1965,44 @@ TEST(test_syscall_listen_basic)
     TEST_ASSERT(sys_bind(fd, (const sockaddr_t *)&addr, sizeof(addr)) == 0);
     TEST_ASSERT(sys_listen(fd, 8) == 0);
     TEST_ASSERT(sys_close(fd) == 0);
+    return true;
+}
+
+TEST(test_syscall_socket_error_codes)
+{
+    TEST_ASSERT(sys_socket(99, SOCK_STREAM, IPPROTO_TCP) == -ENOTSUP);
+    TEST_ASSERT(sys_socket(AF_INET, 99, 0) == -EINVAL);
+    TEST_ASSERT(sys_socket(AF_INET, SOCK_STREAM, IPPROTO_UDP) == -EINVAL);
+
+    int tcp_fd = sys_socket(AF_INET, SOCK_STREAM, 0);
+    TEST_ASSERT(tcp_fd >= 0);
+
+    sockaddr_in_t tcp_addr = {0};
+    tcp_addr.sin_family    = AF_INET;
+    TEST_ASSERT(sys_bind(tcp_fd, (const sockaddr_t *)&tcp_addr, sizeof(tcp_addr)) == 0);
+    TEST_ASSERT(sys_listen(tcp_fd, 1) == 0);
+    TEST_ASSERT(sys_close(tcp_fd) == 0);
+
+    int udp_fd = sys_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    TEST_ASSERT(udp_fd >= 0);
+    TEST_ASSERT(sys_listen(udp_fd, 1) == -ENOTSUP);
+    TEST_ASSERT(sys_bind(-1, (const sockaddr_t *)&tcp_addr, sizeof(tcp_addr)) == -EBADF);
+
+    uint8_t buf[8] = {0};
+    sockaddr_in_t dest = {0};
+    dest.sin_family    = AF_INET;
+    dest.sin_port      = htons(53);
+    dest.sin_addr[0]   = 8;
+    dest.sin_addr[1]   = 8;
+    dest.sin_addr[2]   = 8;
+    dest.sin_addr[3]   = 8;
+
+    TEST_ASSERT(sys_sendto(udp_fd, nullptr, 4, 0, (const sockaddr_t *)&dest, sizeof(dest)) == -EINVAL);
+    TEST_ASSERT(sys_sendto(udp_fd, buf, sizeof(buf), 0, nullptr, 0) == -EINVAL);
+    TEST_ASSERT(sys_recvfrom(udp_fd, nullptr, sizeof(buf), MSG_DONTWAIT, nullptr, nullptr) == -EINVAL);
+    TEST_ASSERT(sys_recvfrom(udp_fd, buf, sizeof(buf), MSG_DONTWAIT, nullptr, nullptr) == -EAGAIN);
+
+    TEST_ASSERT(sys_close(udp_fd) == 0);
     return true;
 }
 

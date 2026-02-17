@@ -3,39 +3,40 @@
 #include <lib/util.h>
 #include <mem/heap.h>
 #include <net/socket.h>
+#include <status.h>
 
 int sys_recvfrom(const int fd, void *buf, const size_t len, const int flags,
                  struct sockaddr *src_addr, socklen_t *addrlen)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return -1;
+        return -EBADF;
     if (len == 0)
         return 0;
     if (!buf)
-        return -1;
+        return -EINVAL;
     if (!user_ptr_write_ok(buf, len, "sys_recvfrom"))
-        return -1;
+        return -EFAULT;
     if (src_addr && !user_ptr_write_ok(src_addr, sizeof(struct sockaddr_in), "sys_recvfrom"))
-        return -1;
+        return -EFAULT;
     if (addrlen && !user_ptr_write_ok(addrlen, sizeof(socklen_t), "sys_recvfrom"))
-        return -1;
+        return -EFAULT;
 
     file_descriptor_t *desc = fd_get(fd);
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode) {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
     if (desc->inode->iops != &socket_iops) {
         fd_put(desc);
-        return -1;
+        return -ENOTSUP;
     }
 
     auto sock = (socket_t *)desc->inode->device;
     if (!sock) {
         fd_put(desc);
-        return -1;
+        return -EIO;
     }
     socket_hold(sock);
     fd_put(desc);
@@ -43,7 +44,7 @@ int sys_recvfrom(const int fd, void *buf, const size_t len, const int flags,
     const bool block        = (flags & MSG_DONTWAIT) == 0;
     socket_rx_packet_t *pkt = socket_rx_pop(sock, block);
     if (!pkt) {
-        const int res = socket_rx_is_closed(sock) ? 0 : -1;
+        const int res = socket_rx_is_closed(sock) ? 0 : -EAGAIN;
         socket_put(sock);
         return res;
     }
@@ -62,7 +63,7 @@ int sys_recvfrom(const int fd, void *buf, const size_t len, const int flags,
                 kfree(pkt->data);
             kfree(pkt);
             socket_put(sock);
-            return -1;
+            return -EFAULT;
         }
     }
 
@@ -73,7 +74,7 @@ int sys_recvfrom(const int fd, void *buf, const size_t len, const int flags,
                 kfree(pkt->data);
             kfree(pkt);
             socket_put(sock);
-            return -1;
+            return -EFAULT;
         }
     }
 

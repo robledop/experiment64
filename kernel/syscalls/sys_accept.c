@@ -3,55 +3,56 @@
 #include <mem/heap.h>
 #include <net/socket.h>
 #include <sys/fcntl.h>
+#include <status.h>
 
 int sys_close(int fd);
 
 int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return -1;
+        return -EBADF;
 
     file_descriptor_t* desc = fd_get(fd);
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode)
     {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
     if (desc->inode->iops != &socket_iops)
     {
         fd_put(desc);
-        return -1;
+        return -ENOTSUP;
     }
 
     auto listener = (socket_t*)desc->inode->device;
     if (!listener)
     {
         fd_put(desc);
-        return -1;
+        return -EIO;
     }
     socket_hold(listener);
     fd_put(desc);
     if (listener->type != SOCK_STREAM || listener->protocol != IPPROTO_TCP)
     {
         socket_put(listener);
-        return -1;
+        return -ENOTSUP;
     }
     if (listener->state != SOCKET_STATE_LISTENING)
     {
         socket_put(listener);
-        return -1;
+        return -EINVAL;
     }
     if (addr && addrlen < sizeof(struct sockaddr_in))
     {
         socket_put(listener);
-        return -1;
+        return -EINVAL;
     }
     if (addr && !user_ptr_write_ok(addr, sizeof(struct sockaddr_in), "sys_accept"))
     {
         socket_put(listener);
-        return -1;
+        return -EFAULT;
     }
 
     socket_t* child = nullptr;
@@ -70,7 +71,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
     {
         socket_unregister(child);
         socket_put(listener);
-        return -1;
+        return -ENOMEM;
     }
     inode->flags = VFS_PIPE;
     inode->ref = 1;
@@ -83,7 +84,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         kfree(inode);
         socket_unregister(child);
         socket_put(listener);
-        return -1;
+        return -ENOMEM;
     }
     new_desc->inode = inode;
     new_desc->offset = 0;
@@ -96,7 +97,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         kfree(inode);
         socket_unregister(child);
         socket_put(listener);
-        return -1;
+        return -EBUFFULL;
     }
 
     if (addr)
@@ -109,7 +110,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         {
             sys_close(new_fd);
             socket_put(listener);
-            return -1;
+            return -EFAULT;
         }
     }
 

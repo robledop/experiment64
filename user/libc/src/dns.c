@@ -335,7 +335,7 @@ uint32_t gethostbyname(const char *name, struct sockaddr_in *address)
 
     struct sockaddr_in own_addr = {0};
     own_addr.sin_family         = AF_INET;
-    if (bind(sockfd, (struct sockaddr *)&own_addr, sizeof(own_addr)) == -1)
+    if (bind(sockfd, (struct sockaddr *)&own_addr, sizeof(own_addr)) < 0)
         panic("bind failed\n");
 
     uint8_t packet[512];

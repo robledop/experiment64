@@ -5,6 +5,7 @@
 #include <net/tcp.h>
 #include <sys/fcntl.h>
 #include <net/helpers.h>
+#include <status.h>
 
 static uint64_t socket_inode_read(const vfs_inode_t* node, uint64_t offset, uint64_t size, uint8_t* buffer)
 {
@@ -83,18 +84,28 @@ struct inode_operations socket_iops = {
 
 int sys_socket(const int domain, const int type, int protocol)
 {
-    if (domain != PF_INET) return -1;
-    if (protocol == 0)
-        protocol = (type == SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_ICMP;
-
-    if ((type == SOCK_DGRAM && protocol != IPPROTO_UDP) ||
-        (type == SOCK_RAW && protocol != IPPROTO_ICMP))
-    {
-        return -1;
+    if (domain != PF_INET)
+        return -ENOTSUP;
+    if (type != SOCK_STREAM && type != SOCK_DGRAM && type != SOCK_RAW)
+        return -EINVAL;
+    if (protocol == 0) {
+        if (type == SOCK_STREAM)
+            protocol = IPPROTO_TCP;
+        else if (type == SOCK_DGRAM)
+            protocol = IPPROTO_UDP;
+        else
+            protocol = IPPROTO_ICMP;
     }
 
+    const bool valid_combo = (type == SOCK_STREAM && protocol == IPPROTO_TCP) ||
+        (type == SOCK_DGRAM && protocol == IPPROTO_UDP) ||
+        (type == SOCK_RAW && protocol == IPPROTO_ICMP);
+    if (!valid_combo)
+        return -EINVAL;
+
     auto const sock = (socket_t*)kzalloc(sizeof(socket_t));
-    if (!sock) return -1;
+    if (!sock)
+        return -ENOMEM;
     sock->domain = domain;
     sock->type = type;
     sock->protocol = protocol;
@@ -106,7 +117,7 @@ int sys_socket(const int domain, const int type, int protocol)
     if (!inode)
     {
         socket_put(sock);
-        return -1;
+        return -ENOMEM;
     }
     inode->flags = VFS_PIPE;
     inode->ref = 1;
@@ -118,7 +129,7 @@ int sys_socket(const int domain, const int type, int protocol)
     {
         kfree(inode);
         socket_put(sock);
-        return -1;
+        return -ENOMEM;
     }
     desc->inode = inode;
     desc->offset = 0;
@@ -130,7 +141,7 @@ int sys_socket(const int domain, const int type, int protocol)
         kfree(desc);
         kfree(inode);
         socket_put(sock);
-        return -1;
+        return -EBUFFULL;
     }
     socket_register(sock);
     return fd;
