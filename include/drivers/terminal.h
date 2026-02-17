@@ -18,6 +18,8 @@ typedef enum boot_log_level
 } boot_log_level_t;
 
 void terminal_init(struct limine_framebuffer *fb);
+void terminal_init_backbuffer(void);
+void terminal_sync_backbuffer(void);
 void terminal_putc(char c);
 void terminal_write(const char *data, size_t size);
 void terminal_write_string(const char *data);

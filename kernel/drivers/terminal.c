@@ -12,6 +12,9 @@
 #include <limits.h>
 
 static struct limine_framebuffer *terminal_fb = nullptr;
+static uint8_t *back_buffer                   = nullptr;
+static int dirty_y_min                        = INT_MAX;
+static int dirty_y_max                        = 0;
 static int terminal_x                         = 0;
 static int terminal_y                         = 0;
 static uint32_t terminal_color                = 0xFFAAAAAA;
@@ -41,10 +44,36 @@ static bool boot_log_can_flush(void)
     return (rflags & RFLAGS_IF) != 0;
 }
 
-// Get the active drawing surface (framebuffer)
 static inline uint8_t *get_draw_surface(void)
 {
-    return (uint8_t *)terminal_fb->address;
+    return back_buffer ? back_buffer : (uint8_t *)terminal_fb->address;
+}
+
+static inline void mark_dirty(int y, int h)
+{
+    if (!back_buffer)
+        return;
+    if (y < dirty_y_min)
+        dirty_y_min = y;
+    int y2 = y + h;
+    if (y2 > dirty_y_max)
+        dirty_y_max = y2;
+}
+
+static void terminal_flush(void)
+{
+    if (!back_buffer || !terminal_fb || dirty_y_min >= dirty_y_max)
+        return;
+    int y0 = dirty_y_min < 0 ? 0 : dirty_y_min;
+    int y1 = dirty_y_max > (int)terminal_fb->height ? (int)terminal_fb->height : dirty_y_max;
+    if (y0 >= y1)
+        return;
+    size_t pitch  = terminal_fb->pitch;
+    size_t offset = (size_t)y0 * pitch;
+    size_t bytes  = (size_t)(y1 - y0) * pitch;
+    memcpy((uint8_t *)terminal_fb->address + offset, back_buffer + offset, bytes);
+    dirty_y_min = INT_MAX;
+    dirty_y_max = 0;
 }
 
 static inline int terminal_left(void)
@@ -82,6 +111,7 @@ static void cursor_restore(void)
                 memcpy(surface + offset, &cursor_backing[row][col], sizeof(uint32_t));
         }
     }
+    mark_dirty(cursor_last_y, 8 + LINE_SPACING);
     cursor_drawn = false;
 }
 
@@ -110,6 +140,7 @@ static void cursor_save_and_draw(void)
             }
         }
     }
+    mark_dirty(terminal_y, 8 + LINE_SPACING);
     cursor_last_x = terminal_x;
     cursor_last_y = terminal_y;
     cursor_drawn  = true;
@@ -126,6 +157,26 @@ void terminal_init(struct limine_framebuffer *fb)
     cursor_drawn            = false;
     cursor_last_x           = terminal_x;
     cursor_last_y           = terminal_y;
+}
+
+void terminal_init_backbuffer(void)
+{
+    if (!terminal_fb || back_buffer)
+        return;
+    size_t size = terminal_fb->pitch * terminal_fb->height;
+    back_buffer = kmalloc(size);
+    if (back_buffer)
+        memcpy(back_buffer, (void *)terminal_fb->address, size);
+}
+
+void terminal_sync_backbuffer(void)
+{
+    if (!back_buffer || !terminal_fb)
+        return;
+    size_t size = terminal_fb->pitch * terminal_fb->height;
+    memcpy(back_buffer, (void *)terminal_fb->address, size);
+    dirty_y_min = INT_MAX;
+    dirty_y_max = 0;
 }
 
 void terminal_set_cursor(int x, int y)
@@ -187,9 +238,11 @@ void terminal_clear(uint32_t color)
             fb_ptr[x] = color;
         }
     }
+    mark_dirty(0, (int)terminal_fb->height);
     terminal_x   = terminal_left();
     terminal_y   = terminal_top();
     cursor_drawn = false;
+    terminal_flush();
 }
 
 enum AnsiState
@@ -274,6 +327,7 @@ static void terminal_rect_fill(int x, int y, int w, int h, uint32_t color)
             *start++ = color;
         }
     }
+    mark_dirty(y, h);
 }
 
 void terminal_scroll(int rows)
@@ -296,6 +350,7 @@ void terminal_scroll(int rows)
     // Use memcpy_forward instead of memmove - we're copying to lower addresses
     // so there's no overlap issue, and the compiler can vectorize this
     memcpy_forward(surface, surface + (size_t)scroll_px * terminal_fb->pitch, move_bytes);
+    mark_dirty(0, fb_height);
 
     terminal_rect_fill(0, fb_height - scroll_px, (int)terminal_fb->width, scroll_px, terminal_bg_color);
     cursor_drawn = false;
@@ -476,7 +531,6 @@ static void terminal_draw_char(char c)
             terminal_x = terminal_left();
             return;
         }
-        // Erase the character at the new cursor position by drawing a space
         uint8_t *surface = get_draw_surface();
         for (int row = 0; row < 8 + LINE_SPACING; row++) {
             for (int col = 0; col < 8; col++) {
@@ -487,6 +541,7 @@ static void terminal_draw_char(char c)
                 }
             }
         }
+        mark_dirty(terminal_y, 8 + LINE_SPACING);
         return;
     }
 
@@ -512,6 +567,7 @@ static void terminal_draw_char(char c)
             }
         }
     }
+    mark_dirty(terminal_y, 8 + LINE_SPACING);
     terminal_x      += 8;
     int right_limit = terminal_right();
     if (terminal_x + 8 > right_limit) {
@@ -585,6 +641,7 @@ void terminal_putc(char c)
             cursor_save_and_draw();
         else if (!terminal_cursor_visible)
             cursor_drawn = false;
+        terminal_flush();
     }
 }
 
@@ -607,6 +664,7 @@ void terminal_write(const char *data, size_t size)
         else if (!terminal_cursor_visible)
             cursor_drawn = false;
     }
+    terminal_flush();
 }
 
 void terminal_write_string(const char *data)
@@ -628,6 +686,7 @@ void terminal_write_string(const char *data)
         else if (!terminal_cursor_visible)
             cursor_drawn = false;
     }
+    terminal_flush();
 }
 
 static void terminal_putc_callback(char c, void *arg)
@@ -706,6 +765,7 @@ void vprintk(const char *format, va_list args)
     cursor_batch = prev_batch;
     if (cursor_overlay_enabled && terminal_cursor_visible && !cursor_drawn)
         cursor_save_and_draw();
+    terminal_flush();
 }
 
 void printk(const char *format, ...)

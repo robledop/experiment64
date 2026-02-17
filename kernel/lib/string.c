@@ -100,6 +100,26 @@ static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, s
     return dst;
 }
 
+// static void *memcpy_forward_impl(void *restrict dst, const void *restrict src, size_t n)
+// {
+//     void *ret = dst;
+//     size_t qwords = n / 8;
+//     if (qwords > 0) {
+//         __asm__ volatile("rep movsq"
+//                          : "+D"(dst), "+S"(src), "+c"(qwords)
+//                          :
+//                          : "memory");
+//     }
+//     size_t remaining = n & 7;
+//     if (remaining > 0) {
+//         __asm__ volatile("rep movsb"
+//                          : "+D"(dst), "+S"(src), "+c"(remaining)
+//                          :
+//                          : "memory");
+//     }
+//     return ret;
+// }
+
 void *memcpy_forward(void *restrict dst, const void *restrict src, size_t n)
 {
     return memcpy_forward_impl(dst, src, n);

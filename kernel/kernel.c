@@ -94,6 +94,7 @@ void kernel_splash(void)
     }
 
     kfree(pixels);
+    terminal_sync_backbuffer();
 
     uint32_t cursor_y = origin_y + draw_height + splash_bottom_margin;
     if (cursor_y >= fb->height)
@@ -121,6 +122,7 @@ void _start(void) // NOLINT(*-reserved-identifier)
     pmm_init(hhdm_offset);
     vmm_init(hhdm_offset);
     heap_init(hhdm_offset);
+    terminal_init_backbuffer();
     keyboard_init();
     mouse_init();
     process_init();
