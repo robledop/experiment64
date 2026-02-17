@@ -5,10 +5,15 @@ static pthread_cond_t g_cv = PTHREAD_COND_INITIALIZER;
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t g_destroy_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_destroy_cv = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t g_mutex_destroy_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_mutex_destroy_sync_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_mutex_destroy_sync_cv = PTHREAD_COND_INITIALIZER;
 static int g_ready = 0;
 static int g_once_count = 0;
 static int g_destroy_waiter_ready = 0;
 static int g_destroy_release = 0;
+static int g_mutex_destroy_waiter_ready = 0;
+static int g_mutex_destroy_waiter_done = 0;
 
 static void once_init(void)
 {
@@ -36,6 +41,26 @@ static void* destroy_waiter_entry(void* arg)
     while (!g_destroy_release)
         pthread_cond_wait(&g_destroy_cv, &g_destroy_lock);
     pthread_mutex_unlock(&g_destroy_lock);
+    return nullptr;
+}
+
+static void* mutex_destroy_waiter_entry(void* arg)
+{
+    (void)arg;
+
+    pthread_mutex_lock(&g_mutex_destroy_sync_lock);
+    g_mutex_destroy_waiter_ready = 1;
+    pthread_cond_signal(&g_mutex_destroy_sync_cv);
+    pthread_mutex_unlock(&g_mutex_destroy_sync_lock);
+
+    pthread_mutex_lock(&g_mutex_destroy_lock);
+    pthread_mutex_unlock(&g_mutex_destroy_lock);
+
+    pthread_mutex_lock(&g_mutex_destroy_sync_lock);
+    g_mutex_destroy_waiter_done = 1;
+    pthread_cond_signal(&g_mutex_destroy_sync_cv);
+    pthread_mutex_unlock(&g_mutex_destroy_sync_lock);
+
     return nullptr;
 }
 
@@ -86,6 +111,44 @@ int main(void)
         return 12;
     if (pthread_mutex_destroy(&g_destroy_lock) != 0)
         return 13;
+
+    g_mutex_destroy_waiter_ready = 0;
+    g_mutex_destroy_waiter_done = 0;
+
+    if (pthread_mutex_lock(&g_mutex_destroy_lock) != 0)
+        return 14;
+
+    pthread_t mutex_waiter;
+    if (pthread_create(&mutex_waiter, nullptr, mutex_destroy_waiter_entry, nullptr) != 0)
+        return 15;
+
+    if (pthread_mutex_lock(&g_mutex_destroy_sync_lock) != 0)
+        return 16;
+    while (!g_mutex_destroy_waiter_ready) {
+        if (pthread_cond_wait(&g_mutex_destroy_sync_cv, &g_mutex_destroy_sync_lock) != 0)
+            return 17;
+    }
+
+    if (pthread_mutex_destroy(&g_mutex_destroy_lock) == 0)
+        return 18;
+    if (pthread_mutex_unlock(&g_mutex_destroy_lock) != 0)
+        return 19;
+
+    while (!g_mutex_destroy_waiter_done) {
+        if (pthread_cond_wait(&g_mutex_destroy_sync_cv, &g_mutex_destroy_sync_lock) != 0)
+            return 20;
+    }
+    if (pthread_mutex_unlock(&g_mutex_destroy_sync_lock) != 0)
+        return 21;
+
+    if (pthread_join(mutex_waiter, nullptr) != 0)
+        return 22;
+    if (pthread_mutex_destroy(&g_mutex_destroy_lock) != 0)
+        return 23;
+    if (pthread_cond_destroy(&g_mutex_destroy_sync_cv) != 0)
+        return 24;
+    if (pthread_mutex_destroy(&g_mutex_destroy_sync_lock) != 0)
+        return 25;
 
     return 0;
 }

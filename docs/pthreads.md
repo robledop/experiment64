@@ -11,6 +11,7 @@ Implemented:
 
 Notes:
 
+- `pthread_mutex_destroy()` returns `-1` if the mutex is locked or has waiters.
 - `pthread_cond_destroy()` returns `-1` if threads are currently waiting on the
   condition variable.
 

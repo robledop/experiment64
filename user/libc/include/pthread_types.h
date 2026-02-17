@@ -4,6 +4,7 @@ typedef int pthread_t;
 
 typedef struct {
     int __state;
+    int __waiters;
 } pthread_mutex_t;
 
 typedef struct {
@@ -34,6 +35,6 @@ typedef struct {
 } barrier_t;
 
 
-#define PTHREAD_MUTEX_INITIALIZER {0}
+#define PTHREAD_MUTEX_INITIALIZER {0, 0}
 #define PTHREAD_COND_INITIALIZER {0, 0}
 #define PTHREAD_ONCE_INIT {0}

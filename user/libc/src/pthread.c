@@ -36,12 +36,17 @@ int pthread_mutex_init(pthread_mutex_t *mutex, const void *attr)
     if (!mutex)
         return -1;
     __atomic_store_n(&mutex->__state, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&mutex->__waiters, 0, __ATOMIC_RELAXED);
     return 0;
 }
 
 int pthread_mutex_destroy(pthread_mutex_t *mutex)
 {
     if (!mutex)
+        return -1;
+    if (__atomic_load_n(&mutex->__state, __ATOMIC_ACQUIRE) != 0)
+        return -1;
+    if (__atomic_load_n(&mutex->__waiters, __ATOMIC_ACQUIRE) != 0)
         return -1;
     return 0;
 }
@@ -56,7 +61,9 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
         if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
             return 0;
         }
+        __atomic_fetch_add(&mutex->__waiters, 1, __ATOMIC_ACQ_REL);
         futex_wait(&mutex->__state, 1);
+        __atomic_fetch_sub(&mutex->__waiters, 1, __ATOMIC_ACQ_REL);
     }
 }
 
