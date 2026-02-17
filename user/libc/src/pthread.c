@@ -56,7 +56,7 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
         if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
             return 0;
         }
-        CHECK_SUCCESS(futex_wait(&mutex->__state, 1));
+        futex_wait(&mutex->__state, 1);
     }
 }
 
@@ -78,7 +78,7 @@ int pthread_mutex_unlock(pthread_mutex_t *mutex)
         return -1;
 
     __atomic_store_n(&mutex->__state, 0, __ATOMIC_RELEASE);
-    CHECK_SUCCESS(futex_wake(&mutex->__state, 1));
+    futex_wake(&mutex->__state, 1);
     return 0;
 }
 
@@ -105,7 +105,7 @@ int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 
     int seq = __atomic_load_n(&cond->__seq, __ATOMIC_RELAXED);
     CHECK_SUCCESS(pthread_mutex_unlock(mutex));
-    CHECK_SUCCESS(futex_wait(&cond->__seq, seq));
+    futex_wait(&cond->__seq, seq);
     CHECK_SUCCESS(pthread_mutex_lock(mutex));
     return 0;
 }
@@ -126,7 +126,7 @@ int pthread_cond_broadcast(pthread_cond_t *cond)
         return -1;
 
     __atomic_fetch_add(&cond->__seq, 1, __ATOMIC_RELEASE);
-    CHECK_SUCCESS(futex_wake(&cond->__seq, INT_MAX));
+    futex_wake(&cond->__seq, INT_MAX);
     return 0;
 }
 
@@ -143,12 +143,12 @@ int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
     if (__atomic_compare_exchange_n(&once_control->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         init_routine();
         __atomic_store_n(&once_control->__state, 2, __ATOMIC_RELEASE);
-        CHECK_SUCCESS(futex_wake(&once_control->__state, INT_MAX));
+        futex_wake(&once_control->__state, INT_MAX);
         return 0;
     }
 
     while (__atomic_load_n(&once_control->__state, __ATOMIC_ACQUIRE) != 2)
-        CHECK_SUCCESS(futex_wait(&once_control->__state, 1));
+        futex_wait(&once_control->__state, 1);
     return 0;
 }
 
