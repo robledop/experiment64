@@ -116,7 +116,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
 - **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID, framebuffer
   queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`/`rename`,
   `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access, user pointer
-  validation for canonical and user-mapped ranges, and differentiated negative status returns for thread/socket/fd syscalls
+  validation for canonical and user-mapped ranges, and differentiated negative status returns for thread/socket/fd/path syscalls
   (see `docs/syscalls.md`)
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB

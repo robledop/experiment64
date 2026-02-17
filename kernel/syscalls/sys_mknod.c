@@ -1,15 +1,46 @@
 #include <syscall_common.h>
-#include <fs/vfs.h>
-#include <lib/path.h>
+#include <status.h>
 
 int sys_mknod(const char* path, int mode, int dev)
 {
-    char kpath[PATH_MAX];
-    if (!copy_from_user_str(kpath, path, sizeof(kpath)))
-        return -1;
-    if (kpath[0] == '\0')
-        return -1;
-    path_simplify(kpath, sizeof(kpath));
+    if (!path)
+        return -EINVAL;
+    if (!user_ptr_read_ok(path, 1, "sys_mknod path"))
+        return -EFAULT;
+    if (mode != VFS_FILE &&
+        mode != VFS_DIRECTORY &&
+        mode != VFS_CHARDEVICE &&
+        mode != VFS_BLOCKDEVICE)
+        return -EINVAL;
 
-    return vfs_mknod(kpath, mode, dev);
+    char abs_path[PATH_MAX];
+    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
+        return -EBADPATH;
+
+    if (strcmp(abs_path, "/") == 0)
+        return -EPERM;
+
+    vfs_inode_t *existing = vfs_resolve_path(abs_path);
+    if (existing) {
+        release_resolved_inode(existing);
+        return -EINSTKN;
+    }
+
+    char parent_path[PATH_MAX];
+    int split_status = split_parent_path(abs_path, parent_path, sizeof(parent_path));
+    if (split_status != 0)
+        return split_status;
+
+    vfs_inode_t *parent = vfs_resolve_path(parent_path);
+    if (!parent)
+        return -ENOENT;
+    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+        release_resolved_inode(parent);
+        return -ENOTDIR;
+    }
+    release_resolved_inode(parent);
+
+    if (vfs_mknod(abs_path, mode, dev) != 0)
+        return -EIO;
+    return ALL_OK;
 }

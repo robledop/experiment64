@@ -8,6 +8,7 @@
 #include <drivers/terminal.h>
 #include <arch/x86_64/smp.h>
 #include <arch/x86_64/cpu.h>
+#include <status.h>
 
 static inline bool addr_is_canonical(uintptr_t addr)
 {
@@ -355,6 +356,35 @@ int fd_assign(file_descriptor_t* desc, int start_fd)
     }
     SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
     return fd;
+}
+
+void release_resolved_inode(vfs_inode_t *node)
+{
+    if (!node || node == vfs_root)
+        return;
+    vfs_close(node);
+    kfree(node);
+}
+
+int split_parent_path(const char *path, char *parent, size_t parent_size)
+{
+    const char *last_slash = strrchr(path, '/');
+    if (!last_slash)
+        return -EBADPATH;
+    if (last_slash == path) {
+        if (last_slash[1] == '\0')
+            return -EBADPATH;
+        path_safe_copy(parent, parent_size, "/");
+        return ALL_OK;
+    }
+
+    const size_t len = (size_t)(last_slash - path);
+    if (len >= parent_size || last_slash[1] == '\0')
+        return -EBADPATH;
+
+    strncpy(parent, path, len);
+    parent[len] = '\0';
+    return ALL_OK;
 }
 
 void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st)

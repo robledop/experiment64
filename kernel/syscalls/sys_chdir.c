@@ -1,24 +1,27 @@
 #include <syscall_common.h>
 
 #include <mem/heap.h>
+#include <status.h>
 
 int sys_chdir(const char *path)
 {
     if (!path)
-        return -1;
+        return -EINVAL;
+    if (!user_ptr_read_ok(path, 1, "sys_chdir path"))
+        return -EFAULT;
     char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -1;
+        return -EBADPATH;
 
     vfs_inode_t *node = vfs_resolve_path(abs_path);
     if (!node)
-        return -1;
+        return -ENOENT;
     if ((node->flags & 0x07) != VFS_DIRECTORY) {
         if (node != vfs_root) {
             vfs_close(node);
             kfree(node);
         }
-        return -1;
+        return -ENOTDIR;
     }
 
     path_safe_copy(current_process->cwd, sizeof(current_process->cwd), abs_path);
@@ -26,5 +29,5 @@ int sys_chdir(const char *path)
         vfs_close(node);
         kfree(node);
     }
-    return 0;
+    return ALL_OK;
 }

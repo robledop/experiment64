@@ -1324,10 +1324,10 @@ TEST(test_syscall_invalid_paths_and_fds)
 {
     // Empty path rejected.
     TEST_ASSERT(sys_open("", 0) == -EBADPATH);
-    TEST_ASSERT(sys_chdir("") == -1);
+    TEST_ASSERT(sys_chdir("") == -EBADPATH);
 
     // chdir to non-directory should fail.
-    TEST_ASSERT(sys_chdir("/bin/init") == -1);
+    TEST_ASSERT(sys_chdir("/bin/init") == -ENOTDIR);
 
     char buf[8];
     int fd = sys_open("/bin/init", 0);
@@ -1620,7 +1620,7 @@ TEST(test_syscall_stat_nonexistent)
 {
     stat_t st = {0};
     int rc    = sys_stat("/nonexistent_file_xyz.txt", &st);
-    TEST_ASSERT(rc == -1);
+    TEST_ASSERT(rc == -ENOENT);
     return true;
 }
 
@@ -1646,8 +1646,8 @@ TEST(test_syscall_fstat_basic)
 TEST(test_syscall_fstat_invalid_fd)
 {
     stat_t st = {0};
-    TEST_ASSERT(sys_fstat(-1, &st) == -1);
-    TEST_ASSERT(sys_fstat(999, &st) == -1);
+    TEST_ASSERT(sys_fstat(-1, &st) == -EBADF);
+    TEST_ASSERT(sys_fstat(999, &st) == -EBADF);
     return true;
 }
 
@@ -1697,7 +1697,7 @@ TEST(test_syscall_rename_basic)
     TEST_ASSERT(sys_rename("/rename_src.txt", "/rename_dst.txt") == 0);
 
     stat_t st;
-    TEST_ASSERT(sys_stat("/rename_src.txt", &st) == -1);
+    TEST_ASSERT(sys_stat("/rename_src.txt", &st) == -ENOENT);
 
     fd = sys_open("/rename_dst.txt", O_RDONLY);
     TEST_ASSERT(fd >= 3);
@@ -1730,7 +1730,7 @@ TEST(test_syscall_rename_fat32)
     TEST_ASSERT(sys_rename("/mnt/REN_SRC.TXT", "/mnt/REN_DST.TXT") == 0);
 
     stat_t st;
-    TEST_ASSERT(sys_stat("/mnt/REN_SRC.TXT", &st) == -1);
+    TEST_ASSERT(sys_stat("/mnt/REN_SRC.TXT", &st) == -ENOENT);
 
     fd = sys_open("/mnt/REN_DST.TXT", O_RDONLY);
     TEST_ASSERT(fd >= 3);
@@ -1759,13 +1759,13 @@ TEST(test_syscall_unlink_basic)
     TEST_ASSERT(sys_unlink("/unlink_test.txt") == 0);
 
     // File should no longer exist
-    TEST_ASSERT(sys_stat("/unlink_test.txt", &st) == -1);
+    TEST_ASSERT(sys_stat("/unlink_test.txt", &st) == -ENOENT);
     return true;
 }
 
 TEST(test_syscall_unlink_nonexistent)
 {
-    TEST_ASSERT(sys_unlink("/nonexistent_xyz.txt") == -1);
+    TEST_ASSERT(sys_unlink("/nonexistent_xyz.txt") == -ENOENT);
     return true;
 }
 
@@ -1954,8 +1954,8 @@ TEST(test_syscall_mknod_basic)
 
 TEST(test_syscall_mknod_invalid_path)
 {
-    TEST_ASSERT(sys_mknod(nullptr, VFS_CHARDEVICE, 0) == -1);
-    TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -1);
+    TEST_ASSERT(sys_mknod(nullptr, VFS_CHARDEVICE, 0) == -EINVAL);
+    TEST_ASSERT(sys_mknod("", VFS_CHARDEVICE, 0) == -EBADPATH);
     return true;
 }
 

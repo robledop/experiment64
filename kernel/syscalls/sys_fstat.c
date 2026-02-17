@@ -1,22 +1,25 @@
 #include <syscall_common.h>
+#include <status.h>
 
 int sys_fstat(int fd, struct stat *st)
 {
-    if (!st || fd < 0 || fd >= MAX_FDS)
-        return -1;
+    if (fd < 0 || fd >= MAX_FDS)
+        return -EBADF;
+    if (!st)
+        return -EINVAL;
     if (!user_ptr_write_ok(st, sizeof(*st), "sys_fstat"))
-        return -1;
+        return -EFAULT;
 
     file_descriptor_t *desc = fd_get(fd);
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode)
     {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
 
     fill_stat_from_inode(desc->inode, st);
     fd_put(desc);
-    return 0;
+    return ALL_OK;
 }
