@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <unistd.h>
 #include "common_threads.h"
 
@@ -40,6 +41,16 @@ int value = 0;
 
 rwlock_t lock;
 
+static int parse_int_arg(const char *s)
+{
+    char *end = nullptr;
+    long value = strtol(s, &end, 10);
+    assert(end != s);
+    assert(*end == '\0');
+    assert(value >= INT_MIN && value <= INT_MAX);
+    return (int)value;
+}
+
 void *reader(void *arg)
 {
     int i;
@@ -66,9 +77,9 @@ void *writer(void *arg)
 int main(int argc, char *argv[])
 {
     assert(argc == 4);
-    int num_readers = atoi(argv[1]);
-    int num_writers = atoi(argv[2]);
-    loops           = atoi(argv[3]);
+    int num_readers = parse_int_arg(argv[1]);
+    int num_writers = parse_int_arg(argv[2]);
+    loops           = parse_int_arg(argv[3]);
 
     pthread_t pr[num_readers], pw[num_writers];
 

@@ -8,6 +8,15 @@ extern char __tdata_end[] __attribute__((weak));
 extern char __tbss_start[] __attribute__((weak));
 extern char __tbss_end[] __attribute__((weak));
 
+static size_t span_bytes(const void *start, const void *end)
+{
+    uintptr_t start_addr = (uintptr_t)start;
+    uintptr_t end_addr   = (uintptr_t)end;
+    if (end_addr < start_addr)
+        return 0;
+    return (size_t)(end_addr - start_addr);
+}
+
 static inline void wrfsbase(uint64_t val)
 {
     __asm__ volatile ("wrfsbase %0" :: "r"(val));
@@ -17,7 +26,7 @@ static size_t tls_tdata_size(void)
 {
     if (!__tdata_start || !__tdata_end)
         return 0;
-    return (size_t)(__tdata_end - __tdata_start);
+    return span_bytes(__tdata_start, __tdata_end);
 }
 
 static size_t tls_total_size(void)
@@ -25,9 +34,9 @@ static size_t tls_total_size(void)
     if (!__tdata_start)
         return 0;
     if (__tbss_end)
-        return (size_t)(__tbss_end - __tdata_start);
+        return span_bytes(__tdata_start, __tbss_end);
     if (__tdata_end)
-        return (size_t)(__tdata_end - __tdata_start);
+        return span_bytes(__tdata_start, __tdata_end);
     return 0;
 }
 
