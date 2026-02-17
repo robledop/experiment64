@@ -1,15 +1,16 @@
 #include <sys/syscall.h>
 #include <syscall_common.h>
+#include <status.h>
 
 int sys_thread_join(int tid, int* status)
 {
     if (!current_thread || !current_thread->is_user || !current_process)
-        return -1;
+        return -EPERM;
 
     if (tid <= 0)
-        return -1;
+        return -ESRCH;
     if (status && !user_ptr_write_ok(status, sizeof(*status), "sys_thread_join status"))
-        return -1;
+        return -EFAULT;
 
     for (;;)
     {
@@ -20,19 +21,25 @@ int sys_thread_join(int tid, int* status)
         if (!target || !target->is_user)
         {
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -1;
+            return -ESRCH;
         }
 
         if (target == current_thread)
         {
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -1;
+            return -EDEADLK;
+        }
+
+        if (target->state == THREAD_BLOCKED && target->chan == current_thread)
+        {
+            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+            return -EDEADLK;
         }
 
         if (target->detached)
         {
             SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -1;
+            return -EINVAL;
         }
 
         if (target->state != THREAD_TERMINATED)
@@ -60,7 +67,7 @@ int sys_thread_join(int tid, int* status)
             if (!copy_to_user(status, &exit_code, sizeof(exit_code)))
             {
                 free_thread_resources(target);
-                return -1;
+                return -EFAULT;
             }
         }
 

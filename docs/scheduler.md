@@ -166,8 +166,13 @@ the syscall argument.
 
 `SYS_THREAD_JOIN` waits for a thread to terminate, stores its exit status to the
 user pointer (if provided), and reclaims its kernel stack and thread struct.
+`SYS_THREAD_DETACH` marks a thread as detached so its resources are reclaimed
+without a join.
+
+Thread syscalls return `0` or a positive value on success and negative status
+codes on failure (for example `-EDEADLK`, `-EINVAL`, `-ESRCH`, `-EFAULT`).
 
 `SYS_GETTID` returns the calling thread's TID.
 
-Libc exposes these as `thread_create()`, `thread_exit()`, `thread_join()`, and
-`gettid()` in `user/libc/include/unistd.h`.
+Libc exposes these as `thread_create()`, `thread_exit()`, `thread_join()`,
+`thread_detach()`, and `gettid()` in `user/libc/include/unistd.h`.

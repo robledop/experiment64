@@ -472,6 +472,8 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_
     int tid = thread_create(pthread_trampoline, start);
     if (tid < 0) {
         free(start);
+        if (tid != -1)
+            return -tid;
         return EAGAIN;
     }
 
@@ -531,8 +533,13 @@ int pthread_join(pthread_t thread, void **retval)
     if (rc != 0)
         return rc;
 
-    if (join_rc != 0)
+    if (join_rc < 0) {
+        if (join_rc != -1)
+            return -join_rc;
         return detached ? EINVAL : ESRCH;
+    }
+    if (join_rc > 0)
+        return EINVAL;
 
     if (retval)
         *retval = pthread_ret_take(thread);
@@ -557,7 +564,10 @@ int pthread_detach(pthread_t thread)
     if (rc != 0)
         return rc;
 
-    if (thread_detach(thread) != 0) {
+    int detach_rc = thread_detach(thread);
+    if (detach_rc < 0) {
+        if (detach_rc != -1)
+            return -detach_rc;
         rc = pthread_mutex_lock(&g_ret_lock);
         if (rc != 0)
             return rc;
@@ -570,6 +580,8 @@ int pthread_detach(pthread_t thread)
 
         return detached ? EINVAL : ESRCH;
     }
+    if (detach_rc > 0)
+        return EINVAL;
 
     rc = pthread_mutex_lock(&g_ret_lock);
     if (rc != 0)

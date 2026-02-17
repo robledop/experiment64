@@ -1,13 +1,14 @@
 #include <sys/syscall.h>
 #include <syscall_common.h>
+#include <status.h>
 
 int sys_thread_detach(int tid)
 {
     if (!current_thread || !current_thread->is_user || !current_process)
-        return -1;
+        return -EPERM;
 
     if (tid <= 0)
-        return -1;
+        return -ESRCH;
 
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
@@ -16,13 +17,13 @@ int sys_thread_detach(int tid)
     if (!target || !target->is_user)
     {
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return -1;
+        return -ESRCH;
     }
 
     if (target->detached)
     {
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return -1;
+        return -EINVAL;
     }
 
     if (target->state == THREAD_TERMINATED && !thread_active_on_any_cpu(target))

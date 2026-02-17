@@ -2,6 +2,7 @@
 #include <syscall_common.h>
 #include <lib/util.h>
 #include <arch/x86_64/cpu.h>
+#include <status.h>
 
 static constexpr uint64_t THREAD_STACK_PAGES      = 4;
 static constexpr uint64_t THREAD_STACK_SIZE       = THREAD_STACK_PAGES * PAGE_SIZE;
@@ -114,11 +115,11 @@ static void thread_user_trampoline(void)
 int sys_thread_create(uint64_t entry, uint64_t arg)
 {
     if (!current_thread || !current_thread->is_user)
-        return -1;
+        return -EPERM;
     if (entry == 0)
-        return -1;
+        return -EINVAL;
     if (!user_ptr_read_ok((void *)entry, 1, "sys_thread_create entry"))
-        return -1;
+        return -EFAULT;
 
     uint64_t top_hint = THREAD_STACK_TOP_HINT;
     cpu_t *cpu        = get_cpu();
@@ -131,7 +132,7 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     uint64_t range_start = 0;
     uint64_t range_end   = 0;
     if (!find_stack_range(current_process, THREAD_STACK_TOTAL_SIZE, top_hint, &range_start, &range_end)) {
-        return -1;
+        return -EAGAIN;
     }
 
     uint64_t guard_start = range_start;
@@ -144,19 +145,19 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
                                   stack_start,
                                   THREAD_STACK_SIZE,
                                   stack_vma_flags)) {
-        return -1;
+        return -ENOMEM;
     }
 
     constexpr uint32_t guard_vma_flags = VMA_USER | VMA_STACK | VMA_ANON;
     if (!vm_area_add(current_process, guard_start, stack_start, guard_vma_flags)) {
         sys_munmap((void *)stack_start, THREAD_STACK_SIZE);
-        return -1;
+        return -ENOMEM;
     }
 
     thread_t *thread = thread_create(current_process, thread_user_trampoline, true);
     if (!thread) {
         sys_munmap((void *)guard_start, THREAD_STACK_TOTAL_SIZE);
-        return -1;
+        return -ENOMEM;
     }
 
     // Thread entry is reached via iretq (no call frame), keep %rsp 8 mod 16 for SysV ABI.
