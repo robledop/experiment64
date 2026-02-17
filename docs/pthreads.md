@@ -9,6 +9,7 @@ Implemented:
 - `pthread_cond_*`
 - `pthread_once`
 - `pthread_barrier_*`
+- `sem_init`, `sem_wait`, `sem_post`, `sem_destroy`
 
 Notes:
 
@@ -18,6 +19,8 @@ Notes:
   the condition variable.
 - `pthread_barrier_wait()` returns `PTHREAD_BARRIER_SERIAL_THREAD` for one
   participant and `0` for the others.
+- POSIX semaphore functions return `0` on success, and `-1` with `errno` set on
+  failure.
 
 Each new thread created via `pthread_create` gets its own TLS block
 initialized before the user start routine runs, and `pthread_exit()` tears it

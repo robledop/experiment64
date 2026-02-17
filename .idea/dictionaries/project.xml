@@ -14,7 +14,15 @@
       <w>devfs</w>
       <w>distclean</w>
       <w>dtime</w>
+      <w>ebadpath</w>
+      <w>ebuffull</w>
+      <w>efsnotus</w>
+      <w>einformat</w>
+      <w>einstkn</w>
+      <w>einvarg</w>
       <w>envp</w>
+      <w>erdonly</w>
+      <w>eunimp</w>
       <w>execve</w>
       <w>fbline</w>
       <w>fileno</w>

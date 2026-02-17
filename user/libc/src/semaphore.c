@@ -1,65 +1,107 @@
+#include <errno.h>
+#include <limits.h>
 #include <semaphore.h>
-#include <stdlib.h>
-#include <util.h>
-#include "status.h"
+#include <status.h>
+
+static int sem_error(const int error)
+{
+    errno = error;
+    return -1;
+}
 
 int sem_init(sem_t *s, const int value)
 {
-    if (value < 0) {
-        panic("Value must be greater than 0");
+    if (!s)
+        return sem_error(EINVAL);
+    if (value < 0)
+        return sem_error(EINVAL);
+
+    int rc = pthread_cond_init(&s->cond, nullptr);
+    if (rc != 0)
+        return sem_error(rc);
+
+    rc = pthread_mutex_init(&s->lock, nullptr);
+    if (rc != 0) {
+        (void)pthread_cond_destroy(&s->cond);
+        return sem_error(rc);
     }
 
     s->value = value;
-    if (pthread_cond_init(&s->cond, nullptr) != 0) {
-        return -1;
-    }
-    if (pthread_mutex_init(&s->lock, nullptr) != 0) {
-        return -1;
-    }
 
     return ALL_OK;
 }
 
 int sem_wait(sem_t *s)
 {
-    if (pthread_mutex_lock(&s->lock) != 0) {
-        return -1;
-    }
+    if (!s)
+        return sem_error(EINVAL);
+
+    int rc = pthread_mutex_lock(&s->lock);
+    if (rc != 0)
+        return sem_error(rc);
+
     while (s->value <= 0) {
-        if (pthread_cond_wait(&s->cond, &s->lock) != 0) {
-            return -1;
+        rc = pthread_cond_wait(&s->cond, &s->lock);
+        if (rc != 0) {
+            const int unlock_rc = pthread_mutex_unlock(&s->lock);
+            if (unlock_rc != 0)
+                rc = unlock_rc;
+            return sem_error(rc);
         }
     }
     s->value--;
-    if (pthread_mutex_unlock(&s->lock) != 0) {
-        return -1;
-    }
+    rc = pthread_mutex_unlock(&s->lock);
+    if (rc != 0)
+        return sem_error(rc);
 
     return ALL_OK;
 }
 
 int sem_post(sem_t *s)
 {
-    if (pthread_mutex_lock(&s->lock) != 0) {
-        return -1;
+    if (!s)
+        return sem_error(EINVAL);
+
+    int rc = pthread_mutex_lock(&s->lock);
+    if (rc != 0)
+        return sem_error(rc);
+
+    if (s->value == INT_MAX) {
+        rc = EAGAIN;
+        const int unlock_rc = pthread_mutex_unlock(&s->lock);
+        if (unlock_rc != 0)
+            rc = unlock_rc;
+        return sem_error(rc);
     }
-    s->value = clamp_signed_to_int(s->value + 1);
-    if (pthread_cond_signal(&s->cond) != 0) {
-        return -1;
+
+    s->value++;
+
+    rc = pthread_cond_signal(&s->cond);
+    if (rc != 0) {
+        const int unlock_rc = pthread_mutex_unlock(&s->lock);
+        if (unlock_rc != 0)
+            rc = unlock_rc;
+        return sem_error(rc);
     }
-    if (pthread_mutex_unlock(&s->lock) != 0) {
-        return -1;
-    }
+
+    rc = pthread_mutex_unlock(&s->lock);
+    if (rc != 0)
+        return sem_error(rc);
 
     return ALL_OK;
 }
 int sem_destroy(sem_t *s)
 {
-    if (pthread_mutex_destroy(&s->lock) != 0) {
-        return -1;
-    }
-    if (pthread_cond_destroy(&s->cond) != 0) {
-        return -1;
-    }
+    if (!s)
+        return sem_error(EINVAL);
+
+    int rc = pthread_mutex_destroy(&s->lock);
+    if (rc != 0)
+        return sem_error(rc);
+
+    rc = pthread_cond_destroy(&s->cond);
+    if (rc != 0)
+        return sem_error(rc);
+
     return ALL_OK;
 }
