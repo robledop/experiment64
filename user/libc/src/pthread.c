@@ -88,12 +88,15 @@ int pthread_cond_init(pthread_cond_t *cond, const void *attr)
     if (!cond)
         return -1;
     __atomic_store_n(&cond->__seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&cond->__waiters, 0, __ATOMIC_RELAXED);
     return 0;
 }
 
 int pthread_cond_destroy(pthread_cond_t *cond)
 {
     if (!cond)
+        return -1;
+    if (__atomic_load_n(&cond->__waiters, __ATOMIC_ACQUIRE) != 0)
         return -1;
     return 0;
 }
@@ -104,9 +107,15 @@ int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
         return -1;
 
     int seq = __atomic_load_n(&cond->__seq, __ATOMIC_RELAXED);
-    CHECK_SUCCESS(pthread_mutex_unlock(mutex));
+    __atomic_fetch_add(&cond->__waiters, 1, __ATOMIC_ACQ_REL);
+    if (pthread_mutex_unlock(mutex) != 0) {
+        __atomic_fetch_sub(&cond->__waiters, 1, __ATOMIC_ACQ_REL);
+        return -1;
+    }
     futex_wait(&cond->__seq, seq);
-    CHECK_SUCCESS(pthread_mutex_lock(mutex));
+    __atomic_fetch_sub(&cond->__waiters, 1, __ATOMIC_ACQ_REL);
+    if (pthread_mutex_lock(mutex) != 0)
+        return -1;
     return 0;
 }
 

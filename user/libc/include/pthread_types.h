@@ -8,6 +8,7 @@ typedef struct {
 
 typedef struct {
     int __seq;
+    int __waiters;
 } pthread_cond_t;
 
 typedef struct {
@@ -34,5 +35,5 @@ typedef struct {
 
 
 #define PTHREAD_MUTEX_INITIALIZER {0}
-#define PTHREAD_COND_INITIALIZER {0}
+#define PTHREAD_COND_INITIALIZER {0, 0}
 #define PTHREAD_ONCE_INIT {0}

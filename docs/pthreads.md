@@ -9,6 +9,11 @@ Implemented:
 - `pthread_cond_*`
 - `pthread_once`
 
+Notes:
+
+- `pthread_cond_destroy()` returns `-1` if threads are currently waiting on the
+  condition variable.
+
 Each new thread created via `pthread_create` gets its own TLS block
 initialized before the user start routine runs. See `docs/tls.md` for details.
 
