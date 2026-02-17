@@ -8,15 +8,20 @@ Implemented:
 - `pthread_mutex_*` (normal mutexes only)
 - `pthread_cond_*`
 - `pthread_once`
+- `pthread_barrier_*`
 
 Notes:
 
-- `pthread_mutex_destroy()` returns `-1` if the mutex is locked or has waiters.
-- `pthread_cond_destroy()` returns `-1` if threads are currently waiting on the
-  condition variable.
+- Pthread functions return `0` on success and an error number on failure.
+- `pthread_mutex_destroy()` returns `EBUSY` if the mutex is locked or has waiters.
+- `pthread_cond_destroy()` returns `EBUSY` if threads are currently waiting on
+  the condition variable.
+- `pthread_barrier_wait()` returns `PTHREAD_BARRIER_SERIAL_THREAD` for one
+  participant and `0` for the others.
 
 Each new thread created via `pthread_create` gets its own TLS block
-initialized before the user start routine runs. See `docs/tls.md` for details.
+initialized before the user start routine runs, and `pthread_exit()` tears it
+down before terminating the thread. See `docs/tls.md` for details.
 
 Example:
 

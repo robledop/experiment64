@@ -38,6 +38,21 @@
 #define ENOTTY 17
 // Is a directory
 #define EISDIR 18
+// Operation not permitted
+#define EPERM 19
+// Device or resource busy
+#define EBUSY 20
+// Resource deadlock would occur
+#define EDEADLK 21
+// Operation timed out
+#define ETIMEDOUT 22
+// Interrupted system call
+#define EINTR 23
+
+// POSIX aliases mapped to existing project status codes.
+#define EINVAL EINVARG
+#define ESRCH ENOENT
+#define ENOSYS EUNIMP
 
 USED static inline char *strerror(const int error)
 {
@@ -74,6 +89,16 @@ USED static inline char *strerror(const int error)
         return "Operation not supported";
     case -EISDIR:
         return "Is a directory";
+    case -EPERM:
+        return "Operation not permitted";
+    case -EBUSY:
+        return "Device or resource busy";
+    case -EDEADLK:
+        return "Resource deadlock would occur";
+    case -ETIMEDOUT:
+        return "Operation timed out";
+    case -EINTR:
+        return "Interrupted system call";
     default:
         return "Unknown error";
     }

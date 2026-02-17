@@ -111,7 +111,8 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   GPT (ESP + root).
 - **Process/tasking**: basic scheduler, spinlocks/sleeplocks, syscall layer (see `user/libc/src/syscall.c`), user
   programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `mv`, `wc`, etc.), thread-local storage via FSGSBASE (see
-  `docs/tls.md`), plus kernel test helper binaries under `/tests`
+  `docs/tls.md`), a minimal POSIX-style pthread subset (see `docs/pthreads.md`), plus kernel test helper binaries
+  under `/tests`
 - **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID, framebuffer
   queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`/`rename`,
   `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access, user pointer

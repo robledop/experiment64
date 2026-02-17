@@ -84,6 +84,8 @@ A `PT_TLS` program header is emitted so the linker can resolve TLS relocations.
 5. Calls `wrfsbase` to point FS at the TCB.
 
 `__tls_init_thread()` does the same for each new pthread.
+`__tls_destroy_thread()` frees the TLS block and clears FS base. It is called
+by `pthread_exit()`.
 
 ### Compiler usage
 
