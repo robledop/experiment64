@@ -1,23 +1,24 @@
 #include <syscall_common.h>
+#include <status.h>
 
 long sys_lseek(int fd, long offset, int whence)
 {
     if (fd < 3 || fd >= MAX_FDS)
-        return -1;
+        return -EBADF;
     file_descriptor_t* desc = fd_get(fd);
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode)
     {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
 
     // Pipes are not seekable
     if (desc->inode->flags == VFS_PIPE)
     {
         fd_put(desc);
-        return -1;
+        return -ENOTSUP;
     }
 
     long new_offset;
@@ -34,13 +35,13 @@ long sys_lseek(int fd, long offset, int whence)
         break;
     default:
         fd_put(desc);
-        return -1;
+        return -EINVAL;
     }
 
     if (new_offset < 0)
     {
         fd_put(desc);
-        return -1;
+        return -EINVAL;
     }
 
     desc->offset = (uint64_t)new_offset;

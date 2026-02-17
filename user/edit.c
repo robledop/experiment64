@@ -427,7 +427,7 @@ int getWindowSize(int ifd, int ofd, int *rows, int *cols)
         /* Restore position. */
         char seq[32];
         snprintf(seq, 32, "\x1b[%d;%dH", orig_row, orig_col);
-        if (write(ofd, seq, strlen(seq)) == -1) {
+        if (write(ofd, seq, strlen(seq)) < 0) {
             /* Can't recover... */
         }
         return 0;

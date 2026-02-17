@@ -1,15 +1,16 @@
 #include <syscall_common.h>
 #include <drivers/console.h>
 #include <lib/util.h>
+#include <status.h>
 
 int sys_read(int fd, char *buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return 0;
+        return -EBADF;
     if (count == 0)
         return 0;
     if (!user_ptr_write_ok(buf, count, "sys_read"))
-        return -1;
+        return -EFAULT;
 
     file_descriptor_t *desc = fd_get(fd);
 
@@ -19,7 +20,7 @@ int sys_read(int fd, char *buf, size_t count)
         if (desc && desc->inode) {
             if (!fd_can_read(desc)) {
                 fd_put(desc);
-                return -1;
+                return -EBADF;
             }
             uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);
             desc->offset  += read;
@@ -30,7 +31,7 @@ int sys_read(int fd, char *buf, size_t count)
         // No descriptor or no inode - fall back to console input
         if (desc && !fd_can_read(desc)) {
             fd_put(desc);
-            return -1;
+            return -EBADF;
         }
 
         size_t read = 0;
@@ -47,14 +48,14 @@ int sys_read(int fd, char *buf, size_t count)
     }
 
     if (!desc)
-        return 0;
+        return -EBADF;
     if (!desc->inode) {
         fd_put(desc);
-        return 0;
+        return -EBADF;
     }
     if (!fd_can_read(desc)) {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
 
     uint64_t read = vfs_read(desc->inode, desc->offset, count, (uint8_t *)buf);

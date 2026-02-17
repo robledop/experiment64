@@ -2,15 +2,27 @@
 
 #include <mem/heap.h>
 #include <sys/fcntl.h>
+#include <status.h>
+
+static void release_open_inode(vfs_inode_t *inode)
+{
+    if (!inode)
+        return;
+    vfs_close(inode);
+    if (inode != vfs_root)
+        kfree(inode);
+}
 
 int sys_open(const char* path, int flags)
 {
     if (!path)
-        return -1;
+        return -EINVAL;
+    if (!user_ptr_read_ok(path, 1, "sys_open path"))
+        return -EFAULT;
     const bool want_write = (flags & O_WRONLY) || (flags & O_RDWR);
     char abs_path[PATH_MAX];
     if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -1;
+        return -EBADPATH;
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode && (flags & O_CREATE))
     {
@@ -18,7 +30,13 @@ int sys_open(const char* path, int flags)
             inode = vfs_resolve_path(abs_path);
     }
     if (!inode)
-        return -1;
+        return -ENOENT;
+
+    if ((inode->flags & 0x07) == VFS_DIRECTORY && want_write)
+    {
+        release_open_inode(inode);
+        return -EISDIR;
+    }
 
     // Initialize ref count for dup() support
     if (inode->ref == 0)
@@ -28,27 +46,21 @@ int sys_open(const char* path, int flags)
     {
         if (!want_write)
         {
-            vfs_close(inode);
-            if (inode != vfs_root)
-                kfree(inode);
-            return -1;
+            release_open_inode(inode);
+            return -EINVAL;
         }
         if (vfs_truncate(inode) != 0)
         {
-            vfs_close(inode);
-            if (inode != vfs_root)
-                kfree(inode);
-            return -1;
+            release_open_inode(inode);
+            return -EIO;
         }
     }
 
     file_descriptor_t* desc = kmalloc(sizeof(file_descriptor_t));
     if (!desc)
     {
-        vfs_close(inode);
-        if (inode != vfs_root)
-            kfree(inode);
-        return -1;
+        release_open_inode(inode);
+        return -ENOMEM;
     }
 
     desc->inode = inode;
@@ -61,10 +73,8 @@ int sys_open(const char* path, int flags)
     if (fd == -1)
     {
         kfree(desc);
-        vfs_close(inode);
-        if (inode != vfs_root)
-            kfree(inode);
-        return -1;
+        release_open_inode(inode);
+        return -EBUFFULL;
     }
 
     vfs_open(inode);

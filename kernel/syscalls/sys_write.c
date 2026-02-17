@@ -3,15 +3,16 @@
 #include <fs/vfs.h>
 #include <lib/util.h>
 #include <sys/fcntl.h>
+#include <status.h>
 
 int sys_write(int fd, const char* buf, size_t count)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return -1;
+        return -EBADF;
     if (count == 0)
         return 0;
     if (!user_ptr_read_ok(buf, count, "sys_write"))
-        return -1;
+        return -EFAULT;
 
     file_descriptor_t* desc = fd_get(fd);
 
@@ -24,7 +25,7 @@ int sys_write(int fd, const char* buf, size_t count)
             if (!fd_can_write(desc))
             {
                 fd_put(desc);
-                return -1;
+                return -EBADF;
             }
             if (desc->flags & O_APPEND)
                 desc->offset = desc->inode->size;
@@ -38,7 +39,7 @@ int sys_write(int fd, const char* buf, size_t count)
         if (desc && !fd_can_write(desc))
         {
             fd_put(desc);
-            return -1;
+            return -EBADF;
         }
 
         terminal_write(buf, count);
@@ -48,11 +49,11 @@ int sys_write(int fd, const char* buf, size_t count)
     }
 
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode || !fd_can_write(desc))
     {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
 
     if (desc->flags & O_APPEND)

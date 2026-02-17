@@ -809,7 +809,7 @@ TEST(test_syscall_open_flags)
     // Read on write-only should fail.
     fd = sys_open(path, O_WRONLY);
     TEST_ASSERT(fd >= 0);
-    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == -1);
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == -EBADF);
     TEST_ASSERT(sys_close(fd) == 0);
     return true;
 }
@@ -1136,9 +1136,9 @@ TEST(test_syscall_path_ptr_noncanonical)
         syscall_test_resume_after_longjmp();
         if (t)
             t->is_user = old_is_user;
-        bool passed = (test_exit_code == -1);
+        bool passed = (test_exit_code == -EFAULT);
         if (!passed)
-            printk("Syscall Test: Noncanonical path expected -1, got %d\n", test_exit_code);
+            printk("Syscall Test: Noncanonical path expected -EFAULT, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }
@@ -1177,9 +1177,9 @@ TEST(test_syscall_path_ptr_unmapped)
         syscall_test_resume_after_longjmp();
         if (t)
             t->is_user = old_is_user;
-        bool passed = (test_exit_code == -1);
+        bool passed = (test_exit_code == -EFAULT);
         if (!passed)
-            printk("Syscall Test: Unmapped path expected -1, got %d\n", test_exit_code);
+            printk("Syscall Test: Unmapped path expected -EFAULT, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }
@@ -1323,7 +1323,7 @@ TEST(test_syscall_sendto_buf_ptr_unmapped)
 TEST(test_syscall_invalid_paths_and_fds)
 {
     // Empty path rejected.
-    TEST_ASSERT(sys_open("", 0) == -1);
+    TEST_ASSERT(sys_open("", 0) == -EBADPATH);
     TEST_ASSERT(sys_chdir("") == -1);
 
     // chdir to non-directory should fail.
@@ -1334,9 +1334,10 @@ TEST(test_syscall_invalid_paths_and_fds)
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_close(fd) == 0);
 
-    // Read on closed/invalid descriptors should return 0.
-    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
-    TEST_ASSERT(sys_read(42, buf, sizeof(buf)) == 0);
+    // Read on closed/invalid descriptors should return EBADF.
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == -EBADF);
+    TEST_ASSERT(sys_read(42, buf, sizeof(buf)) == -EBADF);
+    TEST_ASSERT(sys_close(fd) == -EBADF);
     return true;
 }
 
@@ -1452,16 +1453,16 @@ TEST(test_syscall_lseek_basic)
 TEST(test_syscall_lseek_invalid)
 {
     // Invalid fd
-    TEST_ASSERT(sys_lseek(-1, 0, SEEK_SET) == -1);
-    TEST_ASSERT(sys_lseek(999, 0, SEEK_SET) == -1);
+    TEST_ASSERT(sys_lseek(-1, 0, SEEK_SET) == -EBADF);
+    TEST_ASSERT(sys_lseek(999, 0, SEEK_SET) == -EBADF);
 
     // Invalid whence
     int fd = sys_open("/lseek_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
-    TEST_ASSERT(sys_lseek(fd, 0, 99) == -1);
+    TEST_ASSERT(sys_lseek(fd, 0, 99) == -EINVAL);
 
     // Seek before beginning should fail
-    TEST_ASSERT(sys_lseek(fd, -1, SEEK_SET) == -1);
+    TEST_ASSERT(sys_lseek(fd, -1, SEEK_SET) == -EINVAL);
 
     sys_close(fd);
     sys_unlink("/lseek_invalid.txt");
@@ -1474,8 +1475,8 @@ TEST(test_syscall_lseek_pipe_fails)
     int pipefd[2] = {-1, -1};
     TEST_ASSERT(sys_pipe(pipefd) == 0);
 
-    TEST_ASSERT(sys_lseek(pipefd[0], 0, SEEK_SET) == -1);
-    TEST_ASSERT(sys_lseek(pipefd[1], 0, SEEK_SET) == -1);
+    TEST_ASSERT(sys_lseek(pipefd[0], 0, SEEK_SET) == -ENOTSUP);
+    TEST_ASSERT(sys_lseek(pipefd[1], 0, SEEK_SET) == -ENOTSUP);
 
     sys_close(pipefd[0]);
     sys_close(pipefd[1]);
@@ -1524,13 +1525,13 @@ TEST(test_syscall_dup_basic)
 TEST(test_syscall_dup_invalid)
 {
     // Invalid fd
-    TEST_ASSERT(sys_dup(-1) == -1);
-    TEST_ASSERT(sys_dup(999) == -1);
+    TEST_ASSERT(sys_dup(-1) == -EBADF);
+    TEST_ASSERT(sys_dup(999) == -EBADF);
 
     int fd = sys_open("/dup_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     TEST_ASSERT(sys_close(fd) == 0);
-    TEST_ASSERT(sys_dup(fd) == -1);
+    TEST_ASSERT(sys_dup(fd) == -EBADF);
     sys_unlink("/dup_invalid.txt");
 
     return true;
@@ -1790,8 +1791,13 @@ TEST(test_syscall_readdir_basic)
 TEST(test_syscall_readdir_invalid_fd)
 {
     vfs_dirent_t dent;
-    TEST_ASSERT(sys_readdir(-1, &dent) == -1);
-    TEST_ASSERT(sys_readdir(999, &dent) == -1);
+    TEST_ASSERT(sys_readdir(-1, &dent) == -EBADF);
+    TEST_ASSERT(sys_readdir(999, &dent) == -EBADF);
+
+    int fd = sys_open("/bin/init", O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+    TEST_ASSERT(sys_readdir(fd, &dent) == -ENOTDIR);
+    TEST_ASSERT(sys_close(fd) == 0);
     return true;
 }
 
