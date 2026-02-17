@@ -1,6 +1,7 @@
 #include <semaphore.h>
 #include <stdlib.h>
 #include <util.h>
+#include "status.h"
 
 int sem_init(sem_t *s, const int value)
 {
@@ -16,7 +17,7 @@ int sem_init(sem_t *s, const int value)
         return -1;
     }
 
-    return 0;
+    return ALL_OK;
 }
 
 int sem_wait(sem_t *s)
@@ -34,7 +35,7 @@ int sem_wait(sem_t *s)
         return -1;
     }
 
-    return 0;
+    return ALL_OK;
 }
 
 int sem_post(sem_t *s)
@@ -50,7 +51,7 @@ int sem_post(sem_t *s)
         return -1;
     }
 
-    return 0;
+    return ALL_OK;
 }
 int sem_destroy(sem_t *s)
 {
@@ -60,5 +61,5 @@ int sem_destroy(sem_t *s)
     if (pthread_cond_destroy(&s->cond) != 0) {
         return -1;
     }
-    return 0;
+    return ALL_OK;
 }

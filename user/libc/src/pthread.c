@@ -48,7 +48,7 @@ int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)
     __atomic_store_n(&mutex->__state, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&mutex->__waiters, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&mutex->__owner, 0, __ATOMIC_RELAXED);
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_mutex_destroy(pthread_mutex_t *mutex)
@@ -59,7 +59,7 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex)
         return EBUSY;
     if (__atomic_load_n(&mutex->__waiters, __ATOMIC_ACQUIRE) != 0)
         return EBUSY;
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_mutex_lock(pthread_mutex_t *mutex)
@@ -72,7 +72,7 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
         int expected = 0;
         if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
             __atomic_store_n(&mutex->__owner, self, __ATOMIC_RELAXED);
-            return 0;
+            return ALL_OK;
         }
         __atomic_fetch_add(&mutex->__waiters, 1, __ATOMIC_ACQ_REL);
         (void)futex_wait(&mutex->__state, 1);
@@ -88,7 +88,7 @@ int pthread_mutex_trylock(pthread_mutex_t *mutex)
     int expected = 0;
     if (__atomic_compare_exchange_n(&mutex->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         __atomic_store_n(&mutex->__owner, gettid(), __ATOMIC_RELAXED);
-        return 0;
+        return ALL_OK;
     }
     return EBUSY;
 }
@@ -107,7 +107,7 @@ int pthread_mutex_unlock(pthread_mutex_t *mutex)
     __atomic_store_n(&mutex->__state, 0, __ATOMIC_RELEASE);
     if (__atomic_load_n(&mutex->__waiters, __ATOMIC_ACQUIRE) > 0)
         (void)futex_wake(&mutex->__state, 1);
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
@@ -117,7 +117,7 @@ int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
         return EINVAL;
     __atomic_store_n(&cond->__seq, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&cond->__waiters, 0, __ATOMIC_RELAXED);
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_cond_destroy(pthread_cond_t *cond)
@@ -126,7 +126,7 @@ int pthread_cond_destroy(pthread_cond_t *cond)
         return EINVAL;
     if (__atomic_load_n(&cond->__waiters, __ATOMIC_ACQUIRE) != 0)
         return EBUSY;
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
@@ -149,7 +149,7 @@ int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
     rc = pthread_mutex_lock(mutex);
     if (rc != 0)
         return rc;
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_cond_signal(pthread_cond_t *cond)
@@ -159,7 +159,7 @@ int pthread_cond_signal(pthread_cond_t *cond)
 
     __atomic_fetch_add(&cond->__seq, 1, __ATOMIC_RELEASE);
     (void)futex_wake(&cond->__seq, 1);
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_cond_broadcast(pthread_cond_t *cond)
@@ -169,7 +169,7 @@ int pthread_cond_broadcast(pthread_cond_t *cond)
 
     __atomic_fetch_add(&cond->__seq, 1, __ATOMIC_RELEASE);
     (void)futex_wake(&cond->__seq, INT_MAX);
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
@@ -179,22 +179,22 @@ int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
 
     int state = __atomic_load_n(&once_control->__state, __ATOMIC_ACQUIRE);
     if (state == 2)
-        return 0;
+        return ALL_OK;
 
     int expected = 0;
     if (__atomic_compare_exchange_n(&once_control->__state, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         init_routine();
         __atomic_store_n(&once_control->__state, 2, __ATOMIC_RELEASE);
         (void)futex_wake(&once_control->__state, INT_MAX);
-        return 0;
+        return ALL_OK;
     }
 
     while (__atomic_load_n(&once_control->__state, __ATOMIC_ACQUIRE) != 2)
         (void)futex_wait(&once_control->__state, 1);
-    return 0;
+    return ALL_OK;
 }
 
-int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned count)
+int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, const unsigned count)
 {
     (void)attr;
     if (!barrier || count == 0)
@@ -215,7 +215,7 @@ int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t
         (void)pthread_mutex_destroy(&barrier->lock);
         return EINVAL;
     }
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_barrier_destroy(pthread_barrier_t *barrier)
@@ -230,7 +230,7 @@ int pthread_barrier_destroy(pthread_barrier_t *barrier)
         return EBUSY;
     if (sem_destroy(&barrier->turnstile2) != 0)
         return EBUSY;
-    return 0;
+    return ALL_OK;
 }
 
 int pthread_barrier_wait(pthread_barrier_t *barrier)
@@ -302,7 +302,7 @@ fail:
     return rc;
 }
 
-static bool pthread_detached_add_locked(int tid)
+static bool pthread_detached_add_locked(const int tid)
 {
     int free_slot = -1;
     for (int i = 0; i < PTHREAD_DETACHED_MAX; i++) {
@@ -319,7 +319,7 @@ static bool pthread_detached_add_locked(int tid)
     return true;
 }
 
-static bool pthread_detached_has_locked(int tid)
+static bool pthread_detached_has_locked(const int tid)
 {
     for (int i = 0; i < PTHREAD_DETACHED_MAX; i++) {
         if (g_detached_table[i].used && g_detached_table[i].tid == tid)
@@ -328,7 +328,7 @@ static bool pthread_detached_has_locked(int tid)
     return false;
 }
 
-static bool pthread_detached_remove_locked(int tid)
+static bool pthread_detached_remove_locked(const int tid)
 {
     for (int i = 0; i < PTHREAD_DETACHED_MAX; i++) {
         if (g_detached_table[i].used && g_detached_table[i].tid == tid) {
@@ -340,7 +340,7 @@ static bool pthread_detached_remove_locked(int tid)
     return false;
 }
 
-static bool pthread_join_add_locked(int tid)
+static bool pthread_join_add_locked(const int tid)
 {
     int free_slot = -1;
     for (int i = 0; i < PTHREAD_JOIN_MAX; i++) {
@@ -357,7 +357,7 @@ static bool pthread_join_add_locked(int tid)
     return true;
 }
 
-static bool pthread_join_has_locked(int tid)
+static bool pthread_join_has_locked(const int tid)
 {
     for (int i = 0; i < PTHREAD_JOIN_MAX; i++) {
         if (g_join_table[i].used && g_join_table[i].tid == tid)
@@ -366,7 +366,7 @@ static bool pthread_join_has_locked(int tid)
     return false;
 }
 
-static void pthread_join_remove_locked(int tid)
+static void pthread_join_remove_locked(const int tid)
 {
     for (int i = 0; i < PTHREAD_JOIN_MAX; i++) {
         if (g_join_table[i].used && g_join_table[i].tid == tid) {
@@ -377,7 +377,7 @@ static void pthread_join_remove_locked(int tid)
     }
 }
 
-static bool pthread_ret_drop_locked(int tid)
+static bool pthread_ret_drop_locked(const int tid)
 {
     for (int i = 0; i < PTHREAD_RET_MAX; i++) {
         if (g_ret_table[i].used && g_ret_table[i].tid == tid) {
@@ -390,7 +390,7 @@ static bool pthread_ret_drop_locked(int tid)
     return false;
 }
 
-static void pthread_ret_store(int tid, void *value)
+static void pthread_ret_store(const int tid, void *value)
 {
     int rc = pthread_mutex_lock(&g_ret_lock);
     if (rc != 0)
@@ -421,7 +421,7 @@ static void pthread_ret_store(int tid, void *value)
     (void)pthread_mutex_unlock(&g_ret_lock);
 }
 
-static void *pthread_ret_take(int tid)
+static void *pthread_ret_take(const int tid)
 {
     void *value = nullptr;
 
@@ -478,7 +478,7 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_
     }
 
     *thread = tid;
-    return 0;
+    return ALL_OK;
 }
 
 [[noreturn]] void pthread_exit(void *retval)
@@ -494,7 +494,7 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_
     __builtin_unreachable();
 }
 
-int pthread_join(pthread_t thread, void **retval)
+int pthread_join(const pthread_t thread, void **retval)
 {
     if (thread <= 0)
         return ESRCH;
@@ -543,10 +543,10 @@ int pthread_join(pthread_t thread, void **retval)
 
     if (retval)
         *retval = pthread_ret_take(thread);
-    return 0;
+    return ALL_OK;
 }
 
-int pthread_detach(pthread_t thread)
+int pthread_detach(const pthread_t thread)
 {
     if (thread <= 0)
         return ESRCH;
@@ -597,7 +597,7 @@ int pthread_detach(pthread_t thread)
     if (rc != 0)
         return rc;
 
-    return 0;
+    return ALL_OK;
 }
 
 pthread_t pthread_self(void)
