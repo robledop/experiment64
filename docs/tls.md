@@ -87,6 +87,9 @@ A `PT_TLS` program header is emitted so the linker can resolve TLS relocations.
 `__tls_destroy_thread()` frees the TLS block and clears FS base. It is called
 by `pthread_exit()`.
 
+Libc `errno` uses TLS-backed storage (`__errno_location()` in
+`user/libc/src/errno.c`), so each thread has an independent `errno` value.
+
 ### Compiler usage
 
 Declare thread-local variables with `thread_local` (C23):

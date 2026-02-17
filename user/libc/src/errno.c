@@ -1,7 +1,13 @@
+#include <errno.h>
 #include <stdio.h>
 #include <status.h>
 
-int errno;
+static thread_local int g_errno;
+
+int *__errno_location(void)
+{
+    return &g_errno;
+}
 
 void perror(const char *s)
 {

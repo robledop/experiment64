@@ -2,5 +2,6 @@
 
 #include <status.h>
 
-extern int errno;
+int *__errno_location(void);
+#define errno (*__errno_location())
 void perror(const char *s);
