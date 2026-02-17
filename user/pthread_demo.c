@@ -25,9 +25,8 @@ long fib_recursive(long n)
     return fib_recursive(n - 1) + fib_recursive(n - 2);
 }
 
-static void *fibonacci(void *arg)
+static void *fibonacci([[maybe_unused]] void *arg)
 {
-    (void)arg;
     long b = fib_recursive(50);
     pthread_mutex_lock(&g_mutex);
     printf("tid: %d, fibonacci(50): %ld\n", pthread_self(), b);
