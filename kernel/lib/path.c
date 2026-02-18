@@ -69,6 +69,15 @@ void path_simplify(char *path, size_t path_size)
         path[idx] = '\0';
 }
 
+/**
+ * Build an absolute path from a base and an input path, simplifying it in the process. If the input path is already
+ * absolute, the base is ignored. If the input path is relative, it is appended to the base. If the base is null or
+ * empty, it is treated as "/".
+ * @param base The base path to use if the input path is relative.
+ * @param input The input path to be made absolute.
+ * @param output The buffer to store the resulting absolute path.
+ * @param size The size of the output buffer.
+ */
 void path_build_absolute(const char *base, const char *input, char *output, size_t size)
 {
     if (!output || size == 0)

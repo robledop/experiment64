@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <debug.h>
 #include <drivers/terminal.h>
+#include <mem/pmm.h>
+#include <stddef.h>
 
 uint64_t g_hhdm_offset = 0;
 
@@ -39,6 +41,15 @@ static uint64_t *get_next_level(uint64_t *current_level, size_t index, bool allo
     return virt;
 }
 
+/**
+ * Map a single page in the given PML4. This will allocate page tables as needed.
+ * @param pml4 The PML4 to map the page in.
+ * @param virt The virtual address to map.
+ * @param phys The physical address to map to.
+ * @param flags The flags for the page table entry.
+ * @param phys The physical address to map to.
+ * @param flags The flags for the page table entry.
+ */
 void vmm_map_page(pml4_t pml4, uint64_t virt, uint64_t phys, uint64_t flags)
 {
     size_t pml4_idx = (virt >> 39) & 0x1FF;

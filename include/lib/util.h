@@ -2,6 +2,7 @@
 
 #include <mem/heap.h>
 #include <limits.h>
+#include <attributes.h>
 #include <stdint.h>
 
 typedef void (*defer_func_t)(void *);
@@ -12,7 +13,7 @@ struct defer_action
     void *arg;
 };
 
-static inline void defer_cleanup(const struct defer_action *action)
+USED static inline void defer_cleanup(const struct defer_action *action)
 {
     if (action && action->func)
         action->func(action->arg);
@@ -22,7 +23,7 @@ static inline void defer_cleanup(const struct defer_action *action)
 #define DEFER(base, line) DEFER_NAME(base, line)
 #define defer(func, arg) __attribute__((cleanup(defer_cleanup))) struct defer_action DEFER(_defer_, __LINE__) = {func, arg}
 
-static inline void cleanup_kfree(void *ptr)
+USED static inline void cleanup_kfree(void *ptr)
 {
     if (!ptr)
     {
@@ -35,12 +36,12 @@ static inline void cleanup_kfree(void *ptr)
     }
 }
 
-static inline int clamp_to_int(uint64_t value)
+USED static inline int clamp_to_int(uint64_t value)
 {
     return (value > (uint64_t)INT_MAX) ? INT_MAX : (int)value;
 }
 
-static inline int clamp_signed_to_int(int64_t value)
+USED static inline int clamp_signed_to_int(int64_t value)
 {
     if (value > INT_MAX)
         return INT_MAX;
@@ -49,7 +50,13 @@ static inline int clamp_signed_to_int(int64_t value)
     return (int)value;
 }
 
-static inline uint64_t align_up(uint64_t val, uint64_t align)
+/**
+ * Align a value up to the nearest multiple of the specified alignment. The alignment must be a power of two.
+ * @param val The value to align.
+ * @param align The alignment boundary.
+ * @return The aligned value.
+ */
+USED static inline uint64_t align_up(uint64_t val, uint64_t align)
 {
     return (val + align - 1) & ~(align - 1);
 }
