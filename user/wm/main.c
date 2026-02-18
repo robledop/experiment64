@@ -10,8 +10,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <wm/calculator.h>
 #include <pthread.h>
+#include "wm_client.h"
 
 static uint32_t *fb;
 static desktop_t *desktop;
@@ -19,7 +19,7 @@ static bool wm_should_exit = false;
 static int mousefd;
 static int keyboardfd;
 static video_context_t *context;
-calculator_t *calculator = {};
+static client_manager_t client_mgr;
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
@@ -48,6 +48,10 @@ void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_u
     }
 }
 
+void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+{
+    client_launch(&client_mgr, (window_t *)desktop, "/bin/wmclient_demo", 50, 60);
+}
 void exit_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     wm_should_exit = true;
@@ -68,7 +72,11 @@ static void *wm_process_mouse_events([[maybe_unused]] void *arg)
                 mp.x = (int16_t)(context->width - 1);
             if (mp.y >= (int16_t)context->height)
                 mp.y = (int16_t)(context->height - 1);
+            wm_state_lock();
             desktop_process_mouse(desktop, (uint16_t)mp.x, (uint16_t)mp.y, mp.flags);
+            wm_state_unlock();
+        } else {
+            yield();
         }
     }
 
@@ -76,10 +84,37 @@ static void *wm_process_mouse_events([[maybe_unused]] void *arg)
     pthread_exit(nullptr);
 }
 
-void wm_process_events(void)
+static void *wm_process_keyboard_events([[maybe_unused]] void *arg)
 {
-    pthread_t thread;
-    pthread_create(&thread, nullptr, wm_process_mouse_events, nullptr);
+    bool extended = false;
+
+    while (!wm_should_exit) {
+        uint8_t scancode = 0;
+        const ssize_t n = read(keyboardfd, &scancode, sizeof(scancode));
+        if (n != (ssize_t)sizeof(scancode)) {
+            yield();
+            continue;
+        }
+
+        if (scancode == 0x00)
+            continue;
+        if (scancode == 0xE0) {
+            extended = true;
+            continue;
+        }
+
+        const uint8_t code = (uint8_t)(scancode & 0x7F);
+        const uint8_t keycode = extended ? (uint8_t)(code | 0x80) : code;
+        const uint8_t pressed = (scancode & 0x80) ? 0 : 1;
+        extended = false;
+
+        wm_state_lock();
+        client_dispatch_key_event(&client_mgr, (window_t *)desktop, keycode, pressed);
+        wm_state_unlock();
+    }
+
+    close(keyboardfd);
+    pthread_exit(nullptr);
 }
 
 static void clear_screen()
@@ -133,6 +168,8 @@ int main(void)
         exit(1);
     }
 
+    client_manager_init(&client_mgr);
+
     uint32_t *pixels = nullptr;
     uint32_t wp_w    = 0, wp_h = 0;
     if (bitmap_load_argb("/var/wpaper.bmp", &pixels, &wp_w, &wp_h) != 0) {
@@ -157,11 +194,19 @@ int main(void)
     window_set_title((window_t *)doom_button, "Doom");
     window_insert_child((window_t *)desktop, (window_t *)doom_button);
 
+    button_t *demo_button    = button_new(325, 10, 100, 30);
+    demo_button->onmousedown = demo_button_handler;
+    window_set_title((window_t *)demo_button, "Demo");
+    window_insert_child((window_t *)desktop, (window_t *)demo_button);
+
     window_paint((window_t *)desktop, nullptr, 1);
 
-    pthread_t thread;
-    pthread_create(&thread, nullptr, wm_process_mouse_events, nullptr);
+    pthread_t mouse_thread;
+    pthread_t keyboard_thread;
+    pthread_create(&mouse_thread, nullptr, wm_process_mouse_events, nullptr);
+    pthread_create(&keyboard_thread, nullptr, wm_process_keyboard_events, nullptr);
 
-    pthread_join(thread, nullptr);
+    pthread_join(mouse_thread, nullptr);
+    pthread_join(keyboard_thread, nullptr);
     return 0;
 }

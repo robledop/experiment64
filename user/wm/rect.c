@@ -84,6 +84,10 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
 
 rect_t *rect_intersect(rect_t *rect_a, rect_t *rect_b)
 {
+    if (!rect_a || !rect_b) {
+        return nullptr;
+    }
+
     if (!(rect_a->left <= rect_b->right && rect_a->right >= rect_b->left && rect_a->top <= rect_b->bottom &&
           rect_a->bottom >= rect_b->top)) {
         return nullptr;
@@ -112,4 +116,3 @@ rect_t *rect_intersect(rect_t *rect_a, rect_t *rect_b)
 
     return result_rect;
 }
-

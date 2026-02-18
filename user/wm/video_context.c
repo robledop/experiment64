@@ -217,7 +217,7 @@ static void context_clipped_rect(const video_context_t *context, int x, int y, u
 void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
                          uint32_t *pixels)
 {
-    if (!pixels || width == 0 || height == 0) {
+    if (!context || !context->clip_rects || !pixels || width == 0 || height == 0) {
         return;
     }
 
@@ -272,6 +272,9 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
     if (context->clip_rects->count) {
         for (unsigned int i = 0; i < context->clip_rects->count; i++) {
             rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+            if (!clip_area) {
+                continue;
+            }
             context_clipped_rect_bitmap(context,
                                         draw_x,
                                         draw_y,
@@ -305,6 +308,10 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
 
 void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
 {
+    if (!context || !context->clip_rects) {
+        return;
+    }
+
     int max_x = x + (int)width;
     int max_y = y + (int)height;
     rect_t screen_area;
@@ -331,6 +338,9 @@ void context_fill_rect(const video_context_t *context, int x, int y, unsigned in
     if (context->clip_rects->count) {
         for (unsigned int i = 0; i < context->clip_rects->count; i++) {
             rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+            if (!clip_area) {
+                continue;
+            }
             context_clipped_rect(context, x, y, width, height, clip_area, color);
         }
     } else {
@@ -364,19 +374,35 @@ void context_draw_rect(const video_context_t *context, int x, int y, unsigned in
 
 void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 {
+    if (!context || !context->clip_rects) {
+        free(rect);
+        return;
+    }
+
+    if (!rect) {
+        return;
+    }
+
     context->clipping_on = 1;
 
     list_t *output_rects = list_new();
     if (!output_rects) {
+        free(rect);
         return;
     }
 
     for (unsigned int i = 0; i < context->clip_rects->count; i++) {
         rect_t *current_rect = (rect_t *)list_get_at(context->clip_rects, i);
+        if (!current_rect) {
+            continue;
+        }
+
         rect_t *intersect_rect = rect_intersect(current_rect, rect);
 
         if (intersect_rect) {
-            list_add(output_rects, intersect_rect);
+            if (!list_add(output_rects, intersect_rect)) {
+                free(intersect_rect);
+            }
         }
     }
 
@@ -392,10 +418,18 @@ void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 
 void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rect)
 {
+    if (!context || !context->clip_rects || !subtracted_rect) {
+        return;
+    }
+
     context->clipping_on = 1;
 
     for (unsigned int i = 0; i < context->clip_rects->count;) {
         rect_t *cur_rect = list_get_at(context->clip_rects, i);
+        if (!cur_rect) {
+            i++;
+            continue;
+        }
 
         if (!(cur_rect->left <= subtracted_rect->right && cur_rect->right >= subtracted_rect->left &&
             cur_rect->top <= subtracted_rect->bottom && cur_rect->bottom >= subtracted_rect->top)) {
@@ -406,10 +440,19 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
         list_remove_at(context->clip_rects, i);
         list_t *split_rects = rect_split(cur_rect, subtracted_rect);
         free(cur_rect);
+        if (!split_rects) {
+            context_clear_clip_rects(context);
+            return;
+        }
 
         while (split_rects->count) {
             cur_rect = (rect_t *)list_remove_at(split_rects, 0);
-            list_add(context->clip_rects, cur_rect);
+            if (!cur_rect) {
+                continue;
+            }
+            if (!list_add(context->clip_rects, cur_rect)) {
+                free(cur_rect);
+            }
         }
 
         free(split_rects);
@@ -420,12 +463,23 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
 
 void context_add_clip_rect(video_context_t *context, rect_t *added_rect)
 {
+    if (!context || !context->clip_rects || !added_rect) {
+        free(added_rect);
+        return;
+    }
+
     context_subtract_clip_rect(context, added_rect);
-    list_add(context->clip_rects, added_rect);
+    if (!list_add(context->clip_rects, added_rect)) {
+        free(added_rect);
+    }
 }
 
 void context_clear_clip_rects(video_context_t *context)
 {
+    if (!context || !context->clip_rects) {
+        return;
+    }
+
     context->clipping_on = 0;
 
     while (context->clip_rects->count) {
@@ -509,9 +563,16 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
 
 void context_draw_char(const video_context_t *context, char character, int x, int y, uint32_t color)
 {
+    if (!context || !context->clip_rects) {
+        return;
+    }
+
     if (context->clip_rects->count) {
         for (unsigned int i = 0; i < context->clip_rects->count; i++) {
             rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+            if (!clip_area) {
+                continue;
+            }
             context_draw_char_clipped(context, character, x, y, color, clip_area);
         }
     } else {
