@@ -253,6 +253,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_DUP2:
         ret = sys_dup2((int)arg1, (int)arg2);
         break;
+    case SYS_OPENPTY:
+        ret = sys_openpty((int *)arg1);
+        break;
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode

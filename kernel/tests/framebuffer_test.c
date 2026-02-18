@@ -1,4 +1,5 @@
 #include <tests/test.h>
+#include <mem/pmm.h>
 #include <tests/test_util.h>
 #include <fs/vfs.h>
 #include <sys/ioctl.h>

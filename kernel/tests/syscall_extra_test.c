@@ -1,7 +1,9 @@
 #include <tests/test.h>
 #include <sys/ioctl.h>
+#include <sys/signal.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <lib/string.h>
 #include <task/process.h>
 
 TEST(test_sys_thread_join_basic)
@@ -168,5 +170,61 @@ TEST(test_sys_ioctl_tiocgwinsz)
     TEST_ASSERT(ws.ws_col > 0);
     TEST_ASSERT(ws.ws_row > 0);
     sys_close(fd);
+    return true;
+}
+
+TEST(test_sys_openpty_data_path)
+{
+    int fds[2] = {-1, -1};
+    TEST_ASSERT(sys_openpty(fds) == 0);
+    TEST_ASSERT(fds[0] >= 0);
+    TEST_ASSERT(fds[1] >= 0);
+
+    const char in_a[] = "abc";
+    char out_a[4] = {0};
+    TEST_ASSERT(sys_write(fds[0], in_a, 3) == 3);
+    TEST_ASSERT(sys_read(fds[1], out_a, 3) == 3);
+    TEST_ASSERT(memcmp(in_a, out_a, 3) == 0);
+
+    const char in_b[] = "xyz";
+    char out_b[4] = {0};
+    TEST_ASSERT(sys_write(fds[1], in_b, 3) == 3);
+    TEST_ASSERT(sys_read(fds[0], out_b, 3) == 3);
+    TEST_ASSERT(memcmp(in_b, out_b, 3) == 0);
+
+    sys_close(fds[0]);
+    sys_close(fds[1]);
+    return true;
+}
+
+TEST(test_sys_openpty_sigint_foreground_pid)
+{
+    int fds[2] = {-1, -1};
+    TEST_ASSERT(sys_openpty(fds) == 0);
+
+    int pid = sys_spawn("/tests/sigtest_int");
+    TEST_ASSERT(pid > 1);
+
+    TEST_ASSERT(sys_ioctl(fds[1], TIOCSPGRP, &pid) == 0);
+    char ctrl_c = 0x03;
+    TEST_ASSERT(sys_write(fds[0], &ctrl_c, 1) == 1);
+
+    int status = -1;
+    TEST_ASSERT(sys_waitpid(pid, &status, 0) == pid);
+    TEST_ASSERT(status == 128 + SIGINT);
+
+    sys_close(fds[0]);
+    sys_close(fds[1]);
+    return true;
+}
+
+TEST(test_sys_openpty_shell_smoke)
+{
+    int pid = sys_spawn("/tests/pty_shell_test");
+    TEST_ASSERT(pid > 1);
+
+    int status = -1;
+    TEST_ASSERT(sys_waitpid(pid, &status, 0) == pid);
+    TEST_ASSERT(status == 0);
     return true;
 }

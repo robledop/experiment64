@@ -66,7 +66,10 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_WAITPID 48
 #define SYS_RENAME 49
 #define SYS_ARCH_PRCTL 50
+#define SYS_SHM_OPEN 51
+#define SYS_SHM_UNLINK 52
 #define SYS_DUP2 53
+#define SYS_OPENPTY 54
 
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
@@ -125,6 +128,10 @@ int sys_futex_wait(uint32_t* uaddr, uint32_t expected);
 int sys_futex_wake(uint32_t* uaddr, int count);
 int sys_thread_detach(int tid);
 int sys_arch_prctl(int code, uint64_t addr);
+int sys_shm_open(const char *name, int flags, size_t size);
+int sys_shm_unlink(const char *name);
+int sys_dup2(int oldfd, int newfd);
+int sys_openpty(int fds[2]);
 void sys_shutdown();
 void sys_reboot();
 
