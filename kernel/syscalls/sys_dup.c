@@ -1,7 +1,14 @@
-#include <syscall_common.h>
 #include <status.h>
+#include <syscall_common.h>
 
-int sys_dup(int oldfd)
+/**
+ * Duplicate a file descriptor, returning the new file descriptor. The new file descriptor shares the same underlying
+ * file description as oldfd, and thus the same file offset and file status flags. The new file descriptor is guaranteed
+ * to be the lowest-numbered file descriptor that is not already open for the process
+ * @param oldfd The file descriptor to duplicate.
+ * @return The new file descriptor on success, or a negative error code on failure. 
+ */
+int sys_dup(const int oldfd)
 {
     file_descriptor_t *old_desc = fd_get(oldfd);
     if (!old_desc)
