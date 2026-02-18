@@ -16,14 +16,15 @@
 #include <fs/vfs.h>
 #include <sys/syscall.h>
 #include <task/process.h>
-#include <../include/boot.h>
+#include <boot.h>
 #include <arch/x86_64/smp.h>
 #include <arch/x86_64/port_io.h>
-#include <../include/debug.h>
+#include <debug.h>
 #include <drivers/tsc.h>
 #include <drivers/console.h>
 #include <fs/devfs.h>
-#include <../include/kernel.h>
+#include <ipc/shm.h>
+#include <kernel.h>
 #include <drivers/pci.h>
 #include <io/storage.h>
 #ifdef TEST_MODE
@@ -131,6 +132,7 @@ void _start(void) // NOLINT(*-reserved-identifier)
     bio_init();
     vfs_init();
     devfs_init();
+    shm_init();
     console_init();
     vfs_mount_root();
 

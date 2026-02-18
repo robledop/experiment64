@@ -15,6 +15,5 @@
 
 #define MAP_FAILED ((void *)-1)
 
-// Declared in unistd.h; keep here for compatibility without duplicating.
-// void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset);
-// int munmap(void *addr, size_t length);
+int shm_open(const char *name, int flags, size_t size);
+int shm_unlink(const char *name);

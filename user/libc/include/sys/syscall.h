@@ -50,6 +50,8 @@
 #define SYS_WAITPID 48
 #define SYS_RENAME 49
 #define SYS_ARCH_PRCTL 50
+#define SYS_SHM_OPEN 51
+#define SYS_SHM_UNLINK 52
 #define SYS_DUP2 53
 
 #define ARCH_SET_FS 0x1002

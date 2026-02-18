@@ -244,6 +244,12 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_ARCH_PRCTL:
         ret = sys_arch_prctl((int)arg1, arg2);
         break;
+    case SYS_SHM_OPEN:
+        ret = sys_shm_open((const char*)arg1, (int)arg2, (size_t)arg3);
+        break;
+    case SYS_SHM_UNLINK:
+        ret = sys_shm_unlink((const char*)arg1);
+        break;
     case SYS_DUP2:
         ret = sys_dup2((int)arg1, (int)arg2);
         break;

@@ -373,3 +373,13 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 {
     return syscall6(SYS_RECVFROM, sockfd, (long)buf, (long)len, flags, (long)src_addr, (long)addrlen);
 }
+
+int shm_open(const char *name, int flags, size_t size)
+{
+    return clamp_signed_to_int(syscall3(SYS_SHM_OPEN, (long)name, flags, (long)size));
+}
+
+int shm_unlink(const char *name)
+{
+    return clamp_signed_to_int(syscall1(SYS_SHM_UNLINK, (long)name));
+}
