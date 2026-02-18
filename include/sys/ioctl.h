@@ -2,8 +2,10 @@
 
 #include <stdint.h>
 
-// Terminal window size
+// Get terminal window size
 #define TIOCGWINSZ 0x5413
+// Set terminal window size
+#define TIOCSWINSZ 0x5414
 // Set foreground process
 #define TIOCSPGRP 0x5410
 

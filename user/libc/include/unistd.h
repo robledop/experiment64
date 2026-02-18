@@ -47,6 +47,7 @@ long lseek(int fd, long offset, int whence);
 int isatty(int fd);
 int pipe(int pipefd[2]);
 int dup(int oldfd);
+int dup2(int oldfd, int newfd);
 int kill(int pid, int sig);
 void shutdown(void);
 void reboot(void);
