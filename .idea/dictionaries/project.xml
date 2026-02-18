@@ -37,6 +37,8 @@
       <w>insl</w>
       <w>iobase</w>
       <w>iupdate</w>
+      <w>kfree</w>
+      <w>kname</w>
       <w>lalt</w>
       <w>lctrl</w>
       <w>limine</w>
@@ -49,6 +51,7 @@
       <w>munmap</w>
       <w>nbits</w>
       <w>ndev</w>
+      <w>newfd</w>
       <w>newpath</w>
       <w>newptr</w>
       <w>nolintbegin</w>
@@ -76,6 +79,7 @@
       <w>usercopy</w>
       <w>vcbprintf</w>
       <w>vformat</w>
+      <w>virt</w>
       <w>vprintf</w>
       <w>vprintk</w>
       <w>vsnprintf</w>
