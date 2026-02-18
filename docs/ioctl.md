@@ -9,6 +9,12 @@ returns -1.
 - `TIOCSPGRP`: reads an `int` foreground PID from the user pointer.
 - Reads consume console input from keyboard and serial (COM1).
 
+## PTY slave fds (from `openpty`)
+
+- `TIOCGWINSZ`: writes a `struct winsize` to the user pointer.
+- `TIOCSWINSZ`: reads a `struct winsize` from the user pointer and updates the PTY size.
+- `TIOCSPGRP`: reads an `int` foreground PID from the user pointer.
+
 ## /dev/fb0
 
 - `FB_IOCTL_GET_WIDTH`: writes a `uint32_t` width.

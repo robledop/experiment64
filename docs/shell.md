@@ -20,4 +20,6 @@ Common userland commands include `ls`, `cat`, `grep`, `mv`, `rm`, and `wc`.
 
 Notes:
 - There is no job control; background tasks are detached and not tracked.
+- The shell can run with stdio attached to a PTY slave fd from `openpty`.
+- `wm_terminal` uses this PTY mode to host `/bin/sh` in a WM client window, with ANSI colors/control sequences and resize-driven PTY winsize updates.
 - Test helper binaries used by the kernel test suite are installed under `/tests`.

@@ -35,8 +35,8 @@
 - **Heap (`sbrk`)**: initial `heap_end` is the max loaded vaddr; grows upward
   and is page-mapped on demand.
 - **`mmap` base**: default search starts at `0x0000004000000000` and grows up.
-  Mappings are kept below `0x00007FFFFFFFF000`. Only shared `/dev/fb0` mappings
-  are supported for files.
+  Mappings are kept below `0x00007FFFFFFFF000`. Shared file-backed mappings
+  are supported for `/dev/fb0` and shared memory objects (`shm_open`).
 - **Stacks**:
   - `execve`/`spawn`: top is `0x00007FFFFFFFF000`, 4 pages of stack plus a
     1-page guard below.

@@ -114,18 +114,25 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   `docs/tls.md`), a minimal POSIX-style pthread subset (see `docs/pthreads.md`), plus kernel test helper binaries
   under `/tests`
 - **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID, framebuffer
-  queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0`, `link`/`unlink`/`rename`,
-  `getcwd`, full `open` flag handling (create/trunc/append), `mmap`-backed framebuffer access, user pointer
-  validation for canonical and user-mapped ranges, and differentiated negative status returns for thread/socket/fd/path syscalls
-  (see `docs/syscalls.md`)
+  queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0` and shared memory,
+  `link`/`unlink`/`rename`, `getcwd`, `dup2`, `openpty` (minimal PTY pair allocation), full `open` flag handling
+  (create/trunc/append), `mmap`-backed framebuffer access, named shared memory (`shm_open`/`shm_unlink`), user pointer
+  validation for canonical and user-mapped ranges, and differentiated negative status returns for thread/socket/fd/path
+  syscalls (see `docs/syscalls.md`)
 - **Logging**: boot messages mirrored to `/var/log/boot` once the root fs is up with storage cache flush
 - **Debug**: symbolized stack traces, panic trapping in tests, test output capture, targeted PCI config dumps and USB
   controller interface logs
 
 ## GUI
 
-It has the *beginnings* of a GUI, with a simple window manager and basic graphical primitives based
-on https://github.com/JMarlin/wsbe
+A window manager with basic graphical primitives (based on https://github.com/JMarlin/wsbe) that
+supports separate processes running in their own windows. Client processes communicate with the WM
+over pipes and render into shared memory buffers that the WM composites onto the framebuffer. See
+`docs/wm_protocol.md` for the protocol details. The desktop launches both
+`/bin/wmclient_demo`, `/bin/calculator`, and `/bin/wm_terminal` as WM clients. `wm_terminal`
+opens a PTY pair and runs `/bin/sh` on the slave side, letting the shell run inside a window.
+It supports ANSI color/control sequences and updates PTY winsize when its window is resized.
+Keyboard press/release events are routed to the focused client window.
 
 ![GUI screenshot](docs/img/gui.png)
 
