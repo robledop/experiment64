@@ -28,9 +28,10 @@ TEST_SOURCES = $(wildcard tests/*.c)
 TEST_PROGRAMS = $(basename $(TEST_SOURCES))
 TEST_OBJS = $(TEST_PROGRAMS:%=$(BUILD_DIR)/%.o)
 
-WM_SRC = $(wildcard wm/*.c)
+WM_SRC = $(filter-out wm/calculator.c,$(wildcard wm/*.c))
 WM_OBJ = $(WM_SRC:wm/%.c=$(BUILD_DIR)/wm/%.o)
 WM_TARGET = $(BUILD_DIR)/wm/main
+WM_TERMINAL_EXTRA_OBJ = $(BUILD_DIR)/wm/video_context.o $(BUILD_DIR)/wm/rect.o $(BUILD_DIR)/wm/font.o
 
 TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(OSTEP_PROGRAMS:%=$(BUILD_DIR)/%) $(TEST_PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
 
@@ -59,6 +60,9 @@ $(BUILD_DIR)/user_prog: user_prog.S
 
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
+
+$(BUILD_DIR)/wm_terminal: $(BUILD_DIR)/wm_terminal.o $(LIBC_A) $(WM_TERMINAL_EXTRA_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wm_terminal.o $(WM_TERMINAL_EXTRA_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)

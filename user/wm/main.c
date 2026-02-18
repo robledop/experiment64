@@ -23,20 +23,15 @@ static client_manager_t client_mgr;
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (calculator) {
-        return;
+    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
+        printf("wm: failed to launch calculator\n");
     }
-
-    calculator = calculator_new();
-    window_insert_child((window_t *)desktop, (window_t *)calculator);
-    window_move((window_t *)calculator, button->window.context->width / 2, button->window.context->height / 2);
 }
 
 void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     const int pid = fork();
     if (pid == 0) {
-        // char *args[] = {(char *)"doom", nullptr};
         exec("/bin/doom");
         exit();
     }
