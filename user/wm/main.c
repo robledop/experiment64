@@ -52,6 +52,13 @@ void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused
 {
     client_launch(&client_mgr, (window_t *)desktop, "/bin/wmclient_demo", 50, 60);
 }
+
+void terminal_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+{
+    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/wm_terminal", 140, 70) < 0)
+        printf("wm: failed to launch terminal\n");
+}
+
 void exit_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     wm_should_exit = true;
@@ -198,6 +205,11 @@ int main(void)
     demo_button->onmousedown = demo_button_handler;
     window_set_title((window_t *)demo_button, "Demo");
     window_insert_child((window_t *)desktop, (window_t *)demo_button);
+
+    button_t *terminal_button    = button_new(430, 10, 100, 30);
+    terminal_button->onmousedown = terminal_button_handler;
+    window_set_title((window_t *)terminal_button, "Terminal");
+    window_insert_child((window_t *)desktop, (window_t *)terminal_button);
 
     window_paint((window_t *)desktop, nullptr, 1);
 
