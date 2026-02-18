@@ -3,6 +3,7 @@
 #include <lib/util.h>
 #include <arch/x86_64/cpu.h>
 #include <status.h>
+#include <mem/pmm.h>
 
 static constexpr uint64_t THREAD_STACK_PAGES      = 4;
 static constexpr uint64_t THREAD_STACK_SIZE       = THREAD_STACK_PAGES * PAGE_SIZE;

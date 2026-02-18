@@ -1,7 +1,7 @@
 #include <syscall_common.h>
-
 #include <lib/elf.h>
 #include <mem/vmm.h>
+#include <mem/pmm.h>
 
 static void spawn_trampoline(void)
 {
