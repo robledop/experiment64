@@ -399,16 +399,16 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
     write(evt_fd, &resp, sizeof(resp));
 }
 
-static void handle_destroy_window(client_manager_t *mgr,
-                                  [[maybe_unused]] window_t *parent,
-                                  const wm_msg_destroy_window_t *msg)
+void handle_destroy_window([[maybe_unused]] window_t *parent,
+                           const wm_msg_destroy_window_t *msg)
 {
-    for (int i = 0; i < mgr->count; i++) {
-        if (mgr->clients[i] && mgr->clients[i]->window_id == msg->window_id) {
-            client_window_t *cw          = mgr->clients[i];
-            mgr->clients[i]              = mgr->clients[mgr->count - 1];
-            mgr->clients[mgr->count - 1] = nullptr;
-            mgr->count--;
+    ensure_client_manager_initialized();
+    for (int i = 0; i < g_mgr->count; i++) {
+        if (g_mgr->clients[i] && g_mgr->clients[i]->window_id == msg->window_id) {
+            client_window_t *cw              = g_mgr->clients[i];
+            g_mgr->clients[i]                = g_mgr->clients[g_mgr->count - 1];
+            g_mgr->clients[g_mgr->count - 1] = nullptr;
+            g_mgr->count--;
 
             int idx = list_find(parent->children, cw);
             if (idx >= 0)
@@ -479,7 +479,7 @@ static void *client_reader_thread(void *arg)
             if (n != (ssize_t)(sizeof(msg) - 1))
                 goto done;
             wm_state_lock();
-            handle_destroy_window(g_mgr, g_parent, &msg);
+            handle_destroy_window(g_parent, &msg);
             wm_state_unlock();
             break;
         }

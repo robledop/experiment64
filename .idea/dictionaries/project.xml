@@ -59,11 +59,13 @@
       <w>newfd</w>
       <w>newpath</w>
       <w>newptr</w>
+      <w>nocldwait</w>
       <w>nodecoration</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
       <w>oldfd</w>
       <w>oldpath</w>
+      <w>ostep</w>
       <w>outsl</w>
       <w>pathlib</w>
       <w>perror</w>
@@ -83,6 +85,7 @@
       <w>sscanf</w>
       <w>strnlen</w>
       <w>strtol</w>
+      <w>unreapable</w>
       <w>usercopy</w>
       <w>vcbprintf</w>
       <w>vformat</w>
@@ -94,6 +97,7 @@
       <w>wifexited</w>
       <w>wifsignaled</w>
       <w>wnohang</w>
+      <w>wpaper</w>
       <w>wtermsig</w>
     </words>
   </dictionary>

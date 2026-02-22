@@ -12,7 +12,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include "sys/signal.h"
 #include "wm_client.h"
+#include <attributes.h>
+#include <sys/wait.h>
 
 static uint32_t *fb;
 static desktop_t *desktop;
@@ -22,10 +25,32 @@ static int keyboardfd;
 static video_context_t *context;
 static client_manager_t client_mgr;
 
+USED static void sigaction_handler(int signum)
+{
+    if (signum == SIGCHLD) {
+        for (int i = 0; i < WM_MAX_CLIENTS; i++) {
+            client_window_t *client = client_mgr.clients[i];
+            if (!client) {
+                continue;
+            }
+            if (client->client_pid == 0) {
+                continue;
+            }
+            if (waitpid(client->client_pid, nullptr, WNOHANG) == -1) {
+                auto parent = client->window.parent;
+                wm_msg_destroy_window_t msg = {0};
+                msg.type                    = WM_MSG_DESTROY_WINDOW;
+                msg.window_id               = client->window_id;
+                handle_destroy_window(parent, &msg);
+            }
+        }
+    }
+}
+
 static void wm_configure_sigchld(void)
 {
     struct sigaction sa = {};
-    sa.sa_handler       = SIG_DFL;
+    sa.sa_handler       = sigaction_handler;
     sa.sa_flags         = SA_NOCLDWAIT;
     if (sigaction(SIGCHLD, &sa, nullptr) != 0)
         printf("wm: failed to configure SIGCHLD\n");
@@ -33,26 +58,26 @@ static void wm_configure_sigchld(void)
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch( (window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
+    if (client_launch((window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
         printf("wm: failed to launch calculator\n");
     }
 }
 
 void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch( (window_t *)desktop, "/bin/doom", 220, 60) < 0) {
+    if (client_launch((window_t *)desktop, "/bin/doom", 220, 60) < 0) {
         printf("wm: failed to launch doom\n");
     }
 }
 
 void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    client_launch( (window_t *)desktop, "/bin/wmclient_demo", 50, 60);
+    client_launch((window_t *)desktop, "/bin/wmclient_demo", 50, 60);
 }
 
 void terminal_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch( (window_t *)desktop, "/bin/term", 140, 70) < 0)
+    if (client_launch((window_t *)desktop, "/bin/term", 140, 70) < 0)
         printf("wm: failed to launch terminal\n");
 }
 

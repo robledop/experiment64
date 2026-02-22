@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 typedef void (*sighandler_t)(int);
+
 typedef uint64_t sigset_t;
 
 #define SIG_DFL ((sighandler_t)0)
@@ -58,6 +59,7 @@ typedef uint64_t sigset_t;
 // system calls restartable across signals. (not yet implemented)
 #define SA_RESTART 0x1
 // If signum is SIGCHLD, do not transform children into zombies when they terminate.
+// This allows terminated processes to be automatically reaped.
 #define SA_NOCLDWAIT 0x2
 
 typedef struct sigaction
@@ -65,6 +67,7 @@ typedef struct sigaction
     sighandler_t sa_handler;
     sigset_t sa_mask;
     uint64_t sa_flags;
+
     void (*sa_restorer)(void);
 } sigaction_t;
 
