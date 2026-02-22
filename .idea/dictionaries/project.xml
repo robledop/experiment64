@@ -46,6 +46,8 @@
       <w>insl</w>
       <w>iobase</w>
       <w>iupdate</w>
+      <w>iwad</w>
+      <w>iwads</w>
       <w>keyboardfd</w>
       <w>keyqueue</w>
       <w>kfree</w>
@@ -96,6 +98,7 @@
       <w>sscanf</w>
       <w>strnlen</w>
       <w>strtol</w>
+      <w>syncronous</w>
       <w>toolprefix</w>
       <w>unreapable</w>
       <w>usercopy</w>

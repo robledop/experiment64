@@ -22,7 +22,6 @@ DOOMGENERIC_SRC := $(DOOMGENERIC_ROOT)/doomgeneric
 DOOMGENERIC_PATCH_DIR := $(ROOT_DIR)/user/doom/patches
 DOOMGENERIC_PREPARE := $(ROOT_DIR)/user/doom/prepare_doomgeneric.sh
 DOOMGENERIC_STAMP := $(DOOMGENERIC_ROOT)/.patched
-VPATH := $(DOOMGENERIC_SRC)
 
 CC = $(TOOLPREFIX)gcc
 AS = nasm
@@ -35,7 +34,7 @@ BASE_CFLAGS = -O3 -ggdb -std=c23 -m64 -nostdlib -static -fPIE -march=x86-64 -fno
 # CFLAGS for doom code (NO -masm=intel to avoid conflicts with p/bp variables)
 DOOM_CFLAGS = $(BASE_CFLAGS) $(INCLUDE)
 ASFLAGS += $(INCLUDE)
-DOOM_CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
+DOOM_CFLAGS += -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM \
           -D__bool_true_false_are_defined=1
 DOOM_CFLAGS += -Dprintf=print -Dputchar=dg_putchar -Dputs=dg_puts
 override CFLAGS := $(DOOM_CFLAGS) $(CFLAGS)
@@ -59,18 +58,18 @@ clean:
 	rm -f $(OUTPUT)
 	rm -f $(OUTPUT).gdb
 	rm -f $(OUTPUT).map
+	#rm -rf $(DOOMGENERIC_ROOT)
 
 $(OUTPUT):	$(OBJS) $(LIBC_A)
-	@echo [Linking $@]
-	@mkdir -p $(dir $(OUTPUT))
-	$(LD) $(LDFLAGS) -o $(OUTPUT) $(OBJS) $(LIBC_A)
-	@echo [Size]
-	-$(CROSS_COMPILE)size $(OUTPUT)
+	@mkdir -p $(dir $(abspath $(OUTPUT)))
+	$(LD) $(LDFLAGS) -o $(abspath $(OUTPUT)) $(abspath $(OBJS)) $(abspath $(LIBC_A))
+#	@echo [Size]
+#	-$(CROSS_COMPILE)size $(OUTPUT)
 
 $(OBJS): | $(OBJDIR) $(DOOMGENERIC_STAMP)
 
 $(OBJDIR):
-	mkdir -p $(OBJDIR)
+	mkdir -p $(abspath $(OBJDIR))
 
 PATCHES := $(wildcard $(DOOMGENERIC_PATCH_DIR)/*.patch)
 
@@ -78,8 +77,12 @@ $(DOOMGENERIC_STAMP): $(DOOMGENERIC_PREPARE) $(PATCHES)
 	$(DOOMGENERIC_PREPARE)
 	@touch $@
 
-$(OBJDIR)/%.o:	%.c
-	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
+DOOM_SRC_OBJS := $(filter-out $(OBJDIR)/doomgeneric_e64.o,$(OBJS))
+$(DOOM_SRC_OBJS): $(OBJDIR)/%.o: $(DOOMGENERIC_STAMP) | $(OBJDIR)
+	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $(DOOMGENERIC_SRC)/$*.c -o $(abspath $@)
+
+$(OBJDIR)/%.o: %.c | $(OBJDIR) $(DOOMGENERIC_STAMP)
+	$(VB)$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $(abspath $@)
 
 print:
 	@echo OBJS: $(OBJS)

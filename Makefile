@@ -135,7 +135,7 @@ $(LIBC_A): userland
 doom: $(DOOM_BIN)
 
 $(DOOM_BIN): $(LIBC_A)
-	$(MAKE) -C user/doom CFLAGS="$(USERLAND_FLAGS)"
+	$(MAKE) -C user/doom -j1 CFLAGS="$(USERLAND_FLAGS)"
 
 image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
@@ -150,27 +150,27 @@ qemu-nobuild:
 	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run
-run: bear
+run: 
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-usb
-run-usb: bear
+run-usb: 
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES_USBBOOT) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-nox
-run-nox: bear
+run-nox: 
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
 .PHONY: run-tap
-run-tap: bear
+run-tap: 
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox
-vbox: bear
+vbox: 
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
 	./scripts/start_vbox.sh
 
@@ -192,7 +192,7 @@ tests-gdb: clean
 	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} -cpu max | tee test.log
 
 .PHONY: bear
-bear: clean
+bear: clean 
 	bear -- $(MAKE) $(KERNEL) userland doom -j22
 
 .PHONY: clang-tidy
