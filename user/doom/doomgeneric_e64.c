@@ -1,20 +1,33 @@
-#include <stdio.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
+#include <pthread.h>
+#include <stdarg.h>
 #include <stdint.h>
-#include <sys/time.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <termios.h>
+#include <unistd.h>
 
-#include "doomkeys.h"
-#include "m_argv.h"
+#include <wm/wm_protocol.h>
+#include <wm/wmclient.h>
+
 #include "doomgeneric.h"
+#include <doomkeys.h>
+#include <m_argv.h>
 
-static int FrameBufferFd = -1;
-static int *FrameBuffer  = 0;
+static int FrameBufferFd       = -1;
+static int *FrameBuffer        = 0;
+static wm_window_t *DoomWindow = nullptr;
+static int WMMode              = 0;
+static int WMWindowClosed      = 0;
+static pthread_t WMEventThread;
+static int WMEventThreadRunning        = 0;
+static pthread_mutex_t s_FrameMutex    = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_KeyQueueMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int KeyboardFd          = -1;
 static int KeyboardUsesConsole = 0;
@@ -25,8 +38,7 @@ static unsigned short s_KeyQueue[KEYQUEUE_SIZE];
 static unsigned int s_KeyQueueWriteIndex = 0;
 static unsigned int s_KeyQueueReadIndex  = 0;
 
-typedef struct
-{
+typedef struct {
     unsigned char key;
     int ticks;
 } pending_key_t;
@@ -42,6 +54,164 @@ static unsigned int s_PositionY = 0;
 static unsigned int s_ScreenWidth  = 0;
 static unsigned int s_ScreenHeight = 0;
 static unsigned int s_ScreenPitch  = 0; // Bytes per row (may differ from width*4 due to alignment)
+
+static int *s_WmWindowFrameBuffer        = nullptr;
+static unsigned int s_WmWindowWidth      = 0;
+static unsigned int s_WmWindowHeight     = 0;
+static unsigned int s_WmWindowPitch      = 0;
+static int *s_WmFbFrameBuffer            = nullptr;
+static unsigned int s_WmFbWidth          = 0;
+static unsigned int s_WmFbHeight         = 0;
+static unsigned int s_WmFbPitch          = 0;
+static size_t s_WmFbMapSize              = 0;
+static int s_WmRenderToFramebuffer       = 0;
+static int s_WmAltPressed                = 0;
+static int s_WmAltEnterToggleKeyConsumed = 0;
+
+static int runningInWm(void)
+{
+    struct stat evt_stat = {0};
+    struct stat cmd_stat = {0};
+    return fstat(WM_EVT_FD, &evt_stat) == 0 && fstat(WM_CMD_FD, &cmd_stat) == 0;
+}
+
+int print(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int rc = 0;
+    if (!runningInWm()) {
+        rc = vprintf(format, args);
+    } else {
+        // char buffer[256];
+        // rc = vsnprintf(buffer, sizeof(buffer), format, args);
+        // wm_debug_print(buffer);
+    }
+    va_end(args);
+    return rc;
+}
+
+int dg_putchar(int c)
+{
+    if (runningInWm())
+        return c;
+
+    unsigned char ch = (unsigned char)c;
+    if (write(STDOUT_FILENO, &ch, 1) != 1)
+        return EOF;
+
+    return (int)ch;
+}
+
+int dg_puts(const char *s)
+{
+    if (runningInWm())
+        return 0;
+
+    size_t len = strlen(s);
+    if ((len > 0 && write(STDOUT_FILENO, s, len) != (ssize_t)len) || write(STDOUT_FILENO, "\n", 1) != 1)
+        return EOF;
+
+    return 0;
+}
+
+static void suppressStdIoForWm(void)
+{
+    if (!runningInWm())
+        return;
+
+    int devNullFd = open("/dev/null", O_WRONLY);
+    if (devNullFd < 0)
+        return;
+
+    (void)dup2(devNullFd, STDOUT_FILENO);
+    (void)dup2(devNullFd, STDERR_FILENO);
+
+    if (devNullFd > STDERR_FILENO)
+        close(devNullFd);
+}
+
+static int isAltScancode(uint8_t keycode)
+{
+    return keycode == 0x38 || keycode == 0xB8;
+}
+
+static int isEnterScancode(uint8_t keycode)
+{
+    return keycode == 0x1C || keycode == 0x9C;
+}
+
+static void useWmWindowRenderTargetLocked(void)
+{
+    FrameBuffer    = s_WmWindowFrameBuffer;
+    s_ScreenWidth  = s_WmWindowWidth;
+    s_ScreenHeight = s_WmWindowHeight;
+    s_ScreenPitch  = s_WmWindowPitch;
+    s_WmRenderToFramebuffer = 0;
+}
+
+static void useWmFramebufferRenderTargetLocked(void)
+{
+    FrameBuffer    = s_WmFbFrameBuffer;
+    s_ScreenWidth  = s_WmFbWidth;
+    s_ScreenHeight = s_WmFbHeight;
+    s_ScreenPitch  = s_WmFbPitch;
+    s_WmRenderToFramebuffer = 1;
+}
+
+static int mapWmFramebufferLocked(void)
+{
+    if (s_WmFbFrameBuffer)
+        return 0;
+
+    if (FrameBufferFd < 0) {
+        FrameBufferFd = open("/dev/fb0", O_RDWR);
+        if (FrameBufferFd < 0)
+            return -1;
+    }
+
+    if (ioctl(FrameBufferFd, FB_IOCTL_GET_WIDTH, &s_WmFbWidth) != 0 ||
+        ioctl(FrameBufferFd, FB_IOCTL_GET_HEIGHT, &s_WmFbHeight) != 0 ||
+        ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_WmFbPitch) != 0 ||
+        s_WmFbWidth == 0 || s_WmFbHeight == 0 || s_WmFbPitch == 0) {
+        close(FrameBufferFd);
+        FrameBufferFd = -1;
+        s_WmFbWidth   = 0;
+        s_WmFbHeight  = 0;
+        s_WmFbPitch   = 0;
+        return -1;
+    }
+
+    s_WmFbMapSize = (size_t)s_WmFbPitch * (size_t)s_WmFbHeight;
+    void *map = mmap(NULL, s_WmFbMapSize, PROT_READ | PROT_WRITE, MAP_SHARED, FrameBufferFd, 0);
+    if (map == MAP_FAILED) {
+        close(FrameBufferFd);
+        FrameBufferFd  = -1;
+        s_WmFbMapSize  = 0;
+        s_WmFbWidth    = 0;
+        s_WmFbHeight   = 0;
+        s_WmFbPitch    = 0;
+        s_WmFbFrameBuffer = nullptr;
+        return -1;
+    }
+
+    s_WmFbFrameBuffer = (int *)map;
+    return 0;
+}
+
+static void toggleWmRenderTarget(void)
+{
+    pthread_mutex_lock(&s_FrameMutex);
+
+    if (!s_WmRenderToFramebuffer) {
+        if (mapWmFramebufferLocked() == 0)
+            useWmFramebufferRenderTargetLocked();
+    } else {
+        useWmWindowRenderTargetLocked();
+    }
+
+    pthread_mutex_unlock(&s_FrameMutex);
+}
 
 static unsigned char convertConsoleKey(unsigned char scancode)
 {
@@ -166,11 +336,9 @@ static unsigned char convertScancode(unsigned char scancode)
     return key;
 }
 
-static void addKeyToQueueRaw(int pressed, unsigned char rawCode)
+static void addKeyToQueueRawLocked(int pressed, unsigned char rawCode)
 {
-    unsigned char key = KeyboardUsesConsole
-        ? convertConsoleKey(rawCode)
-        : convertScancode(rawCode);
+    unsigned char key = KeyboardUsesConsole ? convertConsoleKey(rawCode) : convertScancode(rawCode);
 
     if (key == 0) {
         return;
@@ -198,10 +366,24 @@ static void addKeyToQueueRaw(int pressed, unsigned char rawCode)
     }
 }
 
+static void addKeyToQueueRaw(int pressed, unsigned char rawCode)
+{
+    pthread_mutex_lock(&s_KeyQueueMutex);
+    addKeyToQueueRawLocked(pressed, rawCode);
+    pthread_mutex_unlock(&s_KeyQueueMutex);
+}
+
 static void flushPendingKeyUps(void)
 {
-    if (!KeyboardUsesConsole || s_PendingKeyUpCount == 0)
+    if (!KeyboardUsesConsole)
         return;
+
+    pthread_mutex_lock(&s_KeyQueueMutex);
+
+    if (s_PendingKeyUpCount == 0) {
+        pthread_mutex_unlock(&s_KeyQueueMutex);
+        return;
+    }
 
     unsigned int writeIndex = 0;
 
@@ -209,44 +391,83 @@ static void flushPendingKeyUps(void)
         pending_key_t entry = s_PendingKeyUps[i];
         entry.ticks--;
         if (entry.ticks <= 0) {
-            addKeyToQueueRaw(0, entry.key);
+            addKeyToQueueRawLocked(0, entry.key);
         } else {
             s_PendingKeyUps[writeIndex++] = entry;
         }
     }
 
     s_PendingKeyUpCount = writeIndex;
+    pthread_mutex_unlock(&s_KeyQueueMutex);
 }
 
 struct termios orig_termios;
 
 void disableRawMode()
 {
+    if (WMMode || DoomWindow) {
+        WMMode = 0;
+
+        if (WMEventThreadRunning) {
+            close(WM_EVT_FD);
+            pthread_join(WMEventThread, nullptr);
+            WMEventThreadRunning = 0;
+        }
+
+        if (DoomWindow) {
+            wm_destroy_window(DoomWindow);
+            DoomWindow = nullptr;
+        }
+
+        if (s_WmFbFrameBuffer && s_WmFbMapSize) {
+            munmap(s_WmFbFrameBuffer, s_WmFbMapSize);
+            s_WmFbFrameBuffer = nullptr;
+            s_WmFbMapSize     = 0;
+        }
+
+        if (FrameBufferFd >= 0) {
+            close(FrameBufferFd);
+            FrameBufferFd = -1;
+        }
+
+        FrameBuffer                   = nullptr;
+        s_WmWindowFrameBuffer         = nullptr;
+        s_WmWindowWidth               = 0;
+        s_WmWindowHeight              = 0;
+        s_WmWindowPitch               = 0;
+        s_WmFbWidth                   = 0;
+        s_WmFbHeight                  = 0;
+        s_WmFbPitch                   = 0;
+        s_WmRenderToFramebuffer       = 0;
+        s_WmAltPressed                = 0;
+        s_WmAltEnterToggleKeyConsumed = 0;
+        return;
+    }
+
     if (!KeyboardUsesConsole) {
-        // Flush keyboard buffers before closing
         if (KeyboardFd >= 0) {
             ioctl(KeyboardFd, KDFLUSH, NULL);
         }
         return;
     }
-    // Flush keyboard buffers to prevent leftover keys from reaching the shell
+
     int kb = open("/dev/keyboard", O_RDONLY);
     if (kb >= 0) {
         ioctl(kb, KDFLUSH, NULL);
         close(kb);
     }
-    // Flush any pending input before restoring terminal
+
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-    // Drain any remaining buffered input
+
     unsigned char discard;
-    while (read(STDIN_FILENO, &discard, 1) > 0);
-    // Clear screen on exit
+    while (read(STDIN_FILENO, &discard, 1) > 0)
+        ;
+
     write(STDOUT_FILENO, "\x1b[2J", 4);
 }
 
 void enableRawMode()
 {
-    // Always register cleanup handler to flush keyboard buffers on exit
     atexit(disableRawMode);
 
     if (!KeyboardUsesConsole) {
@@ -254,55 +475,177 @@ void enableRawMode()
     }
     tcgetattr(STDIN_FILENO, &orig_termios);
     struct termios raw = orig_termios;
-    raw.c_lflag        &= ~(ECHO | ICANON);
-    raw.c_iflag        &= ~(IXON | ICRNL);
-    raw.c_oflag        &= ~(OPOST);
-    raw.c_cc[VMIN]     = 0;
-    raw.c_cc[VTIME]    = 0;
+    raw.c_lflag &= ~(ECHO | ICANON);
+    raw.c_iflag &= ~(IXON | ICRNL);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cc[VMIN]  = 0;
+    raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+
+static void *wmEventThreadMain([[maybe_unused]] void *arg)
+{
+    uint8_t event_type = 0;
+    uint8_t event_buf[sizeof(wm_event_window_resized_msg_t)];
+
+    while (WMMode && !WMWindowClosed) {
+        if (wm_next_event(event_buf, &event_type) != 0)
+            break;
+
+        switch (event_type) {
+        case WM_EVENT_KEY:
+            {
+                wm_event_key_t *ev = (wm_event_key_t *)event_buf;
+                if (!DoomWindow || ev->window_id != DoomWindow->window_id)
+                    break;
+
+                if (isAltScancode(ev->keycode)) {
+                    s_WmAltPressed = ev->pressed ? 1 : 0;
+                    break;
+                }
+
+                if (isEnterScancode(ev->keycode)) {
+                    if (s_WmAltEnterToggleKeyConsumed) {
+                        if (!ev->pressed)
+                            s_WmAltEnterToggleKeyConsumed = 0;
+                        break;
+                    }
+
+                    if (s_WmAltPressed && ev->pressed) {
+                        toggleWmRenderTarget();
+                        s_WmAltEnterToggleKeyConsumed = 1;
+                        break;
+                    }
+
+                    if (s_WmAltPressed && !ev->pressed) {
+                        s_WmAltEnterToggleKeyConsumed = 0;
+                        break;
+                    }
+                }
+
+                addKeyToQueueRaw(ev->pressed ? 1 : 0, ev->keycode);
+                break;
+            }
+        case WM_EVENT_WINDOW_RESIZED:
+            {
+                wm_event_window_resized_t *ev = (wm_event_window_resized_t *)event_buf;
+                if (!DoomWindow || ev->window_id != DoomWindow->window_id)
+                    break;
+
+                pthread_mutex_lock(&s_FrameMutex);
+                s_WmWindowFrameBuffer = (int *)DoomWindow->buffer;
+                s_WmWindowWidth       = DoomWindow->width;
+                s_WmWindowHeight      = DoomWindow->height;
+                s_WmWindowPitch       = (uint32_t)DoomWindow->width * 4U;
+                if (!s_WmRenderToFramebuffer)
+                    useWmWindowRenderTargetLocked();
+                pthread_mutex_unlock(&s_FrameMutex);
+                break;
+            }
+        case WM_EVENT_WINDOW_CLOSED:
+            {
+                wm_event_window_closed_t *ev = (wm_event_window_closed_t *)event_buf;
+                if (DoomWindow && ev->window_id == DoomWindow->window_id)
+                    WMWindowClosed = 1;
+                goto done;
+            }
+        case WM_EVENT_WINDOW_CREATED:
+        case WM_EVENT_MOUSE:
+            break;
+        default:
+            break;
+        }
+    }
+
+done:
+    WMWindowClosed = 1;
+    return nullptr;
 }
 
 void DG_Init()
 {
+    int argPosX = M_CheckParmWithArgs("-posx", 1);
+    if (argPosX > 0) {
+        sscanf(myargv[argPosX + 1], "%d", &s_PositionX);
+    }
+
+    int argPosY = M_CheckParmWithArgs("-posy", 1);
+    if (argPosY > 0) {
+        sscanf(myargv[argPosY + 1], "%d", &s_PositionY);
+    }
+
+    if (runningInWm()) {
+        int16_t wm_pos_x = 80;
+        int16_t wm_pos_y = 60;
+        if (argPosX > 0)
+            wm_pos_x = (int16_t)s_PositionX;
+        if (argPosY > 0)
+            wm_pos_y = (int16_t)s_PositionY;
+
+        DoomWindow = wm_create_window(wm_pos_x, wm_pos_y, DOOMGENERIC_RESX, DOOMGENERIC_RESY, "Doom");
+        if (!DoomWindow) {
+            print("doom: failed to create window\n");
+            exit();
+        }
+
+        WMMode         = 1;
+        WMWindowClosed = 0;
+        s_WmRenderToFramebuffer       = 0;
+        s_WmAltPressed                = 0;
+        s_WmAltEnterToggleKeyConsumed = 0;
+        s_WmWindowFrameBuffer         = (int *)DoomWindow->buffer;
+        s_WmWindowWidth               = DoomWindow->width;
+        s_WmWindowHeight              = DoomWindow->height;
+        s_WmWindowPitch               = (uint32_t)DoomWindow->width * 4U;
+        useWmWindowRenderTargetLocked();
+        atexit(disableRawMode);
+
+        if (pthread_create(&WMEventThread, nullptr, wmEventThreadMain, nullptr) != 0) {
+            print("doom: failed to create WM event thread\n");
+            wm_destroy_window(DoomWindow);
+            DoomWindow  = nullptr;
+            FrameBuffer = nullptr;
+            exit();
+        }
+        WMEventThreadRunning = 1;
+        return;
+    }
+
     FrameBufferFd = open("/dev/fb0", O_RDWR);
 
     if (FrameBufferFd >= 0) {
-        printf("Getting screen width...");
+        print("Getting screen width...");
         ioctl(FrameBufferFd, FB_IOCTL_GET_WIDTH, &s_ScreenWidth);
-        printf("%d\n", s_ScreenWidth);
+        print("%d\n", s_ScreenWidth);
 
-        printf("Getting screen height...");
+        print("Getting screen height...");
         ioctl(FrameBufferFd, FB_IOCTL_GET_HEIGHT, &s_ScreenHeight);
-        printf("%d\n", s_ScreenHeight);
+        print("%d\n", s_ScreenHeight);
 
         if (0 == s_ScreenWidth || 0 == s_ScreenHeight) {
-            printf("Unable to obtain screen info!");
+            print("Unable to obtain screen info!");
             exit();
         }
 
         ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_ScreenPitch);
-        printf("Screen pitch: %d bytes\n", s_ScreenPitch);
+        print("Screen pitch: %d bytes\n", s_ScreenPitch);
 
         size_t fb_map_size = (size_t)s_ScreenPitch * (size_t)s_ScreenHeight;
 
-        FrameBuffer = mmap(NULL,
-                           fb_map_size,
-                           PROT_READ | PROT_WRITE,
-                           MAP_SHARED,
-                           FrameBufferFd,
-                           0);
+        FrameBuffer = mmap(NULL, fb_map_size, PROT_READ | PROT_WRITE, MAP_SHARED, FrameBufferFd, 0);
 
         if (FrameBuffer != MAP_FAILED) {
-            printf("FrameBuffer mmap success\n");
+            print("FrameBuffer mmap success\n");
         } else {
-            printf("FrameBuffermmap failed\n");
+            print("FrameBuffermmap failed\n");
             FrameBuffer = NULL;
             close(FrameBufferFd);
             FrameBufferFd = -1;
             exit();
         }
     } else {
-        printf("Opening FrameBuffer device failed!\n");
+        print("Opening FrameBuffer device failed!\n");
         exit();
     }
 
@@ -314,21 +657,7 @@ void DG_Init()
 
     ioctl(KeyboardFd, 1, (void *)1);
 
-    int argPosX = 0;
-    int argPosY = 0;
-
-    argPosX = M_CheckParmWithArgs("-posx", 1);
-    if (argPosX > 0) {
-        sscanf(myargv[argPosX + 1], "%d", &s_PositionX);
-    }
-
-    argPosY = M_CheckParmWithArgs("-posy", 1);
-    if (argPosY > 0) {
-        sscanf(myargv[argPosY + 1], "%d", &s_PositionY);
-    }
-
     // Leave console in cooked mode until we are ready to draw the first frame.
-    // enableRawMode();
 }
 
 static void handleKeyInput()
@@ -394,7 +723,7 @@ static void handleKeyInput()
 
         unsigned char code = scancode & 0x7F;
         if (extendedScan) {
-            code         |= 0x80;
+            code |= 0x80;
             extendedScan = 0;
         }
 
@@ -406,25 +735,36 @@ static void handleKeyInput()
 void DG_DrawFrame()
 {
     static int raw_enabled;
-    if (!raw_enabled) {
+    if (!WMMode && !raw_enabled) {
         enableRawMode();
         raw_enabled = 1;
     }
-    flushPendingKeyUps();
 
-    if (FrameBuffer) {
+    if (WMMode && WMWindowClosed) {
+        exit();
+    }
+
+    if (KeyboardUsesConsole) {
+        flushPendingKeyUps();
+    }
+
+    pthread_mutex_lock(&s_FrameMutex);
+
+    if (FrameBuffer && s_ScreenWidth && s_ScreenHeight) {
         uint32_t *src            = (uint32_t *)DG_ScreenBuffer;
         uint32_t *dst            = (uint32_t *)FrameBuffer;
         const int srcW           = DOOMGENERIC_RESX;
         const int srcH           = DOOMGENERIC_RESY;
-        const int dstW           = s_ScreenWidth;
-        const int dstH           = s_ScreenHeight;
-        const int dstPitchPixels = s_ScreenPitch / 4; // Convert bytes to pixels
+        const int dstW           = (int)s_ScreenWidth;
+        const int dstH           = (int)s_ScreenHeight;
+        const int dstPitchPixels = (int)(s_ScreenPitch / 4U);
+        const int drawOffsetX    = WMMode ? 0 : (int)s_PositionX;
+        const int drawOffsetY    = WMMode ? 0 : (int)s_PositionY;
 
         for (int y = 0; y < dstH; ++y) {
             int srcY         = (y * srcH) / dstH;
             uint32_t *srcRow = src + srcY * srcW;
-            uint32_t *dstRow = dst + (y + s_PositionY) * dstPitchPixels + s_PositionX;
+            uint32_t *dstRow = dst + (y + drawOffsetY) * dstPitchPixels + drawOffsetX;
 
             for (int x = 0; x < dstW; ++x) {
                 int srcX  = (x * srcW) / dstW;
@@ -433,7 +773,22 @@ void DG_DrawFrame()
         }
     }
 
-    handleKeyInput();
+    pthread_mutex_unlock(&s_FrameMutex);
+
+    if (WMMode && DoomWindow && !s_WmRenderToFramebuffer) {
+        wm_invalidate_all(DoomWindow);
+
+        pthread_mutex_lock(&s_FrameMutex);
+        s_WmWindowFrameBuffer = (int *)DoomWindow->buffer;
+        s_WmWindowWidth       = DoomWindow->width;
+        s_WmWindowHeight      = DoomWindow->height;
+        s_WmWindowPitch       = (uint32_t)DoomWindow->width * 4U;
+        if (!s_WmRenderToFramebuffer)
+            useWmWindowRenderTargetLocked();
+        pthread_mutex_unlock(&s_FrameMutex);
+    } else if (!WMMode) {
+        handleKeyInput();
+    }
 }
 
 void DG_SleepMs(uint32_t ms)
@@ -453,8 +808,10 @@ uint32_t DG_GetTicksMs()
 
 int DG_GetKey(int *pressed, unsigned char *doomKey)
 {
+    pthread_mutex_lock(&s_KeyQueueMutex);
+
     if (s_KeyQueueReadIndex == s_KeyQueueWriteIndex) {
-        // key queue is empty
+        pthread_mutex_unlock(&s_KeyQueueMutex);
 
         return 0;
     } else {
@@ -465,6 +822,7 @@ int DG_GetKey(int *pressed, unsigned char *doomKey)
         *pressed = keyData >> 8;
         *doomKey = keyData & 0xFF;
 
+        pthread_mutex_unlock(&s_KeyQueueMutex);
         return 1;
     }
 }
@@ -475,15 +833,18 @@ void DG_SetWindowTitle([[maybe_unused]] const char *title)
 
 void clear_screen(void)
 {
-    printf("\033[2J\033[H");
+    if (FrameBufferFd < 0)
+        return;
+
+    print("\033[2J\033[H");
 }
 
 int main(int argc, char **argv)
 {
+    suppressStdIoForWm();
 
     atexit(clear_screen);
 
-    const char *default_iwad      = "/doom.wad";
     const char *candidate_iwads[] = {
         "/doom.wad",
         "/bin/doom.wad",

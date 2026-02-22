@@ -37,6 +37,7 @@ DOOM_CFLAGS = $(BASE_CFLAGS) $(INCLUDE)
 ASFLAGS += $(INCLUDE)
 DOOM_CFLAGS += -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE -DUSEASM -DAEGROS \
           -D__bool_true_false_are_defined=1
+DOOM_CFLAGS += -Dprintf=print -Dputchar=dg_putchar -Dputs=dg_puts
 override CFLAGS := $(DOOM_CFLAGS) $(CFLAGS)
 
 LDFLAGS += -static -Ttext=0x400000 --build-id=none
