@@ -21,6 +21,11 @@ static file_descriptor_t *pty_fd_new(vfs_inode_t *inode)
     return desc;
 }
 
+/**
+ * Create a new pseudo-terminal pair and return their file descriptors
+ * @param fds An array of two integers where the master and slave file descriptors will be stored
+ * @return 0 on success, -1 on failure
+ */
 int sys_openpty(int fds[2])
 {
     if (!fds)

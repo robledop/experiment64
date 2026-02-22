@@ -2,6 +2,12 @@
 #include <arch/x86_64/cpu.h>
 #include <sys/syscall.h>
 
+/**
+ * Set or get the FS base for the current thread.
+ * @param code The operation to perform (ARCH_SET_FS or ARCH_GET_FS)
+ * @param addr The address to set or get the FS base
+ * @return 0 on success, -1 on failure 
+ */
 int sys_arch_prctl(int code, uint64_t addr)
 {
     thread_t *t = current_thread;

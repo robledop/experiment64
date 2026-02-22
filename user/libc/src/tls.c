@@ -51,7 +51,7 @@ static void tls_setup(void)
     if (!block)
         return;
 
-    struct tcb *tcb       = (struct tcb *)(block + aligned);
+    auto tcb       = (struct tcb *)(block + aligned);
     char *tls_data_start  = (char *)tcb - total_sz;
 
     if (tdata_sz > 0)

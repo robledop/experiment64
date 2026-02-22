@@ -1,6 +1,10 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>Iinclude</w>
+      <w>Ithird</w>
+      <w>Iuser</w>
+      <w>Wextra</w>
       <w>asfiles</w>
       <w>asflags</w>
       <w>atof</w>
@@ -15,6 +19,7 @@
       <w>cilas</w>
       <w>devfs</w>
       <w>distclean</w>
+      <w>doomgeneric</w>
       <w>dtime</w>
       <w>ebadpath</w>
       <w>ebuffull</w>
@@ -27,8 +32,10 @@
       <w>eunimp</w>
       <w>execve</w>
       <w>fbline</w>
+      <w>ffreestanding</w>
       <w>fileno</w>
       <w>finddir</w>
+      <w>fsgsbase</w>
       <w>fsize</w>
       <w>gettid</w>
       <w>gettimeofday</w>
@@ -63,6 +70,7 @@
       <w>nodecoration</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
+      <w>objdir</w>
       <w>oldfd</w>
       <w>oldpath</w>
       <w>ostep</w>
@@ -74,6 +82,9 @@
       <w>printk</w>
       <w>prio</w>
       <w>putpixel</w>
+      <w>qemugdb</w>
+      <w>rdfsbase</w>
+      <w>rdmsr</w>
       <w>readi</w>
       <w>resched</w>
       <w>returncode</w>
@@ -85,11 +96,13 @@
       <w>sscanf</w>
       <w>strnlen</w>
       <w>strtol</w>
+      <w>toolprefix</w>
       <w>unreapable</w>
       <w>usercopy</w>
       <w>vcbprintf</w>
       <w>vformat</w>
       <w>virt</w>
+      <w>vpath</w>
       <w>vprintf</w>
       <w>vprintk</w>
       <w>vsnprintf</w>
@@ -98,6 +111,8 @@
       <w>wifsignaled</w>
       <w>wnohang</w>
       <w>wpaper</w>
+      <w>wrfsbase</w>
+      <w>wrmsr</w>
       <w>wtermsig</w>
     </words>
   </dictionary>
