@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 client_manager_t *g_mgr;
 static window_t *g_parent;
@@ -406,6 +408,8 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     for (int i = 0; i < g_mgr->count; i++) {
         if (g_mgr->clients[i] && g_mgr->clients[i]->window_id == msg->window_id) {
             client_window_t *cw              = g_mgr->clients[i];
+            // kill(cw->client_pid, SIGTERM);
+            // waitpid(cw->client_pid, nullptr, WNOHANG);
             g_mgr->clients[i]                = g_mgr->clients[g_mgr->count - 1];
             g_mgr->clients[g_mgr->count - 1] = nullptr;
             g_mgr->count--;
@@ -499,6 +503,7 @@ int client_launch(window_t *parent, const char *path,
 {
     (void)default_x;
     (void)default_y;
+    ensure_client_manager_initialized();
 
     g_parent = parent;
 

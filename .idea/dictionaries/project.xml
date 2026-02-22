@@ -17,6 +17,7 @@
       <w>cfiles</w>
       <w>chardevice</w>
       <w>cilas</w>
+      <w>connfd</w>
       <w>devfs</w>
       <w>distclean</w>
       <w>doomgeneric</w>
@@ -73,6 +74,7 @@
       <w>nolintbegin</w>
       <w>nolintend</w>
       <w>objdir</w>
+      <w>oldact</w>
       <w>oldfd</w>
       <w>oldpath</w>
       <w>ostep</w>
@@ -101,6 +103,7 @@
       <w>syncronous</w>
       <w>toolprefix</w>
       <w>unreapable</w>
+      <w>usbboot</w>
       <w>usercopy</w>
       <w>vcbprintf</w>
       <w>vformat</w>

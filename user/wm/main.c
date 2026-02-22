@@ -36,14 +36,16 @@ USED static void sigaction_handler(int signum)
             if (client->client_pid == 0) {
                 continue;
             }
-            if (waitpid(client->client_pid, nullptr, WNOHANG) == -1) {
-                auto parent = client->window.parent;
+            int pid = waitpid(client->client_pid, nullptr, WNOHANG);
+            if (pid == client->client_pid) {
+                auto parent                 = client->window.parent;
                 wm_msg_destroy_window_t msg = {0};
                 msg.type                    = WM_MSG_DESTROY_WINDOW;
                 msg.window_id               = client->window_id;
                 handle_destroy_window(parent, &msg);
             }
         }
+        waitpid(-1, nullptr, WNOHANG);
     }
 }
 
@@ -51,7 +53,7 @@ static void wm_configure_sigchld(void)
 {
     struct sigaction sa = {};
     sa.sa_handler       = sigaction_handler;
-    sa.sa_flags         = SA_NOCLDWAIT;
+    sa.sa_flags         = 0;
     if (sigaction(SIGCHLD, &sa, nullptr) != 0)
         printf("wm: failed to configure SIGCHLD\n");
 }

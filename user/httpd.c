@@ -1,3 +1,5 @@
+// A very basic web server
+
 #include <stdio.h>
 #include <pthread.h>
 #include <sys/ioctl.h>

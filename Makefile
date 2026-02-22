@@ -21,12 +21,12 @@ endef
 
 $(eval $(call DEFAULT_VAR,CC,x86_64-elf-gcc))
 $(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
-$(eval $(call DEFAULT_VAR,CFLAGS,-Og -g -Wall -Wextra -pipe -pedantic))
+$(eval $(call DEFAULT_VAR,CFLAGS,-O3 -g -Wall -Wextra -pipe -pedantic))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
 ROOTFS=rootfs
 
-override MEM ?= 64M
+override MEM ?= 128M
 override SMP ?= 22
 # Secondary disk image for IDE (ext2).
 IDE_DISK := image2.ide
@@ -88,6 +88,7 @@ override ASFILES := $(shell find kernel -type f -name '*.S')
 override OBJ := $(CFILES:kernel/%.c=build/%.o) $(ASFILES:kernel/%.S=build/%.o)
 override DEPS := $(CFILES:kernel/%.c=build/%.d)
 
+run-gdb: CFLAGS := $(patsubst -O%,-O0,$(CFLAGS))
 run-gdb tests tests-gdb vbox: CFLAGS += -DDEBUG -fstack-protector-strong -fsanitize=undefined
 
 QEMUGDB = -daemonize -S -gdb tcp::1234 -d int -D qemu.log -cpu max
