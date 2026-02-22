@@ -16,7 +16,7 @@ button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
         return nullptr;
     }
 
-    button->window.paint_function = button_paint;
+    button->window.paint_function     = button_paint;
     button->window.mousedown_function = button_mousedown_handler;
 
     button->onmousedown = nullptr;
@@ -68,4 +68,3 @@ void button_mousedown_handler(const window_t *button_window, int16_t x, int16_t 
         button->onmousedown(button, x, y);
     }
 }
-

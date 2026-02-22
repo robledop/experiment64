@@ -8,15 +8,15 @@ rect_t *rect_new(int top, int left, int bottom, int right)
         return rect;
     }
 
-    rect->top = top;
-    rect->left = left;
+    rect->top    = top;
+    rect->left   = left;
     rect->bottom = bottom;
-    rect->right = right;
+    rect->right  = right;
 
     return rect;
 }
 
-list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
+list_t *rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
 {
     list_t *output_rects = list_new();
     if (!output_rects) {
@@ -24,10 +24,10 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
     }
 
     rect_t subject_copy;
-    subject_copy.top = subject_rect->top;
-    subject_copy.left = subject_rect->left;
+    subject_copy.top    = subject_rect->top;
+    subject_copy.left   = subject_rect->left;
     subject_copy.bottom = subject_rect->bottom;
-    subject_copy.right = subject_rect->right;
+    subject_copy.right  = subject_rect->right;
 
     rect_t *temp_rect;
 
@@ -44,8 +44,7 @@ list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect)
     if (cutting_rect->top > subject_copy.top && cutting_rect->top <= subject_copy.bottom) {
         temp_rect = rect_new(subject_copy.top, subject_copy.left, cutting_rect->top - 1, subject_copy.right);
         if (temp_rect == nullptr) {
-            for (; output_rects->count; temp_rect = list_remove_at(output_rects, 0))
-            {
+            for (; output_rects->count; temp_rect = list_remove_at(output_rects, 0)) {
                 free(temp_rect);
             }
             free(output_rects);
@@ -89,7 +88,7 @@ rect_t *rect_intersect(rect_t *rect_a, rect_t *rect_b)
     }
 
     if (!(rect_a->left <= rect_b->right && rect_a->right >= rect_b->left && rect_a->top <= rect_b->bottom &&
-          rect_a->bottom >= rect_b->top)) {
+        rect_a->bottom >= rect_b->top)) {
         return nullptr;
     }
 

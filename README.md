@@ -129,16 +129,19 @@ A window manager with basic graphical primitives (based on https://github.com/JM
 supports separate processes running in their own windows. Client processes communicate with the WM
 over pipes and render into shared memory buffers that the WM composites onto the framebuffer. See
 `docs/wm_protocol.md` for the protocol details. The desktop launches both
-`/bin/wmclient_demo`, `/bin/calculator`, and `/bin/wm_terminal` as WM clients. `wm_terminal`
+`/bin/wmclient_demo`, `/bin/calculator`, `/bin/term`, and `/bin/doom` as WM clients. `wm_terminal`
 opens a PTY pair and runs `/bin/sh` on the slave side, letting the shell run inside a window.
 It supports ANSI color/control sequences and updates PTY winsize when its window is resized.
+WM clients use double-buffered shared-memory presents with WM acknowledgment before client-side buffer flips.
 Keyboard press/release events are routed to the focused client window.
 
 ![GUI screenshot](docs/img/gui.png)
 
 ## DOOM
 
-I also ported DOOM. It only runs full screen, not inside a window.
+I also ported DOOM. When launched from WM it runs in its own window (with WM keyboard events and shared-memory
+buffer compositing), and `ALT+ENTER` toggles between WM window-buffer rendering and direct `/dev/fb0` rendering.
+When launched outside WM it still runs full screen by drawing directly to `/dev/fb0`.
 
 ![DOOM screenshot](docs/img/doom.png)
 

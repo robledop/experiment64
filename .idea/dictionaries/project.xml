@@ -2,9 +2,11 @@
   <dictionary name="project">
     <words>
       <w>asfiles</w>
+      <w>asflags</w>
       <w>atof</w>
       <w>atoi</w>
       <w>bfree</w>
+      <w>bgcolor</w>
       <w>blockdevice</w>
       <w>bsize</w>
       <w>bzero</w>
@@ -37,6 +39,8 @@
       <w>insl</w>
       <w>iobase</w>
       <w>iupdate</w>
+      <w>keyboardfd</w>
+      <w>keyqueue</w>
       <w>kfree</w>
       <w>kname</w>
       <w>lalt</w>
@@ -47,6 +51,7 @@
       <w>mknod</w>
       <w>mmap</w>
       <w>mountpoint</w>
+      <w>mousefd</w>
       <w>msyntax</w>
       <w>munmap</w>
       <w>nbits</w>
@@ -54,6 +59,7 @@
       <w>newfd</w>
       <w>newpath</w>
       <w>newptr</w>
+      <w>nodecoration</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
       <w>oldfd</w>
@@ -65,6 +71,7 @@
       <w>poff</w>
       <w>printk</w>
       <w>prio</w>
+      <w>putpixel</w>
       <w>readi</w>
       <w>resched</w>
       <w>returncode</w>

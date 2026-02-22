@@ -6,7 +6,7 @@ AR = x86_64-elf-ar
 
 BUILD_DIR = build
 
-USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -ggdb -O2 -Wa,--noexecstack -fno-builtin
+USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -ggdb -Og -Wa,--noexecstack -fno-builtin
 override CFLAGS := $(USER_CFLAGS) $(CFLAGS)
 LDFLAGS = -Wl,-T,user.ld -Wl,--build-id=none
 
@@ -61,8 +61,8 @@ $(BUILD_DIR)/user_prog: user_prog.S
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
 
-$(BUILD_DIR)/wm_terminal: $(BUILD_DIR)/wm_terminal.o $(LIBC_A) $(WM_TERMINAL_EXTRA_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wm_terminal.o $(WM_TERMINAL_EXTRA_OBJ) $(LIBC_A)
+$(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_TERMINAL_EXTRA_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_TERMINAL_EXTRA_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)

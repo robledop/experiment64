@@ -22,6 +22,7 @@ enum wm_event_type
     WM_EVENT_KEY = 3,
     WM_EVENT_WINDOW_RESIZED = 4,
     WM_EVENT_WINDOW_CLOSED = 5,
+    WM_EVENT_INVALIDATED = 6,
 };
 
 typedef struct __attribute__((packed))
@@ -44,6 +45,7 @@ typedef struct __attribute__((packed))
 {
     uint8_t type;
     uint32_t window_id;
+    uint8_t buffer_index;
     int16_t x;
     int16_t y;
     uint16_t width;
@@ -56,7 +58,8 @@ typedef struct __attribute__((packed))
     uint32_t window_id;
     uint16_t width;
     uint16_t height;
-    char shm_name[WM_SHM_NAME_MAX];
+    uint8_t front_buffer;
+    char shm_names[2][WM_SHM_NAME_MAX];
 } wm_event_window_created_t;
 
 typedef struct __attribute__((packed))
@@ -90,7 +93,8 @@ typedef struct __attribute__((packed))
     uint32_t window_id;
     uint16_t width;
     uint16_t height;
-    char shm_name[WM_SHM_NAME_MAX];
+    uint8_t front_buffer;
+    char shm_names[2][WM_SHM_NAME_MAX];
 } wm_event_window_resized_msg_t;
 
 typedef struct __attribute__((packed))
@@ -98,3 +102,10 @@ typedef struct __attribute__((packed))
     uint8_t type;
     uint32_t window_id;
 } wm_event_window_closed_t;
+
+typedef struct __attribute__((packed))
+{
+    uint8_t type;
+    uint32_t window_id;
+    uint8_t front_buffer;
+} wm_event_invalidated_t;

@@ -5,6 +5,7 @@
 #include <wm/bmp.h>
 #include <wm/button.h>
 #include <mouse.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -21,6 +22,15 @@ static int keyboardfd;
 static video_context_t *context;
 static client_manager_t client_mgr;
 
+static void wm_configure_sigchld(void)
+{
+    struct sigaction sa = {};
+    sa.sa_handler       = SIG_DFL;
+    sa.sa_flags         = SA_NOCLDWAIT;
+    if (sigaction(SIGCHLD, &sa, nullptr) != 0)
+        printf("wm: failed to configure SIGCHLD\n");
+}
+
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     if (client_launch(&client_mgr, (window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
@@ -30,16 +40,8 @@ void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unus
 
 void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    const int pid = fork();
-    if (pid == 0) {
-        exec("/bin/doom");
-        exit();
-    }
-    if (pid < 0) {
-        printf("wm: failed to fork for doom\n");
-    } else {
-        wait(nullptr);
-        window_paint((window_t *)desktop, nullptr, 1);
+    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/doom", 220, 60) < 0) {
+        printf("wm: failed to launch doom\n");
     }
 }
 
@@ -50,7 +52,7 @@ void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused
 
 void terminal_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/wm_terminal", 140, 70) < 0)
+    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/term", 140, 70) < 0)
         printf("wm: failed to launch terminal\n");
 }
 
@@ -92,7 +94,7 @@ static void *wm_process_keyboard_events([[maybe_unused]] void *arg)
 
     while (!wm_should_exit) {
         uint8_t scancode = 0;
-        const ssize_t n = read(keyboardfd, &scancode, sizeof(scancode));
+        const ssize_t n  = read(keyboardfd, &scancode, sizeof(scancode));
         if (n != (ssize_t)sizeof(scancode)) {
             yield();
             continue;
@@ -105,10 +107,10 @@ static void *wm_process_keyboard_events([[maybe_unused]] void *arg)
             continue;
         }
 
-        const uint8_t code = (uint8_t)(scancode & 0x7F);
+        const uint8_t code    = (uint8_t)(scancode & 0x7F);
         const uint8_t keycode = extended ? (uint8_t)(code | 0x80) : code;
         const uint8_t pressed = (scancode & 0x80) ? 0 : 1;
-        extended = false;
+        extended              = false;
 
         wm_state_lock();
         client_dispatch_key_event(&client_mgr, (window_t *)desktop, keycode, pressed);
@@ -127,6 +129,8 @@ static void clear_screen()
 int main(void)
 {
     atexit(clear_screen);
+    wm_configure_sigchld();
+
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
         printf("wm: unable to open /dev/fb0\n");

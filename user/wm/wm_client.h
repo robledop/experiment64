@@ -9,15 +9,16 @@
 typedef struct
 {
     window_t window;
-    uint32_t *shm_buffer;
+    uint32_t *shm_buffers[2];
     uint16_t content_width;
     uint16_t content_height;
     uint32_t window_id;
+    uint8_t front_buffer;
     uint32_t shm_generation;
     int cmd_fd;
     int evt_fd;
     int client_pid;
-    char shm_name[WM_SHM_NAME_MAX];
+    char shm_names[2][WM_SHM_NAME_MAX];
 } client_window_t;
 
 typedef struct

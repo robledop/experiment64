@@ -10,6 +10,6 @@ typedef struct rect {
 } rect_t;
 
 rect_t *rect_new(int top, int left, int bottom, int right);
-list_t *rect_split(rect_t *subject_rect, rect_t *cutting_rect);
+list_t *rect_split(const rect_t *subject_rect, const rect_t *cutting_rect);
 rect_t *rect_intersect(rect_t *rect_a, rect_t *rect_b);
 

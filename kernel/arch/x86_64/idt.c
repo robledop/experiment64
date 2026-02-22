@@ -293,7 +293,8 @@ void interrupt_handler(struct interrupt_frame *frame)
             if (user_mode) {
                 thread_t *t  = current_thread;
                 process_t *p = current_process;
-                printk("Killing user process on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx\n",
+                printk("Killing user process \"%s\" on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx\n",
+                       p != nullptr ? p->name : "unknown",
                        p != nullptr ? p->pid : -1,
                        t != nullptr ? t->tid : -1,
                        snap->rip,

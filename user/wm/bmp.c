@@ -7,7 +7,6 @@
 
 enum { BI_RGB = 0, BI_BITFIELDS = 3 };
 
-__attribute__((target("avx,sse2")))
 int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_width, uint32_t *out_height)
 {
     if (!out_pixels) {
@@ -51,7 +50,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     }
 
     BITMAPFILEHEADER *fh = (BITMAPFILEHEADER *)buffer;
-    BITMAPINFOHEADER ih = *(BITMAPINFOHEADER *)(buffer + sizeof(BITMAPFILEHEADER));
+    BITMAPINFOHEADER ih  = *(BITMAPINFOHEADER *)(buffer + sizeof(BITMAPFILEHEADER));
 
     if (fh->bfType != 0x4D42) {
         free(buffer);
@@ -73,8 +72,8 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
         return -1;
     }
 
-    const int width = ih.biWidth;
-    const int height = (ih.biHeight > 0) ? ih.biHeight : -ih.biHeight;
+    const int width    = ih.biWidth;
+    const int height   = (ih.biHeight > 0) ? ih.biHeight : -ih.biHeight;
     const int top_down = (ih.biHeight < 0);
 
     if (width <= 0 || height <= 0) {
@@ -84,7 +83,7 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
 
     // Bounds check: ensure pixel data fits within the file.
     const uint64_t bytes_per_row = ((((uint64_t)width * 3) + 3) / 4) * 4;
-    const uint64_t pixel_bytes = bytes_per_row * (uint64_t)height;
+    const uint64_t pixel_bytes   = bytes_per_row * (uint64_t)height;
     if ((uint64_t)fh->bfOffBits >= (uint64_t)file_stat.size ||
         (uint64_t)fh->bfOffBits + pixel_bytes > (uint64_t)file_stat.size) {
         free(buffer);
@@ -109,9 +108,9 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
 
             int destY = top_down ? y : (height - 1 - y);
             for (int x = 0; x < width; x++) {
-                uint8_t B = row[x * 3 + 0];
-                uint8_t G = row[x * 3 + 1];
-                uint8_t R = row[x * 3 + 2];
+                uint8_t B                        = row[x * 3 + 0];
+                uint8_t G                        = row[x * 3 + 1];
+                uint8_t R                        = row[x * 3 + 2];
                 (*out_pixels)[destY * width + x] =
                     (0xFFu << 24) | ((uint32_t)R << 16) | ((uint32_t)G << 8) | (uint32_t)B;
             }
@@ -129,4 +128,3 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
 
     return 0;
 }
-

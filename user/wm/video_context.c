@@ -15,7 +15,7 @@ static inline void framebuffer_fill_span32(uint8_t *dst, uint32_t pixel_count, u
 {
     while (pixel_count--) {
         *((uint32_t *)dst) = color;
-        dst += 4;
+        dst                += 4;
     }
 }
 
@@ -23,7 +23,7 @@ static inline void framebuffer_copy_span32(uint8_t *dst, const uint32_t *src, ui
 {
     while (pixel_count--) {
         *((uint32_t *)dst) = *src++;
-        dst += 4;
+        dst                += 4;
     }
 }
 
@@ -33,8 +33,8 @@ static void framebuffer_fill_rect32(const video_context_t *context, int x, int y
         return;
     }
 
-    int screen_w = (int)context->width;
-    int screen_h = (int)context->height;
+    int screen_w   = (int)context->width;
+    int screen_h   = (int)context->height;
     uint32_t pitch = context->pitch;
 
     int x0 = x;
@@ -60,7 +60,7 @@ static void framebuffer_fill_rect32(const video_context_t *context, int x, int y
     }
 
     uint32_t span_pixels = (uint32_t)(x1 - x0);
-    uint8_t *row = (uint8_t *)context->buffer + (uint32_t)y0 * pitch + (uint32_t)x0 * 4U;
+    uint8_t *row         = (uint8_t *)context->buffer + (uint32_t)y0 * pitch + (uint32_t)x0 * 4U;
 
     for (int j = y0; j < y1; j++) {
         framebuffer_fill_span32(row, span_pixels, color);
@@ -68,7 +68,8 @@ static void framebuffer_fill_rect32(const video_context_t *context, int x, int y
     }
 }
 
-static void framebuffer_blit_span32(const video_context_t *context, int x, int y, const uint32_t *src, uint32_t pixel_count)
+static void framebuffer_blit_span32(const video_context_t *context, int x, int y, const uint32_t *src,
+                                    uint32_t pixel_count)
 {
     if (!src || pixel_count == 0) {
         return;
@@ -81,7 +82,7 @@ static void framebuffer_blit_span32(const video_context_t *context, int x, int y
         return;
     }
 
-    int x0 = x;
+    int x0          = x;
     uint32_t offset = 0;
     if (x0 < 0) {
         offset = (uint32_t)(-x0);
@@ -89,7 +90,7 @@ static void framebuffer_blit_span32(const video_context_t *context, int x, int y
             return;
         }
         pixel_count -= offset;
-        x0 = 0;
+        x0          = 0;
     }
 
     if (x0 >= screen_w) {
@@ -101,13 +102,13 @@ static void framebuffer_blit_span32(const video_context_t *context, int x, int y
     }
 
     uint32_t pitch = context->pitch;
-    uint8_t *row = (uint8_t *)context->buffer + (uint32_t)y * pitch + (uint32_t)x0 * 4U;
+    uint8_t *row   = (uint8_t *)context->buffer + (uint32_t)y * pitch + (uint32_t)x0 * 4U;
     framebuffer_copy_span32(row, src + offset, pixel_count);
 }
 
 video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint32_t pitch)
 {
-    video_context_t *context = (video_context_t *)malloc(sizeof(video_context_t));
+    auto context = (video_context_t *)malloc(sizeof(video_context_t));
     if (!context) {
         return nullptr;
     }
@@ -118,10 +119,10 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
         return nullptr;
     }
 
-    context->buffer = fb;
-    context->width = width;
-    context->height = height;
-    context->pitch = pitch;
+    context->buffer      = fb;
+    context->width       = width;
+    context->height      = height;
+    context->pitch       = pitch;
     context->translate_x = 0;
     context->translate_y = 0;
     context->clipping_on = 0;
@@ -130,18 +131,18 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
 }
 
 static void context_clipped_rect_bitmap(const video_context_t *context, int x, int y, unsigned int draw_width,
-                                 unsigned int draw_height, const rect_t *clip_area, const uint32_t *pixels,
-                                 unsigned int stride, int src_origin_x, int src_origin_y)
+                                        unsigned int draw_height, const rect_t *clip_area, const uint32_t *pixels,
+                                        unsigned int stride, int src_origin_x, int src_origin_y)
 {
     int max_x = x + (int)draw_width;
     int max_y = y + (int)draw_height;
 
     const int draw_origin_x = x + context->translate_x;
     const int draw_origin_y = y + context->translate_y;
-    x = draw_origin_x;
-    y = draw_origin_y;
-    max_x += context->translate_x;
-    max_y += context->translate_y;
+    x                       = draw_origin_x;
+    y                       = draw_origin_y;
+    max_x                   += context->translate_x;
+    max_y                   += context->translate_y;
 
     if (x < clip_area->left) {
         x = clip_area->left;
@@ -172,20 +173,20 @@ static void context_clipped_rect_bitmap(const video_context_t *context, int x, i
     }
 
     for (int draw_y = y; draw_y < max_y; draw_y++) {
-        const int src_y = src_base_y + (draw_y - y);
+        const int src_y         = src_base_y + (draw_y - y);
         const uint32_t *src_row = pixels + (uint32_t)src_y * stride + (uint32_t)src_base_x;
         framebuffer_blit_span32(context, x, draw_y, src_row, (uint32_t)span);
     }
 }
 
 static void context_clipped_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
-                          const rect_t *clip_area, uint32_t color)
+                                 const rect_t *clip_area, uint32_t color)
 {
     int max_x = x + (int)width;
     int max_y = y + (int)height;
 
-    x += context->translate_x;
-    y += context->translate_y;
+    x     += context->translate_x;
+    y     += context->translate_y;
     max_x += context->translate_x;
     max_y += context->translate_y;
 
@@ -209,7 +210,7 @@ static void context_clipped_rect(const video_context_t *context, int x, int y, u
         return;
     }
 
-    const int width_span = max_x - x;
+    const int width_span  = max_x - x;
     const int height_span = max_y - y;
     framebuffer_fill_rect32(context, x, y, width_span, height_span, color);
 }
@@ -222,12 +223,12 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
     }
 
     const unsigned int stride = width;
-    int draw_x = x;
-    int draw_y = y;
-    unsigned int draw_width = width;
-    unsigned int draw_height = height;
-    int src_origin_x = 0;
-    int src_origin_y = 0;
+    int draw_x                = x;
+    int draw_y                = y;
+    unsigned int draw_width   = width;
+    unsigned int draw_height  = height;
+    int src_origin_x          = 0;
+    int src_origin_y          = 0;
 
     if (draw_x < 0) {
         src_origin_x = -draw_x;
@@ -235,7 +236,7 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
             return;
         }
         draw_width -= (unsigned int)src_origin_x;
-        draw_x = 0;
+        draw_x     = 0;
     }
 
     if (draw_y < 0) {
@@ -244,7 +245,7 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
             return;
         }
         draw_height -= (unsigned int)src_origin_y;
-        draw_y = 0;
+        draw_y      = 0;
     }
 
     if (draw_x + (int)draw_width > context->width) {
@@ -288,10 +289,10 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
         }
     } else {
         if (!context->clipping_on) {
-            screen_area.top = 0;
-            screen_area.left = 0;
+            screen_area.top    = 0;
+            screen_area.left   = 0;
             screen_area.bottom = context->height - 1;
-            screen_area.right = context->width - 1;
+            screen_area.right  = context->width - 1;
             context_clipped_rect_bitmap(context,
                                         draw_x,
                                         draw_y,
@@ -306,7 +307,8 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
     }
 }
 
-void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
+void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
+                       uint32_t color)
 {
     if (!context || !context->clip_rects) {
         return;
@@ -332,7 +334,7 @@ void context_fill_rect(const video_context_t *context, int x, int y, unsigned in
         y = 0;
     }
 
-    width = max_x - x;
+    width  = max_x - x;
     height = max_y - y;
 
     if (context->clip_rects->count) {
@@ -345,10 +347,10 @@ void context_fill_rect(const video_context_t *context, int x, int y, unsigned in
         }
     } else {
         if (!context->clipping_on) {
-            screen_area.top = 0;
-            screen_area.left = 0;
+            screen_area.top    = 0;
+            screen_area.left   = 0;
             screen_area.bottom = context->height - 1;
-            screen_area.right = context->width - 1;
+            screen_area.right  = context->width - 1;
             context_clipped_rect(context, x, y, width, height, &screen_area, color);
         }
     }
@@ -364,7 +366,8 @@ void context_vertical_line(const video_context_t *context, int x, int y, unsigne
     context_fill_rect(context, x, y, 1, length, color);
 }
 
-void context_draw_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color)
+void context_draw_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
+                       uint32_t color)
 {
     context_horizontal_line(context, x, y, width, color);
     context_vertical_line(context, x, y + 1, height - 2, color);
@@ -489,27 +492,31 @@ void context_clear_clip_rects(video_context_t *context)
 }
 
 static void context_draw_char_clipped(const video_context_t *context, char character, int x, int y, uint32_t color,
-                               const rect_t *bound_rect)
+                                      const rect_t *bound_rect)
 {
-    int off_x = 0;
-    int off_y = 0;
+    int off_x   = 0;
+    int off_y   = 0;
     int count_x = VESA_CHAR_WIDTH;
     int count_y = VESA_CHAR_HEIGHT;
 
     x += context->translate_x;
     y += context->translate_y;
 
-    int clip_left = bound_rect->left;
-    int clip_top = bound_rect->top;
-    int clip_right = bound_rect->right;
+    int clip_left   = bound_rect->left;
+    int clip_top    = bound_rect->top;
+    int clip_right  = bound_rect->right;
     int clip_bottom = bound_rect->bottom;
 
     const int max_x = (int)context->width - 1;
     const int max_y = (int)context->height - 1;
-    if (clip_left < 0) clip_left = 0;
-    if (clip_top < 0) clip_top = 0;
-    if (clip_right > max_x) clip_right = max_x;
-    if (clip_bottom > max_y) clip_bottom = max_y;
+    if (clip_left < 0)
+        clip_left = 0;
+    if (clip_top < 0)
+        clip_top = 0;
+    if (clip_right > max_x)
+        clip_right = max_x;
+    if (clip_bottom > max_y)
+        clip_bottom = max_y;
     if (clip_left > clip_right || clip_top > clip_bottom) {
         return;
     }
@@ -537,10 +544,10 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
     }
 
     uint32_t pitch_bytes = context->pitch;
-    const int dst_x = x + off_x;
+    const int dst_x      = x + off_x;
 
     for (int font_y = off_y; font_y < count_y; font_y++) {
-        uint8_t row_bits = reverse_bits8(font8x12[font_y * 128 + character]);
+        uint8_t row_bits  = reverse_bits8(font8x12[font_y * 128 + character]);
         uint32_t row_mask = 0xFFu;
         if (off_x > 0) {
             row_mask &= ~((1u << off_x) - 1u);
@@ -552,11 +559,12 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
         if (active == 0) {
             continue;
         }
-        uint32_t *dst = (uint32_t *)((uint8_t *)context->buffer + (uint32_t)(y + font_y) * pitch_bytes + (uint32_t)dst_x * 4U);
+        uint32_t *dst = (uint32_t *)((uint8_t *)context->buffer + (uint32_t)(y + font_y) * pitch_bytes + (uint32_t)dst_x
+            * 4U);
         while (active) {
-            int bit = __builtin_ctz(active);
+            int bit          = __builtin_ctz(active);
             dst[bit - off_x] = color;
-            active &= active - 1;
+            active           &= active - 1;
         }
     }
 }
@@ -579,10 +587,10 @@ void context_draw_char(const video_context_t *context, char character, int x, in
         if (!context->clipping_on) {
             rect_t screen_area;
 
-            screen_area.top = 0;
-            screen_area.left = 0;
+            screen_area.top    = 0;
+            screen_area.left   = 0;
             screen_area.bottom = context->height - 1;
-            screen_area.right = context->width - 1;
+            screen_area.right  = context->width - 1;
             context_draw_char_clipped(context, character, x, y, color, &screen_area);
         }
     }

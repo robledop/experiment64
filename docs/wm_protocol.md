@@ -40,21 +40,22 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 
 ### Client -> WM (commands via fd 4)
 
-| Type                    | Struct                    | Description                                         |
-|-------------------------|---------------------------|-----------------------------------------------------|
-| `WM_MSG_CREATE_WINDOW`  | `wm_msg_create_window_t`  | Request a new window with position, size, and title |
-| `WM_MSG_INVALIDATE`     | `wm_msg_invalidate_t`     | Tell the WM to repaint a region from the shm buffer |
-| `WM_MSG_DESTROY_WINDOW` | `wm_msg_destroy_window_t` | Close and destroy a window                          |
+| Type                    | Struct                    | Description                                                 |
+|-------------------------|---------------------------|-------------------------------------------------------------|
+| `WM_MSG_CREATE_WINDOW`  | `wm_msg_create_window_t`  | Request a new window with position, size, and title         |
+| `WM_MSG_INVALIDATE`     | `wm_msg_invalidate_t`     | Present a specific client buffer index and repaint a region |
+| `WM_MSG_DESTROY_WINDOW` | `wm_msg_destroy_window_t` | Close and destroy a window                                  |
 
 ### WM -> Client (events via fd 3)
 
-| Type                      | Struct                      | Description                                   |
-|---------------------------|-----------------------------|-----------------------------------------------|
-| `WM_EVENT_WINDOW_CREATED` | `wm_event_window_created_t` | Window created; contains the shm name to open |
-| `WM_EVENT_MOUSE`          | `wm_event_mouse_t`          | Mouse click in the window's client area       |
-| `WM_EVENT_KEY`            | `wm_event_key_t`            | Key press/release for the focused client      |
-| `WM_EVENT_WINDOW_RESIZED` | `wm_event_window_resized_t` | Client area resized                           |
-| `WM_EVENT_WINDOW_CLOSED`  | `wm_event_window_closed_t`  | Window was closed by the WM                   |
+| Type                      | Struct                      | Description                                                  |
+|---------------------------|-----------------------------|--------------------------------------------------------------|
+| `WM_EVENT_WINDOW_CREATED` | `wm_event_window_created_t` | Window created; contains both shm names and initial front id |
+| `WM_EVENT_MOUSE`          | `wm_event_mouse_t`          | Mouse click in the window's client area                      |
+| `WM_EVENT_KEY`            | `wm_event_key_t`            | Key press/release for the focused client                     |
+| `WM_EVENT_WINDOW_RESIZED` | `wm_event_window_resized_t` | Client area resized                                          |
+| `WM_EVENT_WINDOW_CLOSED`  | `wm_event_window_closed_t`  | Window was closed by the WM                                  |
+| `WM_EVENT_INVALIDATED`    | `wm_event_invalidated_t`    | Internal present acknowledgment with the new front-buffer id |
 
 ### Keyboard event encoding
 
@@ -65,19 +66,27 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 ### Resize events
 
 - Client windows can be resized by dragging the bottom-right corner.
-- WM reallocates the client shared-memory buffer and sends a resize event.
-- The libc WM client layer remaps the window buffer before returning `WM_EVENT_WINDOW_RESIZED` from `wm_next_event`.
+- WM reallocates both client shared-memory buffers and sends a resize event.
+- The libc WM client layer remaps both buffers before returning `WM_EVENT_WINDOW_RESIZED` from `wm_next_event`.
+
+### Present synchronization
+
+- `WM_MSG_INVALIDATE` is acknowledged by WM with `WM_EVENT_INVALIDATED` after compositing.
+- The libc WM client layer waits for this acknowledgment in `wm_invalidated*` before
+  switching the client-visible draw buffer.
+- `WM_EVENT_INVALIDATED` is handled internally by libc and is not returned from
+  `wm_next_event`.
 
 ## Window creation flow
 
 1. Client sends `WM_MSG_CREATE_WINDOW` with desired width, height, title.
-2. WM allocates a shared memory region (`shm_open` with name `wm_win_<id>`),
-   mmaps it, creates a `client_window_t` in the window tree.
-3. WM responds with `WM_EVENT_WINDOW_CREATED` containing the shm name.
-4. Client opens the shm by name, mmaps it, and now has a pixel buffer
-   (`width * height * 4` bytes, 32-bit ARGB).
-5. Client draws into the buffer and sends `WM_MSG_INVALIDATE` to trigger
-   compositing.
+2. WM allocates two shared memory regions, mmaps both, and creates a
+   `client_window_t` in the window tree.
+3. WM responds with `WM_EVENT_WINDOW_CREATED` containing both shm names plus the
+   current front-buffer index.
+4. Client opens and maps both shms (`width * height * 4` bytes each, 32-bit
+   ARGB), draws into the back buffer, and presents it.
+5. Client sends `WM_MSG_INVALIDATE` to flip/composite.
 
 ## Client library
 
@@ -85,11 +94,15 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 
 ```c
 wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t w, uint16_t h, const char *title);
-void wm_invalidate(const wm_window_t *win, int16_t x, int16_t y, uint16_t w, uint16_t h);
-void wm_invalidate_all(const wm_window_t *win);
+void wm_invalidate(wm_window_t *win);
+void wm_invalidate_region(wm_window_t *win, int16_t x, int16_t y, uint16_t w, uint16_t h);
+void wm_invalidate_all(wm_window_t *win);
 void wm_destroy_window(wm_window_t *win);
 int wm_next_event(void *event_buf, uint8_t *out_type);
+void wm_shutdown_events(void);
 ```
+
+`wm_shutdown_events()` marks the event stream as closed and wakes threads blocked in `wm_next_event()`.
 
 ## Demo clients
 
@@ -98,10 +111,13 @@ int wm_next_event(void *event_buf, uint8_t *out_type);
   by drawing colored blocks derived from the keycode.
 - `user/calculator.c` is a standalone calculator client executable launched by
   the WM desktop button (`/bin/calculator`).
-- `user/wm_terminal.c` is a minimal terminal client launched as
-  `/bin/wm_terminal`. It opens a PTY pair, runs `/bin/sh` on the slave side,
+- `user/term.c` is a minimal terminal client launched as
+  `/bin/term`. It opens a PTY pair, runs `/bin/sh` on the slave side,
   translates WM key events into PTY input bytes, supports basic ANSI
   cursor/erase/color sequences, and updates PTY winsize on WM resize events.
+- `user/doom/doomgeneric_e64.c` also supports WM mode: when launched from WM it
+  creates a client window, consumes WM key events, and remaps its shm buffer on
+  WM resize events.
 
 ## Limits
 

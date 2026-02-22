@@ -18,28 +18,25 @@ static unsigned int mouse_img[MOUSE_BUFSZ] = {
     CD, CD, CD, CD, CD, CD, CD, CD, CA, CB, CA, CD, CD, CD, CD, CD, CD, CD, CD, CD, CA, CA, CD, CD
 };
 
-static void framebuffer_putpixel(const video_context_t* context, int x, int y, uint32_t rgb)
+static void framebuffer_putpixel(const video_context_t *context, int x, int y, uint32_t rgb)
 {
-    if (x < 0 || x >= (int)context->width || y < 0 || y >= (int)context->height)
-    {
+    if (x < 0 || x >= (int)context->width || y < 0 || y >= (int)context->height) {
         return;
     }
 
-    uint32_t* pixel = (uint32_t*)((uint8_t*)context->buffer + (uint32_t)y * context->pitch + (uint32_t)x * 4U);
-    *pixel = rgb;
+    uint32_t *pixel = (uint32_t *)((uint8_t *)context->buffer + (uint32_t)y * context->pitch + (uint32_t)x * 4U);
+    *pixel          = rgb;
 }
 
-desktop_t* desktop_new(video_context_t* context, uint32_t* wallpaper, uint16_t wallpaper_width,
+desktop_t *desktop_new(video_context_t *context, uint32_t *wallpaper, uint16_t wallpaper_width,
                        uint16_t wallpaper_height)
 {
-    desktop_t* desktop = (desktop_t*)malloc(sizeof(desktop_t));
-    if (!desktop)
-    {
+    desktop_t *desktop = (desktop_t *)malloc(sizeof(desktop_t));
+    if (!desktop) {
         return desktop;
     }
 
-    if (!window_init((window_t*)desktop, 0, 0, context->width, context->height, WIN_NODECORATION, context))
-    {
+    if (!window_init((window_t *)desktop, 0, 0, context->width, context->height, WIN_NODECORATION, context)) {
         free(desktop);
         return nullptr;
     }
@@ -48,19 +45,18 @@ desktop_t* desktop_new(video_context_t* context, uint32_t* wallpaper, uint16_t w
 
     desktop->window.last_button_state = 0;
 
-    desktop->mouse_x = (int16_t)(desktop->window.context->width / 2);
-    desktop->mouse_y = (int16_t)(desktop->window.context->height / 2);
-    desktop->wallpaper = wallpaper;
-    desktop->wallpaper_width = wallpaper_width;
+    desktop->mouse_x          = (int16_t)(desktop->window.context->width / 2);
+    desktop->mouse_y          = (int16_t)(desktop->window.context->height / 2);
+    desktop->wallpaper        = wallpaper;
+    desktop->wallpaper_width  = wallpaper_width;
     desktop->wallpaper_height = wallpaper_height;
 
     return desktop;
 }
 
-static void desktop_draw_wallpaper(const desktop_t* desktop)
+static void desktop_draw_wallpaper(const desktop_t *desktop)
 {
-    if (!desktop->wallpaper || desktop->wallpaper_width == 0 || desktop->wallpaper_height == 0)
-    {
+    if (!desktop->wallpaper || desktop->wallpaper_width == 0 || desktop->wallpaper_height == 0) {
         context_fill_rect(desktop->window.context,
                           0,
                           0,
@@ -88,45 +84,42 @@ static void desktop_draw_wallpaper(const desktop_t* desktop)
                         desktop->wallpaper);
 }
 
-static void draw_mouse_cursor(const desktop_t* desktop)
+static void draw_mouse_cursor(const desktop_t *desktop)
 {
-    for (int y = 0; y < MOUSE_HEIGHT; y++)
-    {
-        if ((y + desktop->mouse_y) >= desktop->window.context->height)
-        {
+    for (int y = 0; y < MOUSE_HEIGHT; y++) {
+        if ((y + desktop->mouse_y) >= desktop->window.context->height) {
             break;
         }
-        for (int x = 0; x < MOUSE_WIDTH; x++)
-        {
-            if ((x + desktop->mouse_x) >= desktop->window.context->width)
-            {
+        for (int x = 0; x < MOUSE_WIDTH; x++) {
+            if ((x + desktop->mouse_x) >= desktop->window.context->width) {
                 break;
             }
-            if (mouse_img[y * MOUSE_WIDTH + x] & 0xFF000000)
-            {
-                framebuffer_putpixel(desktop->window.context, x + desktop->mouse_x, y + desktop->mouse_y,
+            if (mouse_img[y * MOUSE_WIDTH + x] & 0xFF000000) {
+                framebuffer_putpixel(desktop->window.context,
+                                     x + desktop->mouse_x,
+                                     y + desktop->mouse_y,
                                      mouse_img[y * MOUSE_WIDTH + x]);
             }
         }
     }
 }
 
-void desktop_paint_handler(const window_t* desktop_window)
+void desktop_paint_handler(const window_t *desktop_window)
 {
-    desktop_t* desktop = (desktop_t*)desktop_window;
+    desktop_t *desktop = (desktop_t *)desktop_window;
     desktop_draw_wallpaper(desktop);
 
-    const char* text = "experiment64";
+    const char *text = "experiment64";
     context_draw_text(desktop_window->context,
-                      (char*)text,
+                      (char *)text,
                       desktop_window->width - (int)strlen(text) * VESA_CHAR_WIDTH - 10,
                       desktop_window->height - 22,
                       0xFFFFFFFF);
 }
 
-void desktop_process_mouse(desktop_t* desktop, uint16_t mouse_x, uint16_t mouse_y, uint16_t mouse_buttons)
+void desktop_process_mouse(desktop_t *desktop, uint16_t mouse_x, uint16_t mouse_y, uint16_t mouse_buttons)
 {
-    window_process_mouse((window_t*)desktop, mouse_x, mouse_y, mouse_buttons);
+    window_process_mouse((window_t *)desktop, mouse_x, mouse_y, mouse_buttons);
 
     int16_t old_x = desktop->mouse_x;
     int16_t old_y = desktop->mouse_y;
@@ -134,48 +127,41 @@ void desktop_process_mouse(desktop_t* desktop, uint16_t mouse_x, uint16_t mouse_
     desktop->mouse_x = (int16_t)mouse_x;
     desktop->mouse_y = (int16_t)mouse_y;
 
-    if (old_x == desktop->mouse_x && old_y == desktop->mouse_y)
-    {
+    if (old_x == desktop->mouse_x && old_y == desktop->mouse_y) {
         return;
     }
 
-    list_t* dirty_list = list_new();
-    if (!dirty_list)
-    {
+    list_t *dirty_list = list_new();
+    if (!dirty_list) {
         return;
     }
 
-    rect_t* old_mouse_rect = rect_new(
+    rect_t *old_mouse_rect = rect_new(
         old_y,
         old_x,
         old_y + MOUSE_HEIGHT - 1,
         old_x + MOUSE_WIDTH - 1);
-    if (old_mouse_rect)
-    {
+    if (old_mouse_rect) {
         list_add(dirty_list, old_mouse_rect);
     }
 
-    rect_t* new_mouse_rect = rect_new(
+    rect_t *new_mouse_rect = rect_new(
         desktop->mouse_y,
         desktop->mouse_x,
         desktop->mouse_y + MOUSE_HEIGHT - 1,
         desktop->mouse_x + MOUSE_WIDTH - 1);
-    if (new_mouse_rect)
-    {
+    if (new_mouse_rect) {
         list_add(dirty_list, new_mouse_rect);
     }
 
-    window_paint((window_t*)desktop, dirty_list, 1);
+    window_paint((window_t *)desktop, dirty_list, 1);
 
-    if (old_mouse_rect)
-    {
+    if (old_mouse_rect) {
         list_remove_at(dirty_list, 0);
         free(old_mouse_rect);
     }
-    if (new_mouse_rect)
-    {
-        if (dirty_list->count > 0)
-        {
+    if (new_mouse_rect) {
+        if (dirty_list->count > 0) {
             list_remove_at(dirty_list, 0);
         }
         free(new_mouse_rect);

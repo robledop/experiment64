@@ -53,3 +53,14 @@ static inline USED void cleanup_free(void *ptr)
         if ((expr) != 0)                                                                                               \
             return -1;                                                                                                 \
     } while (0)
+
+
+#ifndef min
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#ifndef max
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
