@@ -3,7 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include "wm/window.h"
+
+#include "wm/button.h"
 
 #define EVENT_DECOR_X 2
 #define EVENT_DECOR_Y 25
@@ -24,8 +25,7 @@ int normalize_mouse_coords(wm_window_t *win, int raw_x, int raw_y, int *x_out, i
     int adjusted_x = raw_x - EVENT_DECOR_X;
     int adjusted_y = raw_y - EVENT_DECOR_Y;
 
-    if (adjusted_x >= 0 && adjusted_x < win->width - (2 * WIN_BORDER_WIDTH) && adjusted_y >= 0 && adjusted_y < win->
-        height - (2 * WIN_BORDER_WIDTH)) {
+    if (adjusted_x >= 0 && adjusted_x < win->width && adjusted_y >= 0 && adjusted_y < win->height) {
         *x_out = adjusted_x;
         *y_out = adjusted_y;
         return 0;
@@ -43,11 +43,22 @@ static void render_screen(const wm_window_t *win)
     fill_rect(win->buffer, win->width, 110, 80, 80, 60, 0xFFFFFF44);
 }
 
+
+void crash_button_handler(const struct button *, int x, int y)
+{
+    *((int *)0) = 0;
+}
+
 int main(void)
 {
     wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE, "Demo Client");
     if (!win)
         exit(1);
+
+    // button_t *crash_button    = button_new(10, 10, 100, 30);
+    // crash_button->onmousedown = crash_button_handler;
+    // window_set_title((window_t *)crash_button, "Crash");
+    // window_insert_child((window_t *)get_window(win->window_id), (window_t *)crash_button);
 
     render_screen(win);
 

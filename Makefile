@@ -21,7 +21,7 @@ endef
 
 $(eval $(call DEFAULT_VAR,CC,x86_64-elf-gcc))
 $(eval $(call DEFAULT_VAR,LD,x86_64-elf-ld))
-$(eval $(call DEFAULT_VAR,CFLAGS,-O3 -g -Wall -Wextra -pipe -pedantic))
+$(eval $(call DEFAULT_VAR,CFLAGS,-Og -g -Wall -Wextra -pipe -pedantic))
 $(eval $(call DEFAULT_VAR,LDFLAGS,))
 
 ROOTFS=rootfs

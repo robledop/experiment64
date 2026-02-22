@@ -32,6 +32,7 @@ WM_SRC = $(filter-out wm/calculator.c,$(wildcard wm/*.c))
 WM_OBJ = $(WM_SRC:wm/%.c=$(BUILD_DIR)/wm/%.o)
 WM_TARGET = $(BUILD_DIR)/wm/main
 WM_TERMINAL_EXTRA_OBJ = $(BUILD_DIR)/wm/video_context.o $(BUILD_DIR)/wm/rect.o $(BUILD_DIR)/wm/font.o
+WMCLIENT_DEMO_EXTRA_OBJ = $(BUILD_DIR)/wm/button.o $(BUILD_DIR)/wm/window.o $(BUILD_DIR)/wm/video_context.o $(BUILD_DIR)/wm/rect.o $(BUILD_DIR)/wm/font.o
 
 TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(OSTEP_PROGRAMS:%=$(BUILD_DIR)/%) $(TEST_PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
 
@@ -63,6 +64,9 @@ $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 
 $(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_TERMINAL_EXTRA_OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_TERMINAL_EXTRA_OBJ) $(LIBC_A)
+
+$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WMCLIENT_DEMO_EXTRA_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WMCLIENT_DEMO_EXTRA_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)

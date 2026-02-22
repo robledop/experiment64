@@ -1,9 +1,11 @@
-#include <wm/button.h>
+#include <wm/client_button.h>
 #include <wm/desktop.h>
 #include <stdlib.h>
 #include <string.h>
 
-button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
+// TODO: change everything on this file to work on the client side instead
+
+button_t *client_button_new(int16_t x, int16_t y, int16_t w, int16_t h)
 {
     auto button = (button_t *)malloc(sizeof(button_t));
     if (!button) {
@@ -16,8 +18,8 @@ button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
         return nullptr;
     }
 
-    button->window.paint_function     = button_paint;
-    button->window.mousedown_function = button_mousedown_handler;
+    button->window.paint_function     = client_button_paint;
+    button->window.mousedown_function = client_button_mousedown_handler;
 
     button->onmousedown = nullptr;
 
@@ -26,7 +28,7 @@ button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
     return button;
 }
 
-void button_paint(const window_t *button_window)
+void client_button_paint(const window_t *button_window)
 {
     button_t *button = (button_t *)button_window;
 
@@ -55,7 +57,7 @@ void button_paint(const window_t *button_window)
     }
 }
 
-void button_mousedown_handler(const window_t *button_window, int16_t x, int16_t y)
+void client_button_mousedown_handler(const window_t *button_window, int16_t x, int16_t y)
 {
     button_t *button = (button_t *)button_window;
 
