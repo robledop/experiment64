@@ -6,6 +6,7 @@
 
 #define WM_MAX_CLIENTS 8
 
+
 typedef struct
 {
     window_t window;
@@ -26,12 +27,14 @@ typedef struct
     client_window_t *clients[WM_MAX_CLIENTS];
     int count;
     uint32_t next_window_id;
+    bool initialized;
 } client_manager_t;
 
 void client_manager_init(client_manager_t *mgr);
-int client_launch(client_manager_t *mgr, window_t *parent, const char *path, int16_t default_x, int16_t default_y);
+int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t default_y);
 void client_window_paint_handler(const window_t *window);
 void client_window_mousedown_handler(const window_t *window, int16_t x, int16_t y);
-void client_dispatch_key_event(const client_manager_t *mgr, const window_t *parent, uint8_t keycode, uint8_t pressed);
+void client_dispatch_key_event(const window_t *parent, uint8_t keycode, uint8_t pressed);
+client_window_t *find_client_by_window_id(uint32_t window_id);
 void wm_state_lock(void);
 void wm_state_unlock(void);

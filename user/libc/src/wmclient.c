@@ -477,7 +477,7 @@ static int wm_wait_for_window_created_event(wm_event_window_created_t *out)
     }
 }
 
-wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t height, const char *title)
+wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, const char *title)
 {
     if (wm_ensure_reader_thread() != 0) {
         return nullptr;
@@ -489,6 +489,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
     msg.y                      = y;
     msg.width                  = width;
     msg.height                 = height;
+    msg.flags                  = flags;
 
     if (title) {
         size_t len = strlen(title);
@@ -565,13 +566,13 @@ void wm_invalidate_region(wm_window_t *win, int16_t x, int16_t y, uint16_t w, ui
     pthread_mutex_unlock(&g_state_lock);
 
     wm_msg_invalidate_t msg = {0};
-    msg.type             = WM_MSG_INVALIDATE;
-    msg.window_id        = win->window_id;
-    msg.buffer_index     = back;
-    msg.x                = x;
-    msg.y                = y;
-    msg.width            = w;
-    msg.height           = h;
+    msg.type                = WM_MSG_INVALIDATE;
+    msg.window_id           = win->window_id;
+    msg.buffer_index        = back;
+    msg.x                   = x;
+    msg.y                   = y;
+    msg.width               = w;
+    msg.height              = h;
 
     const ssize_t n = write(WM_CMD_FD, &msg, sizeof(msg));
     if (n != (ssize_t)sizeof(msg)) {

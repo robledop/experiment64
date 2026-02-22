@@ -33,26 +33,26 @@ static void wm_configure_sigchld(void)
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
+    if (client_launch( (window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
         printf("wm: failed to launch calculator\n");
     }
 }
 
 void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/doom", 220, 60) < 0) {
+    if (client_launch( (window_t *)desktop, "/bin/doom", 220, 60) < 0) {
         printf("wm: failed to launch doom\n");
     }
 }
 
 void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    client_launch(&client_mgr, (window_t *)desktop, "/bin/wmclient_demo", 50, 60);
+    client_launch( (window_t *)desktop, "/bin/wmclient_demo", 50, 60);
 }
 
 void terminal_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
-    if (client_launch(&client_mgr, (window_t *)desktop, "/bin/term", 140, 70) < 0)
+    if (client_launch( (window_t *)desktop, "/bin/term", 140, 70) < 0)
         printf("wm: failed to launch terminal\n");
 }
 
@@ -113,7 +113,7 @@ static void *wm_process_keyboard_events([[maybe_unused]] void *arg)
         extended              = false;
 
         wm_state_lock();
-        client_dispatch_key_event(&client_mgr, (window_t *)desktop, keycode, pressed);
+        client_dispatch_key_event((window_t *)desktop, keycode, pressed);
         wm_state_unlock();
     }
 

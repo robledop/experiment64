@@ -17,6 +17,7 @@
 
 #define WIN_NODECORATION 0x1
 #define WIN_CLOSEABLE 0x2
+#define WIN_RESIZABLE 0x4
 
 struct window;
 

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <util.h>
+#include <wm/window.h>
 
 #define CALC_WIDTH 145
 #define CALC_HEIGHT 170
@@ -290,7 +291,7 @@ static void process_button_press(char *display, char label)
 
 int main(void)
 {
-    wm_window_t *win = wm_create_window(115, 60, CALC_WIDTH, CALC_HEIGHT, "Calculator");
+    wm_window_t *win = wm_create_window(115, 60, CALC_WIDTH, CALC_HEIGHT, WIN_CLOSEABLE, "Calculator");
     if (!win)
         exit(1);
 

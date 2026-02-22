@@ -143,17 +143,19 @@ static void window_draw_border(window_t *window)
                       (WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH)),
                       window->parent->active_child == window ? WIN_TITLE_COLOR : WIN_TITLE_COLOR_INACTIVE);
 
-    // Draw close button
-    int close_x = screen_x + window->width - WIN_BORDER_WIDTH - WIN_TITLE_HEIGHT + (2 * WIN_BORDER_WIDTH);
-    int close_y = screen_y + WIN_BORDER_WIDTH;
-    context_fill_rect(window->context,
-                      close_x,
-                      close_y,
-                      WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
-                      WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
-                      0X00FF3333);
+    if (window->flags & WIN_CLOSEABLE) {
+        // Draw close button
+        int close_x = screen_x + window->width - WIN_BORDER_WIDTH - WIN_TITLE_HEIGHT + (2 * WIN_BORDER_WIDTH);
+        int close_y = screen_y + WIN_BORDER_WIDTH;
+        context_fill_rect(window->context,
+                          close_x,
+                          close_y,
+                          WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
+                          WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
+                          0X00FF3333);
 
-    draw_close_button_icon(window->context, close_x + 6, close_y + 3, 2, 0xFFFFFFFF);
+        draw_close_button_icon(window->context, close_x + 6, close_y + 3, 2, 0xFFFFFFFF);
+    }
 
     if (window->title) {
         context_draw_text(window->context,
@@ -619,10 +621,11 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
         if (left_click && !was_left_click) {
 
             if (!(child->flags & WIN_NODECORATION) &&
+                (child->flags & WIN_CLOSEABLE) &&
                 window_close_clicked(child, mouse_x, mouse_y)) {
-                    child->close_function(child);
-                    return;
-                }
+                child->close_function(child);
+                return;
+            }
 
             window_raise(child, 1);
 
@@ -665,7 +668,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
         } else if (was_left_click) {
             window_move(window->drag_child, target_x, target_y);
         }
-    } else if (window->resize_child) {
+    } else if (window->resize_child && (window->resize_child->flags & WIN_RESIZABLE)) {
         int new_width  = (int)window->resize_start_width + (int)mouse_x - (int)window->resize_start_mouse_x;
         int new_height = (int)window->resize_start_height + (int)mouse_y - (int)window->resize_start_mouse_y;
         window_resize(window->resize_child, new_width, new_height);

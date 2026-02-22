@@ -3,7 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include "wm/window.h"
+
 #define EVENT_DECOR_X 2
 #define EVENT_DECOR_Y 25
 #define DEMO_WIDTH 200
@@ -18,20 +19,15 @@ static void fill_rect(uint32_t *buf, uint16_t stride, int x, int y,
 }
 
 
-int normalize_mouse_coords(int raw_x, int raw_y, int *x_out, int *y_out)
+int normalize_mouse_coords(wm_window_t *win, int raw_x, int raw_y, int *x_out, int *y_out)
 {
     int adjusted_x = raw_x - EVENT_DECOR_X;
     int adjusted_y = raw_y - EVENT_DECOR_Y;
 
-    if (adjusted_x >= 0 && adjusted_x < DEMO_WIDTH && adjusted_y >= 0 && adjusted_y < DEMO_HEIGHT) {
+    if (adjusted_x >= 0 && adjusted_x < win->width - (2 * WIN_BORDER_WIDTH) && adjusted_y >= 0 && adjusted_y < win->
+        height - (2 * WIN_BORDER_WIDTH)) {
         *x_out = adjusted_x;
         *y_out = adjusted_y;
-        return 0;
-    }
-
-    if (raw_x >= 0 && raw_x < DEMO_WIDTH && raw_y >= 0 && raw_y < DEMO_HEIGHT) {
-        *x_out = raw_x;
-        *y_out = raw_y;
         return 0;
     }
 
@@ -49,7 +45,7 @@ static void render_screen(const wm_window_t *win)
 
 int main(void)
 {
-    wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, "Demo Client");
+    wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE, "Demo Client");
     if (!win)
         exit(1);
 
@@ -64,7 +60,7 @@ int main(void)
             auto ev = (wm_event_mouse_t *)event_buf;
             int x   = 0;
             int y   = 0;
-            if (normalize_mouse_coords(ev->x, ev->y, &x, &y) != 0)
+            if (normalize_mouse_coords(win, ev->x, ev->y, &x, &y) != 0)
                 continue;
             render_screen(win);
             fill_rect(win->buffer, win->width, x, y, 10, 10, 0xFFFF0000);

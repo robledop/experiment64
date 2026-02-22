@@ -11,9 +11,16 @@
 #include <pthread.h>
 #include <fcntl.h>
 
-static client_manager_t *g_mgr;
+client_manager_t *g_mgr;
 static window_t *g_parent;
 static pthread_mutex_t g_wm_state_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void ensure_client_manager_initialized(void)
+{
+    if (!g_mgr || !g_mgr->initialized) {
+        panic("Client manager not initialized");
+    }
+}
 
 static void client_inner_dims_from_window_dims(uint16_t window_width, uint16_t window_height,
                                                uint16_t *inner_width, uint16_t *inner_height)
@@ -39,21 +46,6 @@ void wm_state_lock(void)
 void wm_state_unlock(void)
 {
     pthread_mutex_unlock(&g_wm_state_mutex);
-}
-
-void client_manager_init(client_manager_t *mgr)
-{
-    memset(mgr, 0, sizeof(*mgr));
-    mgr->next_window_id = 1;
-}
-
-static client_window_t *find_client_by_window_id(client_manager_t *mgr, uint32_t window_id)
-{
-    for (int i = 0; i < mgr->count; i++) {
-        if (mgr->clients[i] && mgr->clients[i]->window_id == window_id)
-            return mgr->clients[i];
-    }
-    return nullptr;
 }
 
 void client_window_paint_handler(const window_t *window)
@@ -306,11 +298,10 @@ static void client_window_resize_handler(const window_t *window, uint16_t old_wi
     write(cw->evt_fd, &ev, sizeof(ev));
 }
 
-static void handle_present(client_manager_t *mgr,
-                           [[maybe_unused]] window_t *parent,
-                           const wm_msg_invalidate_t *msg)
+static void handle_invalidate([[maybe_unused]] window_t *parent,
+                              const wm_msg_invalidate_t *msg)
 {
-    client_window_t *cw = find_client_by_window_id(mgr, msg->window_id);
+    client_window_t *cw = find_client_by_window_id(msg->window_id);
     if (!cw || cw->evt_fd < 0)
         return;
 
@@ -324,33 +315,6 @@ static void handle_present(client_manager_t *mgr,
     ev.window_id              = cw->window_id;
     ev.front_buffer           = cw->front_buffer;
     write(cw->evt_fd, &ev, sizeof(ev));
-}
-
-void client_dispatch_key_event(const client_manager_t *mgr, const window_t *parent, uint8_t keycode, uint8_t pressed)
-{
-    if (!mgr || !parent || !parent->active_child)
-        return;
-
-    client_window_t *active_client = nullptr;
-    for (int i = 0; i < mgr->count; i++) {
-        client_window_t *cw = mgr->clients[i];
-        if (cw && (window_t *)cw == parent->active_child) {
-            active_client = cw;
-            break;
-        }
-    }
-
-    if (!active_client || active_client->evt_fd < 0)
-        return;
-
-    wm_event_key_t ev = {0};
-    ev.type           = WM_EVENT_KEY;
-    ev.window_id      = active_client->window_id;
-    ev.keycode        = keycode;
-    ev.pressed        = pressed ? 1 : 0;
-
-    const ssize_t n = write(active_client->evt_fd, &ev, sizeof(ev));
-    (void)n;
 }
 
 static void handle_create_window(client_manager_t *mgr, window_t *parent,
@@ -382,7 +346,7 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
         return;
     }
 
-    if (!window_init((window_t *)cw, msg->x, msg->y, win_w, win_h, 0, nullptr)) {
+    if (!window_init((window_t *)cw, msg->x, msg->y, win_w, win_h, msg->flags, nullptr)) {
         const size_t buf_size = (size_t)msg->width * (size_t)msg->height * 4;
         for (int i = 0; i < 2; i++) {
             if (mapped_buffers[i])
@@ -468,8 +432,11 @@ struct client_thread_args
     int client_pid;
 };
 
+
 static void *client_reader_thread(void *arg)
 {
+    ensure_client_manager_initialized();
+
     auto args      = (struct client_thread_args *)arg;
     int cmd_fd     = args->cmd_fd;
     int evt_fd     = args->evt_fd;
@@ -501,7 +468,7 @@ static void *client_reader_thread(void *arg)
             if (n != (ssize_t)(sizeof(msg) - 1))
                 goto done;
             wm_state_lock();
-            handle_present(g_mgr, g_parent, &msg);
+            handle_invalidate(g_parent, &msg);
             wm_state_unlock();
             break;
         }
@@ -527,13 +494,12 @@ done:
     return nullptr;
 }
 
-int client_launch(client_manager_t *mgr, window_t *parent, const char *path,
+int client_launch(window_t *parent, const char *path,
                   int16_t default_x, int16_t default_y)
 {
     (void)default_x;
     (void)default_y;
 
-    g_mgr    = mgr;
     g_parent = parent;
 
     int cmd_pipe[2];
@@ -591,4 +557,52 @@ int client_launch(client_manager_t *mgr, window_t *parent, const char *path,
     pthread_detach(thread);
 
     return pid;
+}
+
+void client_manager_init(client_manager_t *mgr)
+{
+    memset(mgr, 0, sizeof(*mgr));
+    mgr->next_window_id = 1;
+    mgr->initialized    = true;
+    g_mgr               = mgr;
+}
+
+client_window_t *find_client_by_window_id(uint32_t window_id)
+{
+    ensure_client_manager_initialized();
+
+    for (int i = 0; i < g_mgr->count; i++) {
+        if (g_mgr->clients[i] && g_mgr->clients[i]->window_id == window_id)
+            return g_mgr->clients[i];
+    }
+    return nullptr;
+}
+
+void client_dispatch_key_event(const window_t *parent, uint8_t keycode, uint8_t pressed)
+{
+    if (!g_mgr || !parent || !parent->active_child)
+        return;
+
+    ensure_client_manager_initialized();
+
+    client_window_t *active_client = nullptr;
+    for (int i = 0; i < g_mgr->count; i++) {
+        client_window_t *cw = g_mgr->clients[i];
+        if (cw && (window_t *)cw == parent->active_child) {
+            active_client = cw;
+            break;
+        }
+    }
+
+    if (!active_client || active_client->evt_fd < 0)
+        return;
+
+    wm_event_key_t ev = {0};
+    ev.type           = WM_EVENT_KEY;
+    ev.window_id      = active_client->window_id;
+    ev.keycode        = keycode;
+    ev.pressed        = pressed ? 1 : 0;
+
+    const ssize_t n = write(active_client->evt_fd, &ev, sizeof(ev));
+    (void)n;
 }
