@@ -20,7 +20,7 @@
 #include <m_argv.h>
 
 static int FrameBufferFd       = -1;
-static int *FrameBuffer        = 0;
+static int *FrameBuffer        = nullptr;
 static wm_window_t *DoomWindow = nullptr;
 static int WMMode              = 0;
 static int WMWindowClosed      = 0;

@@ -13,6 +13,7 @@ AegrOS/
 .cache/
 compile_commands.json
 image.iso
+image.img
 image.hdd
 image3.usb
 /image2.ide
