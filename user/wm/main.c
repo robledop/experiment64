@@ -25,6 +25,12 @@ static int keyboardfd;
 static video_context_t *context;
 static client_manager_t client_mgr;
 
+
+USED static void shell_sigint_handler(const int sig)
+{
+    (void)sig;
+}
+
 USED static void sigaction_handler(int signum)
 {
     if (signum == SIGCHLD) {
@@ -57,6 +63,8 @@ static void wm_configure_sigchld(void)
     if (sigaction(SIGCHLD, &sa, nullptr) != 0)
         printf("wm: failed to configure SIGCHLD\n");
 }
+
+
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
@@ -157,6 +165,7 @@ int main(void)
 {
     atexit(clear_screen);
     wm_configure_sigchld();
+    signal(SIGINT, shell_sigint_handler);
 
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
