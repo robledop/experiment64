@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include "wm/button.h"
 
 client_manager_t *g_mgr;
 static window_t *g_parent;
@@ -319,6 +320,61 @@ static void handle_invalidate([[maybe_unused]] window_t *parent,
     write(cw->evt_fd, &ev, sizeof(ev));
 }
 
+void test_button_mousedown(const window_t *button_window, int16_t x, int16_t y)
+{
+    static int count = 0;
+    count++;
+    char text[50] = {0};
+    snprintf(text, sizeof(text), "clicked %d", count);
+    window_set_title((window_t *)button_window, text);
+}
+
+
+void test_button_paint(const window_t *button_window)
+{
+    button_t *button = (button_t *)button_window;
+
+    uint32_t border_color;
+    if (button->color_toggle) {
+        border_color = WIN_TITLE_COLOR;
+    } else {
+        border_color = WIN_BGCOLOR - 0x101010;
+    }
+
+    context_fill_rect(button_window->context, 1, 1, button_window->width - 1, button_window->height - 1, WIN_BGCOLOR);
+    context_draw_rect(button_window->context, 0, 0, button_window->width, button_window->height, 0xFF000000);
+    context_draw_rect(button_window->context, 3, 3, button_window->width - 6, button_window->height - 6, border_color);
+    context_draw_rect(button_window->context, 4, 4, button_window->width - 8, button_window->height - 8, border_color);
+
+    int title_len = button_window->title ? (int)strlen(button_window->title) : 0;
+
+    title_len *= VESA_CHAR_WIDTH;
+
+    if (button_window->title) {
+        context_draw_text(button_window->context,
+                          button_window->title,
+                          (button_window->width / 2) - (title_len / 2),
+                          (button_window->height / 2) - 6,
+                          WIN_TEXT_COLOR);
+    }
+}
+
+static void handle_window_insert_child(const wm_msg_window_insert_child_t *msg)
+{
+    auto child = find_client_by_window_id(msg->child_id);
+    if (!child)
+        return;
+    auto parent = find_client_by_window_id(msg->parent_id);
+    if (!parent)
+        return;
+
+    child->window.paint_function     = test_button_paint;
+    child->window.mousedown_function = test_button_mousedown;
+    window_set_title(&child->window, "Button");
+    window_insert_child(&parent->window, &child->window);
+    window_paint(&child->window, nullptr, 1);
+}
+
 static void handle_create_window(client_manager_t *mgr, window_t *parent,
                                  int cmd_fd, int evt_fd, int client_pid,
                                  const wm_msg_create_window_t *msg)
@@ -407,7 +463,7 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     ensure_client_manager_initialized();
     for (int i = 0; i < g_mgr->count; i++) {
         if (g_mgr->clients[i] && g_mgr->clients[i]->window_id == msg->window_id) {
-            client_window_t *cw              = g_mgr->clients[i];
+            client_window_t *cw = g_mgr->clients[i];
             // kill(cw->client_pid, SIGTERM);
             // waitpid(cw->client_pid, nullptr, WNOHANG);
             g_mgr->clients[i]                = g_mgr->clients[g_mgr->count - 1];
@@ -463,6 +519,18 @@ static void *client_reader_thread(void *arg)
             wm_state_lock();
             handle_create_window(g_mgr, g_parent, cmd_fd, evt_fd, client_pid, &msg);
             wm_state_unlock();
+            break;
+        }
+        case WM_MSG_WINDOW_INSERT_CHILD: {
+            wm_msg_window_insert_child_t msg;
+            msg.type = type_byte;
+            n        = read(cmd_fd, &msg.parent_id, sizeof(msg) - 1);
+            if (n != (ssize_t)(sizeof(msg) - 1))
+                goto done;
+            wm_state_lock();
+            handle_window_insert_child(&msg);
+            wm_state_unlock();
+
             break;
         }
         case WM_MSG_INVALIDATE: {

@@ -2,6 +2,7 @@
 #include <wm/desktop.h>
 #include <stdlib.h>
 #include <string.h>
+#include "wm/wm_protocol.h"
 
 // TODO: change everything on this file to work on the client side instead
 

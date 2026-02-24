@@ -477,6 +477,17 @@ static int wm_wait_for_window_created_event(wm_event_window_created_t *out)
     }
 }
 
+void wm_window_insert_child(uint16_t parent_id, uint16_t child_id)
+{
+    wm_msg_window_insert_child_t msg = {
+        .type = WM_MSG_WINDOW_INSERT_CHILD,
+        .parent_id = parent_id,
+        .child_id = child_id
+    };
+
+    write(WM_CMD_FD, &msg, sizeof(msg));
+}
+
 wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, const char *title)
 {
     if (wm_ensure_reader_thread() != 0) {

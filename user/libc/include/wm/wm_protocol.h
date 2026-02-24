@@ -11,18 +11,20 @@
 enum wm_msg_type
 {
     WM_MSG_CREATE_WINDOW = 1,
-    WM_MSG_DESTROY_WINDOW = 2,
-    WM_MSG_INVALIDATE = 3,
+    WM_MSG_WINDOW_INSERT_CHILD = 2,
+    WM_MSG_DESTROY_WINDOW = 3,
+    WM_MSG_INVALIDATE = 4,
 };
 
 enum wm_event_type
 {
     WM_EVENT_WINDOW_CREATED = 1,
-    WM_EVENT_MOUSE = 2,
-    WM_EVENT_KEY = 3,
-    WM_EVENT_WINDOW_RESIZED = 4,
-    WM_EVENT_WINDOW_CLOSED = 5,
-    WM_EVENT_INVALIDATED = 6,
+    WM_EVENT_WINDOW_CHILD_INSERTED = 2,
+    WM_EVENT_MOUSE = 3,
+    WM_EVENT_KEY = 4,
+    WM_EVENT_WINDOW_RESIZED = 5,
+    WM_EVENT_WINDOW_CLOSED = 6,
+    WM_EVENT_INVALIDATED = 7,
 };
 
 typedef struct __attribute__((packed))
@@ -35,6 +37,13 @@ typedef struct __attribute__((packed))
     uint16_t flags;
     char title[WM_TITLE_MAX];
 } wm_msg_create_window_t;
+
+typedef struct __attribute__((packed))
+{
+    uint8_t type;
+    uint16_t parent_id;
+    uint16_t child_id;
+} wm_msg_window_insert_child_t;
 
 typedef struct __attribute__((packed))
 {

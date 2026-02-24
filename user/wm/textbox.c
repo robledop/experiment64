@@ -23,7 +23,6 @@ textbox_t *textbox_new(int16_t x, int16_t y, int width, int height)
     }
 
     if (!window_init((window_t *)text_box, x, y, width, height, WIN_NODECORATION, nullptr)) {
-
         free(text_box);
         return nullptr;
     }
@@ -43,7 +42,12 @@ void textbox_paint(const window_t *text_box_window)
 {
     // White background
     context_fill_rect(
-        text_box_window->context, 1, 1, text_box_window->width - 2, text_box_window->height - 2, 0xFFFFFFFF);
+        text_box_window->context,
+        1,
+        1,
+        text_box_window->width - 2,
+        text_box_window->height - 2,
+        0xFFFFFFFF);
 
     // Simple black border
     context_draw_rect(text_box_window->context, 0, 0, text_box_window->width, text_box_window->height, 0xFF000000);

@@ -20,7 +20,7 @@ typedef struct video_context
     uint8_t clipping_on;
 } video_context_t;
 
-video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint32_t pitch);
+video_context_t *context_new(uint32_t *buffer, uint16_t width, uint16_t height, uint32_t pitch);
 void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t color);
 void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned int width, unsigned int height, uint32_t *pixels);
 void context_horizontal_line(const video_context_t *context, int x, int y, unsigned int length, uint32_t color);

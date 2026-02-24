@@ -28,11 +28,12 @@ TEST_SOURCES = $(wildcard tests/*.c)
 TEST_PROGRAMS = $(basename $(TEST_SOURCES))
 TEST_OBJS = $(TEST_PROGRAMS:%=$(BUILD_DIR)/%.o)
 
-WM_SRC = $(filter-out wm/calculator.c,$(wildcard wm/*.c))
+WM_SRC = $(wildcard wm/*.c)
+WM_LIB_SRC = $(wildcard wmlib/*.c)
 WM_OBJ = $(WM_SRC:wm/%.c=$(BUILD_DIR)/wm/%.o)
+WM_LIB_OBJ = $(WM_LIB_SRC:wmlib/%.c=$(BUILD_DIR)/wmlib/%.o)
 WM_TARGET = $(BUILD_DIR)/wm/main
-WM_TERMINAL_EXTRA_OBJ = $(BUILD_DIR)/wm/video_context.o $(BUILD_DIR)/wm/rect.o $(BUILD_DIR)/wm/font.o
-WMCLIENT_DEMO_EXTRA_OBJ = $(BUILD_DIR)/wm/button.o $(BUILD_DIR)/wm/window.o $(BUILD_DIR)/wm/video_context.o $(BUILD_DIR)/wm/rect.o $(BUILD_DIR)/wm/font.o
+WM_BASE_OBJ = $(filter-out $(BUILD_DIR)/wm/main.o,$(WM_OBJ))
 
 TARGETS = $(BUILD_DIR)/user_prog $(PROGRAMS:%=$(BUILD_DIR)/%) $(OSTEP_PROGRAMS:%=$(BUILD_DIR)/%) $(TEST_PROGRAMS:%=$(BUILD_DIR)/%) $(WM_TARGET)
 
@@ -62,19 +63,28 @@ $(BUILD_DIR)/user_prog: user_prog.S
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
 
-$(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_TERMINAL_EXTRA_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_TERMINAL_EXTRA_OBJ) $(LIBC_A)
+$(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
 
-$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WMCLIENT_DEMO_EXTRA_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WMCLIENT_DEMO_EXTRA_OBJ) $(LIBC_A)
+
+$(BUILD_DIR)/calculator: $(BUILD_DIR)/calculator.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/calculator.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
+
+
+#$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WM_BASE_OBJ)
+#	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WM_BASE_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(WM_TARGET): $(WM_OBJ) $(LIBC_A)
+$(BUILD_DIR)/wmlib/%.o: wm/%.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(WM_OBJ) $(LIBC_A)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(WM_TARGET): $(WM_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(WM_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
 
 .PHONY: clean
 clean:

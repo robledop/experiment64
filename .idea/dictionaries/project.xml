@@ -115,6 +115,7 @@
       <w>wexitstatus</w>
       <w>wifexited</w>
       <w>wifsignaled</w>
+      <w>wmlib</w>
       <w>wnohang</w>
       <w>wpaper</w>
       <w>wrfsbase</w>

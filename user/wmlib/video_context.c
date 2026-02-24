@@ -106,7 +106,7 @@ static void framebuffer_blit_span32(const video_context_t *context, int x, int y
     framebuffer_copy_span32(row, src + offset, pixel_count);
 }
 
-video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint32_t pitch)
+video_context_t *context_new(uint32_t *buffer, uint16_t width, uint16_t height, uint32_t pitch)
 {
     auto context = (video_context_t *)malloc(sizeof(video_context_t));
     if (!context) {
@@ -119,7 +119,7 @@ video_context_t *context_new(uint32_t *fb, uint16_t width, uint16_t height, uint
         return nullptr;
     }
 
-    context->buffer      = fb;
+    context->buffer      = buffer;
     context->width       = width;
     context->height      = height;
     context->pitch       = pitch;
