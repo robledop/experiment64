@@ -35,6 +35,7 @@ typedef struct __attribute__((packed))
     int16_t x;
     int16_t y;
     uint16_t flags;
+    uint16_t parent_id;
     char title[WM_TITLE_MAX];
 } wm_msg_create_window_t;
 

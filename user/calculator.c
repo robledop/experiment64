@@ -7,8 +7,6 @@
 #include <util.h>
 #include <wm/window.h>
 #include "stddef.h"
-#include "unistd.h"
-#include "wm/wm_client.h"
 
 #define CALC_WIDTH 145
 #define CALC_HEIGHT 170
@@ -75,103 +73,6 @@ static const calc_button_t calc_buttons[] = {
 
 static video_context_t *video_context = nullptr;
 
-// static void fill_rect(uint32_t *buf, uint16_t stride, int x, int y, int w, int h, uint32_t color)
-// {
-//     int x0 = x;
-//     int y0 = y;
-//     int x1 = x + w;
-//     int y1 = y + h;
-//
-//     if (x0 < 0)
-//         x0 = 0;
-//     if (y0 < 0)
-//         y0 = 0;
-//     if (x1 > CALC_WIDTH)
-//         x1 = CALC_WIDTH;
-//     if (y1 > CALC_HEIGHT)
-//         y1 = CALC_HEIGHT;
-//     if (x0 >= x1 || y0 >= y1)
-//         return;
-//
-//     for (int row = y0; row < y1; row++) {
-//         for (int col = x0; col < x1; col++) {
-//             buf[row * stride + col] = color;
-//         }
-//     }
-// }
-
-static const uint8_t *glyph_for_char(char ch)
-{
-    static const uint8_t glyph_space[7] = {0, 0, 0, 0, 0, 0, 0};
-    static const uint8_t glyph_0[7]     = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
-    static const uint8_t glyph_1[7]     = {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E};
-    static const uint8_t glyph_2[7]     = {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F};
-    static const uint8_t glyph_3[7]     = {0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E};
-    static const uint8_t glyph_4[7]     = {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02};
-    static const uint8_t glyph_5[7]     = {0x1F, 0x10, 0x10, 0x1E, 0x01, 0x01, 0x1E};
-    static const uint8_t glyph_6[7]     = {0x0E, 0x10, 0x10, 0x1E, 0x11, 0x11, 0x0E};
-    static const uint8_t glyph_7[7]     = {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08};
-    static const uint8_t glyph_8[7]     = {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E};
-    static const uint8_t glyph_9[7]     = {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x0E};
-    static const uint8_t glyph_plus[7]  = {0x04, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x04};
-    static const uint8_t glyph_minus[7] = {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00};
-    static const uint8_t glyph_mul[7]   = {0x00, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x00};
-    static const uint8_t glyph_div[7]   = {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00};
-    static const uint8_t glyph_eq[7]    = {0x00, 0x1F, 0x00, 0x1F, 0x00, 0x00, 0x00};
-    static const uint8_t glyph_c[7]     = {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E};
-
-    switch (ch) {
-    case '0':
-        return glyph_0;
-    case '1':
-        return glyph_1;
-    case '2':
-        return glyph_2;
-    case '3':
-        return glyph_3;
-    case '4':
-        return glyph_4;
-    case '5':
-        return glyph_5;
-    case '6':
-        return glyph_6;
-    case '7':
-        return glyph_7;
-    case '8':
-        return glyph_8;
-    case '9':
-        return glyph_9;
-    case '+':
-        return glyph_plus;
-    case '-':
-        return glyph_minus;
-    case '*':
-        return glyph_mul;
-    case '/':
-        return glyph_div;
-    case '=':
-        return glyph_eq;
-    case 'C':
-        return glyph_c;
-    default:
-        return glyph_space;
-    }
-}
-
-// static void draw_glyph(uint32_t *buf, uint16_t stride, int x, int y, char ch, int scale, uint32_t color)
-// {
-//     const uint8_t *glyph = glyph_for_char(ch);
-//
-//     for (int row = 0; row < 7; row++) {
-//         uint8_t bits = glyph[row];
-//         for (int col = 0; col < 5; col++) {
-//             if (!(bits & (uint8_t)(1u << (4 - col))))
-//                 continue;
-//             fill_rect(buf, stride, x + col * scale, y + row * scale, scale, scale, color);
-//         }
-//     }
-// }
-
 static int text_pixel_width(const char *text, int scale)
 {
     size_t len = strlen(text);
@@ -179,14 +80,6 @@ static int text_pixel_width(const char *text, int scale)
         return 0;
     return (int)(len * (size_t)(7 * scale + scale) - (size_t)scale);
 }
-
-// static void draw_text(uint32_t *buf, uint16_t stride, int x, int y, const char *text, int scale, uint32_t color)
-// {
-//     for (size_t i = 0; text[i] != '\0'; i++) {
-//         draw_glyph(buf, stride, x, y, text[i], scale, color);
-//         x += 5 * scale + scale;
-//     }
-// }
 
 static void render_calculator(const wm_window_t *win, const char *display)
 {
@@ -197,15 +90,6 @@ static void render_calculator(const wm_window_t *win, const char *display)
     context_fill_rect(video_context, DISPLAY_X, DISPLAY_Y + DISPLAY_H - 1, DISPLAY_W, 1, 0xFF111111);
     context_fill_rect(video_context, DISPLAY_X, DISPLAY_Y, 1, DISPLAY_H, 0xFF111111);
     context_fill_rect(video_context, DISPLAY_X + DISPLAY_W - 1, DISPLAY_Y, 1, DISPLAY_H, 0xFF111111);
-
-
-    // fill_rect(win->buffer, win->width, 0, 0, CALC_WIDTH, CALC_HEIGHT, 0xFF1C1F24);
-
-    // fill_rect(win->buffer, win->width, DISPLAY_X, DISPLAY_Y, DISPLAY_W, DISPLAY_H, 0xFFF1F3F5);
-    // fill_rect(win->buffer, win->width, DISPLAY_X, DISPLAY_Y, DISPLAY_W, 1, 0xFF111111);
-    // fill_rect(win->buffer, win->width, DISPLAY_X, DISPLAY_Y + DISPLAY_H - 1, DISPLAY_W, 1, 0xFF111111);
-    // fill_rect(win->buffer, win->width, DISPLAY_X, DISPLAY_Y, 1, DISPLAY_H, 0xFF111111);
-    // fill_rect(win->buffer, win->width, DISPLAY_X + DISPLAY_W - 1, DISPLAY_Y, 1, DISPLAY_H, 0xFF111111);
 
     int max_display_chars = (DISPLAY_W - 6) / 6;
     size_t display_len    = strlen(display);
@@ -314,7 +198,7 @@ static void process_button_press(char *display, char label)
 
 int main(void)
 {
-    wm_window_t *win = wm_create_window(115, 60, CALC_WIDTH, CALC_HEIGHT + 50 + WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH, WIN_CLOSEABLE, "Calculator");
+    wm_window_t *win = wm_create_window(115, 60, CALC_WIDTH, CALC_HEIGHT + 50 + WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH, WIN_CLOSEABLE,0, "Calculator");
     if (!win) {
         exit(1);
     }
@@ -329,8 +213,8 @@ int main(void)
     display_reset(display);
     render_calculator(win, display);
 
-    wm_window_t *button = wm_create_window(0, CALC_HEIGHT + WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH, CALC_WIDTH, 50, WIN_NODECORATION, "Button");
-    wm_window_insert_child(win->window_id, button->window_id);
+    wm_window_t *button = wm_create_window(0, CALC_HEIGHT + WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH, CALC_WIDTH, 50, WIN_NODECORATION,win->window_id, "Button");
+    // wm_window_insert_child(win->window_id, button->window_id);
 
     wm_invalidate_all(win);
     // wm_invalidate_all(button);

@@ -488,7 +488,8 @@ void wm_window_insert_child(uint16_t parent_id, uint16_t child_id)
     write(WM_CMD_FD, &msg, sizeof(msg));
 }
 
-wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, const char *title)
+wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, uint16_t parent_id,
+                              const char *title)
 {
     if (wm_ensure_reader_thread() != 0) {
         return nullptr;
@@ -501,6 +502,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
     msg.width                  = width;
     msg.height                 = height;
     msg.flags                  = flags;
+    msg.parent_id              = parent_id;
 
     if (title) {
         size_t len = strlen(title);
@@ -550,6 +552,12 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
         free(win);
         return nullptr;
     }
+
+    size_t len = strlen(title);
+    if (len >= WM_TITLE_MAX)
+        len = WM_TITLE_MAX - 1;
+    memcpy(win->title, title, len);
+    win->title[len] = '\0';
 
     pthread_mutex_unlock(&g_state_lock);
 

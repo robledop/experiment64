@@ -51,7 +51,7 @@ void crash_button_handler(const struct button *, int x, int y)
 
 int main(void)
 {
-    wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE, "Demo Client");
+    wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE,0, "Demo Client");
     if (!win)
         exit(1);
 

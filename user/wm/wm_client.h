@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #define WM_MAX_CLIENTS 8
+#define WM_MAX_CLIENT_WINDOWS 64
 
 
 typedef struct
@@ -24,8 +25,17 @@ typedef struct
 
 typedef struct
 {
-    client_window_t *clients[WM_MAX_CLIENTS];
-    int count;
+    int cmd_fd;
+    int evt_fd;
+    int client_pid;
+} client_connection_t;
+
+typedef struct
+{
+    client_connection_t connections[WM_MAX_CLIENTS];
+    int connection_count;
+    client_window_t *windows[WM_MAX_CLIENT_WINDOWS];
+    int window_count;
     uint32_t next_window_id;
     bool initialized;
 } client_manager_t;

@@ -577,7 +577,7 @@ void DG_Init()
         if (argPosY > 0)
             wm_pos_y = (int16_t)s_PositionY;
 
-        DoomWindow = wm_create_window(wm_pos_x, wm_pos_y, DOOMGENERIC_RESX, DOOMGENERIC_RESY, WIN_CLOSEABLE, "Doom");
+        DoomWindow = wm_create_window(wm_pos_x, wm_pos_y, DOOMGENERIC_RESX, DOOMGENERIC_RESY, WIN_CLOSEABLE, 0, "Doom");
         if (!DoomWindow) {
             print("doom: failed to create window\n");
             exit();

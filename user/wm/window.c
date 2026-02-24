@@ -708,9 +708,21 @@ static void window_update_context(window_t *window, video_context_t *context)
 
 void window_insert_child(window_t *window, window_t *child)
 {
+    if (!window || !child)
+        return;
+
+    if (child->parent) {
+        int old_idx = list_find(child->parent->children, child);
+        if (old_idx >= 0)
+            list_remove_at(child->parent->children, (unsigned int)old_idx);
+        if (child->parent->active_child == child)
+            child->parent->active_child = nullptr;
+    }
+
     child->parent = window;
-    list_add(window->children, child);
-    child->parent->active_child = child;
+    if (list_find(window->children, child) < 0)
+        list_add(window->children, child);
+    window->active_child = child;
 
     window_update_context(child, window->context);
 }

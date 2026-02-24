@@ -34,24 +34,8 @@ USED static void shell_sigint_handler(const int sig)
 USED static void sigaction_handler(int signum)
 {
     if (signum == SIGCHLD) {
-        for (int i = 0; i < WM_MAX_CLIENTS; i++) {
-            client_window_t *client = client_mgr.clients[i];
-            if (!client) {
-                continue;
-            }
-            if (client->client_pid == 0) {
-                continue;
-            }
-            int pid = waitpid(client->client_pid, nullptr, WNOHANG);
-            if (pid == client->client_pid) {
-                auto parent                 = client->window.parent;
-                wm_msg_destroy_window_t msg = {0};
-                msg.type                    = WM_MSG_DESTROY_WINDOW;
-                msg.window_id               = client->window_id;
-                handle_destroy_window(parent, &msg);
-            }
+        while (waitpid(-1, nullptr, WNOHANG) > 0) {
         }
-        waitpid(-1, nullptr, WNOHANG);
     }
 }
 

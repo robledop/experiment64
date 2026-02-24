@@ -964,7 +964,7 @@ static int terminal_rebuild_context_locked(terminal_state_t *term)
 
 int main(void)
 {
-    wm_window_t *window = wm_create_window(140, 70, DEFAULT_TERM_WIDTH, DEFAULT_TERM_HEIGHT, WIN_RESIZABLE | WIN_CLOSEABLE, "Terminal");
+    wm_window_t *window = wm_create_window(140, 70, DEFAULT_TERM_WIDTH, DEFAULT_TERM_HEIGHT, WIN_RESIZABLE | WIN_CLOSEABLE,0, "Terminal");
     if (!window)
         return 1;
 

@@ -32,6 +32,8 @@ When the WM launches a client:
    binary.
 4. In the parent: spawns a reader thread that processes commands from the
    client's command pipe.
+5. A single client connection can create multiple windows (including child
+   windows) on that same pipe pair.
 
 ## Protocol messages
 
@@ -40,11 +42,12 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 
 ### Client -> WM (commands via fd 4)
 
-| Type                    | Struct                    | Description                                                 |
-|-------------------------|---------------------------|-------------------------------------------------------------|
-| `WM_MSG_CREATE_WINDOW`  | `wm_msg_create_window_t`  | Request a new window with position, size, and title         |
-| `WM_MSG_INVALIDATE`     | `wm_msg_invalidate_t`     | Present a specific client buffer index and repaint a region |
-| `WM_MSG_DESTROY_WINDOW` | `wm_msg_destroy_window_t` | Close and destroy a window                                  |
+| Type                         | Struct                         | Description                                                    |
+|------------------------------|--------------------------------|----------------------------------------------------------------|
+| `WM_MSG_CREATE_WINDOW`       | `wm_msg_create_window_t`       | Request a new window with position, size, and title            |
+| `WM_MSG_WINDOW_INSERT_CHILD` | `wm_msg_window_insert_child_t` | Reparent an existing client window under another client window |
+| `WM_MSG_INVALIDATE`          | `wm_msg_invalidate_t`          | Present a specific client buffer index and repaint a region    |
+| `WM_MSG_DESTROY_WINDOW`      | `wm_msg_destroy_window_t`      | Close and destroy a window                                     |
 
 ### WM -> Client (events via fd 3)
 
@@ -122,5 +125,6 @@ void wm_shutdown_events(void);
 ## Limits
 
 - `WM_MAX_CLIENTS`: 8 simultaneous client connections.
+- `WM_MAX_CLIENT_WINDOWS`: 64 simultaneously tracked client-owned windows.
 - `WM_TITLE_MAX`: 64-byte window title.
 - `WM_SHM_NAME_MAX`: 64-byte shared memory name.

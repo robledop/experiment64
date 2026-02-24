@@ -134,6 +134,7 @@ opens a PTY pair and runs `/bin/sh` on the slave side, letting the shell run ins
 It supports ANSI color/control sequences and updates PTY winsize when its window is resized.
 WM clients use double-buffered shared-memory presents with WM acknowledgment before client-side buffer flips.
 Keyboard press/release events are routed to the focused client window.
+One WM client connection can own multiple windows, including child windows.
 
 ![GUI screenshot](docs/img/gui.png)
 
