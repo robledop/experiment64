@@ -537,6 +537,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
     win->window_id  = resp.window_id;
     win->shm_fds[0] = -1;
     win->shm_fds[1] = -1;
+    win->flags      = flags;
 
     pthread_mutex_lock(&g_state_lock);
 
@@ -553,11 +554,15 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
         return nullptr;
     }
 
-    size_t len = strlen(title);
-    if (len >= WM_TITLE_MAX)
-        len = WM_TITLE_MAX - 1;
-    memcpy(win->title, title, len);
-    win->title[len] = '\0';
+    if (title) {
+        size_t len = strlen(title);
+        if (len >= WM_TITLE_MAX)
+            len = WM_TITLE_MAX - 1;
+        memcpy(win->title, title, len);
+        win->title[len] = '\0';
+    } else {
+        win->title[0] = '\0';
+    }
 
     pthread_mutex_unlock(&g_state_lock);
 

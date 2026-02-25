@@ -117,6 +117,7 @@ static void window_draw_border(window_t *window)
         panic("window is null");
         return;
     }
+    bool is_active = window->parent->active_child == window;
 
     for (int i = 0; i < WIN_BORDER_WIDTH; i++) {
         context_draw_rect(window->context,
@@ -124,7 +125,7 @@ static void window_draw_border(window_t *window)
                           screen_y + i,
                           window->width - (2 * i),
                           window->height - (2 * i),
-                          WIN_BORDER_COLOR);
+                          is_active ? WIN_BORDER_COLOR_ACTIVE : WIN_BORDER_COLOR_INACTIVE);
     }
 
     for (int i = 1; i <= WIN_BORDER_WIDTH; i++) {
@@ -132,7 +133,7 @@ static void window_draw_border(window_t *window)
                                 screen_x + WIN_BORDER_WIDTH,
                                 screen_y + (WIN_TITLE_HEIGHT - i),
                                 window->width - (2 * WIN_BORDER_WIDTH),
-                                WIN_BORDER_COLOR);
+                                is_active ? WIN_BORDER_COLOR_ACTIVE : WIN_BORDER_COLOR_INACTIVE);
     }
 
     // Draw title bar
@@ -141,7 +142,7 @@ static void window_draw_border(window_t *window)
                       screen_y + WIN_BORDER_WIDTH,
                       window->width - (2 * WIN_BORDER_WIDTH),
                       (WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH)),
-                      window->parent->active_child == window ? WIN_TITLE_COLOR : WIN_TITLE_COLOR_INACTIVE);
+                      is_active ? WIN_TITLE_COLOR : WIN_TITLE_COLOR_INACTIVE);
 
     if (window->flags & WIN_CLOSEABLE) {
         // Draw close button
@@ -152,9 +153,9 @@ static void window_draw_border(window_t *window)
                           close_y,
                           WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
                           WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
-                          0X00FF3333);
+                          WIN_CLOSE_BUTTON_BG_COLOR);
 
-        draw_close_button_icon(window->context, close_x + 6, close_y + 3, 2, 0xFFFFFFFF);
+        draw_close_button_icon(window->context, close_x + 6, close_y + 3, 2, WIN_CLOSE_BUTTON_FG_COLOR);
     }
 
     if (window->title) {
@@ -703,6 +704,17 @@ static void window_update_context(window_t *window, video_context_t *context)
             continue;
         }
         window_update_context(child, context);
+    }
+}
+
+void window_remove_child(window_t *parent, window_t *child)
+{
+    if (parent) {
+        int idx = list_find(parent->children, child);
+        if (idx >= 0)
+            list_remove_at(parent->children, (unsigned int)idx);
+        if (parent->active_child == child)
+            parent->active_child = nullptr;
     }
 }
 

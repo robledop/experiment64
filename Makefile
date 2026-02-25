@@ -112,8 +112,12 @@ build/%.o: kernel/%.S
 
 .PHONY: clean
 clean:
-	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.usb *.vdi $(DOOM_BIN) scripts/stress_logs
+	rm -rf build $(USER_BUILD_DIR) $(ROOTFS) *.hdd *.img *.log *.ide *.usb *.vdi scripts/stress_logs
 	$(MAKE) -C user clean
+
+.PHONY: clean-doom
+clean-doom:
+	$(MAKE) -C user/doom clean
 
 limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v8.x-binary --depth=1
@@ -151,7 +155,7 @@ qemu-nobuild:
 	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run
-run: 
+run: clean
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
@@ -193,7 +197,7 @@ tests-gdb: clean
 	$(QEMU_BASE) $(QEMU_DRIVES) -device isa-debug-exit,iobase=0x501,iosize=0x04 ${QEMUGDB} -cpu max | tee test.log
 
 .PHONY: bear
-bear: clean 
+bear: clean clean-doom
 	bear -- $(MAKE) $(KERNEL) userland doom -j22
 
 .PHONY: clang-tidy

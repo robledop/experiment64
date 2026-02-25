@@ -135,6 +135,8 @@ It supports ANSI color/control sequences and updates PTY winsize when its window
 WM clients use double-buffered shared-memory presents with WM acknowledgment before client-side buffer flips.
 Keyboard press/release events are routed to the focused client window.
 One WM client connection can own multiple windows, including child windows.
+The userland libc also includes a small immediate-mode UI helper (`wm/imui.h`) for
+building controls like buttons on top of the WM client protocol.
 
 ![GUI screenshot](docs/img/gui.png)
 

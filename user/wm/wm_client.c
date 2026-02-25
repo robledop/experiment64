@@ -1,4 +1,5 @@
 #include "wm_client.h"
+#include <stdint.h>
 #include <wm/window.h>
 #include <wm/video_context.h>
 #include <wm/wm_protocol.h>
@@ -10,10 +11,10 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <fcntl.h>
-#include <sys/wait.h>
 #include <signal.h>
 #include "wm/button.h"
 
+button_t *g_taskbar_buttons[WM_MAX_CLIENTS];
 client_manager_t *g_mgr;
 static window_t *g_parent;
 static pthread_mutex_t g_wm_state_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -155,15 +156,8 @@ static void client_destroy_window_resources(client_window_t *cw)
     if (!cw)
         return;
 
-    window_t *parent = cw->window.parent;
-    if (parent) {
-        int idx = list_find(parent->children, cw);
-        if (idx >= 0)
-            list_remove_at(parent->children, (unsigned int)idx);
-        if (parent->active_child == (window_t *)cw)
-            parent->active_child = nullptr;
-    }
 
+    window_remove_child(cw->window.parent, &cw->window);
     client_destroy_shm_buffers(cw, cw->content_width, cw->content_height);
 
     if (cw->window.title)
@@ -662,6 +656,14 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
     strncpy(resp.shm_names[1], cw->shm_names[1], WM_SHM_NAME_MAX - 1);
     resp.shm_names[1][WM_SHM_NAME_MAX - 1] = '\0';
     write(connection->evt_fd, &resp, sizeof(resp));
+
+    int16_t button_x = (int16_t)((g_mgr->connection_count - 1) * 105 + 5);
+
+    button_t *taskbar_button = button_new(button_x, (int16_t)(g_parent->height - 25), 100, 20);
+    window_set_title((window_t *)taskbar_button, cw->window.title);
+    window_insert_child((window_t *)g_parent, (window_t *)taskbar_button);
+    window_paint((window_t *)g_parent, nullptr, 1);
+    g_taskbar_buttons[g_mgr->connection_count - 1] = taskbar_button;
 }
 
 void handle_destroy_window([[maybe_unused]] window_t *parent,
@@ -676,6 +678,23 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     client_window_t *cw = g_mgr->windows[window_idx];
     if (!cw)
         return;
+
+    const int count      = g_mgr->window_count;
+    const int last_index = count - 1;
+
+    button_t *taskbar_button = g_taskbar_buttons[window_idx];
+    window_t *taskbar        = taskbar_button->window.parent;
+    window_remove_child(taskbar, (window_t *)taskbar_button);
+
+    if (window_idx != last_index)
+        g_taskbar_buttons[window_idx] = g_taskbar_buttons[last_index];
+    g_taskbar_buttons[last_index] = nullptr;
+
+    for (int i = window_idx; i < last_index; ++i) {
+        button_t *button = g_taskbar_buttons[i];
+        int16_t button_x = (int16_t)((i) * 105 + 5);
+        button->window.x = button_x;
+    }
 
     client_destroy_window_recursive(g_mgr, cw);
 

@@ -18,6 +18,7 @@
       <w>chardevice</w>
       <w>cilas</w>
       <w>connfd</w>
+      <w>deinit</w>
       <w>devfs</w>
       <w>distclean</w>
       <w>doomgeneric</w>

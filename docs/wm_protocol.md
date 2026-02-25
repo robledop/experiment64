@@ -96,7 +96,9 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 `user/libc/include/wm/wmclient.h` provides a simple API:
 
 ```c
-wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t w, uint16_t h, const char *title);
+wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t w, uint16_t h,
+                              uint16_t flags, uint16_t parent_id, const char *title);
+void wm_window_insert_child(uint16_t parent_id, uint16_t child_id);
 void wm_invalidate(wm_window_t *win);
 void wm_invalidate_region(wm_window_t *win, int16_t x, int16_t y, uint16_t w, uint16_t h);
 void wm_invalidate_all(wm_window_t *win);
@@ -104,6 +106,9 @@ void wm_destroy_window(wm_window_t *win);
 int wm_next_event(void *event_buf, uint8_t *out_type);
 void wm_shutdown_events(void);
 ```
+
+`user/libc/include/wm/imui.h` provides a lightweight immediate-mode layer on top
+of `wmclient` for building widgets directly while rendering to the window's back buffer.
 
 `wm_shutdown_events()` marks the event stream as closed and wakes threads blocked in `wm_next_event()`.
 
@@ -113,7 +118,8 @@ void wm_shutdown_events(void);
   paints a red dot wherever the user clicks. It also reacts to key press events
   by drawing colored blocks derived from the keycode.
 - `user/calculator.c` is a standalone calculator client executable launched by
-  the WM desktop button (`/bin/calculator`).
+  the WM desktop button (`/bin/calculator`) and uses `wm/imui.h` for
+  immediate-mode button widgets.
 - `user/term.c` is a minimal terminal client launched as
   `/bin/term`. It opens a PTY pair, runs `/bin/sh` on the slave side,
   translates WM key events into PTY input bytes, supports basic ANSI

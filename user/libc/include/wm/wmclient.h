@@ -9,6 +9,7 @@ typedef struct
     uint32_t window_id;
     uint16_t width;
     uint16_t height;
+    uint16_t flags;
     uint8_t front_buffer;
     uint8_t back_buffer;
     uint32_t *buffers[2];

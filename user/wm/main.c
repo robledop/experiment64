@@ -18,7 +18,8 @@
 #include <sys/wait.h>
 
 static uint32_t *fb;
-static desktop_t *desktop;
+desktop_t *desktop;
+static window_t *taskbar;
 static bool wm_should_exit = false;
 static int mousefd;
 static int keyboardfd;
@@ -47,7 +48,6 @@ static void wm_configure_sigchld(void)
     if (sigaction(SIGCHLD, &sa, nullptr) != 0)
         printf("wm: failed to configure SIGCHLD\n");
 }
-
 
 
 void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
@@ -229,6 +229,16 @@ int main(void)
     terminal_button->onmousedown = terminal_button_handler;
     window_set_title((window_t *)terminal_button, "Terminal");
     window_insert_child((window_t *)desktop, (window_t *)terminal_button);
+
+    taskbar = window_new(
+        0,
+        (int16_t)(desktop->window.height - 30),
+        desktop->window.width,
+        30,
+        WIN_NODECORATION,
+        nullptr);
+
+    window_insert_child((window_t *)desktop, taskbar);
 
     window_paint((window_t *)desktop, nullptr, 1);
 
