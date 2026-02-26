@@ -275,80 +275,14 @@ void interrupt_handler(struct interrupt_frame *frame)
         if (snap->int_no == 14) {
             uint64_t cr2;
             __asm__ volatile("mov %0, cr2" : "=r"(cr2));
+            printk(KBWHT "CR2 (Page Fault Address):" KRESET " 0x%lx\n", cr2);
 #ifdef TEST_MODE
-            // Emit a compact, low-noise line first so interleaved logs do not obscure PF context.
             printk("PF DEBUG: rip=0x%lx cs=0x%lx rsp=0x%lx err=0x%lx cr2=0x%lx\n",
                    snap->rip,
                    snap->cs,
                    snap->rsp,
                    snap->err_code,
                    cr2);
-
-#endif
-            printk(KBWHT "CR2 (Page Fault Address):" KRESET " 0x%lx\n", cr2);
-            // If the fault came from user mode, treat it as a bad process and reap it
-            // rather than panicking the whole kernel.
-            const bool user_mode = (snap->cs & 0x3) != 0;
-
-            if (user_mode) {
-                thread_t *t  = current_thread;
-                process_t *p = current_process;
-                printk("Killing user process \"%s\" on page fault pid=%d tid=%d rip=0x%lx rsp=0x%lx cr2=0x%lx err=0x%lx\n",
-                       p != nullptr ? p->name : "unknown",
-                       p != nullptr ? p->pid : -1,
-                       t != nullptr ? t->tid : -1,
-                       snap->rip,
-                       snap->rsp,
-                       cr2,
-                       snap->err_code);
-
-                printk(KWHT "run " KBBLU "addr2line -e <binary> %p" KWHT " to get line numbers\n", snap->rip);
-                printk(KWHT "run " KBBLU "objdump -d <binary> | grep %p -A 40 -B 40" KWHT " to see more.\n", snap->rip);
-
-                // Acquire scheduler lock before modifying thread/process state to prevent races.
-                // Interrupts are already disabled by the interrupt gate.
-                spinlock_acquire(&scheduler_lock);
-
-                if (p) {
-                    p->exit_code  = -1;
-                    p->terminated = true;
-                    signal_send_sigchld(p);
-                }
-                if (p) {
-                    thread_t *tt;
-                    list_foreach_entry(tt, &p->threads, list) {
-                        tt->state = THREAD_TERMINATED;
-                    }
-
-                    process_t *new_parent = init_process ? init_process : kernel_process;
-                    process_t *child;
-                    list_foreach_entry(child, &process_list, list) {
-                        if (child && child->parent == p) {
-                            child->parent = new_parent;
-                            if (child->terminated)
-                                thread_wakeup(new_parent);
-                        }
-                    }
-                }
-
-                // Cache parent before releasing lock
-                process_t *parent = (p && p->parent) ? p->parent : nullptr;
-
-                spinlock_release(&scheduler_lock);
-
-                // Wake up the parent outside the lock (thread_wakeup acquires its own lock)
-                if (parent) {
-                    thread_wakeup(parent);
-                }
-
-                // schedule() will switch to another thread; interrupts will be re-enabled
-                // when the new thread runs.
-                cpu_interrupt_exit();
-                schedule();
-                // schedule() should not return to the faulting context, but bail out defensively.
-                return;
-            }
-#ifdef TEST_MODE
             uint64_t cr3;
             __asm__ volatile("mov %0, cr3" : "=r"(cr3));
             printk("Process: pid=%d cr3=0x%lx\n", current_process ? current_process->pid : -1, cr3);
@@ -363,6 +297,68 @@ void interrupt_handler(struct interrupt_frame *frame)
                    snap->rbp,
                    snap->rsp);
 #endif
+        }
+
+        // If the fault came from user mode, treat it as a bad process and reap it
+        // rather than panicking the whole kernel.
+        const bool user_mode = (snap->cs & 0x3) != 0;
+
+        if (user_mode) {
+            thread_t *t  = current_thread;
+            process_t *p = current_process;
+            printk("Killing user process \"%s\" pid=%d tid=%d rip=0x%lx rsp=0x%lx err=0x%lx\n",
+                   p != nullptr ? p->name : "unknown",
+                   p != nullptr ? p->pid : -1,
+                   t != nullptr ? t->tid : -1,
+                   snap->rip,
+                   snap->rsp,
+                   snap->err_code);
+
+            printk(KWHT "run " KBBLU "addr2line -e <binary> %p" KWHT " to get line numbers\n", snap->rip);
+            printk(KWHT "run " KBBLU "objdump -d <binary> | grep %p -A 40 -B 40" KWHT " to see more.\n", snap->rip);
+
+            // Acquire scheduler lock before modifying thread/process state to prevent races.
+            // Interrupts are already disabled by the interrupt gate.
+            spinlock_acquire(&scheduler_lock);
+
+            if (p) {
+                p->exit_code  = -1;
+                p->terminated = true;
+                signal_send_sigchld(p);
+            }
+            if (p) {
+                thread_t *tt;
+                list_foreach_entry(tt, &p->threads, list) {
+                    tt->state = THREAD_TERMINATED;
+                }
+
+                process_t *new_parent = init_process ? init_process : kernel_process;
+                process_t *child;
+                list_foreach_entry(child, &process_list, list) {
+                    if (child && child->parent == p) {
+                        child->parent = new_parent;
+                        if (child->terminated)
+                            thread_wakeup(new_parent);
+                    }
+                }
+            }
+
+            // Cache parent before releasing lock
+            process_t *parent = (p && p->parent) ? p->parent : nullptr;
+
+            spinlock_release(&scheduler_lock);
+
+            // Wake up the parent outside the lock (thread_wakeup acquires its own lock)
+            if (parent) {
+                thread_wakeup(parent);
+            }
+
+            // schedule() will switch to another thread; interrupts will be re-enabled
+            // when the new thread runs.
+            cpu_interrupt_exit();
+            schedule();
+            // schedule() should not return to the faulting context, but bail out defensively.
+            return;
         }
 
         dump_panic_context(frame, snap);

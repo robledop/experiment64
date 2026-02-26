@@ -104,7 +104,7 @@ void kernel_splash(void)
 }
 
 [[noreturn]]
-void _start(void) // NOLINT(*-reserved-identifier)
+void _start(void)
 {
     enable_simd();
     enable_fsgsbase();

@@ -137,7 +137,7 @@ struct ubsan_alignment_assumption_data
     struct ubsan_type_descriptor *type;
 };
 
-void __ubsan_handle_type_mismatch_v1(struct ubsan_type_mismatch_data *data, unsigned long ptr) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_type_mismatch_v1(struct ubsan_type_mismatch_data *data, unsigned long ptr)
 {
     struct undefined_behavior info;
     info.filename = data->location.filename;
@@ -152,7 +152,7 @@ void __ubsan_handle_type_mismatch_v1(struct ubsan_type_mismatch_data *data, unsi
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_add_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_add_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs)
 {
     (void)lhs;
     (void)rhs;
@@ -164,7 +164,7 @@ void __ubsan_handle_add_overflow(struct ubsan_overflow_data *data, unsigned long
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_sub_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_sub_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs)
 {
     (void)lhs;
     (void)rhs;
@@ -176,7 +176,7 @@ void __ubsan_handle_sub_overflow(struct ubsan_overflow_data *data, unsigned long
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_mul_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_mul_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs)
 {
     (void)lhs;
     (void)rhs;
@@ -188,7 +188,7 @@ void __ubsan_handle_mul_overflow(struct ubsan_overflow_data *data, unsigned long
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_negate_overflow(struct ubsan_overflow_data *data, unsigned long old_val) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_negate_overflow(struct ubsan_overflow_data *data, unsigned long old_val)
 {
     (void)old_val;
     struct undefined_behavior info;
@@ -199,7 +199,7 @@ void __ubsan_handle_negate_overflow(struct ubsan_overflow_data *data, unsigned l
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_divrem_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_divrem_overflow(struct ubsan_overflow_data *data, unsigned long lhs, unsigned long rhs)
 {
     (void)lhs;
     (void)rhs;
@@ -211,7 +211,7 @@ void __ubsan_handle_divrem_overflow(struct ubsan_overflow_data *data, unsigned l
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_shift_out_of_bounds(struct ubsan_shift_out_of_bounds_data *data, unsigned long lhs, // NOLINT(*-reserved-identifier)
+void __ubsan_handle_shift_out_of_bounds(struct ubsan_shift_out_of_bounds_data *data, unsigned long lhs,
                                         unsigned long rhs)
 {
     (void)lhs;
@@ -224,7 +224,7 @@ void __ubsan_handle_shift_out_of_bounds(struct ubsan_shift_out_of_bounds_data *d
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_out_of_bounds(struct ubsan_out_of_bounds_data *data, unsigned long index) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_out_of_bounds(struct ubsan_out_of_bounds_data *data, unsigned long index)
 {
     (void)index;
     struct undefined_behavior info;
@@ -235,7 +235,7 @@ void __ubsan_handle_out_of_bounds(struct ubsan_out_of_bounds_data *data, unsigne
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_builtin_unreachable(struct ubsan_unreachable_data *data) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_builtin_unreachable(struct ubsan_unreachable_data *data)
 {
     struct undefined_behavior info;
     info.filename  = data->location.filename;
@@ -245,7 +245,7 @@ void __ubsan_handle_builtin_unreachable(struct ubsan_unreachable_data *data) // 
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_missing_return(struct ubsan_unreachable_data *data) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_missing_return(struct ubsan_unreachable_data *data)
 {
     struct undefined_behavior info;
     info.filename  = data->location.filename;
@@ -255,7 +255,7 @@ void __ubsan_handle_missing_return(struct ubsan_unreachable_data *data) // NOLIN
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_vla_bound_not_positive(struct ubsan_vla_bound_not_positive_data *data, unsigned long bound) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_vla_bound_not_positive(struct ubsan_vla_bound_not_positive_data *data, unsigned long bound)
 {
     (void)bound;
     struct undefined_behavior info;
@@ -266,7 +266,7 @@ void __ubsan_handle_vla_bound_not_positive(struct ubsan_vla_bound_not_positive_d
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_float_cast_overflow(struct ubsan_float_cast_overflow_data *data, unsigned long from) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_float_cast_overflow(struct ubsan_float_cast_overflow_data *data, unsigned long from)
 {
     (void)from;
     struct undefined_behavior info;
@@ -277,7 +277,7 @@ void __ubsan_handle_float_cast_overflow(struct ubsan_float_cast_overflow_data *d
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_load_invalid_value(struct ubsan_load_invalid_value_data *data, unsigned long val) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_load_invalid_value(struct ubsan_load_invalid_value_data *data, unsigned long val)
 {
     (void)val;
     struct undefined_behavior info;
@@ -288,7 +288,7 @@ void __ubsan_handle_load_invalid_value(struct ubsan_load_invalid_value_data *dat
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_function_type_mismatch(struct ubsan_function_type_mismatch_data *data, unsigned long ptr) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_function_type_mismatch(struct ubsan_function_type_mismatch_data *data, unsigned long ptr)
 {
     (void)ptr;
     struct undefined_behavior info;
@@ -299,7 +299,7 @@ void __ubsan_handle_function_type_mismatch(struct ubsan_function_type_mismatch_d
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_nonnull_return_v1(struct ubsan_nonnull_return_data *data, struct ubsan_source_location *loc) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_nonnull_return_v1(struct ubsan_nonnull_return_data *data, struct ubsan_source_location *loc)
 {
     (void)loc;
     struct undefined_behavior info;
@@ -310,7 +310,7 @@ void __ubsan_handle_nonnull_return_v1(struct ubsan_nonnull_return_data *data, st
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_nonnull_arg(struct ubsan_nonnull_arg_data *data) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_nonnull_arg(struct ubsan_nonnull_arg_data *data)
 {
     struct undefined_behavior info;
     info.filename  = data->location.filename;
@@ -320,7 +320,7 @@ void __ubsan_handle_nonnull_arg(struct ubsan_nonnull_arg_data *data) // NOLINT(*
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_pointer_overflow(struct ubsan_pointer_overflow_data *data, unsigned long base, unsigned long result) // NOLINT(*-reserved-identifier)
+void __ubsan_handle_pointer_overflow(struct ubsan_pointer_overflow_data *data, unsigned long base, unsigned long result)
 {
     (void)base;
     (void)result;
@@ -332,7 +332,7 @@ void __ubsan_handle_pointer_overflow(struct ubsan_pointer_overflow_data *data, u
     report_undefined_behavior(UNDEFINED_BEHAVIOR, &info);
 }
 
-void __ubsan_handle_alignment_assumption(struct ubsan_alignment_assumption_data *data, unsigned long ptr, // NOLINT(*-reserved-identifier)
+void __ubsan_handle_alignment_assumption(struct ubsan_alignment_assumption_data *data, unsigned long ptr,
                                          unsigned long alignment, unsigned long offset)
 {
     (void)ptr;

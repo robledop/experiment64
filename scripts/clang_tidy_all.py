@@ -8,6 +8,7 @@ import sys
 # Files/directories to skip from clang-tidy analysis
 SKIP_PATTERNS = [
     "user/edit.c",      # Third-party editor code with many false positives
+    "user/doom/",       # Doom port with many legacy code warnings
     "third_party",      # Doom port with many legacy code warnings
 ]
 

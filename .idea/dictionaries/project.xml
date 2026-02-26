@@ -105,6 +105,7 @@
       <w>strtol</w>
       <w>syncronous</w>
       <w>toolprefix</w>
+      <w>trapgate</w>
       <w>unreapable</w>
       <w>usbboot</w>
       <w>usercopy</w>
@@ -124,6 +125,7 @@
       <w>wrfsbase</w>
       <w>wrmsr</w>
       <w>wtermsig</w>
+      <w>xsetbv</w>
     </words>
   </dictionary>
 </component>

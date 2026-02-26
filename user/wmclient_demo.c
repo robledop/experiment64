@@ -1,12 +1,8 @@
 #include <wm/wmclient.h>
 #include <signal.h>
 #include <wm/wm_protocol.h>
-#include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
-
-#include "wm/button.h"
-#include "wm/imui.h"
+#include <wm/imui.h>
 
 #define EVENT_DECOR_X 2
 #define EVENT_DECOR_Y 25
@@ -15,7 +11,7 @@
 
 void crash_button_handler()
 {
-    *((int *)0) = 0;
+    __builtin_trap();
 }
 
 static void render_screen(imui_context_t *ui)
@@ -23,18 +19,17 @@ static void render_screen(imui_context_t *ui)
     imui_fill_rect(ui, 10, 10, 80, 60, 0xFFFF4444);
     imui_fill_rect(ui, 110, 10, 80, 60, 0xFF44FF44);
     imui_fill_rect(ui, 10, 80, 80, 60, 0xFF4444FF);
-    imui_fill_rect(ui,  110, 80, 80, 60, 0xFFFFFF44);
+    imui_fill_rect(ui, 110, 80, 80, 60, 0xFFFFFF44);
 
     if (imui_button(ui, "Crash", 70, 30))
         crash_button_handler();
 }
 
-
 int main(void)
 {
     signal(SIGINT, SIG_IGN);
     wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE, 0, "Demo Client");
-    if (!win)
+    if (win == nullptr)
         exit(1);
 
     imui_context_t ui = {};
@@ -56,7 +51,7 @@ int main(void)
             render_screen(&ui);
             imui_end_frame(&ui);
         } else if (event_type == WM_EVENT_KEY) {
-            auto ev = (wm_event_key_t *)event_buf;
+            // auto ev = (wm_event_key_t *)event_buf;
 
             imui_begin_frame(&ui, nullptr);
             render_screen(&ui);

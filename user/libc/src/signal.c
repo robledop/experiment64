@@ -2,7 +2,7 @@
 #include <sys/syscall.h>
 #include <util.h>
 
-extern void __signal_trampoline(void); // NOLINT(*-reserved-identifier)
+extern void __signal_trampoline(void);
 
 int sigaction(const int signum, const struct sigaction *act, struct sigaction *oldact)
 {

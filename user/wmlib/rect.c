@@ -2,20 +2,47 @@
 #include <array.h>
 #include <stdlib.h>
 
-static void rect_free_array(rect_t **rects)
+static constexpr size_t RECT_SPLIT_MAX_PARTS = 4;
+
+static void rect_free_range(rect_t **rects, size_t start, size_t end)
 {
-    size_t rect_count = arr_len(rects);
-    rect_t **it       = rects;
-    rect_t **it_end   = rects + rect_count;
-    while (it < it_end) {
-        free(*it++);
-    }
-    arr_free(rects);
+    for (size_t i = start; i < end; i++)
+        free(rects[i]);
+}
+
+static rect_t **rect_array_new(size_t count)
+{
+    if (count == 0)
+        return nullptr;
+
+    size_t alloc_size = sizeof(array_header_t) + (sizeof(rect_t *) * count);
+    auto header = (array_header_t *)malloc(alloc_size);
+    if (!header)
+        return nullptr;
+
+    header->magic    = ARR_HEADER_MAGIC;
+    header->count    = count;
+    header->capacity = count;
+    return (rect_t **)(header + 1);
+}
+
+static bool rect_add_split(rect_t **parts, size_t *part_count, int top, int left, int bottom, int right)
+{
+    if (*part_count >= RECT_SPLIT_MAX_PARTS)
+        return false;
+
+    rect_t *temp_rect = rect_new(top, left, bottom, right);
+    if (!temp_rect)
+        return false;
+
+    parts[*part_count] = temp_rect;
+    (*part_count)++;
+    return true;
 }
 
 rect_t *rect_new(int top, int left, int bottom, int right)
 {
-    rect_t *rect = (rect_t *)malloc(sizeof(rect_t));
+    auto rect = (rect_t *)malloc(sizeof(rect_t));
     if (!rect) {
         return rect;
     }
@@ -30,7 +57,8 @@ rect_t *rect_new(int top, int left, int bottom, int right)
 
 rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
 {
-    rect_t **output_rects = nullptr;
+    rect_t *parts[RECT_SPLIT_MAX_PARTS] = {nullptr};
+    size_t part_count                   = 0;
 
     rect_t subject_copy;
     subject_copy.top    = subject_rect->top;
@@ -39,69 +67,65 @@ rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
     subject_copy.right  = subject_rect->right;
 
     if (cutting_rect->left > subject_copy.left && cutting_rect->left <= subject_copy.right) {
-        rect_t *temp_rect = rect_new(subject_copy.top, subject_copy.left, subject_copy.bottom, cutting_rect->left - 1);
-        if (!temp_rect) {
-            rect_free_array(output_rects);
-            return nullptr;
-        }
-        size_t rect_count_before = arr_len(output_rects);
-        arr_push(output_rects, temp_rect);
-        if (arr_len(output_rects) != rect_count_before + 1) {
-            free(temp_rect);
-            rect_free_array(output_rects);
+        if (!rect_add_split(parts,
+                            &part_count,
+                            subject_copy.top,
+                            subject_copy.left,
+                            subject_copy.bottom,
+                            cutting_rect->left - 1)) {
+            rect_free_range(parts, 0, part_count);
             return nullptr;
         }
         subject_copy.left = cutting_rect->left;
     }
 
     if (cutting_rect->top > subject_copy.top && cutting_rect->top <= subject_copy.bottom) {
-        rect_t *temp_rect = rect_new(subject_copy.top, subject_copy.left, cutting_rect->top - 1, subject_copy.right);
-        if (temp_rect == nullptr) {
-            rect_free_array(output_rects);
-            return nullptr;
-        }
-        size_t rect_count_before = arr_len(output_rects);
-        arr_push(output_rects, temp_rect);
-        if (arr_len(output_rects) != rect_count_before + 1) {
-            free(temp_rect);
-            rect_free_array(output_rects);
+        if (!rect_add_split(parts,
+                            &part_count,
+                            subject_copy.top,
+                            subject_copy.left,
+                            cutting_rect->top - 1,
+                            subject_copy.right)) {
+            rect_free_range(parts, 0, part_count);
             return nullptr;
         }
         subject_copy.top = cutting_rect->top;
     }
 
     if (cutting_rect->right >= subject_copy.left && cutting_rect->right < subject_copy.right) {
-        rect_t *temp_rect = rect_new(subject_copy.top, cutting_rect->right + 1, subject_copy.bottom, subject_copy.right);
-        if (temp_rect == nullptr) {
-            rect_free_array(output_rects);
-            return nullptr;
-        }
-        size_t rect_count_before = arr_len(output_rects);
-        arr_push(output_rects, temp_rect);
-        if (arr_len(output_rects) != rect_count_before + 1) {
-            free(temp_rect);
-            rect_free_array(output_rects);
+        if (!rect_add_split(parts,
+                            &part_count,
+                            subject_copy.top,
+                            cutting_rect->right + 1,
+                            subject_copy.bottom,
+                            subject_copy.right)) {
+            rect_free_range(parts, 0, part_count);
             return nullptr;
         }
         subject_copy.right = cutting_rect->right;
     }
 
     if (cutting_rect->bottom >= subject_copy.top && cutting_rect->bottom < subject_copy.bottom) {
-        rect_t *temp_rect =
-            rect_new(cutting_rect->bottom + 1, subject_copy.left, subject_copy.bottom, subject_copy.right);
-        if (temp_rect == nullptr) {
-            rect_free_array(output_rects);
-            return nullptr;
-        }
-        size_t rect_count_before = arr_len(output_rects);
-        arr_push(output_rects, temp_rect);
-        if (arr_len(output_rects) != rect_count_before + 1) {
-            free(temp_rect);
-            rect_free_array(output_rects);
+        if (!rect_add_split(parts,
+                            &part_count,
+                            cutting_rect->bottom + 1,
+                            subject_copy.left,
+                            subject_copy.bottom,
+                            subject_copy.right)) {
+            rect_free_range(parts, 0, part_count);
             return nullptr;
         }
         subject_copy.bottom = cutting_rect->bottom;
     }
+
+    rect_t **output_rects = rect_array_new(part_count);
+    if (!output_rects) {
+        rect_free_range(parts, 0, part_count);
+        return nullptr;
+    }
+
+    for (size_t i = 0; i < part_count; i++)
+        output_rects[i] = parts[i];
 
     return output_rects;
 }

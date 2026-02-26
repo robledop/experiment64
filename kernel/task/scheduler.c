@@ -654,7 +654,6 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
         spinlock_release(&scheduler_lock);
 
         thread_t *free_t, *free_next;
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         list_foreach_entry_safe(free_t, free_next, &free_list, list) {
             if (!free_t) {
                 continue;

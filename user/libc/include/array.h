@@ -281,11 +281,17 @@ static inline void arr__free(void **arr)
     *arr = nullptr;
 }
 
+/** @brief Try appending one value to the end of the array. Returns true on success. */
+#define arr_try_push(arr, x) ({                                                                               \
+        auto __arr_slot = (typeof((arr)[0]) *)arr__append_slot((void**)&(arr), sizeof(*(arr)));              \
+        bool __arr_ok = __arr_slot != nullptr;                                                                \
+        if (__arr_ok)                                                                                          \
+            *__arr_slot = (x);                                                                                 \
+        __arr_ok;                                                                                              \
+    })
 /** @brief Append one value to the end of the array. */
 #define arr_push(arr, x) do {                                                                                  \
-        auto __arr_slot = (typeof((arr)[0]) *)arr__append_slot((void**)&(arr), sizeof(*(arr)));              \
-        if (__arr_slot)                                                                                        \
-            *__arr_slot = (x);                                                                                 \
+        (void)arr_try_push((arr), (x));                                                                        \
     } while(0)
 
 /** @brief Remove the element at index @p idx, preserving order. */

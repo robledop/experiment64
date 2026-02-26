@@ -11,8 +11,8 @@ static uint32_t g_fpu_save_size = 512;
 
 // NOLINTBEGIN(readability-non-const-parameter)
 static inline void cpuid(uint32_t leaf, uint32_t subleaf,
-                         uint32_t *const eax, uint32_t *const ebx,
-                         uint32_t *const ecx, uint32_t *const edx)
+                         uint32_t *eax, uint32_t *ebx,
+                         uint32_t *ecx, uint32_t *edx)
 {
     __asm__ volatile ("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(leaf), "c"(subleaf));
 }

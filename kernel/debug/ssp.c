@@ -4,7 +4,7 @@
 // https://wiki.osdev.org/Stack_Smashing_Protector
 uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
 
-[[noreturn]] void __stack_chk_fail(void) // NOLINT(*-reserved-identifier)
+[[noreturn]] void __stack_chk_fail(void)
 {
     panic("Stack smashing detected");
 

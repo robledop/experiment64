@@ -43,9 +43,7 @@ static uint64_t window_now_ms(void)
 
 static bool window_children_push(window_t *parent, window_t *child)
 {
-    size_t child_count = arr_len(parent->children);
-    arr_push(parent->children, child);
-    return arr_len(parent->children) == child_count + 1;
+    return arr_try_push(parent->children, child);
 }
 
 window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, video_context_t *context)
@@ -217,21 +215,29 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, rect
 
     if (!window->parent) {
         if (dirty_regions) {
-            size_t dirty_count       = arr_len(dirty_regions);
-            rect_t *const *dirty_it  = dirty_regions;
-            rect_t *const *dirty_end = dirty_regions + dirty_count;
-            while (dirty_it < dirty_end) {
-                rect_t *current_dirty_rect = *dirty_it++;
-                if (!current_dirty_rect) {
-                    continue;
-                }
-                rect_t *clone_dirty_rect = rect_new(current_dirty_rect->top,
-                                                    current_dirty_rect->left,
-                                                    current_dirty_rect->bottom,
-                                                    current_dirty_rect->right);
+            size_t dirty_count = arr_len(dirty_regions);
+            if (dirty_count > 0) {
+                size_t snapshot_bytes = sizeof(*dirty_regions) * dirty_count;
+                auto dirty_snapshot = (rect_t **)malloc(snapshot_bytes);
+                if (dirty_snapshot) {
+                    memcpy(dirty_snapshot, dirty_regions, snapshot_bytes);
 
-                if (clone_dirty_rect) {
-                    context_add_clip_rect(window->context, clone_dirty_rect);
+                    for (size_t i = 0; i < dirty_count; i++) {
+                        rect_t *current_dirty_rect = dirty_snapshot[i];
+                        if (!current_dirty_rect) {
+                            continue;
+                        }
+                        rect_t *clone_dirty_rect = rect_new(current_dirty_rect->top,
+                                                            current_dirty_rect->left,
+                                                            current_dirty_rect->bottom,
+                                                            current_dirty_rect->right);
+
+                        if (clone_dirty_rect) {
+                            context_add_clip_rect(window->context, clone_dirty_rect);
+                        }
+                    }
+
+                    free(dirty_snapshot);
                 }
             }
 
@@ -298,9 +304,7 @@ void window_invalidate(window_t *window, int top, int left, int bottom, int righ
         return;
     }
 
-    size_t dirty_count_before = arr_len(dirty_regions);
-    arr_push(dirty_regions, dirty_rect);
-    if (arr_len(dirty_regions) != dirty_count_before + 1) {
+    if (!arr_try_push(dirty_regions, dirty_rect)) {
         free(dirty_rect);
         arr_free(dirty_regions);
         return;
@@ -789,37 +793,3 @@ void window_set_title(window_t *window, const char *new_title)
         window_update_title(window);
     }
 }
-
-// void window_append_title(window_t *window, const char *additional_chars)
-// {
-//     if (!window->title) {
-//         window_set_title(window, additional_chars);
-//         return;
-//     }
-//
-//     int original_length   = (int)strlen(window->title);
-//     int additional_length = (int)strlen(additional_chars);
-//
-//     char *new_string = malloc(sizeof(char) * (original_length + additional_length + 1));
-//     if (!new_string) {
-//         return;
-//     }
-//
-//     int i;
-//     for (i = 0; window->title[i]; i++)
-//         new_string[i] = window->title[i];
-//
-//     for (i = 0; additional_chars[i]; i++)
-//         new_string[original_length + i] = additional_chars[i];
-//
-//     new_string[original_length + i] = 0;
-//
-//     free(window->title);
-//     window->title = new_string;
-//
-//     if (window->flags & WIN_NODECORATION) {
-//         window_invalidate(window, 0, 0, window->height - 1, window->width - 1);
-//     } else {
-//         window_update_title(window);
-//     }
-// }
