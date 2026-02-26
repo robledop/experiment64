@@ -61,12 +61,12 @@ int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t
                 video_context_t *context);
 int window_screen_x(const window_t *window);
 int window_screen_y(const window_t *window);
-void window_paint(window_t *window, list_t *dirty_regions, uint8_t paint_children);
+void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_children);
 void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons);
 void window_paint_handler(const window_t *window);
 void window_mousedown_handler(const window_t *window, int16_t x, int16_t y);
-list_t *window_get_windows_above(const window_t *parent, window_t *child);
-list_t *window_get_windows_below(const window_t *parent, window_t *child);
+window_t **window_get_windows_above(const window_t *parent, window_t *child);
+window_t **window_get_windows_below(const window_t *parent, window_t *child);
 void window_raise(window_t *window, uint8_t do_draw);
 void window_move(window_t *window, int new_x, int new_y);
 void window_resize(window_t *window, int new_width, int new_height);

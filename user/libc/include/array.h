@@ -137,34 +137,33 @@ static inline bool arr__ensure_capacity(void **arr, size_t elem_size, size_t min
 }
 
 [[gnu::used]]
-static inline bool arr__push_copy(void **arr, size_t elem_size, const void *value)
+static inline void *arr__append_slot(void **arr, size_t elem_size)
 {
-    if (!arr || !value || elem_size == 0)
-        return false;
+    if (!arr || elem_size == 0)
+        return nullptr;
 
     size_t next_count = arr__len(*arr) + 1;
     if (!arr__ensure_capacity(arr, elem_size, next_count))
-        return false;
+        return nullptr;
 
     array_header_t *header = arr__header(*arr);
-    void *dst              = (char *)(*arr) + (header->count * elem_size);
-    memcpy(dst, value, elem_size);
+    void *slot             = (char *)(*arr) + (header->count * elem_size);
     header->count++;
-    return true;
+    return slot;
 }
 
 [[gnu::used]]
-static inline bool arr__insert_at_copy(void **arr, size_t elem_size, size_t idx, const void *value)
+static inline void *arr__insert_at_slot(void **arr, size_t elem_size, size_t idx)
 {
-    if (!arr || !value || elem_size == 0)
-        return false;
+    if (!arr || elem_size == 0)
+        return nullptr;
 
     size_t count = arr__len(*arr);
     if (idx > count)
-        return false;
+        return nullptr;
 
     if (!arr__ensure_capacity(arr, elem_size, count + 1))
-        return false;
+        return nullptr;
 
     array_header_t *header = arr__header(*arr);
     char *base             = (char *)(*arr);
@@ -174,12 +173,10 @@ static inline bool arr__insert_at_copy(void **arr, size_t elem_size, size_t idx,
                 (header->count - idx) * elem_size);
     }
 
-    memcpy(base + (idx * elem_size), value, elem_size);
     header->count++;
-    return true;
+    return base + (idx * elem_size);
 }
 
-[[gnu::used]]
 static inline bool arr__remove_at(void *arr, size_t elem_size, size_t idx)
 {
     if (!arr || elem_size == 0)
@@ -285,8 +282,9 @@ static inline void arr__free(void **arr)
 
 /** @brief Append one value to the end of the array. */
 #define arr_push(arr, x) do {                                                                                  \
-        auto __arr_value = (x);                                                                                \
-        (void)arr__push_copy((void**)&(arr), sizeof(*(arr)), &__arr_value);                                   \
+        auto __arr_slot = (typeof((arr)[0]) *)arr__append_slot((void**)&(arr), sizeof(*(arr)));              \
+        if (__arr_slot)                                                                                        \
+            *__arr_slot = (x);                                                                                 \
     } while(0)
 
 /** @brief Remove the element at index @p idx, preserving order. */
@@ -309,8 +307,10 @@ static inline void arr__free(void **arr)
 
 /** @brief Insert @p val at index @p idx, shifting following elements right. */
 #define arr_insert_at(arr, idx, val) do {                                                                      \
-        auto __arr_value = (val);                                                                              \
-        (void)arr__insert_at_copy((void**)&(arr), sizeof(*(arr)), (size_t)(idx), &__arr_value);              \
+        auto __arr_slot =                                                                                       \
+            (typeof((arr)[0]) *)arr__insert_at_slot((void**)&(arr), sizeof(*(arr)), (size_t)(idx));          \
+        if (__arr_slot)                                                                                        \
+            *__arr_slot = (val);                                                                               \
     } while(0)
 
 /** @brief Remove the last element if the array is non-empty. */

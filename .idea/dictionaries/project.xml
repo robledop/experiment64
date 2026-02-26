@@ -13,6 +13,7 @@
       <w>bgcolor</w>
       <w>blockdevice</w>
       <w>bsize</w>
+      <w>bufsz</w>
       <w>bzero</w>
       <w>cfiles</w>
       <w>chardevice</w>

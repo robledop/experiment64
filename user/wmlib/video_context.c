@@ -1,6 +1,7 @@
 #include <wm/video_context.h>
 #include <wm/rect.h>
 #include <wm/font.h>
+#include <array.h>
 #include <stdlib.h>
 
 static inline uint8_t reverse_bits8(uint8_t v)
@@ -441,15 +442,18 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
         }
 
         list_remove_at(context->clip_rects, i);
-        list_t *split_rects = rect_split(cur_rect, subtracted_rect);
-        free(cur_rect);
+        rect_t **split_rects = rect_split(cur_rect, subtracted_rect);
         if (!split_rects) {
-            context_clear_clip_rects(context);
+            if (!list_add(context->clip_rects, cur_rect)) {
+                free(cur_rect);
+            }
             return;
         }
+        free(cur_rect);
 
-        while (split_rects->count) {
-            cur_rect = (rect_t *)list_remove_at(split_rects, 0);
+        size_t split_count = arr_len(split_rects);
+        for (size_t split_idx = 0; split_idx < split_count; split_idx++) {
+            cur_rect = split_rects[split_idx];
             if (!cur_rect) {
                 continue;
             }
@@ -458,7 +462,7 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
             }
         }
 
-        free(split_rects);
+        arr_free(split_rects);
 
         i = 0;
     }

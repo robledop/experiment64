@@ -1,6 +1,7 @@
 #include <wm/desktop.h>
 #include <wm/video_context.h>
 #include <wm/window.h>
+#include <array.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -131,10 +132,7 @@ void desktop_process_mouse(desktop_t *desktop, uint16_t mouse_x, uint16_t mouse_
         return;
     }
 
-    list_t *dirty_list = list_new();
-    if (!dirty_list) {
-        return;
-    }
+    rect_t **dirty_list = nullptr;
 
     rect_t *old_mouse_rect = rect_new(
         old_y,
@@ -142,7 +140,7 @@ void desktop_process_mouse(desktop_t *desktop, uint16_t mouse_x, uint16_t mouse_
         old_y + MOUSE_HEIGHT - 1,
         old_x + MOUSE_WIDTH - 1);
     if (old_mouse_rect) {
-        list_add(dirty_list, old_mouse_rect);
+        arr_push(dirty_list, old_mouse_rect);
     }
 
     rect_t *new_mouse_rect = rect_new(
@@ -151,22 +149,16 @@ void desktop_process_mouse(desktop_t *desktop, uint16_t mouse_x, uint16_t mouse_
         desktop->mouse_y + MOUSE_HEIGHT - 1,
         desktop->mouse_x + MOUSE_WIDTH - 1);
     if (new_mouse_rect) {
-        list_add(dirty_list, new_mouse_rect);
+        arr_push(dirty_list, new_mouse_rect);
     }
 
-    window_paint((window_t *)desktop, dirty_list, 1);
+    if (!arr_empty(dirty_list)) {
+        window_paint((window_t *)desktop, dirty_list, 1);
+    }
 
-    if (old_mouse_rect) {
-        list_remove_at(dirty_list, 0);
-        free(old_mouse_rect);
-    }
-    if (new_mouse_rect) {
-        if (dirty_list->count > 0) {
-            list_remove_at(dirty_list, 0);
-        }
-        free(new_mouse_rect);
-    }
-    free(dirty_list);
+    free(old_mouse_rect);
+    free(new_mouse_rect);
+    arr_free(dirty_list);
 
     draw_mouse_cursor(desktop);
 }
