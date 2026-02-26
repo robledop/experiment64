@@ -12,10 +12,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "sys/signal.h"
-#include "wm_client.h"
+#include <sys/signal.h>
 #include <attributes.h>
 #include <sys/wait.h>
+#include "wm_client.h"
 
 static uint32_t *fb;
 desktop_t *desktop;

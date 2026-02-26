@@ -217,11 +217,10 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, rect
 
     if (!window->parent) {
         if (dirty_regions) {
-            size_t dirty_count = arr_len(dirty_regions);
-            rect_t *const *dirty_it       = dirty_regions;
-            rect_t *const *dirty_end      = dirty_regions + dirty_count;
+            size_t dirty_count       = arr_len(dirty_regions);
+            rect_t *const *dirty_it  = dirty_regions;
+            rect_t *const *dirty_end = dirty_regions + dirty_count;
             while (dirty_it < dirty_end) {
-                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 rect_t *current_dirty_rect = *dirty_it++;
                 if (!current_dirty_rect) {
                     continue;
@@ -341,8 +340,7 @@ void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_childr
 
     size_t child_count = arr_len(window->children);
     for (size_t i = 0; i < child_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        current_child = window->children[i];
+        current_child = arr_get(window->children, i);
         if (!current_child) {
             continue;
         }
@@ -372,8 +370,7 @@ void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_childr
 
     child_count = arr_len(window->children);
     for (size_t i = 0; i < child_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        current_child = window->children[i];
+        current_child = arr_get(window->children, i);
         if (!current_child) {
             continue;
         }
@@ -424,8 +421,7 @@ window_t **window_get_windows_above(const window_t *parent, window_t *child)
 
     size_t child_count = arr_len(parent->children);
     for (size_t i = (size_t)idx + 1; i < child_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        window_t *current_window = parent->children[i];
+        window_t *current_window = arr_get(parent->children, i);
         if (!current_window) {
             continue;
         }
@@ -454,8 +450,7 @@ window_t **window_get_windows_below(const window_t *parent, window_t *child)
     }
 
     for (ptrdiff_t i = idx - 1; i >= 0; i--) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        window_t *current_window = parent->children[i];
+        window_t *current_window = arr_get(parent->children, i);
         if (!current_window) {
             continue;
         }
@@ -490,14 +485,11 @@ void window_raise(window_t *window, uint8_t do_draw)
         return;
     }
 
-    size_t child_count = arr_len(parent->children);
-    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+    size_t child_count      = arr_len(parent->children);
     window_t *raised_window = parent->children[idx];
     for (size_t j = (size_t)idx + 1; j < child_count; j++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         parent->children[j - 1] = parent->children[j];
     }
-    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
     parent->children[child_count - 1] = raised_window;
 
     parent->active_child = window;
@@ -548,39 +540,25 @@ void window_move(window_t *window, int new_x, int new_y)
     window->context->clip_rects = replacement_list;
     rect_t **dirty_regions      = nullptr;
 
-    window_t **dirty_windows = window_get_windows_below(window->parent, window);
-
     window->x = (int16_t)new_x;
     window->y = (int16_t)new_y;
 
     size_t dirty_list_count = arr_len(dirty_list);
     for (size_t i = 0; i < dirty_list_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        rect_t *dirty_rect = dirty_list[i];
+        rect_t *dirty_rect = arr_get(dirty_list, i);
         if (!dirty_rect)
             continue;
         arr_push(dirty_regions, dirty_rect);
     }
 
-    size_t dirty_window_count = arr_len(dirty_windows);
-    for (size_t i = 0; i < dirty_window_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        window_t *dirty_window = dirty_windows[i];
-        if (!dirty_window)
-            continue;
-        window_paint(dirty_window, dirty_regions, 1);
-    }
-
-    window_paint(window->parent, dirty_regions, 0);
+    window_paint(window->parent, dirty_regions, 1);
 
     for (size_t i = 0; i < dirty_list_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        free(dirty_list[i]);
+        free(arr_get(dirty_list, i));
     }
 
     arr_free(dirty_regions);
     arr_free(dirty_list);
-    arr_free(dirty_windows);
 
     window_paint(window, nullptr, 1);
 }
@@ -641,7 +619,6 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
 
     size_t child_count = arr_len(window->children);
     for (size_t i = child_count; i-- > 0;) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         window_t *child = window->children[i];
         if (!child) {
             continue;
@@ -733,7 +710,6 @@ static void window_update_context(window_t *window, video_context_t *context)
 
     size_t child_count = arr_len(window->children);
     for (size_t i = 0; i < child_count; i++) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         window_t *child = window->children[i];
         if (!child) {
             continue;

@@ -8,7 +8,6 @@ static void rect_free_array(rect_t **rects)
     rect_t **it       = rects;
     rect_t **it_end   = rects + rect_count;
     while (it < it_end) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         free(*it++);
     }
     arr_free(rects);
@@ -46,7 +45,6 @@ rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
             return nullptr;
         }
         size_t rect_count_before = arr_len(output_rects);
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         arr_push(output_rects, temp_rect);
         if (arr_len(output_rects) != rect_count_before + 1) {
             free(temp_rect);
@@ -63,14 +61,12 @@ rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
             return nullptr;
         }
         size_t rect_count_before = arr_len(output_rects);
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         arr_push(output_rects, temp_rect);
         if (arr_len(output_rects) != rect_count_before + 1) {
             free(temp_rect);
             rect_free_array(output_rects);
             return nullptr;
         }
-        // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
         subject_copy.top = cutting_rect->top;
     }
 
@@ -81,14 +77,12 @@ rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
             return nullptr;
         }
         size_t rect_count_before = arr_len(output_rects);
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         arr_push(output_rects, temp_rect);
         if (arr_len(output_rects) != rect_count_before + 1) {
             free(temp_rect);
             rect_free_array(output_rects);
             return nullptr;
         }
-        // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
         subject_copy.right = cutting_rect->right;
     }
 
@@ -100,14 +94,12 @@ rect_t **rect_split(const rect_t *subject_rect, const rect_t *cutting_rect)
             return nullptr;
         }
         size_t rect_count_before = arr_len(output_rects);
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         arr_push(output_rects, temp_rect);
         if (arr_len(output_rects) != rect_count_before + 1) {
             free(temp_rect);
             rect_free_array(output_rects);
             return nullptr;
         }
-        // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
         subject_copy.bottom = cutting_rect->bottom;
     }
 

@@ -86,7 +86,6 @@ static int client_register_window(client_manager_t *mgr, client_window_t *window
         return -1;
 
     arr_push(mgr->windows, window);
-    // mgr->windows[mgr->window_count++] = window;
     return 0;
 }
 
@@ -137,9 +136,33 @@ static void client_destroy_window_resources(client_window_t *cw)
     if (cw->window.title)
         free(cw->window.title);
     if (cw->window.children)
-        free(cw->window.children);
+        arr_free(cw->window.children);
 
     free(cw);
+}
+
+static void taskbar_remove_button(int idx)
+{
+    if (idx < 0)
+        return;
+
+    size_t button_index = (size_t)idx;
+    if (button_index >= arr_len(g_taskbar_buttons))
+        return;
+
+    button_t *taskbar_button = arr_get(g_taskbar_buttons, button_index);
+    if (taskbar_button && taskbar_button->window.parent)
+        window_remove_child(taskbar_button->window.parent, (window_t *)taskbar_button);
+
+    arr_remove_at(g_taskbar_buttons, button_index);
+
+    size_t button_count = arr_len(g_taskbar_buttons);
+    for (size_t i = button_index; i < button_count; ++i) {
+        button_t *button = arr_get(g_taskbar_buttons, i);
+        if (!button)
+            continue;
+        button->window.x = (int16_t)(i * 105 + 5);
+    }
 }
 
 static void client_destroy_window_recursive(client_manager_t *mgr, client_window_t *cw)
@@ -155,7 +178,7 @@ static void client_destroy_window_recursive(client_manager_t *mgr, client_window
             return;
 
         client_window_t *current = arr_get(mgr->windows, (size_t)idx);
-        client_window_t *child = client_find_first_child_window(mgr, current);
+        client_window_t *child   = client_find_first_child_window(mgr, current);
         if (!child || child == current)
             break;
 
@@ -163,11 +186,11 @@ static void client_destroy_window_recursive(client_manager_t *mgr, client_window
     }
 
     int idx = client_find_window_index_by_id(mgr, target_id);
-    if (idx >= 0)
-    {
+    if (idx >= 0) {
         client_window_t *current = arr_get(mgr->windows, (size_t)idx);
         client_remove_window_at(mgr, idx);
         client_destroy_window_resources(current);
+        taskbar_remove_button(idx);
     }
 }
 
@@ -573,7 +596,7 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
         if (cw->window.title)
             free(cw->window.title);
         if (cw->window.children)
-            free(cw->window.children);
+            arr_free(cw->window.children);
         free(cw);
         return;
     }
@@ -616,19 +639,16 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     if (!cw)
         return;
 
-    const size_t last_index = arr_len(g_mgr->windows) - 1;
+    // button_t *taskbar_button = arr_get(g_taskbar_buttons, window_idx);
+    // window_t *taskbar        = taskbar_button->window.parent;
+    // window_remove_child(taskbar, (window_t *)taskbar_button);
+    // arr_remove_at(g_taskbar_buttons, (size_t)window_idx);
 
-    button_t *taskbar_button = arr_get(g_taskbar_buttons, window_idx);
-    window_t *taskbar        = taskbar_button->window.parent;
-    window_remove_child(taskbar, (window_t *)taskbar_button);
-
-    arr_remove_at(g_taskbar_buttons, (size_t)window_idx);
-
-    for (size_t i = window_idx; i < last_index; ++i) {
-        button_t *button = arr_get(g_taskbar_buttons, i);
-        int16_t button_x = (int16_t)((i) * 105 + 5);
-        button->window.x = button_x;
-    }
+    // for (size_t i = window_idx; i < last_index; ++i) {
+    //     button_t *button = arr_get(g_taskbar_buttons, i);
+    //     int16_t button_x = (int16_t)((i) * 105 + 5);
+    //     button->window.x = button_x;
+    // }
 
     client_destroy_window_recursive(g_mgr, cw);
 
