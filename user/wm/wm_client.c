@@ -1,4 +1,5 @@
 #include "wm_client.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <wm/window.h>
 #include <wm/video_context.h>
@@ -12,9 +13,10 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <signal.h>
-#include "wm/button.h"
+#include <array.h>
+#include <wm/button.h>
 
-button_t *g_taskbar_buttons[WM_MAX_CLIENTS];
+button_t **g_taskbar_buttons = nullptr;
 client_manager_t *g_mgr;
 static window_t *g_parent;
 static pthread_mutex_t g_wm_state_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -33,23 +35,21 @@ static int client_register_connection(client_manager_t *mgr, int cmd_fd, int evt
     if (!mgr || cmd_fd < 0 || evt_fd < 0 || client_pid <= 0)
         return -1;
 
-    for (int i = 0; i < WM_MAX_CLIENTS; i++) {
-        if (mgr->connections[i].cmd_fd == cmd_fd)
+    for (size_t i = 0; i < arr_len(mgr->connections); i++) {
+        if (mgr->connections[i].cmd_fd == cmd_fd &&
+            mgr->connections[i].client_pid == client_pid &&
+            mgr->connections[i].evt_fd == evt_fd)
             return 0;
     }
 
-    for (int i = 0; i < WM_MAX_CLIENTS; i++) {
-        if (mgr->connections[i].cmd_fd >= 0)
-            continue;
+    arr_push(mgr->connections,
+             ((client_connection_t){
+                 .cmd_fd = cmd_fd,
+                 .evt_fd = evt_fd,
+                 .client_pid = client_pid
+                 }));
+    return 0;
 
-        mgr->connections[i].cmd_fd     = cmd_fd;
-        mgr->connections[i].evt_fd     = evt_fd;
-        mgr->connections[i].client_pid = client_pid;
-        mgr->connection_count++;
-        return 0;
-    }
-
-    return -1;
 }
 
 static void client_unregister_connection_by_cmd_fd(client_manager_t *mgr, int cmd_fd)
@@ -57,15 +57,11 @@ static void client_unregister_connection_by_cmd_fd(client_manager_t *mgr, int cm
     if (!mgr)
         return;
 
-    for (int i = 0; i < WM_MAX_CLIENTS; i++) {
+    for (size_t i = 0; i < arr_len(mgr->connections); i++) {
         if (mgr->connections[i].cmd_fd != cmd_fd)
             continue;
 
-        mgr->connections[i].cmd_fd     = -1;
-        mgr->connections[i].evt_fd     = -1;
-        mgr->connections[i].client_pid = -1;
-        if (mgr->connection_count > 0)
-            mgr->connection_count--;
+        arr_remove_at(mgr->connections, i);
         return;
     }
 }
@@ -75,9 +71,10 @@ static const client_connection_t *client_find_connection_by_cmd_fd(const client_
     if (!mgr || cmd_fd < 0)
         return nullptr;
 
-    for (int i = 0; i < WM_MAX_CLIENTS; i++) {
-        if (mgr->connections[i].cmd_fd == cmd_fd)
-            return &mgr->connections[i];
+    for (size_t i = 0; i < arr_len(mgr->connections); i++) {
+        auto connection = arr_get(mgr->connections, i);
+        if (connection.cmd_fd == cmd_fd)
+            return &arr_get(mgr->connections, i);
     }
 
     return nullptr;
@@ -88,10 +85,8 @@ static int client_register_window(client_manager_t *mgr, client_window_t *window
     if (!mgr || !window)
         return -1;
 
-    if (mgr->window_count >= WM_MAX_CLIENT_WINDOWS)
-        return -1;
-
-    mgr->windows[mgr->window_count++] = window;
+    arr_push(mgr->windows, window);
+    // mgr->windows[mgr->window_count++] = window;
     return 0;
 }
 
@@ -100,22 +95,10 @@ static int client_find_window_index_by_id(const client_manager_t *mgr, uint32_t 
     if (!mgr)
         return -1;
 
-    for (int i = 0; i < mgr->window_count; i++) {
-        if (mgr->windows[i] && mgr->windows[i]->window_id == window_id)
-            return i;
-    }
-
-    return -1;
-}
-
-static int client_find_window_index_by_ptr(const client_manager_t *mgr, const client_window_t *window)
-{
-    if (!mgr || !window)
-        return -1;
-
-    for (int i = 0; i < mgr->window_count; i++) {
-        if (mgr->windows[i] == window)
-            return i;
+    for (size_t i = 0; i < arr_len(mgr->windows); i++) {
+        auto window = arr_get(mgr->windows, i);
+        if (window && window->window_id == window_id)
+            return (int)i;
     }
 
     return -1;
@@ -126,15 +109,7 @@ static void client_remove_window_at(client_manager_t *mgr, int index)
     if (!mgr || index < 0)
         return;
 
-    const int count = mgr->window_count;
-    if (count <= 0 || index >= count)
-        return;
-
-    const int last_index = count - 1;
-    if (index != last_index)
-        mgr->windows[index] = mgr->windows[last_index];
-    mgr->windows[last_index] = nullptr;
-    mgr->window_count        = last_index;
+    arr_remove_at(mgr->windows, (size_t)index);
 }
 
 static client_window_t *client_find_first_child_window(const client_manager_t *mgr, const client_window_t *parent)
@@ -142,8 +117,8 @@ static client_window_t *client_find_first_child_window(const client_manager_t *m
     if (!mgr || !parent)
         return nullptr;
 
-    for (int i = 0; i < mgr->window_count; i++) {
-        client_window_t *candidate = mgr->windows[i];
+    for (size_t i = 0; i < arr_len(mgr->windows); i++) {
+        client_window_t *candidate = arr_get(mgr->windows, i);
         if (candidate && candidate->window.parent == (window_t *)parent)
             return candidate;
     }
@@ -155,7 +130,6 @@ static void client_destroy_window_resources(client_window_t *cw)
 {
     if (!cw)
         return;
-
 
     window_remove_child(cw->window.parent, &cw->window);
     client_destroy_shm_buffers(cw, cw->content_width, cw->content_height);
@@ -173,20 +147,28 @@ static void client_destroy_window_recursive(client_manager_t *mgr, client_window
     if (!mgr || !cw)
         return;
 
+    uint32_t target_id = cw->window_id;
+
     while (1) {
-        client_window_t *child = client_find_first_child_window(mgr, cw);
-        if (!child || child == cw)
-            break;
-        client_destroy_window_recursive(mgr, child);
-        if (client_find_window_index_by_ptr(mgr, cw) < 0)
+        int idx = client_find_window_index_by_id(mgr, target_id);
+        if (idx < 0)
             return;
+
+        client_window_t *current = arr_get(mgr->windows, (size_t)idx);
+        client_window_t *child = client_find_first_child_window(mgr, current);
+        if (!child || child == current)
+            break;
+
+        client_destroy_window_recursive(mgr, child);
     }
 
-    int idx = client_find_window_index_by_ptr(mgr, cw);
+    int idx = client_find_window_index_by_id(mgr, target_id);
     if (idx >= 0)
+    {
+        client_window_t *current = arr_get(mgr->windows, (size_t)idx);
         client_remove_window_at(mgr, idx);
-
-    client_destroy_window_resources(cw);
+        client_destroy_window_resources(current);
+    }
 }
 
 static void client_destroy_connection_windows(client_manager_t *mgr, int cmd_fd)
@@ -197,9 +179,10 @@ static void client_destroy_connection_windows(client_manager_t *mgr, int cmd_fd)
     while (1) {
         client_window_t *window = nullptr;
 
-        for (int i = 0; i < mgr->window_count; i++) {
-            if (mgr->windows[i] && mgr->windows[i]->cmd_fd == cmd_fd) {
-                window = mgr->windows[i];
+        for (size_t i = 0; i < arr_len(mgr->windows); i++) {
+            auto w = arr_get(mgr->windows, i);
+            if (w && w->cmd_fd == cmd_fd) {
+                window = w;
                 break;
             }
         }
@@ -506,45 +489,6 @@ static void handle_invalidate([[maybe_unused]] window_t *parent,
     write(cw->evt_fd, &ev, sizeof(ev));
 }
 
-void test_button_mousedown(const window_t *button_window, int16_t x, int16_t y)
-{
-    static int count = 0;
-    count++;
-    char text[50] = {0};
-    snprintf(text, sizeof(text), "clicked %d", count);
-    window_set_title((window_t *)button_window, text);
-}
-
-
-// void test_button_paint(const window_t *button_window)
-// {
-//     button_t *button = (button_t *)button_window;
-//
-//     uint32_t border_color;
-//     if (button->color_toggle) {
-//         border_color = WIN_TITLE_COLOR;
-//     } else {
-//         border_color = WIN_BGCOLOR - 0x101010;
-//     }
-//
-//     context_fill_rect(button_window->context, 1, 1, button_window->width - 1, button_window->height - 1, WIN_BGCOLOR);
-//     context_draw_rect(button_window->context, 0, 0, button_window->width, button_window->height, 0xFF000000);
-//     context_draw_rect(button_window->context, 3, 3, button_window->width - 6, button_window->height - 6, border_color);
-//     context_draw_rect(button_window->context, 4, 4, button_window->width - 8, button_window->height - 8, border_color);
-//
-//     int title_len = button_window->title ? (int)strlen(button_window->title) : 0;
-//
-//     title_len *= VESA_CHAR_WIDTH;
-//
-//     if (button_window->title) {
-//         context_draw_text(button_window->context,
-//                           button_window->title,
-//                           (button_window->width / 2) - (title_len / 2),
-//                           (button_window->height / 2) - 6,
-//                           WIN_TEXT_COLOR);
-//     }
-// }
-
 static void handle_window_insert_child(const wm_msg_window_insert_child_t *msg)
 {
     auto child = find_client_by_window_id(msg->child_id);
@@ -557,11 +501,7 @@ static void handle_window_insert_child(const wm_msg_window_insert_child_t *msg)
     if (child->cmd_fd != parent->cmd_fd)
         return;
 
-    // child->window.paint_function     = test_button_paint;
-    // child->window.mousedown_function = test_button_mousedown;
-    // window_set_title(&child->window, "Button");
     window_insert_child(&parent->window, &child->window);
-    // window_paint(&child->window, nullptr, 1);
 }
 
 static void handle_create_window(client_manager_t *mgr, window_t *parent,
@@ -569,9 +509,6 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
 {
     const client_connection_t *connection = client_find_connection_by_cmd_fd(mgr, cmd_fd);
     if (!connection)
-        return;
-
-    if (mgr->window_count >= WM_MAX_CLIENT_WINDOWS)
         return;
 
     uint32_t wid                          = mgr->next_window_id++;
@@ -631,7 +568,6 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
     if (msg->title[0])
         window_set_title((window_t *)cw, msg->title);
 
-
     if (client_register_window(mgr, cw) != 0) {
         client_destroy_shm_buffers(cw, cw->content_width, cw->content_height);
         if (cw->window.title)
@@ -657,13 +593,14 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
     resp.shm_names[1][WM_SHM_NAME_MAX - 1] = '\0';
     write(connection->evt_fd, &resp, sizeof(resp));
 
-    int16_t button_x = (int16_t)((g_mgr->connection_count - 1) * 105 + 5);
+    int16_t connection_count = (int16_t)(arr_len(g_mgr->connections));
+    int16_t button_x         = (int16_t)((connection_count - 1) * 105 + 5);
 
     button_t *taskbar_button = button_new(button_x, (int16_t)(g_parent->height - 25), 100, 20);
     window_set_title((window_t *)taskbar_button, cw->window.title);
-    window_insert_child((window_t *)g_parent, (window_t *)taskbar_button);
-    window_paint((window_t *)g_parent, nullptr, 1);
-    g_taskbar_buttons[g_mgr->connection_count - 1] = taskbar_button;
+    window_insert_child(g_parent, (window_t *)taskbar_button);
+    window_paint(g_parent, nullptr, 1);
+    arr_push(g_taskbar_buttons, taskbar_button);
 }
 
 void handle_destroy_window([[maybe_unused]] window_t *parent,
@@ -675,23 +612,20 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     if (window_idx < 0)
         return;
 
-    client_window_t *cw = g_mgr->windows[window_idx];
+    client_window_t *cw = arr_get(g_mgr->windows, window_idx);
     if (!cw)
         return;
 
-    const int count      = g_mgr->window_count;
-    const int last_index = count - 1;
+    const size_t last_index = arr_len(g_mgr->windows) - 1;
 
-    button_t *taskbar_button = g_taskbar_buttons[window_idx];
+    button_t *taskbar_button = arr_get(g_taskbar_buttons, window_idx);
     window_t *taskbar        = taskbar_button->window.parent;
     window_remove_child(taskbar, (window_t *)taskbar_button);
 
-    if (window_idx != last_index)
-        g_taskbar_buttons[window_idx] = g_taskbar_buttons[last_index];
-    g_taskbar_buttons[last_index] = nullptr;
+    arr_remove_at(g_taskbar_buttons, (size_t)window_idx);
 
-    for (int i = window_idx; i < last_index; ++i) {
-        button_t *button = g_taskbar_buttons[i];
+    for (size_t i = window_idx; i < last_index; ++i) {
+        button_t *button = arr_get(g_taskbar_buttons, i);
         int16_t button_x = (int16_t)((i) * 105 + 5);
         button->window.x = button_x;
     }
@@ -802,9 +736,6 @@ int client_launch(window_t *parent, const char *path,
     (void)default_y;
     ensure_client_manager_initialized();
 
-    if (g_mgr->connection_count >= WM_MAX_CLIENTS)
-        return -1;
-
     g_parent = parent;
 
     int cmd_pipe[2];
@@ -887,15 +818,6 @@ void client_manager_init(client_manager_t *mgr)
 {
     memset(mgr, 0, sizeof(*mgr));
 
-    for (int i = 0; i < WM_MAX_CLIENTS; i++) {
-        mgr->connections[i].cmd_fd     = -1;
-        mgr->connections[i].evt_fd     = -1;
-        mgr->connections[i].client_pid = -1;
-    }
-
-    for (int i = 0; i < WM_MAX_CLIENT_WINDOWS; i++)
-        mgr->windows[i] = nullptr;
-
     mgr->next_window_id = 1;
     mgr->initialized    = true;
     g_mgr               = mgr;
@@ -920,8 +842,8 @@ void client_dispatch_key_event(const window_t *parent, uint8_t keycode, uint8_t 
     ensure_client_manager_initialized();
 
     client_window_t *active_client = nullptr;
-    for (int i = 0; i < g_mgr->window_count; i++) {
-        client_window_t *cw = g_mgr->windows[i];
+    for (size_t i = 0; i < arr_len(g_mgr->windows); i++) {
+        client_window_t *cw = arr_get(g_mgr->windows, i);
         if (cw && (window_t *)cw == parent->active_child) {
             active_client = cw;
             break;

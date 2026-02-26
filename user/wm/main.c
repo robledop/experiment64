@@ -27,11 +27,6 @@ static video_context_t *context;
 static client_manager_t client_mgr;
 
 
-USED static void shell_sigint_handler(const int sig)
-{
-    (void)sig;
-}
-
 USED static void sigaction_handler(int signum)
 {
     if (signum == SIGCHLD) {
@@ -149,7 +144,7 @@ int main(void)
 {
     atexit(clear_screen);
     wm_configure_sigchld();
-    signal(SIGINT, shell_sigint_handler);
+    signal(SIGINT, SIG_IGN);
 
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {

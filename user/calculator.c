@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <signal.h>
 
 #define CALC_WIDTH 145
 #define CALC_HEIGHT 170
@@ -32,6 +32,7 @@ static constexpr char calc_buttons[BUTTON_ROWS][BUTTON_COLS] = {
     {'1', '2', '3', '*'},
     {'C', '0', '=', '/'},
 };
+
 
 static int text_pixel_width(const char *text)
 {
@@ -122,6 +123,7 @@ static void render_calculator(imui_context_t *ui, char *display)
 
 int main(void)
 {
+    signal(SIGINT, SIG_IGN);
     wm_window_t *win = wm_create_window(115,
                                         60,
                                         CALC_WIDTH,

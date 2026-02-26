@@ -6,7 +6,7 @@ AR = x86_64-elf-ar
 
 BUILD_DIR = build
 
-USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -ggdb -Og -Wa,--noexecstack -fno-builtin
+USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -ggdb -O0 -Wa,--noexecstack -fno-builtin
 override CFLAGS := $(USER_CFLAGS) $(CFLAGS)
 LDFLAGS = -Wl,-T,user.ld -Wl,--build-id=none
 
@@ -70,9 +70,8 @@ $(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
 $(BUILD_DIR)/calculator: $(BUILD_DIR)/calculator.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/calculator.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
 
-
-#$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WM_BASE_OBJ)
-#	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WM_BASE_OBJ) $(LIBC_A)
+$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)

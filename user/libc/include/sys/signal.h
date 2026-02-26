@@ -7,6 +7,7 @@ typedef void (*sighandler_t)(int);
 typedef uint64_t sigset_t;
 
 #define SIG_DFL ((sighandler_t)0)
+// Ignore signals
 #define SIG_IGN ((sighandler_t)1)
 #define SIG_ERR ((sighandler_t)-1)
 

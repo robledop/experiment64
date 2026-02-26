@@ -138,6 +138,20 @@ static void imui_update_mouse(imui_context_t *ui, const wm_event_mouse_t *mouse_
     ui->mouse_inside = true;
 }
 
+imui_style_t imui_style_default()
+{
+    return (imui_style_t){
+        .background_color = 0xFF1C1F24u,
+        .button_color = 0xFFE7EAEEu,
+        .button_hot_color = 0xFFF3F5F8u,
+        .button_active_color = 0xFFD7DCE2u,
+        .button_border_color = 0xFF2A2F36u,
+        .text_color = 0xFF111111u,
+        .item_spacing_x = 5,
+        .item_spacing_y = 5,
+    };
+}
+
 /**
  * @brief Initialize an immediate-mode UI context for a WM window.
  *
@@ -157,16 +171,7 @@ bool imui_init(imui_context_t *ui, wm_window_t *window)
     if (!ui->context)
         return false;
 
-    ui->style = (imui_style_t){
-        .background_color = 0xFF1C1F24u,
-        .button_color = 0xFFE7EAEEu,
-        .button_hot_color = 0xFFF3F5F8u,
-        .button_active_color = 0xFFD7DCE2u,
-        .button_border_color = 0xFF2A2F36u,
-        .text_color = 0xFF111111u,
-        .item_spacing_x = 5,
-        .item_spacing_y = 5,
-    };
+    ui->style = imui_style_default();
 
     return true;
 }

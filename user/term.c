@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <wm/window.h>
+#include <signal.h>
 
 #define DEFAULT_TERM_COLS 80
 #define DEFAULT_TERM_ROWS 25
@@ -107,6 +108,11 @@ typedef struct
 
 
 static terminal_state_t term = {};
+
+static void sigint_handler(const int sig)
+{
+    (void)sig;
+}
 
 static size_t terminal_cell_index(uint16_t row, uint16_t col)
 {
@@ -964,6 +970,7 @@ static int terminal_rebuild_context_locked(terminal_state_t *term)
 
 int main(void)
 {
+    signal(SIGINT, sigint_handler);
     wm_window_t *window = wm_create_window(140, 70, DEFAULT_TERM_WIDTH, DEFAULT_TERM_HEIGHT, WIN_RESIZABLE | WIN_CLOSEABLE,0, "Terminal");
     if (!window)
         return 1;

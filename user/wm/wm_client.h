@@ -1,12 +1,9 @@
 #pragma once
 
+#include <stddef.h>
 #include <wm/window.h>
 #include <wm/wm_protocol.h>
 #include <stdint.h>
-
-#define WM_MAX_CLIENTS 8
-#define WM_MAX_CLIENT_WINDOWS 64
-
 
 typedef struct
 {
@@ -32,29 +29,18 @@ typedef struct
 
 typedef struct
 {
-    client_connection_t connections[WM_MAX_CLIENTS];
-    int connection_count;
-    client_window_t *windows[WM_MAX_CLIENT_WINDOWS];
-    int window_count;
+    client_connection_t* connections;
+    client_window_t **windows;
     uint32_t next_window_id;
     bool initialized;
 } client_manager_t;
 
 void client_manager_init(client_manager_t *mgr);
-
 int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t default_y);
-
 void client_window_paint_handler(const window_t *window);
-
 void client_window_mousedown_handler(const window_t *window, int16_t x, int16_t y);
-
 void client_dispatch_key_event(const window_t *parent, uint8_t keycode, uint8_t pressed);
-
 client_window_t *find_client_by_window_id(uint32_t window_id);
-
 void wm_state_lock(void);
-
 void wm_state_unlock(void);
-
-void handle_destroy_window([[maybe_unused]] window_t *parent,
-                           const wm_msg_destroy_window_t *msg);
+void handle_destroy_window([[maybe_unused]] window_t *parent, const wm_msg_destroy_window_t *msg);
