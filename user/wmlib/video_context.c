@@ -114,18 +114,13 @@ video_context_t *context_new(uint32_t *buffer, uint16_t width, uint16_t height, 
         return nullptr;
     }
 
-    context->clip_rects = list_new();
-    if (!context->clip_rects) {
-        free(context);
-        return nullptr;
-    }
-
     context->buffer      = buffer;
     context->width       = width;
     context->height      = height;
     context->pitch       = pitch;
     context->translate_x = 0;
     context->translate_y = 0;
+    context->clip_rects  = nullptr;
     context->clipping_on = 0;
 
     return context;
@@ -219,7 +214,7 @@ static void context_clipped_rect(const video_context_t *context, int x, int y, u
 void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
                          uint32_t *pixels)
 {
-    if (!context || !context->clip_rects || !pixels || width == 0 || height == 0) {
+    if (!context || !pixels || width == 0 || height == 0) {
         return;
     }
 
@@ -271,9 +266,11 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
 
     rect_t screen_area;
 
-    if (context->clip_rects->count) {
-        for (unsigned int i = 0; i < context->clip_rects->count; i++) {
-            rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+    size_t clip_count = arr_len(context->clip_rects);
+    if (clip_count) {
+        for (size_t i = 0; i < clip_count; i++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            rect_t *clip_area = context->clip_rects[i];
             if (!clip_area) {
                 continue;
             }
@@ -311,7 +308,7 @@ void context_draw_bitmap(const video_context_t *context, int x, int y, unsigned 
 void context_fill_rect(const video_context_t *context, int x, int y, unsigned int width, unsigned int height,
                        uint32_t color)
 {
-    if (!context || !context->clip_rects) {
+    if (!context) {
         return;
     }
 
@@ -338,9 +335,11 @@ void context_fill_rect(const video_context_t *context, int x, int y, unsigned in
     width  = max_x - x;
     height = max_y - y;
 
-    if (context->clip_rects->count) {
-        for (unsigned int i = 0; i < context->clip_rects->count; i++) {
-            rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+    size_t clip_count = arr_len(context->clip_rects);
+    if (clip_count) {
+        for (size_t i = 0; i < clip_count; i++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            rect_t *clip_area = context->clip_rects[i];
             if (!clip_area) {
                 continue;
             }
@@ -378,7 +377,7 @@ void context_draw_rect(const video_context_t *context, int x, int y, unsigned in
 
 void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 {
-    if (!context || !context->clip_rects) {
+    if (!context) {
         free(rect);
         return;
     }
@@ -389,14 +388,12 @@ void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 
     context->clipping_on = 1;
 
-    list_t *output_rects = list_new();
-    if (!output_rects) {
-        free(rect);
-        return;
-    }
+    rect_t **output_rects = nullptr;
 
-    for (unsigned int i = 0; i < context->clip_rects->count; i++) {
-        rect_t *current_rect = (rect_t *)list_get_at(context->clip_rects, i);
+    size_t clip_count = arr_len(context->clip_rects);
+    for (size_t i = 0; i < clip_count; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        rect_t *current_rect = context->clip_rects[i];
         if (!current_rect) {
             continue;
         }
@@ -404,16 +401,19 @@ void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
         rect_t *intersect_rect = rect_intersect(current_rect, rect);
 
         if (intersect_rect) {
-            if (!list_add(output_rects, intersect_rect)) {
+            size_t output_count = arr_len(output_rects);
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            arr_push(output_rects, intersect_rect);
+            if (arr_len(output_rects) != output_count + 1)
                 free(intersect_rect);
-            }
         }
     }
 
-    while (context->clip_rects->count) {
-        free(list_remove_at(context->clip_rects, 0));
+    for (size_t i = 0; i < clip_count; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        free(context->clip_rects[i]);
     }
-    free(context->clip_rects);
+    arr_free(context->clip_rects);
 
     context->clip_rects = output_rects;
 
@@ -422,14 +422,15 @@ void context_intersect_clip_rect(video_context_t *context, rect_t *rect)
 
 void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rect)
 {
-    if (!context || !context->clip_rects || !subtracted_rect) {
+    if (!context || !subtracted_rect) {
         return;
     }
 
     context->clipping_on = 1;
 
-    for (unsigned int i = 0; i < context->clip_rects->count;) {
-        rect_t *cur_rect = list_get_at(context->clip_rects, i);
+    for (size_t i = 0; i < arr_len(context->clip_rects);) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        rect_t *cur_rect = context->clip_rects[i];
         if (!cur_rect) {
             i++;
             continue;
@@ -441,10 +442,13 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
             continue;
         }
 
-        list_remove_at(context->clip_rects, i);
+        arr_remove_at(context->clip_rects, i);
         rect_t **split_rects = rect_split(cur_rect, subtracted_rect);
         if (!split_rects) {
-            if (!list_add(context->clip_rects, cur_rect)) {
+            size_t clip_count = arr_len(context->clip_rects);
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            arr_push(context->clip_rects, cur_rect);
+            if (arr_len(context->clip_rects) != clip_count + 1) {
                 free(cur_rect);
             }
             return;
@@ -457,7 +461,10 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
             if (!cur_rect) {
                 continue;
             }
-            if (!list_add(context->clip_rects, cur_rect)) {
+            size_t clip_count = arr_len(context->clip_rects);
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            arr_push(context->clip_rects, cur_rect);
+            if (arr_len(context->clip_rects) != clip_count + 1) {
                 free(cur_rect);
             }
         }
@@ -470,29 +477,34 @@ void context_subtract_clip_rect(video_context_t *context, rect_t *subtracted_rec
 
 void context_add_clip_rect(video_context_t *context, rect_t *added_rect)
 {
-    if (!context || !context->clip_rects || !added_rect) {
+    if (!context || !added_rect) {
         free(added_rect);
         return;
     }
 
     context_subtract_clip_rect(context, added_rect);
-    if (!list_add(context->clip_rects, added_rect)) {
+    size_t clip_count = arr_len(context->clip_rects);
+    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+    arr_push(context->clip_rects, added_rect);
+    if (arr_len(context->clip_rects) != clip_count + 1) {
         free(added_rect);
     }
 }
 
 void context_clear_clip_rects(video_context_t *context)
 {
-    if (!context || !context->clip_rects) {
+    if (!context) {
         return;
     }
 
     context->clipping_on = 0;
 
-    while (context->clip_rects->count) {
-        rect_t *cur_rect = (rect_t *)list_remove_at(context->clip_rects, 0);
-        free(cur_rect);
+    size_t clip_count = arr_len(context->clip_rects);
+    for (size_t i = 0; i < clip_count; i++) {
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        free(context->clip_rects[i]);
     }
+    arr_clear(context->clip_rects);
 }
 
 static void context_draw_char_clipped(const video_context_t *context, char character, int x, int y, uint32_t color,
@@ -575,13 +587,15 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
 
 void context_draw_char(const video_context_t *context, char character, int x, int y, uint32_t color)
 {
-    if (!context || !context->clip_rects) {
+    if (!context) {
         return;
     }
 
-    if (context->clip_rects->count) {
-        for (unsigned int i = 0; i < context->clip_rects->count; i++) {
-            rect_t *clip_area = (rect_t *)list_get_at(context->clip_rects, i);
+    size_t clip_count = arr_len(context->clip_rects);
+    if (clip_count) {
+        for (size_t i = 0; i < clip_count; i++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            rect_t *clip_area = context->clip_rects[i];
             if (!clip_area) {
                 continue;
             }

@@ -2,7 +2,6 @@
 
 #include <wm/video_context.h>
 #include <stdint.h>
-#include <list.h>
 
 #define WIN_BGCOLOR 0xFFDEDDDA
 #define WIN_TITLE_COLOR 0xFF1C71D8
@@ -40,7 +39,7 @@ typedef struct window {
     struct window *drag_child;
     struct window *resize_child;
     struct window *active_child;
-    list_t *children;
+    struct window **children;
     uint16_t drag_off_x;
     uint16_t drag_off_y;
     uint16_t resize_start_mouse_x;

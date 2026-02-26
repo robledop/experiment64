@@ -1,7 +1,6 @@
 #pragma once
 
 #include <wm/rect.h>
-#include <list.h>
 #include <stdint.h>
 
 #define VESA_CHAR_WIDTH 8
@@ -16,7 +15,7 @@ typedef struct video_context
     uint32_t pitch;
     int translate_x;
     int translate_y;
-    list_t *clip_rects;
+    rect_t **clip_rects;
     uint8_t clipping_on;
 } video_context_t;
 
@@ -32,4 +31,3 @@ void context_add_clip_rect(video_context_t *context, rect_t *rect);
 void context_clear_clip_rects(video_context_t *context);
 void context_draw_char(const video_context_t *context, char character, int x, int y, uint32_t color);
 void context_draw_text(const video_context_t *context, const char *string, int x, int y, uint32_t color);
-

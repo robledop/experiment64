@@ -1,5 +1,6 @@
 #include <wm/imui.h>
 #include <wm/window.h>
+#include <array.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -186,10 +187,8 @@ void imui_deinit(imui_context_t *ui)
     if (!ui || !ui->context)
         return;
 
-    if (ui->context->clip_rects) {
-        context_clear_clip_rects(ui->context);
-        free(ui->context->clip_rects);
-    }
+    context_clear_clip_rects(ui->context);
+    arr_free(ui->context->clip_rects);
 
     free(ui->context);
     ui->context = nullptr;

@@ -1,5 +1,6 @@
 #pragma once
 #include <assert.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -266,6 +267,22 @@ static inline void *arr__get_ptr(void *arr, size_t elem_size, size_t idx)
 }
 
 [[gnu::used]]
+static inline ptrdiff_t arr__find(const void *arr, size_t elem_size, const void *value)
+{
+    const array_header_t *header = arr__header_const(arr);
+    if (!header || elem_size == 0 || !value)
+        return -1;
+
+    auto base = (const char *)arr;
+    for (size_t i = 0; i < header->count; i++) {
+        if (memcmp(base + (i * elem_size), value, elem_size) == 0)
+            return (ptrdiff_t)i;
+    }
+
+    return -1;
+}
+
+[[gnu::used]]
 static inline void arr__free(void **arr)
 {
     if (!arr || !*arr)
@@ -342,3 +359,5 @@ static inline void arr__free(void **arr)
         if (__arr_set_ptr)                                                                                     \
             *__arr_set_ptr = (val);                                                                            \
     } while(0)
+/** @brief Return the first index of @p val by bitwise comparison, or `-1` when not found. */
+#define arr_find(arr, val) arr__find((arr), sizeof(*(arr)), &(typeof(*(arr))){(val)})

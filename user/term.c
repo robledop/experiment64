@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <wm/window.h>
+#include <array.h>
 #include <signal.h>
 
 #define DEFAULT_TERM_COLS 80
@@ -185,7 +186,7 @@ static void terminal_context_free(video_context_t *context)
 
     if (context->clip_rects) {
         context_clear_clip_rects(context);
-        free(context->clip_rects);
+        arr_free(context->clip_rects);
     }
 
     free(context);
