@@ -86,15 +86,25 @@ void enable_simd(void)
     __asm__ volatile ("ldmxcsr %0" :: "m"(mxcsr));
 }
 
+static inline void fpu_xsaveopt(fpu_state_t *state, uint32_t low, uint32_t high)
+{
+    __asm__ volatile ("xsaveopt %0" : "=m"(state->data) : "a"(low), "d"(high) : "memory");
+}
+
+static inline void fpu_xsave(fpu_state_t *state, uint32_t low, uint32_t high)
+{
+    __asm__ volatile ("xsave %0" : "=m"(state->data) : "a"(low), "d"(high) : "memory");
+}
+
 void save_fpu_state(fpu_state_t *state)
 {
     if (g_use_xsave) {
         uint32_t low  = (uint32_t)g_xsave_mask;
         uint32_t high = (uint32_t)(g_xsave_mask >> 32);
-        if (g_use_xsaveopt) // NOLINT(bugprone-branch-clone) different instruction variant
-            __asm__ volatile ("xsaveopt %0" : "=m"(state->data) : "a"(low), "d"(high) : "memory");
+        if (g_use_xsaveopt)
+            fpu_xsaveopt(state, low, high);
         else
-            __asm__ volatile ("xsave %0" : "=m"(state->data) : "a"(low), "d"(high) : "memory");
+            fpu_xsave(state, low, high);
     } else {
         __asm__ volatile ("fxsave %0" : "=m"(state->data) : : "memory");
     }

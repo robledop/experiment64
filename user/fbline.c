@@ -6,15 +6,11 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
-static void plot(volatile uint32_t* fb, int x, int y, uint32_t color, int width, int height, int pitch_bytes)
+static void plot(volatile uint32_t *fb, int x, int y, uint32_t color, int width, int height, int pitch_bytes)
 {
-    if (x < 0 || x >= width || y < 0 || y >= height)
-    {
+    if (!fb || x < 0 || x >= width || y < 0 || y >= height)
         return;
-    }
-
     const int stride = pitch_bytes / (int)sizeof(uint32_t);
-    // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference): fb is valid when called from main after mmap check
     fb[y * stride + x] = color;
 }
 

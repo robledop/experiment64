@@ -107,51 +107,48 @@ void *memset(void *s, int c, size_t n)
     return s;
 }
 
+static void memcpy_avx_aligned(unsigned char **d, const unsigned char **s, size_t *n)
+{
+    while (*n >= 32) {
+        __asm__ volatile(
+            "vmovdqa ymm0, [%1]\n\t"
+            "vmovdqa [%0], ymm0\n\t"
+            : : "r"(*d), "r"(*s) : "ymm0", "memory");
+        *d += 32;
+        *s += 32;
+        *n -= 32;
+    }
+}
+
+static void memcpy_avx_unaligned(unsigned char **d, const unsigned char **s, size_t *n)
+{
+    while (*n >= 32) {
+        __asm__ volatile(
+            "vmovdqu ymm0, [%1]\n\t"
+            "vmovdqa [%0], ymm0\n\t"
+            : : "r"(*d), "r"(*s) : "ymm0", "memory");
+        *d += 32;
+        *s += 32;
+        *n -= 32;
+    }
+}
+
 static void *memcpy_impl(void *restrict dst, const void *restrict src, size_t n)
 {
     unsigned char *d = dst;
     const unsigned char *s = src;
 
-    // Handle unaligned head
-    while (n && ((uintptr_t)d & 31))
-    {
+    while (n && ((uintptr_t)d & 31)) {
         *d++ = *s++;
         n--;
     }
 
-    // Copy 32 bytes at a time using AVX if source is also aligned
-    // NOLINTNEXTLINE(bugprone-branch-clone) - vmovdqa vs vmovdqu are different instructions
     if (((uintptr_t)s & 31) == 0)
-    {
-        while (n >= 32)
-        {
-            __asm__ volatile(
-                "vmovdqa ymm0, [%1]\n\t"
-                "vmovdqa [%0], ymm0\n\t"
-                : : "r"(d), "r"(s) : "ymm0", "memory");
-            d += 32;
-            s += 32;
-            n -= 32;
-        }
-    }
+        memcpy_avx_aligned(&d, &s, &n);
     else
-    {
-        // Unaligned source - use unaligned loads
-        while (n >= 32)
-        {
-            __asm__ volatile(
-                "vmovdqu ymm0, [%1]\n\t"
-                "vmovdqa [%0], ymm0\n\t"
-                : : "r"(d), "r"(s) : "ymm0", "memory");
-            d += 32;
-            s += 32;
-            n -= 32;
-        }
-    }
+        memcpy_avx_unaligned(&d, &s, &n);
 
-    // Handle remaining bytes
-    while (n--)
-    {
+    while (n--) {
         *d++ = *s++;
     }
 

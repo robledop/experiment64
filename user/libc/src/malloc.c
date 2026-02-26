@@ -207,9 +207,7 @@ void *realloc(void *ptr, size_t size)
 void *calloc(size_t nmemb, size_t size)
 {
     if (nmemb == 0 || size == 0)
-    {
-        return malloc(0); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-    }
+        return nullptr;
     if (nmemb > (size_t)INT_MAX / size)
     {
         return nullptr;

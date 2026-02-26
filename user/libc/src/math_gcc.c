@@ -198,11 +198,8 @@ arith64_u64 __divmoddi4(arith64_u64 a, arith64_u64 b, arith64_u64 *c)
     }
     if (!arith64_hi(b)) // divisor is 32-bit
     {
-        if (b == 0) // divide by 0
-        {
-            volatile char x = 0;
-            x               = (char)(1 / x); // NOLINT(clang-analyzer-core.DivideZero): force an exception
-        }
+        if (b == 0)
+            __builtin_trap();
         if (b == 1) // divide by 1
         {
             if (c) {
@@ -220,10 +217,12 @@ arith64_u64 __divmoddi4(arith64_u64 a, arith64_u64 b, arith64_u64 *c)
         }
     }
 
-    // let's do long division
-    int bits            = __clzdi2(b) - __clzdi2(a) + 1; // number of bits to iterate (a and b are non-zero)
-    // NOLINTNEXTLINE(clang-analyzer-core.BitwiseShift): bits is always valid here since a >= b and both non-zero
-    arith64_u64 rem     = a >> bits;                     // init remainder
+    int bits = __clzdi2(b) - __clzdi2(a) + 1;
+    if (bits < 1)
+        bits = 1;
+    if (bits > 63)
+        bits = 63;
+    arith64_u64 rem = a >> bits;
     a <<= 64 - bits;                                 // shift numerator to the high bit
     arith64_u64 wrap = 0;                            // start with wrap = 0
     while (bits-- > 0)                               // for each bit
@@ -321,12 +320,8 @@ uint64_t __udivmoddi4(uint64_t num, uint64_t den, uint64_t *rem_p) // NOLINT(*-r
 {
     uint64_t quot = 0, qbit = 1;
 
-    if (den == 0) {
-        // NOLINTNEXTLINE(clang-analyzer-core.DivideZero): Intentional divide by zero to force exception
-        return 1 / ((unsigned)den); /* Intentional divide by zero, without
-                                       triggering a compiler warning which
-                                       would abort the build */
-    }
+    if (den == 0)
+        __builtin_trap();
 
     /* Left-justify denominator and count shift */
     while ((int64_t)den >= 0) {
