@@ -217,7 +217,7 @@ void mouse_init(void)
     mouse_device_write(MOUSE_ENABLE_DATA_REPORTING);
     mouse_device_read();
 
-    const uint8_t vector = IRQ_BASE + IRQ_MOUSE;
+    constexpr uint8_t vector = IRQ_BASE + IRQ_MOUSE;
     apic_enable_irq(IRQ_MOUSE, vector);
     register_interrupt_handler(vector, mouse_handler);
 
@@ -248,6 +248,82 @@ void mouse_get_position(mouse_t *mouse)
     mouse->flags = mouse_device.flags;
 
     mouse_device.received = 1;
+}
+
+/** @brief Inject a relative mouse movement event into the input subsystem. */
+void mouse_inject_event(int16_t dx, int16_t dy, uint8_t buttons)
+{
+    mouse_device.prev_x     = mouse_device.x;
+    mouse_device.prev_y     = mouse_device.y;
+    mouse_device.prev_flags = mouse_device.flags;
+    mouse_device.received   = 0;
+
+    mouse_device.x = (int16_t)(mouse_device.x + dx);
+    mouse_device.y = (int16_t)(mouse_device.y + dy);
+    mouse_device.flags = buttons & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
+
+    if (mouse_device.x < 0)
+        mouse_device.x = 0;
+    if (mouse_device.y < 0)
+        mouse_device.y = 0;
+
+    struct limine_framebuffer *fb = framebuffer_current();
+    if (fb) {
+        if (mouse_device.x >= (int16_t)fb->width)
+            mouse_device.x = (int16_t)((int16_t)fb->width - 1);
+        if (mouse_device.y >= (int16_t)fb->height)
+            mouse_device.y = (int16_t)((int16_t)fb->height - 1);
+    }
+
+    struct ps2_mouse_packet pkt = {
+        .flags = mouse_device.flags,
+        .x     = mouse_device.x,
+        .y     = mouse_device.y,
+    };
+
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
+    mouse_buffer_push(pkt);
+    thread_wakeup(&mouse_device);
+    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
+}
+
+/** @brief Set the mouse cursor to an absolute screen position. */
+void mouse_set_absolute(int16_t x, int16_t y, uint8_t buttons)
+{
+    mouse_device.prev_x     = mouse_device.x;
+    mouse_device.prev_y     = mouse_device.y;
+    mouse_device.prev_flags = mouse_device.flags;
+    mouse_device.received   = 0;
+
+    mouse_device.x     = x;
+    mouse_device.y     = y;
+    mouse_device.flags = buttons & (MOUSE_LEFT | MOUSE_RIGHT | MOUSE_MIDDLE);
+
+    if (mouse_device.x < 0)
+        mouse_device.x = 0;
+    if (mouse_device.y < 0)
+        mouse_device.y = 0;
+
+    struct limine_framebuffer *fb = framebuffer_current();
+    if (fb) {
+        if (mouse_device.x >= (int16_t)fb->width)
+            mouse_device.x = (int16_t)((int16_t)fb->width - 1);
+        if (mouse_device.y >= (int16_t)fb->height)
+            mouse_device.y = (int16_t)((int16_t)fb->height - 1);
+    }
+
+    struct ps2_mouse_packet pkt = {
+        .flags = mouse_device.flags,
+        .x     = mouse_device.x,
+        .y     = mouse_device.y,
+    };
+
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
+    mouse_buffer_push(pkt);
+    thread_wakeup(&mouse_device);
+    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
 }
 
 void mouse_flush_pending_events(void)

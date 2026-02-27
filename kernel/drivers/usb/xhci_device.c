@@ -2,6 +2,7 @@
 #include <drivers/usb/xhci_internal.h>
 #include <drivers/terminal.h>
 #include <lib/string.h>
+#include <mem/dma.h>
 
 static bool xhci_cmd_submit(struct xhci_controller *xhci, const struct xhci_trb *trb, uint8_t *slot_id_out)
 {
@@ -43,6 +44,7 @@ static bool xhci_wait_port_ready(const struct xhci_controller *xhci,
 
 bool xhci_port_reset(const struct xhci_controller *xhci,
                      const uint32_t port,
+                     const uint32_t speed,
                      uint32_t *portsc_out)
 {
     const uint32_t offset = XHCI_OP_PORTSC_BASE + ((port - 1u) * XHCI_OP_PORTSC_STRIDE);
@@ -50,31 +52,43 @@ bool xhci_port_reset(const struct xhci_controller *xhci,
 
     const uint32_t preserve =
         (portsc & XHCI_PORTSC_RWS_MASK) & ~XHCI_PORTSC_PLS_MASK; // Keep RWS bits, clear PLS.
-    uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR; // Set power and warm reset.
-    xhci_write32(xhci->op_base, offset, write);
 
-    if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
-        portsc = xhci_read32(xhci->op_base, offset);
-        boot_message(WARNING, "[xHCI] Port %u warm reset timeout status=0x%08x", port, portsc);
-        return false;
+    if (speed >= 4u) {
+        // USB 3.x: warm reset.
+        uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_WR;
+        xhci_write32(xhci->op_base, offset, write);
+
+        if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_WRC, true, XHCI_PORT_RESET_TIMEOUT_MS)) {
+            portsc = xhci_read32(xhci->op_base, offset);
+            boot_message(WARNING, "[xHCI] Port %u warm reset timeout status=0x%08x", port, portsc);
+            return false;
+        }
+
+        portsc               = xhci_read32(xhci->op_base, offset);
+        uint32_t clear_reset =
+            (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC;
+        xhci_write32(xhci->op_base, offset, clear_reset);
+    } else {
+        // USB 2.0/1.x: standard port reset.
+        uint32_t write = preserve | XHCI_PORTSC_PP | XHCI_PORTSC_PR;
+        xhci_write32(xhci->op_base, offset, write);
+
+        if (!xhci_wait_for(xhci->op_base, offset, XHCI_PORTSC_PR, false, XHCI_PORT_RESET_TIMEOUT_MS)) {
+            portsc = xhci_read32(xhci->op_base, offset);
+            boot_message(WARNING, "[xHCI] Port %u reset timeout status=0x%08x", port, portsc);
+            return false;
+        }
     }
-
-    portsc               = xhci_read32(xhci->op_base, offset);
-    uint32_t clear_reset =
-        (portsc & XHCI_PORTSC_RWS_MASK) | XHCI_PORTSC_PP | XHCI_PORTSC_WRC; // Clear warm reset bit.
-    xhci_write32(xhci->op_base, offset, clear_reset);
 
     if (!xhci_wait_port_ready(xhci, port, XHCI_PORT_RESET_TIMEOUT_MS, &portsc)) {
         boot_message(WARNING, "[xHCI] Port %u reset incomplete status=0x%08x", port, portsc);
-        if (portsc_out) {
+        if (portsc_out)
             *portsc_out = portsc;
-        }
         return false;
     }
 
-    if (portsc_out) {
+    if (portsc_out)
         *portsc_out = portsc;
-    }
     return true;
 }
 
@@ -248,7 +262,8 @@ bool xhci_control_transfer(struct xhci_controller *xhci,
                                         status_phys,
                                         dev->slot_id,
                                         1u,
-                                        false);
+                                        false,
+                                        true);
 }
 
 bool xhci_set_configuration(struct xhci_controller *xhci,
@@ -365,22 +380,38 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     }
 
     const bool msc_ok = xhci_msc_parse_config(dev, full_buf, total_len);
-    if (!msc_ok) {
+    if (msc_ok) {
+        if (!xhci_set_configuration(xhci, dev, xhci_msc_config_value())) {
+            boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+            return false;
+        }
+        tsc_sleep_ms(20);
+
+        if (!xhci_msc_configure_endpoints(xhci))
+            return false;
+
+        if (!xhci_msc_init(xhci))
+            boot_message(WARNING, "[xHCI] Slot %u MSC inquiry failed", dev->slot_id);
+
         return true;
     }
 
-    if (!xhci_set_configuration(xhci, dev, xhci_msc_config_value())) {
-        boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
-        return false;
-    }
-    tsc_sleep_ms(20);
+    const bool hid_ok = xhci_hid_mouse_parse_config(dev, full_buf, total_len);
+    if (hid_ok) {
+        if (!xhci_set_configuration(xhci, dev, xhci_hid_mouse_config_value())) {
+            boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+            return false;
+        }
+        tsc_sleep_ms(20);
 
-    if (!xhci_msc_configure_endpoints(xhci)) {
-        return false;
+        if (!xhci_hid_mouse_configure_endpoints(xhci))
+            return false;
+
+        if (!xhci_hid_mouse_init(xhci))
+            boot_message(WARNING, "[xHCI] Slot %u HID mouse init failed", dev->slot_id);
+
+        return true;
     }
 
-    if (!xhci_msc_init(xhci)) {
-        boot_message(WARNING, "[xHCI] Slot %u MSC inquiry failed", dev->slot_id);
-    }
     return true;
 }

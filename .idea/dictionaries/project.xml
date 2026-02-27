@@ -15,10 +15,13 @@
       <w>bsize</w>
       <w>bufsz</w>
       <w>bzero</w>
+      <w>caplength</w>
       <w>cfiles</w>
       <w>chardevice</w>
       <w>cilas</w>
       <w>connfd</w>
+      <w>dboff</w>
+      <w>dcbaa</w>
       <w>deinit</w>
       <w>devfs</w>
       <w>distclean</w>
@@ -32,6 +35,7 @@
       <w>einvarg</w>
       <w>envp</w>
       <w>erdonly</w>
+      <w>erdp</w>
       <w>eunimp</w>
       <w>execve</w>
       <w>fbline</w>
@@ -42,6 +46,8 @@
       <w>fsize</w>
       <w>gettid</w>
       <w>gettimeofday</w>
+      <w>hccparams</w>
+      <w>hcsparams</w>
       <w>hhdm</w>
       <w>ifree</w>
       <w>iget</w>
@@ -60,6 +66,7 @@
       <w>limine</w>
       <w>makeflags</w>
       <w>masix</w>
+      <w>microframes</w>
       <w>mknod</w>
       <w>mmap</w>
       <w>mountpoint</w>
@@ -83,6 +90,8 @@
       <w>ostep</w>
       <w>outsl</w>
       <w>pathlib</w>
+      <w>pdpt</w>
+      <w>pdpte</w>
       <w>perror</w>
       <w>pipefd</w>
       <w>poff</w>
@@ -96,6 +105,8 @@
       <w>resched</w>
       <w>returncode</w>
       <w>rflags</w>
+      <w>rsvd</w>
+      <w>rtsoff</w>
       <w>setjmp</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
@@ -106,6 +117,7 @@
       <w>syncronous</w>
       <w>toolprefix</w>
       <w>trapgate</w>
+      <w>trbs</w>
       <w>unreapable</w>
       <w>usbboot</w>
       <w>usercopy</w>
@@ -125,6 +137,7 @@
       <w>wrfsbase</w>
       <w>wrmsr</w>
       <w>wtermsig</w>
+      <w>xhci</w>
       <w>xsetbv</w>
     </words>
   </dictionary>

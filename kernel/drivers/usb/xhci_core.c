@@ -5,6 +5,7 @@
 #include <drivers/tsc.h>
 #include <lib/string.h>
 #include <mem/vmm.h>
+#include <mem/dma.h>
 
 struct xhci_controller g_xhci;
 struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
@@ -222,7 +223,7 @@ static bool xhci_attempt_enumeration(struct xhci_controller *xhci,
                                      const uint32_t speed)
 {
     uint32_t portsc_after = 0;
-    if (!xhci_port_reset(xhci, port, &portsc_after)) {
+    if (!xhci_port_reset(xhci, port, speed, &portsc_after)) {
         boot_message(WARNING, "[xHCI] Port %u reset failed", port);
         return false;
     }
@@ -280,14 +281,6 @@ static void xhci_scan_ports(struct xhci_controller *xhci)
 
         const uint32_t speed =
             (portsc & XHCI_PORTSC_SPEED_MASK) >> XHCI_PORTSC_SPEED_SHIFT; // PORTSC speed field.
-        if (speed < 4u) {
-            boot_message(WARNING,
-                         "[xHCI] Port %u connected speed=%s portsc=0x%08x; unsupported",
-                         port,
-                         xhci_speed_name(speed),
-                         portsc);
-            continue;
-        }
 
         boot_message(INFO, "[xHCI] Port %u connected speed=%s", port, xhci_speed_name(speed));
 

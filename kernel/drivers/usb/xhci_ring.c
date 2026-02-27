@@ -1,5 +1,7 @@
 #include <drivers/usb/xhci_internal.h>
 #include <drivers/terminal.h>
+#include <lib/string.h>
+#include <mem/dma.h>
 
 static const char *xhci_completion_name(const uint32_t code)
 {
@@ -200,7 +202,8 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
                                   const uintptr_t trb_phys,
                                   const uint8_t slot_id,
                                   const uint8_t ep_id,
-                                  const bool require_ptr_match)
+                                  const bool require_ptr_match,
+                                  const bool log_timeout)
 {
     constexpr uint64_t timeout_ns = (uint64_t)XHCI_TRANSFER_TIMEOUT_MS * 1000000ull;
     const uint64_t start          = tsc_nanos();
@@ -244,7 +247,8 @@ bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
         }
     }
 
-    boot_message(WARNING, "[xHCI] Transfer completion timed out");
+    if (log_timeout)
+        boot_message(WARNING, "[xHCI] Transfer completion timed out");
     return false;
 }
 

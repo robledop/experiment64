@@ -1,6 +1,7 @@
 #include <drivers/usb/xhci_internal.h>
 #include <drivers/terminal.h>
 #include <lib/string.h>
+#include <mem/dma.h>
 
 static struct xhci_msc_device g_xhci_msc;
 
@@ -277,6 +278,7 @@ static bool xhci_msc_bulk_wait(struct xhci_controller *xhci,
                                         trb,
                                         slot_id,
                                         ep_id,
+                                        true,
                                         true);
 }
 

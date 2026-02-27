@@ -76,4 +76,28 @@ void mouse_init(void);
 void mouse_get_position(mouse_t *mouse);
 void mouse_set_position(int16_t x, int16_t y);
 void mouse_flush_pending_events(void);
+/**
+ * @brief Inject a relative mouse movement event into the input subsystem.
+ *
+ * Applies the delta to the current cursor position, clamps to the framebuffer
+ * bounds, and pushes a packet into the mouse event buffer.
+ *
+ * @param dx Horizontal displacement in pixels.
+ * @param dy Vertical displacement in pixels.
+ * @param buttons Button state bitmask (MOUSE_LEFT, MOUSE_RIGHT, MOUSE_MIDDLE).
+ */
+void mouse_inject_event(int16_t dx, int16_t dy, uint8_t buttons);
+
+/**
+ * @brief Set the mouse cursor to an absolute screen position.
+ *
+ * Overwrites the current position, clamps to the framebuffer bounds, and
+ * pushes a packet into the mouse event buffer. Used by USB tablet devices
+ * that report absolute coordinates.
+ *
+ * @param x Absolute horizontal position in pixels.
+ * @param y Absolute vertical position in pixels.
+ * @param buttons Button state bitmask (MOUSE_LEFT, MOUSE_RIGHT, MOUSE_MIDDLE).
+ */
+void mouse_set_absolute(int16_t x, int16_t y, uint8_t buttons);
 

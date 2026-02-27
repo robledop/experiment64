@@ -43,6 +43,8 @@ QEMU_DRIVES :=  \
 	-drive if=none,file=$(USB_DISK),format=raw,id=usbdrive \
 	-device usb-storage,bus=xhci.0,drive=usbdrive
 
+QEMU_USB_TABLET := -device usb-tablet,bus=xhci.0
+
 QEMU_DRIVES_USBBOOT :=  \
 	-device qemu-xhci,id=xhci \
 	-drive if=none,file=image.hdd,format=raw,id=usbboot \
@@ -152,27 +154,27 @@ disk: bear
 
 .PHONE: qemu-nobuild
 qemu-nobuild:
-	$(QEMU_BASE) $(QEMU_DRIVES) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run
 run: clean
 	$(MAKE) image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-usb
-run-usb: 
+run-usb:
 	$(MAKE) image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES_USBBOOT) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES_USBBOOT) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-nox
-run-nox: 
+run-nox:
 	$(MAKE) image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
 .PHONY: run-tap
-run-tap: 
+run-tap:
 	$(MAKE) image.hdd
-	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK_TAP) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: vbox
 vbox: 
@@ -182,7 +184,7 @@ vbox:
 .PHONY: run-gdb
 run-gdb: bear
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS)"
-	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
+	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -display gtk,zoom-to-fit=on ${QEMUGDB}
 
 .PHONY: tests
 tests: clean

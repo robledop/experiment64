@@ -2,8 +2,6 @@
 
 #include <drivers/pci.h>
 #include <drivers/tsc.h>
-#include <lib/string.h>
-#include <mem/dma.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <stddef.h>
@@ -111,6 +109,17 @@
 #define USB_EP_ADDR_MASK 0x0Fu // Endpoint number mask.
 #define USB_EP_ATTR_TYPE_MASK 0x03u // Endpoint attribute transfer type mask.
 #define USB_EP_ATTR_TYPE_BULK 0x02u // Endpoint attribute bulk transfer type.
+#define USB_EP_ATTR_TYPE_INTERRUPT 0x03u // Endpoint attribute interrupt transfer type.
+#define USB_CLASS_HID 0x03u // USB HID device class code.
+#define USB_SUBCLASS_BOOT 0x01u // USB HID boot interface subclass code.
+#define USB_PROTOCOL_MOUSE 0x02u // USB HID boot protocol mouse code.
+#define USB_REQ_SET_IDLE 0x0Au // HID class SET_IDLE request.
+#define USB_REQ_SET_PROTOCOL 0x0Bu // HID class SET_PROTOCOL request.
+#define USB_HID_PROTOCOL_BOOT 0x00u // HID boot protocol value.
+#define XHCI_EP_TYPE_INTERRUPT_OUT 3u // Endpoint type for interrupt OUT transfers.
+#define XHCI_EP_TYPE_INTERRUPT_IN 7u // Endpoint type for interrupt IN transfers.
+#define XHCI_HID_POLL_INTERVAL_MS 10u // HID mouse polling interval in ms.
+#define USB_HID_TABLET_ABS_MAX 32767u // USB tablet absolute coordinate maximum.
 #define USB_MSC_CBW_SIGNATURE 0x43425355u // MSC command block wrapper signature.
 #define USB_MSC_CSW_SIGNATURE 0x53425355u // MSC command status wrapper signature.
 #define XHCI_MSC_DATA_BYTES (256u * 1024u) // MSC data buffer size in bytes.
@@ -406,6 +415,23 @@ struct usb_msc_csw
     uint8_t status;        // CSW status code.
 } __attribute__((packed));
 
+struct xhci_hid_mouse_device
+{
+    bool active;                     // HID mouse device is active.
+    bool is_tablet;                  // True if absolute tablet, false if relative mouse.
+    struct xhci_device *dev;         // Associated xHCI device.
+    uint8_t config_value;            // Configuration value to select.
+    uint8_t interface_number;        // HID interface number.
+    uint8_t int_in_ep;              // Interrupt IN endpoint address.
+    uint8_t int_in_id;              // xHCI endpoint ID for interrupt IN.
+    uint16_t int_in_max_packet;     // Interrupt IN max packet size.
+    uint8_t int_in_max_burst;       // Interrupt IN max burst.
+    uint8_t interval;               // Polling interval from endpoint descriptor.
+    struct xhci_ring int_in_ring;   // Interrupt IN transfer ring state.
+    void *report_buf;               // HID report buffer virtual base.
+    uintptr_t report_phys;          // HID report buffer physical base.
+};
+
 struct xhci_msc_device
 {
     bool active;                    // MSC device is active.
@@ -455,6 +481,7 @@ struct xhci_controller
 extern struct xhci_controller g_xhci;
 extern struct xhci_device g_xhci_devices[XHCI_MAX_DEVICES];
 
+[[gnu::used]]
 static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t offset)
 {
     auto reg = (const volatile uint32_t *)(base + offset);
@@ -463,18 +490,21 @@ static inline uint32_t xhci_read32(const volatile uint8_t *base, const uint32_t 
     return value;
 }
 
+[[gnu::used]]
 static inline void xhci_write32(volatile uint8_t *base, const uint32_t offset, const uint32_t value)
 {
     auto reg = (volatile uint32_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
 }
 
+[[gnu::used]]
 static inline void xhci_write64(volatile uint8_t *base, const uint32_t offset, const uint64_t value)
 {
     auto reg = (volatile uint64_t *)(base + offset);
     __asm__ volatile("mov %0, %1" : "=m"(*reg) : "r"(value) : "memory");
 }
 
+[[gnu::used]]
 static inline uint32_t xhci_pci_read32(const struct pci_device *device, const uint8_t offset)
 {
     const uint16_t low  = pci_config_read_word(device->bus, device->slot, device->function, offset);
@@ -482,12 +512,14 @@ static inline uint32_t xhci_pci_read32(const struct pci_device *device, const ui
     return (uint32_t)low | ((uint32_t)high << 16);
 }
 
+[[gnu::used]]
 static inline void xhci_pci_write32(const struct pci_device *device, const uint8_t offset, const uint32_t value)
 {
     pci_config_write_word(device->bus, device->slot, device->function, offset, (uint16_t)value);
     pci_config_write_word(device->bus, device->slot, device->function, offset + 2u, (uint16_t)(value >> 16));
 }
 
+[[gnu::used]]
 static inline bool xhci_wait_for(const volatile uint8_t *base,
                                  const uint32_t offset,
                                  const uint32_t mask,
@@ -511,11 +543,13 @@ static inline bool xhci_wait_for(const volatile uint8_t *base,
     return false;
 }
 
+[[gnu::used]]
 static inline void xhci_mb(void)
 {
     __asm__ volatile("" ::: "memory");
 }
 
+[[gnu::used]]
 static inline void xhci_wait_relax(uint32_t *spins)
 {
     if (*spins < XHCI_WAIT_SPIN_COUNT) {
@@ -526,6 +560,7 @@ static inline void xhci_wait_relax(uint32_t *spins)
     }
 }
 
+[[gnu::used]]
 static inline uint32_t xhci_packet_count(const uint32_t bytes, const uint16_t max_packet)
 {
     if (max_packet == 0) {
@@ -534,6 +569,7 @@ static inline uint32_t xhci_packet_count(const uint32_t bytes, const uint16_t ma
     return (bytes + max_packet - 1u) / max_packet;
 }
 
+[[gnu::used]]
 static inline pml4_t xhci_current_pml4(void)
 {
     uint64_t cr3 = 0;
@@ -575,6 +611,7 @@ static inline bool xhci_virt_mapped(const uint64_t *pml4, const uint64_t virt)
     return (pt[pt_idx] & PTE_PRESENT) != 0;
 }
 
+[[gnu::used]]
 static inline void xhci_map_mmio_range(const uint64_t phys_base, const uint64_t bytes)
 {
     const uint64_t start = phys_base & ~(uint64_t)(PAGE_SIZE - 1u);
@@ -588,6 +625,7 @@ static inline void xhci_map_mmio_range(const uint64_t phys_base, const uint64_t 
     }
 }
 
+[[gnu::used]]
 static inline uint32_t xhci_be32(const uint8_t *buf)
 {
     return ((uint32_t)buf[0] << 24u) |
@@ -596,12 +634,14 @@ static inline uint32_t xhci_be32(const uint8_t *buf)
         (uint32_t)buf[3];
 }
 
+[[gnu::used]]
 static inline void xhci_put_be16(uint8_t *buf, const uint16_t value)
 {
     buf[0] = (uint8_t)(value >> 8u);
     buf[1] = (uint8_t)value;
 }
 
+[[gnu::used]]
 static inline void xhci_put_be32(uint8_t *buf, const uint32_t value)
 {
     buf[0] = (uint8_t)(value >> 24u);
@@ -610,22 +650,26 @@ static inline void xhci_put_be32(uint8_t *buf, const uint32_t value)
     buf[3] = (uint8_t)value;
 }
 
+[[gnu::used]]
 static inline void *xhci_input_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
 {
     const size_t offset = (ctx_size == 64u) ? 64u : 32u;
     return (void *)((uint8_t *)base + offset + (index * ctx_size));
 }
 
+[[gnu::used]]
 static inline void *xhci_device_context_ptr(void *base, const uint32_t index, const uint32_t ctx_size)
 {
     return (void *)((uint8_t *)base + (index * ctx_size));
 }
 
+[[gnu::used]]
 static inline struct xhci_device *xhci_device_from_slot(const uint8_t slot_id)
 {
     return &g_xhci_devices[slot_id];
 }
 
+[[gnu::used]]
 static inline uint8_t xhci_endpoint_id(const uint8_t ep_addr)
 {
     const uint8_t ep_num = ep_addr & USB_EP_ADDR_MASK;
@@ -644,17 +688,45 @@ bool xhci_event_ring_init(struct xhci_event_ring *ring, uint32_t trb_count);
 bool xhci_wait_for_cmd_completion(struct xhci_controller *xhci,
                                   uintptr_t cmd_phys,
                                   uint8_t *slot_id_out);
+/**
+ * @brief Wait for a transfer completion event on the event ring.
+ *
+ * Polls the event ring until a transfer event matching the given slot and
+ * endpoint appears, or until the transfer timeout expires.
+ *
+ * @param xhci            xHCI controller state.
+ * @param trb_phys        Physical address of the TRB to match.
+ * @param slot_id         Device slot ID to match.
+ * @param ep_id           Endpoint ID to match.
+ * @param require_ptr_match If true, only accept events whose TRB pointer matches trb_phys.
+ * @param log_timeout     If true, log a warning on timeout.
+ * @return true on successful completion, false on timeout or error.
+ */
 bool xhci_wait_for_transfer_event(struct xhci_controller *xhci,
                                   uintptr_t trb_phys,
                                   uint8_t slot_id,
                                   uint8_t ep_id,
-                                  bool require_ptr_match);
+                                  bool require_ptr_match,
+                                  bool log_timeout);
 void xhci_ring_doorbell(const struct xhci_controller *xhci,
                         uint8_t doorbell,
                         uint32_t value);
 
+/**
+ * @brief Reset a root hub port using the appropriate reset type for its speed.
+ *
+ * USB 3.x ports use a warm reset; USB 2.0/1.x ports use a standard port reset.
+ * Waits for the port to reach the enabled/U0 state after reset.
+ *
+ * @param xhci       xHCI controller state.
+ * @param port       One-based root hub port number.
+ * @param speed      Port speed code (>= 4 for USB 3.x, < 4 for USB 2.0/1.x).
+ * @param portsc_out Optional output for the final PORTSC register value.
+ * @return true if the port was successfully reset and enabled.
+ */
 bool xhci_port_reset(const struct xhci_controller *xhci,
                      uint32_t port,
+                     uint32_t speed,
                      uint32_t *portsc_out);
 bool xhci_enable_slot(struct xhci_controller *xhci,
                       uint8_t *slot_id_out);
@@ -686,3 +758,48 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
 uint8_t xhci_msc_config_value(void);
 bool xhci_msc_configure_endpoints(struct xhci_controller *xhci);
 bool xhci_msc_init(struct xhci_controller *xhci);
+
+/**
+ * @brief Parse a USB configuration descriptor to find a HID mouse or tablet interface.
+ *
+ * Scans the descriptor tree for a HID class interface with an interrupt IN
+ * endpoint. Distinguishes boot protocol mice from generic HID tablets.
+ *
+ * @param dev       xHCI device that owns the configuration.
+ * @param cfg_buf   Raw configuration descriptor bytes.
+ * @param total_len Total length of the configuration descriptor data.
+ * @return true if a usable HID mouse/tablet interface was found.
+ */
+bool xhci_hid_mouse_parse_config(const struct xhci_device *dev,
+                                 const void *cfg_buf,
+                                 uint16_t total_len);
+
+/**
+ * @brief Return the USB configuration value for the detected HID mouse device.
+ *
+ * @return bConfigurationValue to pass to SET_CONFIGURATION.
+ */
+uint8_t xhci_hid_mouse_config_value(void);
+
+/**
+ * @brief Issue a Configure Endpoint command for the HID mouse interrupt IN pipe.
+ *
+ * Initializes the interrupt IN transfer ring, builds the input context with
+ * the correct endpoint parameters, and submits the command to the xHCI controller.
+ *
+ * @param xhci xHCI controller state.
+ * @return true if the endpoint was configured successfully.
+ */
+bool xhci_hid_mouse_configure_endpoints(struct xhci_controller *xhci);
+
+/**
+ * @brief Initialize the HID mouse device and start its polling thread.
+ *
+ * Allocates the report buffer, sends SET_PROTOCOL (boot mice) and SET_IDLE
+ * class requests, then spawns a kernel thread that continuously polls the
+ * interrupt IN endpoint for HID reports.
+ *
+ * @param xhci xHCI controller state.
+ * @return true if initialization succeeded and the poll thread was created.
+ */
+bool xhci_hid_mouse_init(struct xhci_controller *xhci);
