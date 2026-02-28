@@ -2,6 +2,7 @@
 #include <array.h>
 #include <wm/button.h>
 #include "wm.h"
+#include "wm/desktop.h"
 #include "wm/window.h"
 
 static window_t *taskbar;
@@ -22,6 +23,16 @@ void taskbar_init(int16_t x, int16_t y, uint16_t w, uint16_t h)
 {
     taskbar = window_new(x, y, w, h, WIN_NODECORATION | WIN_BACKGROUND, nullptr);
     window_set_title(taskbar, "Taskbar");
+    // window_t *menu = window_new(0, 100, 200, 100, WIN_NODECORATION | WIN_BACKGROUND, nullptr);
+
+    button_t *taskbar_button    = button_new(0, (int16_t)(((window_t *)desktop_get())->height - 35), 100, 30);
+    taskbar_button->onmousedown = nullptr;
+    window_set_title((window_t *)taskbar_button, "START");
+    window_insert_child((window_t *)taskbar, (window_t *)taskbar_button);
+    window_paint((window_t *)taskbar, nullptr, 1);
+
+    taskbar_button_t tb = {.button = taskbar_button, .window = nullptr};
+    arr_push(g_taskbar_buttons, tb);
 }
 
 void taskbar_button_activate(int index)
@@ -75,18 +86,14 @@ static void taskbar_button_mousedown_handler(button_t *button, [[maybe_unused]] 
     if (index == -1)
         return;
 
-    button->color_toggle = 1;
-
-    window_t *window = &arr_get(client_mgr_get()->windows, index)->window;
+    window_t *window = arr_get(g_taskbar_buttons, index).window;
     window_raise(window, true);
-
-    taskbar_button_activate(index);
 }
 
 void taskbar_add_button(const char *title, window_t *window)
 {
     int16_t connection_count = (int16_t)(arr_len(client_mgr_get()->connections));
-    int16_t button_x         = (int16_t)((connection_count - 1) * 105 + 5);
+    int16_t button_x         = (int16_t)((connection_count - 1) * 105 + 5 + 100);
 
     button_t *taskbar_button    = button_new(button_x, (int16_t)(((window_t *)desktop_get())->height - 35), 100, 30);
     taskbar_button->onmousedown = taskbar_button_mousedown_handler;

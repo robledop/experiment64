@@ -183,7 +183,8 @@ static void client_destroy_window_recursive(client_manager_t *mgr, client_window
         client_window_t *current = arr_get(mgr->windows, (size_t)idx);
         client_remove_window_at(mgr, idx);
         client_destroy_window_resources(current);
-        taskbar_remove_button(idx);
+        int button_index = taskbar_find_window(&current->window);
+        taskbar_remove_button(button_index);
     }
 }
 
