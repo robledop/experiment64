@@ -20,11 +20,13 @@
 #define WIN_NODECORATION 0x1
 #define WIN_CLOSEABLE 0x2
 #define WIN_RESIZABLE 0x4
+#define WIN_BACKGROUND 0x8
+#define WIN_BUTTON 0x10
 
 struct window;
 
 typedef void (*WindowPaintHandler)(const struct window *);
-typedef void (*WindowMousedownHandler)(const struct window *, int16_t, int16_t);
+typedef void (*WindowMousedownHandler)(struct window *, int16_t, int16_t);
 typedef void (*WindowResizeHandler)(const struct window *, uint16_t, uint16_t);
 typedef void (*WindowCloseHandler)(const struct window *);
 
@@ -63,7 +65,7 @@ int window_screen_y(const window_t *window);
 void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_children);
 void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons);
 void window_paint_handler(const window_t *window);
-void window_mousedown_handler(const window_t *window, int16_t x, int16_t y);
+void window_mousedown_handler(window_t *window, int16_t x, int16_t y);
 window_t **window_get_windows_above(const window_t *parent, window_t *child);
 window_t **window_get_windows_below(const window_t *parent, window_t *child);
 void window_raise(window_t *window, uint8_t do_draw);

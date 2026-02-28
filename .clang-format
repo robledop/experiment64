@@ -58,6 +58,6 @@ AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AlignConsecutiveBitFields: true
-#InsertTrailingCommas: Wrapped
+InsertTrailingCommas: Wrapped
 BinPackArguments: false
 ...

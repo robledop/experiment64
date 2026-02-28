@@ -63,15 +63,14 @@ $(BUILD_DIR)/user_prog: user_prog.S
 $(BUILD_DIR)/%: $(BUILD_DIR)/%.o $(LIBC_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBC_A)
 
-$(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
+$(BUILD_DIR)/term: $(BUILD_DIR)/term.o $(LIBC_A) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/term.o $(WM_LIB_OBJ) $(LIBC_A)
 
+$(BUILD_DIR)/calculator: $(BUILD_DIR)/calculator.o $(LIBC_A) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/calculator.o $(WM_LIB_OBJ) $(LIBC_A)
 
-$(BUILD_DIR)/calculator: $(BUILD_DIR)/calculator.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/calculator.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
-
-$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WM_BASE_OBJ) $(WM_LIB_OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WM_BASE_OBJ) $(WM_LIB_OBJ) $(LIBC_A)
+$(BUILD_DIR)/wmclient_demo: $(BUILD_DIR)/wmclient_demo.o $(LIBC_A) $(WM_LIB_OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(BUILD_DIR)/wmclient_demo.o $(WM_LIB_OBJ) $(LIBC_A)
 
 $(BUILD_DIR)/wm/%.o: wm/%.c
 	mkdir -p $(dir $@)

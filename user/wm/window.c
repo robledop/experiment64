@@ -1,12 +1,13 @@
-#include <stdint.h>
-#include <wm/window.h>
-#include <wm/video_context.h>
-#include <wm/rect.h>
 #include <array.h>
-#include <sys/time.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <sys/time.h>
+#include <wm/rect.h>
+#include <wm/video_context.h>
+#include <wm/window.h>
+#include "taskbar.h"
 
 static constexpr int WIN_RESIZE_HANDLE_SIZE          = 14;
 static constexpr uint64_t WIN_DRAG_FRAME_INTERVAL_MS = 16;
@@ -165,9 +166,8 @@ static void window_draw_border(window_t *window)
                           window->title,
                           screen_x + WIN_TITLE_MARGIN,
                           screen_y + WIN_TITLE_MARGIN,
-                          window->parent->active_child == window
-                          ? WIN_TITLE_TEXT_COLOR
-                          : WIN_TITLE_TEXT_COLOR_INACTIVE);
+                          window->parent->active_child == window ? WIN_TITLE_TEXT_COLOR
+                                                                 : WIN_TITLE_TEXT_COLOR_INACTIVE);
     }
 }
 
@@ -181,8 +181,8 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, rect
 
     rect_t *temp_rect;
     if ((!(window->flags & WIN_NODECORATION)) && in_recursion) {
-        screen_x  += WIN_BORDER_WIDTH;
-        screen_y  += WIN_TITLE_HEIGHT;
+        screen_x += WIN_BORDER_WIDTH;
+        screen_y += WIN_TITLE_HEIGHT;
         temp_rect = rect_new(screen_y,
                              screen_x,
                              screen_y + window->height - WIN_TITLE_HEIGHT - WIN_BORDER_WIDTH - 1,
@@ -218,7 +218,7 @@ static void window_apply_bound_clipping(window_t *window, int in_recursion, rect
             size_t dirty_count = arr_len(dirty_regions);
             if (dirty_count > 0) {
                 size_t snapshot_bytes = sizeof(*dirty_regions) * dirty_count;
-                auto dirty_snapshot = (rect_t **)malloc(snapshot_bytes);
+                auto dirty_snapshot   = (rect_t **)malloc(snapshot_bytes);
                 if (dirty_snapshot) {
                     memcpy(dirty_snapshot, dirty_regions, snapshot_bytes);
 
@@ -292,10 +292,10 @@ void window_invalidate(window_t *window, int top, int left, int bottom, int righ
 {
     int origin_x = window_screen_x(window);
     int origin_y = window_screen_y(window);
-    top          += origin_y;
-    bottom       += origin_y;
-    left         += origin_x;
-    right        += origin_x;
+    top += origin_y;
+    bottom += origin_y;
+    left += origin_x;
+    right += origin_x;
 
     rect_t **dirty_regions = nullptr;
 
@@ -333,8 +333,8 @@ void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_childr
     if (!(window->flags & WIN_NODECORATION)) {
         window_draw_border(window);
 
-        screen_x  += WIN_BORDER_WIDTH;
-        screen_y  += WIN_TITLE_HEIGHT;
+        screen_x += WIN_BORDER_WIDTH;
+        screen_y += WIN_TITLE_HEIGHT;
         temp_rect = rect_new(screen_y,
                              screen_x,
                              screen_y + window->height - WIN_TITLE_HEIGHT - WIN_BORDER_WIDTH - 1,
@@ -472,7 +472,7 @@ window_t **window_get_windows_below(const window_t *parent, window_t *child)
 
 void window_raise(window_t *window, uint8_t do_draw)
 {
-    if (!window->parent) {
+    if (!window->parent || window->flags & WIN_BACKGROUND || window->flags & WIN_BUTTON) {
         return;
     }
 
@@ -497,6 +497,9 @@ void window_raise(window_t *window, uint8_t do_draw)
     parent->children[child_count - 1] = raised_window;
 
     parent->active_child = window;
+
+    int window_index = taskbar_find_window(window);
+    taskbar_button_activate(window_index);
 
     if (!do_draw) {
         return;
@@ -629,14 +632,13 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
         }
 
         if (!(mouse_x >= child->x && mouse_x < (child->x + child->width) && mouse_y >= child->y &&
-            mouse_y < (child->y + child->height))) {
+              mouse_y < (child->y + child->height))) {
             continue;
         }
 
         if (left_click && !was_left_click) {
 
-            if (!(child->flags & WIN_NODECORATION) &&
-                (child->flags & WIN_CLOSEABLE) &&
+            if (!(child->flags & WIN_NODECORATION) && (child->flags & WIN_CLOSEABLE) &&
                 window_close_clicked(child, mouse_x, mouse_y)) {
                 child->close_function(child);
                 return;
@@ -653,8 +655,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
                 break;
             }
 
-            if (!(child->flags & WIN_NODECORATION) &&
-                mouse_x >= child->x + child->width - WIN_RESIZE_HANDLE_SIZE &&
+            if (!(child->flags & WIN_NODECORATION) && mouse_x >= child->x + child->width - WIN_RESIZE_HANDLE_SIZE &&
                 mouse_y >= child->y + child->height - WIN_RESIZE_HANDLE_SIZE) {
                 window->resize_child         = child;
                 window->resize_start_mouse_x = mouse_x;
@@ -675,8 +676,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
 
         if (left_click) {
             const uint64_t now_ms = window_now_ms();
-            if (window->drag_last_move_ms == 0 ||
-                now_ms - window->drag_last_move_ms >= WIN_DRAG_FRAME_INTERVAL_MS) {
+            if (window->drag_last_move_ms == 0 || now_ms - window->drag_last_move_ms >= WIN_DRAG_FRAME_INTERVAL_MS) {
                 window_move(window->drag_child, target_x, target_y);
                 window->drag_last_move_ms = now_ms;
             }
@@ -703,8 +703,7 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
 }
 
 
-void window_mousedown_handler(const window_t *window, int16_t x,
-                              int16_t y)
+void window_mousedown_handler(window_t *window, int16_t x, int16_t y)
 {
 }
 

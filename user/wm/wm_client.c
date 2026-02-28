@@ -1,22 +1,22 @@
 #include "wm_client.h"
+#include <array.h>
+#include <fcntl.h>
+#include <mouse.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <wm/window.h>
-#include <wm/video_context.h>
-#include <wm/wm_protocol.h>
-#include <mouse.h>
-#include <sys/mman.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <array.h>
-#include <wm/button.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <wm/video_context.h>
+#include <wm/window.h>
+#include <wm/wm_protocol.h>
 
-button_t **g_taskbar_buttons = nullptr;
+#include "taskbar.h"
+
 client_manager_t *g_mgr;
 static window_t *g_parent;
 static pthread_mutex_t g_wm_state_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -36,20 +36,13 @@ static int client_register_connection(client_manager_t *mgr, int cmd_fd, int evt
         return -1;
 
     for (size_t i = 0; i < arr_len(mgr->connections); i++) {
-        if (mgr->connections[i].cmd_fd == cmd_fd &&
-            mgr->connections[i].client_pid == client_pid &&
+        if (mgr->connections[i].cmd_fd == cmd_fd && mgr->connections[i].client_pid == client_pid &&
             mgr->connections[i].evt_fd == evt_fd)
             return 0;
     }
 
-    arr_push(mgr->connections,
-             ((client_connection_t){
-                 .cmd_fd = cmd_fd,
-                 .evt_fd = evt_fd,
-                 .client_pid = client_pid
-                 }));
+    arr_push(mgr->connections, ((client_connection_t){.cmd_fd = cmd_fd, .evt_fd = evt_fd, .client_pid = client_pid}));
     return 0;
-
 }
 
 static void client_unregister_connection_by_cmd_fd(client_manager_t *mgr, int cmd_fd)
@@ -141,29 +134,29 @@ static void client_destroy_window_resources(client_window_t *cw)
     free(cw);
 }
 
-static void taskbar_remove_button(int idx)
-{
-    if (idx < 0)
-        return;
-
-    size_t button_index = (size_t)idx;
-    if (button_index >= arr_len(g_taskbar_buttons))
-        return;
-
-    button_t *taskbar_button = arr_get(g_taskbar_buttons, button_index);
-    if (taskbar_button && taskbar_button->window.parent)
-        window_remove_child(taskbar_button->window.parent, (window_t *)taskbar_button);
-
-    arr_remove_at(g_taskbar_buttons, button_index);
-
-    size_t button_count = arr_len(g_taskbar_buttons);
-    for (size_t i = button_index; i < button_count; ++i) {
-        button_t *button = arr_get(g_taskbar_buttons, i);
-        if (!button)
-            continue;
-        button->window.x = (int16_t)(i * 105 + 5);
-    }
-}
+// static void taskbar_remove_button(int idx)
+// {
+//     if (idx < 0)
+//         return;
+//
+//     size_t button_index = (size_t)idx;
+//     if (button_index >= arr_len(g_taskbar_buttons))
+//         return;
+//
+//     button_t *taskbar_button = arr_get(g_taskbar_buttons, button_index);
+//     if (taskbar_button && taskbar_button->window.parent)
+//         window_remove_child(taskbar_button->window.parent, (window_t *)taskbar_button);
+//
+//     arr_remove_at(g_taskbar_buttons, button_index);
+//
+//     size_t button_count = arr_len(g_taskbar_buttons);
+//     for (size_t i = button_index; i < button_count; ++i) {
+//         button_t *button = arr_get(g_taskbar_buttons, i);
+//         if (!button)
+//             continue;
+//         button->window.x = (int16_t)(i * 105 + 5);
+//     }
+// }
 
 static void client_destroy_window_recursive(client_manager_t *mgr, client_window_t *cw)
 {
@@ -217,8 +210,8 @@ static void client_destroy_connection_windows(client_manager_t *mgr, int cmd_fd)
     }
 }
 
-static void client_inner_dims_from_window_dims(uint16_t window_width, uint16_t window_height,
-                                               uint16_t *inner_width, uint16_t *inner_height)
+static void client_inner_dims_from_window_dims(uint16_t window_width, uint16_t window_height, uint16_t *inner_width,
+                                               uint16_t *inner_height)
 {
     if (!inner_width || !inner_height)
         return;
@@ -273,7 +266,7 @@ void client_window_paint_handler(const window_t *window)
         context_fill_rect(window->context, 0, draw_h, draw_w, inner_h - draw_h, WIN_BGCOLOR);
 }
 
-void client_window_mousedown_handler(const window_t *window, int16_t x, int16_t y)
+void client_window_mousedown_handler(window_t *window, int16_t x, int16_t y)
 {
     auto cw = (const client_window_t *)window;
     if (cw->evt_fd < 0)
@@ -333,12 +326,8 @@ static void client_destroy_shm_buffers(client_window_t *cw, uint16_t width, uint
     }
 }
 
-static int client_create_shm_buffers(uint32_t window_id,
-                                     uint32_t generation,
-                                     uint16_t width,
-                                     uint16_t height,
-                                     uint32_t *out_buffers[2],
-                                     char out_names[2][WM_SHM_NAME_MAX])
+static int client_create_shm_buffers(uint32_t window_id, uint32_t generation, uint16_t width, uint16_t height,
+                                     uint32_t *out_buffers[2], char out_names[2][WM_SHM_NAME_MAX])
 {
     if (!out_buffers || !out_names || width == 0 || height == 0)
         return -1;
@@ -375,12 +364,8 @@ static int client_resize_shm_buffers(client_window_t *cw, uint16_t old_content_w
     uint32_t *new_buffers[2]           = {nullptr};
     char new_names[2][WM_SHM_NAME_MAX] = {{0}};
 
-    if (client_create_shm_buffers(cw->window_id,
-                                  next_generation,
-                                  new_content_w,
-                                  new_content_h,
-                                  new_buffers,
-                                  new_names) != 0) {
+    if (client_create_shm_buffers(
+            cw->window_id, next_generation, new_content_w, new_content_h, new_buffers, new_names) != 0) {
         return -1;
     }
 
@@ -439,11 +424,7 @@ static int client_invalidate_region(client_window_t *cw, int16_t x, int16_t y, u
 
     int ox = WIN_BORDER_WIDTH + x;
     int oy = WIN_TITLE_HEIGHT + y;
-    window_invalidate((window_t *)cw,
-                      oy,
-                      ox,
-                      oy + h - 1,
-                      ox + w - 1);
+    window_invalidate((window_t *)cw, oy, ox, oy + h - 1, ox + w - 1);
     return 0;
 }
 
@@ -493,8 +474,7 @@ static void client_window_resize_handler(const window_t *window, uint16_t old_wi
     write(cw->evt_fd, &ev, sizeof(ev));
 }
 
-static void handle_invalidate([[maybe_unused]] window_t *parent,
-                              const wm_msg_invalidate_t *msg)
+static void handle_invalidate([[maybe_unused]] window_t *parent, const wm_msg_invalidate_t *msg)
 {
     client_window_t *cw = find_client_by_window_id(msg->window_id);
     if (!cw || cw->evt_fd < 0)
@@ -527,8 +507,7 @@ static void handle_window_insert_child(const wm_msg_window_insert_child_t *msg)
     window_insert_child(&parent->window, &child->window);
 }
 
-static void handle_create_window(client_manager_t *mgr, window_t *parent,
-                                 int cmd_fd, const wm_msg_create_window_t *msg)
+static void handle_create_window(client_manager_t *mgr, window_t *parent, int cmd_fd, const wm_msg_create_window_t *msg)
 {
     const client_connection_t *connection = client_find_connection_by_cmd_fd(mgr, cmd_fd);
     if (!connection)
@@ -616,18 +595,10 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent,
     resp.shm_names[1][WM_SHM_NAME_MAX - 1] = '\0';
     write(connection->evt_fd, &resp, sizeof(resp));
 
-    int16_t connection_count = (int16_t)(arr_len(g_mgr->connections));
-    int16_t button_x         = (int16_t)((connection_count - 1) * 105 + 5);
-
-    button_t *taskbar_button = button_new(button_x, (int16_t)(g_parent->height - 25), 100, 20);
-    window_set_title((window_t *)taskbar_button, cw->window.title);
-    window_insert_child(g_parent, (window_t *)taskbar_button);
-    window_paint(g_parent, nullptr, 1);
-    arr_push(g_taskbar_buttons, taskbar_button);
+    taskbar_add_button(cw->window.title, (window_t *)cw);
 }
 
-void handle_destroy_window([[maybe_unused]] window_t *parent,
-                           const wm_msg_destroy_window_t *msg)
+void handle_destroy_window([[maybe_unused]] window_t *parent, const wm_msg_destroy_window_t *msg)
 {
     ensure_client_manager_initialized();
 
@@ -639,25 +610,13 @@ void handle_destroy_window([[maybe_unused]] window_t *parent,
     if (!cw)
         return;
 
-    // button_t *taskbar_button = arr_get(g_taskbar_buttons, window_idx);
-    // window_t *taskbar        = taskbar_button->window.parent;
-    // window_remove_child(taskbar, (window_t *)taskbar_button);
-    // arr_remove_at(g_taskbar_buttons, (size_t)window_idx);
-
-    // for (size_t i = window_idx; i < last_index; ++i) {
-    //     button_t *button = arr_get(g_taskbar_buttons, i);
-    //     int16_t button_x = (int16_t)((i) * 105 + 5);
-    //     button->window.x = button_x;
-    // }
-
     client_destroy_window_recursive(g_mgr, cw);
 
     if (parent)
         window_paint(parent, nullptr, 1);
 }
 
-struct client_thread_args
-{
+struct client_thread_args {
     int cmd_fd;
     int evt_fd;
     int client_pid;
@@ -681,55 +640,59 @@ static void *client_reader_thread(void *arg)
             break;
 
         switch (type_byte) {
-        case WM_MSG_CREATE_WINDOW: {
-            wm_msg_create_window_t msg;
-            msg.type = type_byte;
-            n        = read(cmd_fd, &msg.width, sizeof(msg) - 1);
-            if (n != (ssize_t)(sizeof(msg) - 1))
-                goto done;
-            wm_state_lock();
+        case WM_MSG_CREATE_WINDOW:
+            {
+                wm_msg_create_window_t msg;
+                msg.type = type_byte;
+                n        = read(cmd_fd, &msg.width, sizeof(msg) - 1);
+                if (n != (ssize_t)(sizeof(msg) - 1))
+                    goto done;
+                wm_state_lock();
 
-            client_window_t *parent_window = find_client_by_window_id(msg.parent_id);
-            window_t *window               = parent_window ? &parent_window->window : g_parent;
+                client_window_t *parent_window = find_client_by_window_id(msg.parent_id);
+                window_t *window               = parent_window ? &parent_window->window : g_parent;
 
-            handle_create_window(g_mgr, window, cmd_fd, &msg);
-            wm_state_unlock();
-            break;
-        }
-        case WM_MSG_WINDOW_INSERT_CHILD: {
-            wm_msg_window_insert_child_t msg;
-            msg.type = type_byte;
-            n        = read(cmd_fd, &msg.parent_id, sizeof(msg) - 1);
-            if (n != (ssize_t)(sizeof(msg) - 1))
-                goto done;
-            wm_state_lock();
-            handle_window_insert_child(&msg);
-            wm_state_unlock();
+                handle_create_window(g_mgr, window, cmd_fd, &msg);
+                wm_state_unlock();
+                break;
+            }
+        case WM_MSG_WINDOW_INSERT_CHILD:
+            {
+                wm_msg_window_insert_child_t msg;
+                msg.type = type_byte;
+                n        = read(cmd_fd, &msg.parent_id, sizeof(msg) - 1);
+                if (n != (ssize_t)(sizeof(msg) - 1))
+                    goto done;
+                wm_state_lock();
+                handle_window_insert_child(&msg);
+                wm_state_unlock();
 
-            break;
-        }
-        case WM_MSG_INVALIDATE: {
-            wm_msg_invalidate_t msg;
-            msg.type = type_byte;
-            n        = read(cmd_fd, &msg.window_id, sizeof(msg) - 1);
-            if (n != (ssize_t)(sizeof(msg) - 1))
-                goto done;
-            wm_state_lock();
-            handle_invalidate(g_parent, &msg);
-            wm_state_unlock();
-            break;
-        }
-        case WM_MSG_DESTROY_WINDOW: {
-            wm_msg_destroy_window_t msg;
-            msg.type = type_byte;
-            n        = read(cmd_fd, &msg.window_id, sizeof(msg) - 1);
-            if (n != (ssize_t)(sizeof(msg) - 1))
-                goto done;
-            wm_state_lock();
-            handle_destroy_window(g_parent, &msg);
-            wm_state_unlock();
-            break;
-        }
+                break;
+            }
+        case WM_MSG_INVALIDATE:
+            {
+                wm_msg_invalidate_t msg;
+                msg.type = type_byte;
+                n        = read(cmd_fd, &msg.window_id, sizeof(msg) - 1);
+                if (n != (ssize_t)(sizeof(msg) - 1))
+                    goto done;
+                wm_state_lock();
+                handle_invalidate(g_parent, &msg);
+                wm_state_unlock();
+                break;
+            }
+        case WM_MSG_DESTROY_WINDOW:
+            {
+                wm_msg_destroy_window_t msg;
+                msg.type = type_byte;
+                n        = read(cmd_fd, &msg.window_id, sizeof(msg) - 1);
+                if (n != (ssize_t)(sizeof(msg) - 1))
+                    goto done;
+                wm_state_lock();
+                handle_destroy_window(g_parent, &msg);
+                wm_state_unlock();
+                break;
+            }
         default:
             goto done;
         }
@@ -749,8 +712,7 @@ done:
     return nullptr;
 }
 
-int client_launch(window_t *parent, const char *path,
-                  int16_t default_x, int16_t default_y)
+int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t default_y)
 {
     (void)default_x;
     (void)default_y;

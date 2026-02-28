@@ -16,10 +16,13 @@
 #include <attributes.h>
 #include <sys/wait.h>
 #include "wm_client.h"
+#include "wm.h"
+#include "taskbar.h"
+
+#define TASKBAR_HEIGHT 40
 
 static uint32_t *fb;
-desktop_t *desktop;
-static window_t *taskbar;
+static desktop_t *desktop;
 static bool wm_should_exit = false;
 static int mousefd;
 static int keyboardfd;
@@ -44,33 +47,43 @@ static void wm_configure_sigchld(void)
         printf("wm: failed to configure SIGCHLD\n");
 }
 
+desktop_t* desktop_get()
+{
+    return desktop;
+}
 
-void spawn_calculator([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+client_manager_t* client_mgr_get()
+{
+    return &client_mgr;
+}
+
+
+void spawn_calculator([[maybe_unused]] struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     if (client_launch((window_t *)desktop, "/bin/calculator", 115, 60) < 0) {
         printf("wm: failed to launch calculator\n");
     }
 }
 
-void doom_button_handler([[maybe_unused]] const struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+void doom_button_handler([[maybe_unused]] struct button *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     if (client_launch((window_t *)desktop, "/bin/doom", 220, 60) < 0) {
         printf("wm: failed to launch doom\n");
     }
 }
 
-void demo_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+void demo_button_handler([[maybe_unused]] button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     client_launch((window_t *)desktop, "/bin/wmclient_demo", 50, 60);
 }
 
-void terminal_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+void terminal_button_handler([[maybe_unused]] button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     if (client_launch((window_t *)desktop, "/bin/term", 140, 70) < 0)
         printf("wm: failed to launch terminal\n");
 }
 
-void exit_button_handler([[maybe_unused]] const button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
+void exit_button_handler([[maybe_unused]] button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
 {
     wm_should_exit = true;
 }
@@ -199,6 +212,7 @@ int main(void)
     }
     context = context_new(fb, (uint16_t)fb_width, (uint16_t)fb_height, fb_pitch);
     desktop = desktop_new(context, pixels, (uint16_t)wp_w, (uint16_t)wp_h);
+    window_set_title((window_t *)desktop, "Desktop");
 
     button_t *exit_button    = button_new(10, 10, 100, 30);
     exit_button->onmousedown = exit_button_handler;
@@ -225,15 +239,10 @@ int main(void)
     window_set_title((window_t *)terminal_button, "Terminal");
     window_insert_child((window_t *)desktop, (window_t *)terminal_button);
 
-    taskbar = window_new(
-        0,
-        (int16_t)(desktop->window.height - 30),
-        desktop->window.width,
-        30,
-        WIN_NODECORATION,
-        nullptr);
+    taskbar_init(0, (int16_t)(desktop->window.height - TASKBAR_HEIGHT), desktop->window.width, TASKBAR_HEIGHT);
+    window_set_title(taskbar_get(), "Taskbar");
 
-    window_insert_child((window_t *)desktop, taskbar);
+    window_insert_child((window_t *)desktop, taskbar_get());
 
     window_paint((window_t *)desktop, nullptr, 1);
 
