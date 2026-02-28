@@ -134,30 +134,6 @@ static void client_destroy_window_resources(client_window_t *cw)
     free(cw);
 }
 
-// static void taskbar_remove_button(int idx)
-// {
-//     if (idx < 0)
-//         return;
-//
-//     size_t button_index = (size_t)idx;
-//     if (button_index >= arr_len(g_taskbar_buttons))
-//         return;
-//
-//     button_t *taskbar_button = arr_get(g_taskbar_buttons, button_index);
-//     if (taskbar_button && taskbar_button->window.parent)
-//         window_remove_child(taskbar_button->window.parent, (window_t *)taskbar_button);
-//
-//     arr_remove_at(g_taskbar_buttons, button_index);
-//
-//     size_t button_count = arr_len(g_taskbar_buttons);
-//     for (size_t i = button_index; i < button_count; ++i) {
-//         button_t *button = arr_get(g_taskbar_buttons, i);
-//         if (!button)
-//             continue;
-//         button->window.x = (int16_t)(i * 105 + 5);
-//     }
-// }
-
 static void client_destroy_window_recursive(client_manager_t *mgr, client_window_t *cw)
 {
     if (!mgr || !cw)
