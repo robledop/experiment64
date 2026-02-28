@@ -1,7 +1,7 @@
 #pragma once
 
-#include <wm/video_context.h>
 #include <stdint.h>
+#include <wm/video_context.h>
 
 #define WIN_BGCOLOR 0xFFDEDDDA
 #define WIN_TITLE_COLOR 0xFF1C71D8
@@ -22,6 +22,7 @@
 #define WIN_RESIZABLE 0x4
 #define WIN_BACKGROUND 0x8
 #define WIN_BUTTON 0x10
+#define WIN_MINIMIZED 0x20
 
 struct window;
 

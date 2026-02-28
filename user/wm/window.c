@@ -8,6 +8,7 @@
 #include <wm/video_context.h>
 #include <wm/window.h>
 #include "taskbar.h"
+#include "wm.h"
 
 static constexpr int WIN_RESIZE_HANDLE_SIZE          = 14;
 static constexpr uint64_t WIN_DRAG_FRAME_INTERVAL_MS = 16;
@@ -476,6 +477,9 @@ void window_raise(window_t *window, uint8_t do_draw)
         return;
     }
 
+    int window_index = taskbar_find_window(window);
+    taskbar_button_activate(window_index);
+
     window_t *parent = window->parent;
 
     if (parent->active_child == window) {
@@ -498,8 +502,6 @@ void window_raise(window_t *window, uint8_t do_draw)
 
     parent->active_child = window;
 
-    int window_index = taskbar_find_window(window);
-    taskbar_button_activate(window_index);
 
     if (!do_draw) {
         return;

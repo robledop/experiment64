@@ -38,10 +38,8 @@ void taskbar_init(int16_t x, int16_t y, uint16_t w, uint16_t h)
     taskbar = window_new(x, y, w, h, WIN_NODECORATION | WIN_BACKGROUND, nullptr);
     window_set_title(taskbar, "Taskbar");
 
-    button_t *taskbar_button    = button_new(taskbar_button_x_for_index(0),
-                                          taskbar_button_y(),
-                                          TASKBAR_BUTTON_WIDTH,
-                                          TASKBAR_BUTTON_HEIGHT);
+    button_t *taskbar_button =
+        button_new(taskbar_button_x_for_index(0), taskbar_button_y(), TASKBAR_BUTTON_WIDTH, TASKBAR_BUTTON_HEIGHT);
     taskbar_button->onmousedown = nullptr;
     window_set_title((window_t *)taskbar_button, "START");
     window_insert_child((window_t *)taskbar, (window_t *)taskbar_button);
@@ -108,9 +106,9 @@ static void taskbar_button_mousedown_handler(button_t *button, [[maybe_unused]] 
 
 void taskbar_add_button(const char *title, window_t *window)
 {
-    size_t button_index = arr_len(g_taskbar_buttons);
-    button_t *taskbar_button =
-        button_new(taskbar_button_x_for_index(button_index), taskbar_button_y(), TASKBAR_BUTTON_WIDTH, TASKBAR_BUTTON_HEIGHT);
+    size_t button_index      = arr_len(g_taskbar_buttons);
+    button_t *taskbar_button = button_new(
+        taskbar_button_x_for_index(button_index), taskbar_button_y(), TASKBAR_BUTTON_WIDTH, TASKBAR_BUTTON_HEIGHT);
     taskbar_button->onmousedown = taskbar_button_mousedown_handler;
     window_set_title((window_t *)taskbar_button, title);
     window_insert_child(taskbar, (window_t *)taskbar_button);
