@@ -1,12 +1,26 @@
 #include "taskbar.h"
 #include <array.h>
 #include <wm/button.h>
-#include "wm.h"
-#include "wm/desktop.h"
-#include "wm/window.h"
+#include <wm/window.h>
 
 static window_t *taskbar;
 static taskbar_button_t *g_taskbar_buttons = nullptr;
+
+static constexpr int16_t TASKBAR_BUTTON_WIDTH  = 100;
+static constexpr int16_t TASKBAR_BUTTON_HEIGHT = 30;
+static constexpr int16_t TASKBAR_BUTTON_GAP    = 5;
+
+static int16_t taskbar_button_y()
+{
+    if (!taskbar || taskbar->height <= TASKBAR_BUTTON_HEIGHT)
+        return 0;
+    return (int16_t)((taskbar->height - TASKBAR_BUTTON_HEIGHT) / 2);
+}
+
+static int16_t taskbar_button_x_for_index(size_t index)
+{
+    return (int16_t)((TASKBAR_BUTTON_WIDTH + TASKBAR_BUTTON_GAP) * (int16_t)index + TASKBAR_BUTTON_GAP);
+}
 
 
 window_t *taskbar_get()
@@ -23,9 +37,11 @@ void taskbar_init(int16_t x, int16_t y, uint16_t w, uint16_t h)
 {
     taskbar = window_new(x, y, w, h, WIN_NODECORATION | WIN_BACKGROUND, nullptr);
     window_set_title(taskbar, "Taskbar");
-    // window_t *menu = window_new(0, 100, 200, 100, WIN_NODECORATION | WIN_BACKGROUND, nullptr);
 
-    button_t *taskbar_button    = button_new(0, (int16_t)(((window_t *)desktop_get())->height - 35), 100, 30);
+    button_t *taskbar_button    = button_new(taskbar_button_x_for_index(0),
+                                          taskbar_button_y(),
+                                          TASKBAR_BUTTON_WIDTH,
+                                          TASKBAR_BUTTON_HEIGHT);
     taskbar_button->onmousedown = nullptr;
     window_set_title((window_t *)taskbar_button, "START");
     window_insert_child((window_t *)taskbar, (window_t *)taskbar_button);
@@ -92,14 +108,13 @@ static void taskbar_button_mousedown_handler(button_t *button, [[maybe_unused]] 
 
 void taskbar_add_button(const char *title, window_t *window)
 {
-    int16_t connection_count = (int16_t)(arr_len(client_mgr_get()->connections));
-    int16_t button_x         = (int16_t)((connection_count - 1) * 105 + 5 + 100);
-
-    button_t *taskbar_button    = button_new(button_x, (int16_t)(((window_t *)desktop_get())->height - 35), 100, 30);
+    size_t button_index = arr_len(g_taskbar_buttons);
+    button_t *taskbar_button =
+        button_new(taskbar_button_x_for_index(button_index), taskbar_button_y(), TASKBAR_BUTTON_WIDTH, TASKBAR_BUTTON_HEIGHT);
     taskbar_button->onmousedown = taskbar_button_mousedown_handler;
     window_set_title((window_t *)taskbar_button, title);
-    window_insert_child((window_t *)desktop_get(), (window_t *)taskbar_button);
-    window_paint((window_t *)desktop_get(), nullptr, 1);
+    window_insert_child(taskbar, (window_t *)taskbar_button);
+    window_paint(taskbar, nullptr, 1);
 
     taskbar_button_t tb = {.button = taskbar_button, .window = window};
     arr_push(g_taskbar_buttons, tb);
@@ -125,6 +140,6 @@ void taskbar_remove_button(int idx)
         button_t *button = arr_get(g_taskbar_buttons, i).button;
         if (!button)
             continue;
-        button->window.x = (int16_t)(i * 105 + 5);
+        button->window.x = taskbar_button_x_for_index(i);
     }
 }
