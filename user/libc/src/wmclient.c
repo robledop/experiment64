@@ -1,16 +1,15 @@
-#include <wm/wmclient.h>
-#include <wm/wm_protocol.h>
+// ReSharper disable CppDFAConstantParameter
+#include <array.h>
 #include <pthread.h>
-#include <sys/mman.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <wm/wm_protocol.h>
+#include <wm/wmclient.h>
 
-#define WM_CLIENT_MAX_WINDOWS 16
-#define WM_CLIENT_EVENT_QUEUE_MAX 128
-
-static wm_window_t *g_windows[WM_CLIENT_MAX_WINDOWS];
+static wm_window_t **g_windows = nullptr;
 
 static pthread_mutex_t g_state_lock   = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_state_cv      = PTHREAD_COND_INITIALIZER;
@@ -20,12 +19,10 @@ static pthread_mutex_t g_present_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_reader_started = 0;
 static int g_reader_dead    = 0;
 
-typedef struct
-{
+typedef struct {
     uint8_t type;
 
-    union
-    {
+    union {
         wm_event_window_created_t window_created;
         wm_event_mouse_t mouse;
         wm_event_key_t key;
@@ -34,15 +31,12 @@ typedef struct
     } payload;
 } wm_client_event_t;
 
-static wm_client_event_t g_event_queue[WM_CLIENT_EVENT_QUEUE_MAX];
-static unsigned int g_event_count = 0;
+static wm_client_event_t *g_event_queue = nullptr;
 
-typedef struct
-{
+typedef struct {
     uint8_t type;
 
-    union
-    {
+    union {
         wm_event_window_created_t window_created;
         wm_event_mouse_t mouse;
         wm_event_key_t key;
@@ -54,34 +48,21 @@ typedef struct
 
 static wm_window_t *wm_find_window_locked(uint32_t window_id)
 {
-    for (int i = 0; i < WM_CLIENT_MAX_WINDOWS; i++) {
-        if (g_windows[i] && g_windows[i]->window_id == window_id)
-            return g_windows[i];
+    for (size_t i = 0; i < arr_len(g_windows); i++) {
+        auto w = arr_get(g_windows, i);
+        if (w && w->window_id == window_id)
+            return w;
     }
 
     return nullptr;
 }
 
-static int wm_register_window_locked(wm_window_t *win)
-{
-    if (!win)
-        return -1;
-
-    for (int i = 0; i < WM_CLIENT_MAX_WINDOWS; i++) {
-        if (!g_windows[i]) {
-            g_windows[i] = win;
-            return 0;
-        }
-    }
-
-    return -1;
-}
-
 static void wm_unregister_window_locked(uint32_t window_id)
 {
-    for (int i = 0; i < WM_CLIENT_MAX_WINDOWS; i++) {
-        if (g_windows[i] && g_windows[i]->window_id == window_id) {
-            g_windows[i] = nullptr;
+    for (size_t i = 0; i < arr_len(g_windows); i++) {
+        auto w = arr_get(g_windows, i);
+        if (w && w->window_id == window_id) {
+            arr_remove_at(g_windows, i);
             return;
         }
     }
@@ -89,8 +70,8 @@ static void wm_unregister_window_locked(uint32_t window_id)
 
 static int wm_read_exact(int fd, void *buf, size_t count)
 {
-    size_t total   = 0;
-    uint8_t *bytes = (uint8_t *)buf;
+    size_t total = 0;
+    auto bytes   = (uint8_t *)buf;
 
     while (total < count) {
         ssize_t n = read(fd, bytes + total, count - total);
@@ -104,9 +85,6 @@ static int wm_read_exact(int fd, void *buf, size_t count)
 
 static void wm_unmap_window_buffers(wm_window_t *win)
 {
-    if (!win)
-        return;
-
     const size_t buf_size = (size_t)win->width * (size_t)win->height * 4;
     for (int i = 0; i < 2; i++) {
         if (win->buffers[i] && buf_size)
@@ -140,11 +118,8 @@ static int wm_map_named_buffer(const char *shm_name, size_t size, uint32_t **out
     return 0;
 }
 
-static int wm_remap_window_buffers(wm_window_t *win,
-                                   const char shm_names[2][WM_SHM_NAME_MAX],
-                                   uint8_t front_buffer,
-                                   uint16_t width,
-                                   uint16_t height)
+static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[2][WM_SHM_NAME_MAX], uint8_t front_buffer,
+                                   uint16_t width, uint16_t height)
 {
     if (!win || !shm_names || width == 0 || height == 0)
         return -1;
@@ -207,25 +182,11 @@ static int wm_event_is_droppable(uint8_t type)
     }
 }
 
-static void wm_queue_remove_at_locked(unsigned int idx)
-{
-    if (idx >= g_event_count)
-        return;
-
-    if (idx + 1 < g_event_count) {
-        memmove(&g_event_queue[idx],
-                &g_event_queue[idx + 1],
-                (g_event_count - idx - 1) * sizeof(g_event_queue[0]));
-    }
-
-    g_event_count--;
-}
-
 static int wm_queue_drop_first_droppable_locked(void)
 {
-    for (unsigned int i = 0; i < g_event_count; i++) {
+    for (unsigned int i = 0; i < arr_len(g_event_queue); i++) {
         if (wm_event_is_droppable(g_event_queue[i].type)) {
-            wm_queue_remove_at_locked(i);
+            arr_remove_at(g_event_queue, i);
             return 1;
         }
     }
@@ -235,30 +196,22 @@ static int wm_queue_drop_first_droppable_locked(void)
 
 static void wm_queue_push_locked(const wm_client_event_t *event)
 {
-    if (!event)
-        return;
-
-    if (g_event_count >= WM_CLIENT_EVENT_QUEUE_MAX) {
-        if (wm_event_is_droppable(event->type))
+    if (!arr_try_push(g_event_queue, *event)) {
+        wm_queue_drop_first_droppable_locked();
+        if (!arr_try_push(g_event_queue, *event)) {
             return;
-
-        if (!wm_queue_drop_first_droppable_locked())
-            wm_queue_remove_at_locked(0);
+        }
     }
-
-    if (g_event_count < WM_CLIENT_EVENT_QUEUE_MAX) {
-        g_event_queue[g_event_count++] = *event;
-        pthread_cond_broadcast(&g_state_cv);
-    }
+    pthread_cond_broadcast(&g_state_cv);
 }
 
 static int wm_queue_take_first_type_locked(uint8_t type, wm_client_event_t *out)
 {
-    for (unsigned int i = 0; i < g_event_count; i++) {
+    for (unsigned int i = 0; i < arr_len(g_event_queue); i++) {
         if (g_event_queue[i].type == type) {
             if (out)
                 *out = g_event_queue[i];
-            wm_queue_remove_at_locked(i);
+            arr_remove_at(g_event_queue, i);
             return 1;
         }
     }
@@ -268,11 +221,11 @@ static int wm_queue_take_first_type_locked(uint8_t type, wm_client_event_t *out)
 
 static int wm_queue_take_next_visible_locked(wm_client_event_t *out)
 {
-    for (unsigned int i = 0; i < g_event_count; i++) {
+    for (unsigned int i = 0; i < arr_len(g_event_queue); i++) {
         if (wm_event_is_visible(g_event_queue[i].type)) {
             if (out)
                 *out = g_event_queue[i];
-            wm_queue_remove_at_locked(i);
+            arr_remove_at(g_event_queue, i);
             return 1;
         }
     }
@@ -282,9 +235,6 @@ static int wm_queue_take_next_visible_locked(wm_client_event_t *out)
 
 static int wm_read_raw_event(wm_raw_event_t *raw)
 {
-    if (!raw)
-        return -1;
-
     memset(raw, 0, sizeof(*raw));
 
     if (wm_read_exact(WM_EVT_FD, &raw->type, 1) != 0)
@@ -293,9 +243,8 @@ static int wm_read_raw_event(wm_raw_event_t *raw)
     switch (raw->type) {
     case WM_EVENT_WINDOW_CREATED:
         raw->payload.window_created.type = raw->type;
-        if (wm_read_exact(WM_EVT_FD,
-                          &raw->payload.window_created.window_id,
-                          sizeof(raw->payload.window_created) - 1) != 0) {
+        if (wm_read_exact(WM_EVT_FD, &raw->payload.window_created.window_id, sizeof(raw->payload.window_created) - 1) !=
+            0) {
             return -1;
         }
         return 0;
@@ -319,9 +268,8 @@ static int wm_read_raw_event(wm_raw_event_t *raw)
         return 0;
     case WM_EVENT_WINDOW_CLOSED:
         raw->payload.window_closed.type = raw->type;
-        if (wm_read_exact(WM_EVT_FD,
-                          &raw->payload.window_closed.window_id,
-                          sizeof(raw->payload.window_closed) - 1) != 0)
+        if (wm_read_exact(WM_EVT_FD, &raw->payload.window_closed.window_id, sizeof(raw->payload.window_closed) - 1) !=
+            0)
             return -1;
         return 0;
     case WM_EVENT_INVALIDATED:
@@ -336,67 +284,66 @@ static int wm_read_raw_event(wm_raw_event_t *raw)
 
 static int wm_process_raw_event_locked(const wm_raw_event_t *raw)
 {
-    if (!raw)
-        return -1;
-
     wm_client_event_t queued = {0};
 
     switch (raw->type) {
     case WM_EVENT_WINDOW_CREATED:
-        queued.type = WM_EVENT_WINDOW_CREATED;
+        queued.type                   = WM_EVENT_WINDOW_CREATED;
         queued.payload.window_created = raw->payload.window_created;
         wm_queue_push_locked(&queued);
         return 0;
     case WM_EVENT_MOUSE:
-        queued.type = WM_EVENT_MOUSE;
+        queued.type          = WM_EVENT_MOUSE;
         queued.payload.mouse = raw->payload.mouse;
         wm_queue_push_locked(&queued);
         return 0;
     case WM_EVENT_KEY:
-        queued.type = WM_EVENT_KEY;
+        queued.type        = WM_EVENT_KEY;
         queued.payload.key = raw->payload.key;
         wm_queue_push_locked(&queued);
         return 0;
-    case WM_EVENT_WINDOW_RESIZED: {
-        const wm_event_window_resized_msg_t *msg = &raw->payload.window_resized_msg;
+    case WM_EVENT_WINDOW_RESIZED:
+        {
+            const wm_event_window_resized_msg_t *msg = &raw->payload.window_resized_msg;
 
-        wm_window_t *win = wm_find_window_locked(msg->window_id);
-        if (win && wm_remap_window_buffers(win, msg->shm_names, msg->front_buffer, msg->width, msg->height) != 0)
-            return -1;
+            wm_window_t *win = wm_find_window_locked(msg->window_id);
+            if (win && wm_remap_window_buffers(win, msg->shm_names, msg->front_buffer, msg->width, msg->height) != 0)
+                return -1;
 
-        queued.type                             = WM_EVENT_WINDOW_RESIZED;
-        queued.payload.window_resized.type      = WM_EVENT_WINDOW_RESIZED;
-        queued.payload.window_resized.window_id = msg->window_id;
-        queued.payload.window_resized.width     = msg->width;
-        queued.payload.window_resized.height    = msg->height;
-        wm_queue_push_locked(&queued);
-        return 0;
-    }
+            queued.type                             = WM_EVENT_WINDOW_RESIZED;
+            queued.payload.window_resized.type      = WM_EVENT_WINDOW_RESIZED;
+            queued.payload.window_resized.window_id = msg->window_id;
+            queued.payload.window_resized.width     = msg->width;
+            queued.payload.window_resized.height    = msg->height;
+            wm_queue_push_locked(&queued);
+            return 0;
+        }
     case WM_EVENT_WINDOW_CLOSED:
-        queued.type = WM_EVENT_WINDOW_CLOSED;
+        queued.type                  = WM_EVENT_WINDOW_CLOSED;
         queued.payload.window_closed = raw->payload.window_closed;
         wm_queue_push_locked(&queued);
         return 0;
-    case WM_EVENT_INVALIDATED: {
-        wm_window_t *win = wm_find_window_locked(raw->payload.invalidated.window_id);
-        if (win) {
-            uint8_t front = raw->payload.invalidated.front_buffer;
-            if (front > 1)
-                front = win->front_buffer <= 1 ? win->front_buffer : 0;
+    case WM_EVENT_INVALIDATED:
+        {
+            wm_window_t *win = wm_find_window_locked(raw->payload.invalidated.window_id);
+            if (win) {
+                uint8_t front = raw->payload.invalidated.front_buffer;
+                if (front > 1)
+                    front = win->front_buffer <= 1 ? win->front_buffer : 0;
 
-            if (win->buffers[front]) {
-                win->front_buffer = front;
-                win->back_buffer  = (uint8_t)(front ^ 1u);
-                win->buffer       = win->buffers[win->back_buffer];
+                if (win->buffers[front]) {
+                    win->front_buffer = front;
+                    win->back_buffer  = (uint8_t)(front ^ 1u);
+                    win->buffer       = win->buffers[win->back_buffer];
+                }
+
+                if (win->presents_completed < win->presents_requested)
+                    win->presents_completed++;
             }
 
-            if (win->presents_completed < win->presents_requested)
-                win->presents_completed++;
+            pthread_cond_broadcast(&g_state_cv);
+            return 0;
         }
-
-        pthread_cond_broadcast(&g_state_cv);
-        return 0;
-    }
     default:
         return -1;
     }
@@ -455,9 +402,6 @@ static int wm_ensure_reader_thread(void)
 
 static int wm_wait_for_window_created_event(wm_event_window_created_t *out)
 {
-    if (!out)
-        return -1;
-
     pthread_mutex_lock(&g_state_lock);
 
     while (1) {
@@ -480,10 +424,7 @@ static int wm_wait_for_window_created_event(wm_event_window_created_t *out)
 void wm_window_insert_child(uint16_t parent_id, uint16_t child_id)
 {
     wm_msg_window_insert_child_t msg = {
-        .type = WM_MSG_WINDOW_INSERT_CHILD,
-        .parent_id = parent_id,
-        .child_id = child_id
-    };
+        .type = WM_MSG_WINDOW_INSERT_CHILD, .parent_id = parent_id, .child_id = child_id};
 
     write(WM_CMD_FD, &msg, sizeof(msg));
 }
@@ -541,7 +482,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
 
     pthread_mutex_lock(&g_state_lock);
 
-    if (wm_register_window_locked(win) != 0) {
+    if (!arr_try_push(g_windows, win)) {
         pthread_mutex_unlock(&g_state_lock);
         free(win);
         return nullptr;
@@ -656,9 +597,6 @@ void wm_destroy_window(wm_window_t *win)
 
 static void wm_copy_visible_event(const wm_client_event_t *event, void *event_buf, uint8_t *out_type)
 {
-    if (!event || !out_type)
-        return;
-
     *out_type = event->type;
 
     if (!event_buf)
