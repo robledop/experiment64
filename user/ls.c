@@ -1,6 +1,6 @@
-#include <string.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #define FMTNAME_WIDTH 14
 #define PATHBUF_SZ 512
@@ -10,12 +10,12 @@ char *fmtname(char *path)
     static char buf[FMTNAME_WIDTH + 1];
     char *p;
 
-    // Find first character after last slash.
+    // Find the first character after the last slash.
     for (p = path + strlen(path); p >= path && *p != '/'; p--) {
     }
     p++;
 
-    // Return blank-padded name.
+    // Return a blank-padded name.
     if (strlen(p) >= FMTNAME_WIDTH)
         return p;
     memmove(buf, p, strlen(p));
@@ -24,8 +24,7 @@ char *fmtname(char *path)
     return buf;
 }
 
-struct ls_ctx
-{
+struct ls_ctx {
     char path[PATHBUF_SZ];
     int base_len;
 };
@@ -33,7 +32,7 @@ struct ls_ctx
 char *bytes_to_human_readable(uint32_t bytes, char *output, uint32_t output_size)
 {
     const char *units[] = {"B", "KB", "MB", "GB", "TB"};
-    uint32_t unit_index      = 0;
+    uint32_t unit_index = 0;
     double size         = (double)bytes;
 
     while (size >= 1024 && unit_index < sizeof(units) / sizeof(units[0]) - 1) {
@@ -45,7 +44,7 @@ char *bytes_to_human_readable(uint32_t bytes, char *output, uint32_t output_size
     return output;
 }
 
-static void print_entry(char *name, struct stat *st)
+static void print_entry(char *name, const struct stat *st)
 {
     switch (st->type) {
     case T_DIR:
@@ -128,23 +127,24 @@ void ls(char *path)
         print_entry(fmtname(path), &st);
         break;
 
-    case T_DIR: {
-        struct ls_ctx ctx;
-        if (strlen(path) + 1 + EXT2_DIRENT_NAME_MAX + 1 > sizeof(ctx.path)) {
-            printf("ls: path too long\n");
+    case T_DIR:
+        {
+            struct ls_ctx ctx;
+            if (strlen(path) + 1 + EXT2_DIRENT_NAME_MAX + 1 > sizeof(ctx.path)) {
+                printf("ls: path too long\n");
+                break;
+            }
+            strcpy(ctx.path, path);
+            ctx.base_len = (int)strlen(ctx.path);
+            if (ctx.base_len == 0 || ctx.path[ctx.base_len - 1] != '/') {
+                ctx.path[ctx.base_len++] = '/';
+                ctx.path[ctx.base_len]   = 0;
+            }
+            if (dirwalk(fd, ls_visit, &ctx) < 0)
+                printf("ls: cannot read directory %s\n", path);
             break;
         }
-        strcpy(ctx.path, path);
-        ctx.base_len = (int)strlen(ctx.path);
-        if (ctx.base_len == 0 || ctx.path[ctx.base_len - 1] != '/') {
-            ctx.path[ctx.base_len++] = '/';
-            ctx.path[ctx.base_len]   = 0;
-        }
-        if (dirwalk(fd, ls_visit, &ctx) < 0)
-            printf("ls: cannot read directory %s\n", path);
-        break;
-    }
-    default: ;
+    default:;
         printf("ls: unknown type %d for %s\n", st.type, path);
     }
     close(fd);
@@ -159,4 +159,6 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         ls(argv[i]);
     }
+
+    return 0;
 }

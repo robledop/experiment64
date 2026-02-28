@@ -42,6 +42,7 @@
       <w>ffreestanding</w>
       <w>fileno</w>
       <w>finddir</w>
+      <w>fmtname</w>
       <w>fsgsbase</w>
       <w>fsize</w>
       <w>gettid</w>
@@ -89,6 +90,7 @@
       <w>onpaint</w>
       <w>ostep</w>
       <w>outsl</w>
+      <w>pathbuf</w>
       <w>pathlib</w>
       <w>pdpt</w>
       <w>pdpte</w>
