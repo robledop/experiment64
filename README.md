@@ -124,7 +124,7 @@ The project is MIT licensed except for the Atheros AR8162 driver files
   programs (`init`, `sh`, `ls`, `cat`, `edit`, `grep`, `mv`, `wc`, etc.), thread-local storage via FSGSBASE (see
   `docs/tls.md`), a minimal POSIX-style pthread subset (see `docs/pthreads.md`), plus kernel test helper binaries
   under `/tests`
-- **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID, framebuffer
+- **Syscalls & features**: `execve` with argv/envp, `waitpid` (WNOHANG), `ioctl` (TTY window size, foreground PID get/set, framebuffer
   queries, keyboard flush, network `GETNETINFO`; see `docs/ioctl.md`), `mmap`/`munmap` for `/dev/fb0` and shared memory,
   `link`/`unlink`/`rename`, `getcwd`, `dup2`, `openpty` (minimal PTY pair allocation), full `open` flag handling
   (create/trunc/append), `mmap`-backed framebuffer access, named shared memory (`shm_open`/`shm_unlink`), user pointer
