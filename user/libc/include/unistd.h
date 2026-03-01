@@ -29,7 +29,7 @@ int thread_detach(int tid);
 int futex_wait(volatile int *addr, int expected);
 int futex_wake(volatile int *addr, int count);
 void *sbrk(intptr_t increment);
-int open(const char *path, int flags);
+int open(const char *path, int flags, ...);
 int close(int fd);
 int chdir(const char *path);
 int link(const char *oldpath, const char *newpath);

@@ -179,7 +179,7 @@ void *sbrk(intptr_t increment)
     return (void *)syscall1(SYS_SBRK, (long)increment);
 }
 
-int open(const char *path, int flags)
+int open(const char *path, int flags, ...)
 {
     return clamp_signed_to_int(syscall2(SYS_OPEN, (long)path, flags));
 }
