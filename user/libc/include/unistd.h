@@ -44,6 +44,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset
 int munmap(void *addr, size_t length);
 char *getcwd(char *buf, size_t size);
 long lseek(int fd, long offset, int whence);
+int ftruncate(int fd, long length);
 int isatty(int fd);
 int pipe(int pipefd[2]);
 int dup(int oldfd);

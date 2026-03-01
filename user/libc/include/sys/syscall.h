@@ -54,6 +54,7 @@
 #define SYS_SHM_UNLINK 52
 #define SYS_DUP2 53
 #define SYS_OPENPTY 54
+#define SYS_FTRUNCATE 55
 
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003

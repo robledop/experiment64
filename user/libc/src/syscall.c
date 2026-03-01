@@ -274,6 +274,11 @@ int dup2(int oldfd, int newfd)
     return clamp_signed_to_int(syscall2(SYS_DUP2, oldfd, newfd));
 }
 
+int ftruncate(int fd, long length)
+{
+    return clamp_signed_to_int(syscall2(SYS_FTRUNCATE, fd, length));
+}
+
 int openpty(int fds[2])
 {
     return clamp_signed_to_int(syscall1(SYS_OPENPTY, (long)fds));

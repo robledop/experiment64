@@ -1651,6 +1651,69 @@ TEST(test_syscall_fstat_invalid_fd)
     return true;
 }
 
+TEST(test_syscall_ftruncate_zero)
+{
+    int fd = sys_open("/ftruncate_zero.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    const char *content = "truncate me";
+    TEST_ASSERT(sys_write(fd, content, strlen(content)) == (int)strlen(content));
+
+    stat_t st = {0};
+    TEST_ASSERT(sys_fstat(fd, &st) == 0);
+    TEST_ASSERT(st.size == strlen(content));
+
+    TEST_ASSERT(sys_ftruncate(fd, 0) == 0);
+    TEST_ASSERT(sys_fstat(fd, &st) == 0);
+    TEST_ASSERT(st.size == 0);
+
+    TEST_ASSERT(sys_lseek(fd, 0, SEEK_SET) == 0);
+    char buf[8] = {0};
+    TEST_ASSERT(sys_read(fd, buf, sizeof(buf)) == 0);
+
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_unlink("/ftruncate_zero.txt") == 0);
+    return true;
+}
+
+TEST(test_syscall_ftruncate_invalid)
+{
+    TEST_ASSERT(sys_ftruncate(-1, 0) == -EBADF);
+    TEST_ASSERT(sys_ftruncate(999, 0) == -EBADF);
+
+    int fd = sys_open("/ftruncate_invalid.txt", O_CREATE | O_RDONLY);
+    TEST_ASSERT(fd >= 3);
+    TEST_ASSERT(sys_ftruncate(fd, 0) == -EBADF);
+    TEST_ASSERT(sys_ftruncate(fd, -1) == -EINVAL);
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_unlink("/ftruncate_invalid.txt") == 0);
+
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+    TEST_ASSERT(sys_ftruncate(pipefd[1], 0) == -ENOTSUP);
+    TEST_ASSERT(sys_close(pipefd[0]) == 0);
+    TEST_ASSERT(sys_close(pipefd[1]) == 0);
+    return true;
+}
+
+TEST(test_syscall_ftruncate_nonzero_unsupported)
+{
+    int fd = sys_open("/ftruncate_nonzero.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    const char *content = "1234567890";
+    TEST_ASSERT(sys_write(fd, content, strlen(content)) == (int)strlen(content));
+    TEST_ASSERT(sys_ftruncate(fd, 4) == -ENOTSUP);
+
+    stat_t st = {0};
+    TEST_ASSERT(sys_fstat(fd, &st) == 0);
+    TEST_ASSERT(st.size == strlen(content));
+
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_unlink("/ftruncate_nonzero.txt") == 0);
+    return true;
+}
+
 TEST(test_syscall_link_basic)
 {
     // Create a file
