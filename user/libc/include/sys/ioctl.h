@@ -4,7 +4,9 @@
 
 #define TIOCGWINSZ 0x5413
 #define TIOCSWINSZ 0x5414
+#define TIOCGPGRP 0x540F
 #define TIOCSPGRP 0x5410
+#define TIOCHUP 0x5422
 
 struct winsize
 {
@@ -18,6 +20,9 @@ struct winsize
 #define FB_IOCTL_GET_HEIGHT 0x4601
 #define FB_IOCTL_GET_FBADDR 0x4602
 #define FB_IOCTL_GET_PITCH 0x4603
+
+// Pipe / generic fd ioctls
+#define FIONBIO 0x5421 // Set non-blocking I/O on fd
 
 // Keyboard ioctl
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers

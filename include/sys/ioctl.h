@@ -6,8 +6,12 @@
 #define TIOCGWINSZ 0x5413
 // Set terminal window size
 #define TIOCSWINSZ 0x5414
+// Get foreground process
+#define TIOCGPGRP 0x540F
 // Set foreground process
 #define TIOCSPGRP 0x5410
+// Revoke (hangup) a PTY — all reads/writes return 0
+#define TIOCHUP 0x5422
 
 struct winsize
 {
@@ -22,6 +26,9 @@ struct winsize
 #define FB_IOCTL_GET_HEIGHT 0x4601
 #define FB_IOCTL_GET_FBADDR 0x4602
 #define FB_IOCTL_GET_PITCH 0x4603
+
+// Pipe / generic fd ioctls
+#define FIONBIO 0x5421 // Set non-blocking I/O on fd
 
 // Keyboard ioctls
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers

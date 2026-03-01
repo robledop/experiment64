@@ -9,6 +9,7 @@
 #include <fs/pipe.h>
 #include <mem/heap.h>
 #include <lib/string.h>
+#include <sys/ioctl.h>
 #include <task/process.h>
 
 // Pipe inode operations
@@ -16,6 +17,7 @@ static uint64_t pipe_inode_read(const vfs_inode_t *node, uint64_t offset, uint64
 // NOLINTNEXTLINE(readability-non-const-parameter) - Must match inode_operations signature
 static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 static void pipe_inode_close(vfs_inode_t *node);
+static int pipe_inode_ioctl(vfs_inode_t *node, int request, void *arg);
 
 static struct inode_operations pipe_read_ops = {
     .read = pipe_inode_read,
@@ -38,7 +40,7 @@ static struct inode_operations pipe_write_ops = {
     .truncate = nullptr,
     .open = nullptr,
     .close = pipe_inode_close,
-    .ioctl = nullptr,
+    .ioctl = pipe_inode_ioctl,
     .readdir = nullptr,
     .finddir = nullptr,
     .clone = nullptr,
@@ -160,10 +162,14 @@ static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t si
         return 0; // Broken pipe
     }
 
+    const int nonblock = p->nonblock_write;
+
     // Write data
     while (bytes_written < size) {
-        // Wait for space in buffer
+        // Wait for space in buffer (or bail immediately if non-blocking)
         while (p->count >= PIPE_BUF_SIZE && p->read_open > 0) {
+            if (nonblock)
+                goto out;
             spinlock_release(&p->lock);
             schedule(); // Yield to let reader run
             spinlock_acquire(&p->lock);
@@ -180,6 +186,7 @@ static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t si
             p->count++;
         }
     }
+out:
 
     spinlock_release(&p->lock);
     return bytes_written;
@@ -210,5 +217,28 @@ static void pipe_inode_close(vfs_inode_t *node)
 
     if (should_free) {
         kfree(p);
+    }
+}
+
+static int pipe_inode_ioctl(vfs_inode_t *node, int request, void *arg)
+{
+    if (!node || !node->device)
+        return -1;
+
+    pipe_t *p = (pipe_t *)node->device;
+
+    switch (request) {
+    case FIONBIO:
+    {
+        if (!arg)
+            return -1;
+        int val = *(int *)arg;
+        spinlock_acquire(&p->lock);
+        p->nonblock_write = val ? 1 : 0;
+        spinlock_release(&p->lock);
+        return 0;
+    }
+    default:
+        return -1;
     }
 }

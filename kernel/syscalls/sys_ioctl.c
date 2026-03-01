@@ -5,13 +5,17 @@
 #include <sys/ioctl.h>
 #include <task/process.h>
 
+typedef enum { IOCTL_DIR_READ, IOCTL_DIR_WRITE } ioctl_dir_t;
+
 static size_t ioctl_arg_size(int request)
 {
     switch (request) {
     case TIOCGWINSZ:
     case TIOCSWINSZ:
         return sizeof(struct winsize);
+    case TIOCGPGRP:
     case TIOCSPGRP:
+    case FIONBIO:
         return sizeof(int);
     case FB_IOCTL_GET_WIDTH:
     case FB_IOCTL_GET_HEIGHT:
@@ -23,6 +27,21 @@ static size_t ioctl_arg_size(int request)
         return sizeof(struct netinfo);
     default:
         return 0;
+    }
+}
+
+// Returns the direction of data flow for the arg pointer:
+// IOCTL_DIR_WRITE = kernel writes to user (GET operations)
+// IOCTL_DIR_READ  = kernel reads from user (SET operations)
+static ioctl_dir_t ioctl_arg_dir(int request)
+{
+    switch (request) {
+    case TIOCSWINSZ:
+    case TIOCSPGRP:
+    case FIONBIO:
+        return IOCTL_DIR_READ;
+    default:
+        return IOCTL_DIR_WRITE;
     }
 }
 
@@ -38,13 +57,16 @@ int sys_ioctl(int fd, int request, void *arg)
         return -1;
     }
 
-    if (request != KDFLUSH) {
+    if (request != KDFLUSH && request != TIOCHUP) {
         size_t arg_size = ioctl_arg_size(request);
         if (arg_size == 0 || !arg) {
             fd_put(desc);
             return -1;
         }
-        if (!user_ptr_write_ok(arg, arg_size, "sys_ioctl")) {
+        bool ok = (ioctl_arg_dir(request) == IOCTL_DIR_READ)
+            ? user_ptr_read_ok(arg, arg_size, "sys_ioctl")
+            : user_ptr_write_ok(arg, arg_size, "sys_ioctl");
+        if (!ok) {
             fd_put(desc);
             return -1;
         }
