@@ -50,35 +50,7 @@ static void signal_mark_threads_ready(process_t *target)
 
 static void signal_terminate_locked(process_t *target, int sig, process_t **parent_out)
 {
-    spinlock_assert_held(&scheduler_lock);
-    if (!target) {
-        return;
-    }
-
-    target->exit_code  = 128 + sig;
-    target->terminated = true;
-    signal_send_sigchld(target);
-
-    thread_t *t;
-    list_foreach_entry(t, &target->threads, list) {
-        t->state = THREAD_TERMINATED;
-    }
-
-    // Reparent orphaned process
-    process_t *new_parent = init_process ? init_process : kernel_process;
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        if (p && p->parent == target) {
-            p->parent = new_parent;
-            if (p->terminated) {
-                thread_wakeup(new_parent);
-            }
-        }
-    }
-
-    if (parent_out) {
-        *parent_out = target->parent;
-    }
+    process_mark_exited_locked(target, 128 + sig, parent_out);
 }
 
 void signal_init_process(process_t *proc)
@@ -279,7 +251,16 @@ bool signal_deliver_after_syscall(struct syscall_regs *regs, const uint64_t *ret
 
     process_t *proc = current_process;
     thread_t *t     = current_thread;
-    if (!proc || !t || !t->is_user || proc->terminated) {
+    if (!proc || !t || !t->is_user) {
+        return false;
+    }
+
+    // If another CPU already terminated this process via signal_terminate_locked,
+    // this thread's state is TERMINATED but it is still running because no timer
+    // interrupt preempted it.  Yield the CPU so the scheduler can pick another
+    // thread; this one will never be scheduled again.
+    if (proc->terminated) {
+        schedule();
         return false;
     }
 
@@ -392,7 +373,18 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
 
     process_t *proc = current_process;
     thread_t *t     = current_thread;
-    if (!proc || !t || !t->is_user || proc->terminated) {
+    if (!proc || !t || !t->is_user) {
+        return false;
+    }
+
+    if (proc->terminated) {
+        if (cpu_in_interrupt()) {
+            cpu_interrupt_exit();
+            schedule();
+            cpu_interrupt_enter();
+        } else {
+            schedule();
+        }
         return false;
     }
 

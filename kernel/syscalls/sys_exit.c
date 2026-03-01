@@ -57,23 +57,7 @@ void sys_exit(int code)
     process_t* parent = nullptr;
     if (proc && proc_terminated)
     {
-        proc->exit_code = code;
-        proc->terminated = true;
-        signal_send_sigchld(proc);
-
-        process_t* new_parent = init_process ? init_process : kernel_process;
-        process_t* p;
-        list_foreach_entry(p, &process_list, list)
-        {
-            if (p && p->parent == proc)
-            {
-                p->parent = new_parent;
-                if (p->terminated)
-                    thread_wakeup(new_parent);
-            }
-        }
-
-        parent = proc->parent;
+        process_mark_exited_locked(proc, code, &parent);
     }
 
     spinlock_release(&scheduler_lock);

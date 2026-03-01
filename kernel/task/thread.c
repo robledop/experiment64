@@ -126,10 +126,9 @@ void thread_sleep(void *chan, spinlock_t *lock)
         __asm__ volatile ("sti");
 }
 
-void thread_wakeup(void *chan)
+void thread_wakeup_locked(void *chan)
 {
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    spinlock_assert_held(&scheduler_lock);
     process_t *p;
     list_foreach_entry(p, &process_list, list) {
         thread_t *t;
@@ -152,6 +151,13 @@ void thread_wakeup(void *chan)
             }
         }
     }
+}
+
+void thread_wakeup(void *chan)
+{
+    uint64_t rflags;
+    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    thread_wakeup_locked(chan);
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 }
 

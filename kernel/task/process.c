@@ -310,6 +310,35 @@ void process_reap(process_t *proc)
     process_destroy_now(proc);
 }
 
+void process_mark_exited_locked(process_t *proc, int exit_code, process_t **parent_out)
+{
+    spinlock_assert_held(&scheduler_lock);
+    if (!proc)
+        return;
+
+    proc->exit_code  = exit_code;
+    proc->terminated = true;
+    signal_send_sigchld(proc);
+
+    thread_t *t;
+    list_foreach_entry(t, &proc->threads, list) {
+        thread_state_store(t, THREAD_TERMINATED);
+    }
+
+    process_t *new_parent = init_process ? init_process : kernel_process;
+    process_t *child;
+    list_foreach_entry(child, &process_list, list) {
+        if (child && child->parent == proc) {
+            child->parent = new_parent;
+            if (child->terminated)
+                thread_wakeup_locked(new_parent);
+        }
+    }
+
+    if (parent_out)
+        *parent_out = proc->parent;
+}
+
 static const char *thread_state_str(thread_state_t state)
 {
     switch (state) {

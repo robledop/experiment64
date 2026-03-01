@@ -321,30 +321,9 @@ void interrupt_handler(struct interrupt_frame *frame)
             // Interrupts are already disabled by the interrupt gate.
             spinlock_acquire(&scheduler_lock);
 
-            if (p) {
-                p->exit_code  = -1;
-                p->terminated = true;
-                signal_send_sigchld(p);
-            }
-            if (p) {
-                thread_t *tt;
-                list_foreach_entry(tt, &p->threads, list) {
-                    tt->state = THREAD_TERMINATED;
-                }
-
-                process_t *new_parent = init_process ? init_process : kernel_process;
-                process_t *child;
-                list_foreach_entry(child, &process_list, list) {
-                    if (child && child->parent == p) {
-                        child->parent = new_parent;
-                        if (child->terminated)
-                            thread_wakeup(new_parent);
-                    }
-                }
-            }
-
-            // Cache parent before releasing lock
-            process_t *parent = (p && p->parent) ? p->parent : nullptr;
+            process_t *parent = nullptr;
+            if (p)
+                process_mark_exited_locked(p, -1, &parent);
 
             spinlock_release(&scheduler_lock);
 

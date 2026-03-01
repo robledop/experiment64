@@ -38,21 +38,7 @@ void sys_thread_exit(int code)
 
     process_t *parent = nullptr;
     if (last_thread) {
-        proc->exit_code  = code;
-        proc->terminated = true;
-        signal_send_sigchld(proc);
-
-        process_t *new_parent = init_process ? init_process : kernel_process;
-        process_t *child;
-        list_foreach_entry(child, &process_list, list) {
-            if (child && child->parent == proc) {
-                child->parent = new_parent;
-                if (child->terminated)
-                    thread_wakeup(new_parent);
-            }
-        }
-
-        parent = proc->parent;
+        process_mark_exited_locked(proc, code, &parent);
     }
 
     spinlock_release(&scheduler_lock);
