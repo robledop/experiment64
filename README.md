@@ -2,6 +2,8 @@
 
 An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shell.
 
+![GUI screenshot](docs/img/gui.png)
+
 ![Kernel splash](https://pazotto.com/img/experiment64/Screenshot2.png)
 
 ## Toolchain and build requirements
@@ -138,7 +140,6 @@ One WM client connection can own multiple windows, including child windows.
 The userland libc also includes a small immediate-mode UI helper (`wm/imui.h`) for
 building controls like buttons on top of the WM client protocol.
 
-![GUI screenshot](docs/img/gui.png)
 
 ## DOOM
 
