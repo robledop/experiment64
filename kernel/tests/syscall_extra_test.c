@@ -210,7 +210,7 @@ TEST(test_sys_console_termios_vmin_vtime)
     new_t.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
     new_t.c_cc[VMIN] = 0;
     new_t.c_cc[VTIME] = 1;
-    TEST_ASSERT(sys_ioctl(fd, TIOCSETA, &new_t) == 0);
+    TEST_ASSERT(sys_ioctl(fd, TCSETSW, &new_t) == 0);
 
     char c = 0;
     uint64_t start = tsc_nanos();
@@ -226,7 +226,7 @@ TEST(test_sys_console_termios_vmin_vtime)
     TEST_ASSERT(sys_read(fd, &c, 1) == 1);
     TEST_ASSERT(c == 27);
 
-    TEST_ASSERT(sys_ioctl(fd, TIOCSETA, &old_t) == 0);
+    TEST_ASSERT(sys_ioctl(fd, TCSETSF, &old_t) == 0);
     sys_close(fd);
     return true;
 }
@@ -267,7 +267,7 @@ TEST(test_sys_openpty_termios_vmin_vtime)
     new_t.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
     new_t.c_cc[VMIN] = 0;
     new_t.c_cc[VTIME] = 1;
-    TEST_ASSERT(sys_ioctl(fds[1], TIOCSETA, &new_t) == 0);
+    TEST_ASSERT(sys_ioctl(fds[1], TCSETSW, &new_t) == 0);
 
     char c = 0;
     uint64_t start = tsc_nanos();
@@ -284,7 +284,7 @@ TEST(test_sys_openpty_termios_vmin_vtime)
     TEST_ASSERT(sys_read(fds[1], &c, 1) == 1);
     TEST_ASSERT(c == esc);
 
-    TEST_ASSERT(sys_ioctl(fds[1], TIOCSETA, &old_t) == 0);
+    TEST_ASSERT(sys_ioctl(fds[1], TCSETSF, &old_t) == 0);
     sys_close(fds[0]);
     sys_close(fds[1]);
     return true;

@@ -411,6 +411,8 @@ static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg)
         return 0;
     }
     case TIOCSETA:
+    case TCSETSW:
+    case TCSETSF:
     {
         if (!arg)
             return -1;

@@ -8,6 +8,7 @@ returns -1.
 - `TIOCGWINSZ`: writes a `struct winsize` to the user pointer.
 - `TIOCGETA`: writes a `struct termios` to the user pointer.
 - `TIOCSETA`: reads a `struct termios` from the user pointer.
+- `TCGETS`/`TCSETS`/`TCSETSW`/`TCSETSF` are accepted as Linux-compatible aliases (`TCSETS*` currently behave like immediate apply).
 - `TIOCGPGRP`: writes an `int` foreground PID to the user pointer.
 - `TIOCSPGRP`: reads an `int` foreground PID from the user pointer.
 - `FIONBIO`: reads an `int`; non-zero enables non-blocking reads.
@@ -19,6 +20,7 @@ returns -1.
 - `TIOCSWINSZ`: reads a `struct winsize` from the user pointer and updates the PTY size.
 - `TIOCGETA`: writes a `struct termios` to the user pointer.
 - `TIOCSETA`: reads a `struct termios` from the user pointer.
+- `TCGETS`/`TCSETS`/`TCSETSW`/`TCSETSF` are accepted as Linux-compatible aliases (`TCSETS*` currently behave like immediate apply).
 - `TIOCGPGRP`: writes an `int` foreground PID to the user pointer (works on both master and slave).
 - `TIOCSPGRP`: reads an `int` foreground PID from the user pointer (slave side only).
 - `FIONBIO`: reads an `int`; non-zero enables non-blocking reads on that endpoint.

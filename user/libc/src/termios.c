@@ -85,14 +85,19 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
 {
     if (!termios_p)
         return -1;
-    if (optional_actions != TCSANOW &&
-        optional_actions != TCSADRAIN &&
-        optional_actions != TCSAFLUSH) {
+    int request = 0;
+    if (optional_actions == TCSANOW) {
+        request = TCSETS;
+    } else if (optional_actions == TCSADRAIN) {
+        request = TCSETSW;
+    } else if (optional_actions == TCSAFLUSH) {
+        request = TCSETSF;
+    } else {
         errno = EINVAL;
         return -1;
     }
 
-    if (ioctl(fd, TIOCSETA, (void *)termios_p) != 0)
+    if (ioctl(fd, request, (void *)termios_p) != 0)
         return -1;
 
     struct termios *entry = get_entry(fd);

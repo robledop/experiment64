@@ -148,7 +148,7 @@ static int console_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *
         copy_to_user(arg, &console_termios, sizeof(console_termios));
         return 0;
     }
-    if (request == TIOCSETA) {
+    if (request == TIOCSETA || request == TCSETSW || request == TCSETSF) {
         if (!arg)
             return -1;
         struct termios t = {0};

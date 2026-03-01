@@ -10,6 +10,11 @@
 #define TIOCGETA 0x5401
 // Set terminal attributes
 #define TIOCSETA 0x5402
+// Linux termios aliases used by BusyBox and other ports
+#define TCGETS TIOCGETA
+#define TCSETS TIOCSETA
+#define TCSETSW 0x5403
+#define TCSETSF 0x5404
 // Get foreground process
 #define TIOCGPGRP 0x540F
 // Set foreground process

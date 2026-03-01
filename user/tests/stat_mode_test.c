@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
@@ -57,17 +58,31 @@ int main(void)
         return 14;
     }
 
-    errno = 0;
-    if (tcsetattr(fd, 99, &saved) != -1) {
+    struct termios ioctl_t = {0};
+    if (ioctl(fd, TCGETS, &ioctl_t) != 0) {
         close(fd);
         return 15;
     }
-    if (errno != EINVAL) {
+    if (ioctl(fd, TCSETSW, &saved) != 0) {
         close(fd);
         return 16;
     }
-    if (close(fd) != 0)
+    if (ioctl(fd, TCSETSF, &saved) != 0) {
+        close(fd);
         return 17;
+    }
+
+    errno = 0;
+    if (tcsetattr(fd, 99, &saved) != -1) {
+        close(fd);
+        return 18;
+    }
+    if (errno != EINVAL) {
+        close(fd);
+        return 19;
+    }
+    if (close(fd) != 0)
+        return 20;
 
     return 0;
 }

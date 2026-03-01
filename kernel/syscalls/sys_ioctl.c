@@ -16,6 +16,8 @@ static size_t ioctl_arg_size(int request)
         return sizeof(struct winsize);
     case TIOCGETA:
     case TIOCSETA:
+    case TCSETSW:
+    case TCSETSF:
         return sizeof(struct termios);
     case TIOCGPGRP:
     case TIOCSPGRP:
@@ -42,6 +44,8 @@ static ioctl_dir_t ioctl_arg_dir(int request)
     switch (request) {
     case TIOCSWINSZ:
     case TIOCSETA:
+    case TCSETSW:
+    case TCSETSF:
     case TIOCSPGRP:
     case FIONBIO:
         return IOCTL_DIR_READ;

@@ -53,4 +53,5 @@ coalescing all backend failures to `-EIO`.
 
 - `<termios.h>` now exposes `TCSANOW`, `TCSADRAIN`, and `TCSAFLUSH`.
 - `tcsetattr()` accepts those three action values and returns `-1` with `errno=EINVAL` for invalid actions.
+- `tcsetattr()` maps actions to Linux-style `ioctl` requests (`TCSETS`, `TCSETSW`, `TCSETSF`).
 - libc provides `cfmakeraw(struct termios *)` and additional POSIX-style termios constants to ease third-party ports.
