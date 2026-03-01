@@ -43,6 +43,12 @@ QEMU_DRIVES :=  \
 	-drive if=none,file=$(USB_DISK),format=raw,id=usbdrive \
 	-device usb-storage,bus=xhci.0,drive=usbdrive
 
+QEMU_DRIVES_SMALL :=  \
+	-drive if=none,file=small-image.hdd,format=raw,id=ahcibase \
+	-device ahci,id=ahci \
+	-device ide-hd,bus=ahci.0,drive=ahcibase,bootindex=1 \
+	-device qemu-xhci,id=xhci
+
 QEMU_USB_TABLET := -device usb-tablet,bus=xhci.0
 
 QEMU_DRIVES_USBBOOT :=  \
@@ -147,6 +153,13 @@ $(DOOM_BIN): $(LIBC_A)
 image.hdd: $(KERNEL) limine limine.conf userland $(DOOM_BIN)
 	./scripts/make_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
 
+small-image.hdd: $(KERNEL) limine limine.conf userland
+	./scripts/make_small_image.sh $(KERNEL) $(ROOTFS) $(USER_BUILD_DIR)
+
+.PHONY: small-image
+small-image:
+	$(MAKE) small-image.hdd
+
 .PHONY: disk
 disk: bear
 	$(MAKE) image.hdd
@@ -160,6 +173,11 @@ qemu-nobuild:
 run: clean
 	$(MAKE) image.hdd
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
+
+.PHONY: run-small-image
+run-small-image:
+	$(MAKE) small-image.hdd
+	$(QEMU_BASE) $(QEMU_DRIVES_SMALL) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-usb
 run-usb:

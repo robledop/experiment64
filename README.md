@@ -15,7 +15,9 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 ## Common targets
 
 - `make image.hdd` – build kernel + userland and assemble disk images
+- `make small-image` – build a minimal bootable image (`small-image.hdd`) with ESP + ext2 root
 - `make run` – boot the kernel in QEMU with the generated image
+- `make run-small-image` – boot QEMU using `small-image.hdd`
 - `make run-nox` – boot headless (`-nographic`) with console I/O on serial
 - `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
 - `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
@@ -62,6 +64,12 @@ To actually run the OS inside QEMU, use the following command:
 make run
 ```
 
+To run using the minimal disk image:
+
+```bash
+make run-small-image
+```
+
 To boot the disk image as a USB mass storage device:
 
 ```bash
@@ -87,6 +95,7 @@ By default, the disk image is written to `/dev/sdb` so, **BE CAREFUL**!
 ## Disk images
 
 - `image.hdd`: GPT image with ESP (FAT32), root ext2 and data FAT32
+- `small-image.hdd`: GPT image with ESP (FAT32) and root ext2 only
 - `image2.ide`: secondary IDE disk with an ext2 partition
 - `image3.usb`: USB mass storage disk with an ext2 partition
 

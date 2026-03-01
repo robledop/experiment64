@@ -29,6 +29,11 @@ The QEMU targets attach these images by default:
 - `image2.ide`: IDE disk with an ext2 partition
 - `image3.usb`: USB mass storage disk with an ext2 partition
 
+You can also build a minimal bootable disk with:
+
+- `make small-image`: creates `small-image.hdd` with only ESP (FAT32) + root ext2
+- `make run-small-image`: boots QEMU with `small-image.hdd`
+
 The VirtualBox launcher also attaches these images, including `image3.usb` as USB mass storage.
 
 When detected and not the boot device, the USB ext2 partition mounts at `/usb`.
