@@ -1,7 +1,9 @@
 #include <drivers/tsc.h>
+#include <arch/x86_64/apic.h>
 #include <arch/x86_64/cpu.h>
 #include <drivers/pit.h>
 #include <drivers/terminal.h>
+#include <task/process.h>
 
 static uint64_t tsc_frequency = 0;
 
@@ -42,6 +44,14 @@ uint64_t tsc_nanos(void)
     if (freq_mhz == 0)
         return 0;
     return (rdtsc() * 1000) / freq_mhz;
+}
+
+uint64_t tsc_monotonic_ns(void)
+{
+    const uint64_t ns = tsc_nanos();
+    if (ns != 0)
+        return ns;
+    return scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
 }
 
 void tsc_sleep_ns(uint64_t ns)

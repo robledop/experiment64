@@ -6,6 +6,7 @@
 #include <drivers/terminal.h>
 #include <task/process.h>
 #include <sys/fcntl.h>
+#include <sys/poll.h>
 #include <fs/vfs.h>
 #include <sys/mman.h>
 #include <tests/test_util.h>
@@ -1711,6 +1712,58 @@ TEST(test_syscall_ftruncate_nonzero_unsupported)
 
     TEST_ASSERT(sys_close(fd) == 0);
     TEST_ASSERT(sys_unlink("/ftruncate_nonzero.txt") == 0);
+    return true;
+}
+
+TEST(test_syscall_poll_timeout)
+{
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+
+    struct pollfd pfd = {.fd = pipefd[0], .events = POLLIN, .revents = 0};
+    uint64_t start    = scheduler_ticks;
+    TEST_ASSERT(sys_poll(&pfd, 1, 50) == 0);
+    uint64_t end = scheduler_ticks;
+    TEST_ASSERT(end >= start);
+    TEST_ASSERT(end - start >= 1);
+    TEST_ASSERT(pfd.revents == 0);
+
+    TEST_ASSERT(sys_close(pipefd[0]) == 0);
+    TEST_ASSERT(sys_close(pipefd[1]) == 0);
+    return true;
+}
+
+TEST(test_syscall_poll_pipe_ready)
+{
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+
+    struct pollfd read_pfd = {.fd = pipefd[0], .events = POLLIN, .revents = 0};
+    TEST_ASSERT(sys_poll(&read_pfd, 1, 0) == 0);
+    TEST_ASSERT(sys_write(pipefd[1], "z", 1) == 1);
+    TEST_ASSERT(sys_poll(&read_pfd, 1, 0) == 1);
+    TEST_ASSERT((read_pfd.revents & POLLIN) != 0);
+
+    char c = 0;
+    TEST_ASSERT(sys_read(pipefd[0], &c, 1) == 1);
+    TEST_ASSERT(c == 'z');
+
+    struct pollfd write_pfd = {.fd = pipefd[1], .events = POLLOUT, .revents = 0};
+    TEST_ASSERT(sys_poll(&write_pfd, 1, 0) == 1);
+    TEST_ASSERT((write_pfd.revents & POLLOUT) != 0);
+
+    TEST_ASSERT(sys_close(pipefd[0]) == 0);
+    TEST_ASSERT(sys_poll(&write_pfd, 1, 0) == 1);
+    TEST_ASSERT((write_pfd.revents & POLLERR) != 0);
+    TEST_ASSERT(sys_close(pipefd[1]) == 0);
+    return true;
+}
+
+TEST(test_syscall_poll_invalid_fd)
+{
+    struct pollfd pfd = {.fd = 999, .events = POLLIN, .revents = 0};
+    TEST_ASSERT(sys_poll(&pfd, 1, 0) == 1);
+    TEST_ASSERT((pfd.revents & POLLNVAL) != 0);
     return true;
 }
 

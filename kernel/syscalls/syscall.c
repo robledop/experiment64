@@ -259,6 +259,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_FTRUNCATE:
         ret = sys_ftruncate((int)arg1, (long)arg2);
         break;
+    case SYS_POLL:
+        ret = sys_poll((struct pollfd *)arg1, (long)arg2, (int)arg3);
+        break;
     default:
         panic("Unknown syscall: %lu\n", syscall_number);
         // ReSharper disable once CppDFAUnreachableCode

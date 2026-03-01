@@ -8,10 +8,10 @@
 #include <drivers/console.h>
 #include <fs/devfs.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 #include <sys/termios.h>
 #include <syscall_common.h>
 #include <task/process.h>
-#include <arch/x86_64/apic.h>
 
 static struct termios console_termios = {
     .c_iflag = IXON | ICRNL,
@@ -21,14 +21,6 @@ static struct termios console_termios = {
     .c_cc = {[VMIN] = 1, [VTIME] = 0},
 };
 static int console_nonblock = 0;
-
-static uint64_t console_now_ns(void)
-{
-    const uint64_t ns = tsc_nanos();
-    if (ns != 0)
-        return ns;
-    return scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
-}
 
 static bool console_try_get_char(char *out)
 {
@@ -89,7 +81,7 @@ uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]]
             if (vmin == 0)
                 break;
             if (vtime > 0) {
-                deadline_ns = console_now_ns() + timeout_ns;
+                deadline_ns = tsc_monotonic_ns() + timeout_ns;
                 deadline_active = true;
             }
             if (bytes_read >= vmin)
@@ -102,7 +94,7 @@ uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]]
                 break;
             if (vmin == 0)
                 break;
-            if (vtime > 0 && deadline_active && console_now_ns() >= deadline_ns)
+            if (vtime > 0 && deadline_active && tsc_monotonic_ns() >= deadline_ns)
                 break;
         } else {
             if (nonblock)
@@ -111,9 +103,9 @@ uint64_t console_read([[maybe_unused]] const vfs_inode_t *node, [[maybe_unused]]
                 if (vtime == 0)
                     break;
                 if (!deadline_active) {
-                    deadline_ns = console_now_ns() + timeout_ns;
+                    deadline_ns = tsc_monotonic_ns() + timeout_ns;
                     deadline_active = true;
-                } else if (console_now_ns() >= deadline_ns) {
+                } else if (tsc_monotonic_ns() >= deadline_ns) {
                     break;
                 }
             }
@@ -190,10 +182,26 @@ static int console_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *
     return -1;
 }
 
+static int console_poll([[maybe_unused]] const vfs_inode_t *node, short events, short *revents)
+{
+    if (!revents)
+        return -1;
+
+    short out = 0;
+    if ((events & (POLLIN | POLLPRI)) && console_has_char())
+        out |= POLLIN;
+    if (events & POLLOUT)
+        out |= POLLOUT;
+
+    *revents = out;
+    return 0;
+}
+
 struct inode_operations console_ops = {
     .read = console_read,
     .write = console_write,
     .ioctl = console_ioctl,
+    .poll = console_poll,
 };
 
 vfs_inode_t *console_device = nullptr;

@@ -44,6 +44,7 @@ struct inode_operations
     void (*open)(const struct vfs_inode *node);
     void (*close)(struct vfs_inode *node);
     int (*ioctl)(struct vfs_inode *node, int request, void *arg);
+    int (*poll)(const struct vfs_inode *node, short events, short *revents);
     vfs_dirent_t *(*readdir)(const struct vfs_inode *node, uint32_t index);
     struct vfs_inode *(*finddir)(const struct vfs_inode *node, const char *name);
     struct vfs_inode *(*clone)(const struct vfs_inode *node);
@@ -74,6 +75,7 @@ uint64_t vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *b
 int vfs_truncate(vfs_inode_t *node);
 void vfs_open(const vfs_inode_t *node);
 void vfs_close(vfs_inode_t *node);
+int vfs_poll(const vfs_inode_t *node, short events, short *revents);
 vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index);
 vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
 vfs_inode_t *vfs_resolve_path(const char *path);

@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <util.h>
 #include <termios.h>
@@ -277,6 +278,11 @@ int dup2(int oldfd, int newfd)
 int ftruncate(int fd, long length)
 {
     return clamp_signed_to_int(syscall2(SYS_FTRUNCATE, fd, length));
+}
+
+int poll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+    return clamp_signed_to_int(syscall3(SYS_POLL, (long)fds, (long)nfds, timeout));
 }
 
 int openpty(int fds[2])

@@ -295,6 +295,15 @@ void vfs_close(vfs_inode_t *node)
         node->iops->close(node);
 }
 
+int vfs_poll(const vfs_inode_t *node, short events, short *revents)
+{
+    if (!node || !revents)
+        return -1;
+    if (node->iops && node->iops->poll)
+        return node->iops->poll(node, events, revents);
+    return -1;
+}
+
 vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
 {
     if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->readdir) {

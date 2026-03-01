@@ -1,14 +1,11 @@
 #include <syscall_common.h>
 
-#include <arch/x86_64/apic.h>
 #include <drivers/tsc.h>
 #include <sys/time.h>
 
 int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
 {
-    uint64_t ns = tsc_nanos();
-    if (ns == 0)
-        ns = scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
+    const uint64_t ns = tsc_monotonic_ns();
 
     if (tv)
     {

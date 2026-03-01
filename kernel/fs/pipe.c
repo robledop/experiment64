@@ -10,6 +10,7 @@
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 #include <task/process.h>
 
 // Pipe inode operations
@@ -18,6 +19,7 @@ static uint64_t pipe_inode_read(const vfs_inode_t *node, uint64_t offset, uint64
 static uint64_t pipe_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 static void pipe_inode_close(vfs_inode_t *node);
 static int pipe_inode_ioctl(vfs_inode_t *node, int request, void *arg);
+static int pipe_inode_poll(const vfs_inode_t *node, short events, short *revents);
 
 static struct inode_operations pipe_read_ops = {
     .read = pipe_inode_read,
@@ -26,6 +28,7 @@ static struct inode_operations pipe_read_ops = {
     .open = nullptr,
     .close = pipe_inode_close,
     .ioctl = nullptr,
+    .poll = pipe_inode_poll,
     .readdir = nullptr,
     .finddir = nullptr,
     .clone = nullptr,
@@ -41,6 +44,7 @@ static struct inode_operations pipe_write_ops = {
     .open = nullptr,
     .close = pipe_inode_close,
     .ioctl = pipe_inode_ioctl,
+    .poll = pipe_inode_poll,
     .readdir = nullptr,
     .finddir = nullptr,
     .clone = nullptr,
@@ -227,18 +231,41 @@ static int pipe_inode_ioctl(vfs_inode_t *node, int request, void *arg)
 
     pipe_t *p = (pipe_t *)node->device;
 
-    switch (request) {
-    case FIONBIO:
-    {
-        if (!arg)
-            return -1;
-        int val = *(int *)arg;
-        spinlock_acquire(&p->lock);
-        p->nonblock_write = val ? 1 : 0;
-        spinlock_release(&p->lock);
-        return 0;
-    }
-    default:
+    if (request != FIONBIO)
         return -1;
+
+    if (!arg)
+        return -1;
+    int val = *(int *)arg;
+    spinlock_acquire(&p->lock);
+    p->nonblock_write = val ? 1 : 0;
+    spinlock_release(&p->lock);
+    return 0;
+}
+
+static int pipe_inode_poll(const vfs_inode_t *node, short events, short *revents)
+{
+    if (!node || !node->device || !revents)
+        return -1;
+
+    pipe_t *p = (pipe_t *)node->device;
+    short out = 0;
+
+    spinlock_acquire(&p->lock);
+    const bool is_read_end = (node->iops == &pipe_read_ops);
+    if (is_read_end) {
+        if ((events & (POLLIN | POLLPRI)) && p->count > 0)
+            out |= POLLIN;
+        if (p->write_open == 0)
+            out |= POLLHUP;
+    } else {
+        if ((events & POLLOUT) && p->read_open > 0 && p->count < PIPE_BUF_SIZE)
+            out |= POLLOUT;
+        if (p->read_open == 0)
+            out |= POLLERR;
     }
+    spinlock_release(&p->lock);
+
+    *revents = out;
+    return 0;
 }

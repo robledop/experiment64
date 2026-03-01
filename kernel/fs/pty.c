@@ -5,11 +5,11 @@
 #include <lib/string.h>
 #include <mem/heap.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 #include <sys/termios.h>
 #include <syscall_common.h>
 #include <task/process.h>
 #include <task/signal.h>
-#include <arch/x86_64/apic.h>
 
 #define PTY_BUF_SIZE 4096
 
@@ -45,6 +45,7 @@ static uint64_t pty_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_
 static uint64_t pty_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *buffer);
 static void pty_inode_close(vfs_inode_t *node);
 static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg);
+static int pty_inode_poll(const vfs_inode_t *node, short events, short *revents);
 static vfs_inode_t *pty_inode_clone(const vfs_inode_t *node);
 
 static struct inode_operations pty_inode_ops = {
@@ -54,6 +55,7 @@ static struct inode_operations pty_inode_ops = {
     .open = nullptr,
     .close = pty_inode_close,
     .ioctl = pty_inode_ioctl,
+    .poll = pty_inode_poll,
     .readdir = nullptr,
     .finddir = nullptr,
     .clone = pty_inode_clone,
@@ -106,14 +108,6 @@ static struct termios pty_default_termios(void)
         .c_lflag = ECHO | ICANON,
         .c_cc = {[VMIN] = 1, [VTIME] = 0},
     };
-}
-
-static uint64_t pty_now_ns(void)
-{
-    const uint64_t ns = tsc_nanos();
-    if (ns != 0)
-        return ns;
-    return scheduler_ticks * (1000000000ull / TIMER_FREQUENCY_HZ);
 }
 
 static vfs_inode_t *pty_create_endpoint_inode(pty_t *pty, bool is_master)
@@ -245,7 +239,7 @@ static uint64_t pty_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_
 
         if (bytes_read > 0 && vtime > 0) {
             if (!deadline_active) {
-                deadline_ns = pty_now_ns() + timeout_ns;
+                deadline_ns = tsc_monotonic_ns() + timeout_ns;
                 deadline_active = true;
             }
         }
@@ -261,12 +255,12 @@ static uint64_t pty_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_
                 break;
             }
             if (!deadline_active) {
-                deadline_ns = pty_now_ns() + timeout_ns;
+                deadline_ns = tsc_monotonic_ns() + timeout_ns;
                 deadline_active = true;
-            } else if (pty_now_ns() >= deadline_ns) {
+            } else if (tsc_monotonic_ns() >= deadline_ns) {
                 break;
             }
-        } else if (bytes_read > 0 && vtime > 0 && deadline_active && pty_now_ns() >= deadline_ns) {
+        } else if (bytes_read > 0 && vtime > 0 && deadline_active && tsc_monotonic_ns() >= deadline_ns) {
             break;
         }
 
@@ -471,6 +465,36 @@ static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg)
     default:
         return -1;
     }
+}
+
+static int pty_inode_poll(const vfs_inode_t *node, short events, short *revents)
+{
+    if (!node || !node->device || !revents)
+        return -1;
+
+    const pty_endpoint_t *ep = (const pty_endpoint_t *)node->device;
+    pty_t *pty               = ep->pty;
+    if (!pty)
+        return -1;
+
+    short out = 0;
+    spinlock_acquire(&pty->lock);
+    pty_ring_t *rx   = pty_rx_ring(ep);
+    pty_ring_t *tx   = pty_tx_ring(ep);
+    int peer_open    = pty_peer_open_locked(ep);
+    int revoked      = pty->revoked;
+
+    if ((events & (POLLIN | POLLPRI)) && rx->count > 0)
+        out |= POLLIN;
+    if ((events & POLLOUT) && peer_open > 0 && tx->count < PTY_BUF_SIZE && !revoked)
+        out |= POLLOUT;
+    if (peer_open == 0 || revoked)
+        out |= POLLHUP;
+
+    spinlock_release(&pty->lock);
+
+    *revents = out;
+    return 0;
 }
 
 static vfs_inode_t *pty_inode_clone(const vfs_inode_t *node)
