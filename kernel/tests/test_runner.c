@@ -52,13 +52,13 @@ void run_tests(void)
 
     printk("Found %lu tests.\n", count);
 
-    if (count > 256)
+    if (count > 512)
     {
-        printk("Warning: Too many tests (%lu), capping at 256.\n", count);
-        count = 256;
+        printk("Warning: Too many tests (%lu), capping at 512.\n", count);
+        count = 512;
     }
 
-    struct test_case *tests[256];
+    struct test_case *tests[512];
 
     // Initialize pointer array
     size_t idx = 0;
