@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 
 static struct termios termios_table[16];
 static bool termios_initialized = false;
@@ -52,6 +53,20 @@ tcflag_t __termios_get_oflag(int fd)
     return entry ? entry->c_oflag : 0;
 }
 
+void cfmakeraw(struct termios *termios_p)
+{
+    if (!termios_p)
+        return;
+
+    termios_p->c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    termios_p->c_oflag &= ~OPOST;
+    termios_p->c_cflag &= ~CSIZE;
+    termios_p->c_cflag |= CS8;
+    termios_p->c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    termios_p->c_cc[VMIN]  = 1;
+    termios_p->c_cc[VTIME] = 0;
+}
+
 int tcgetattr(int fd, struct termios *termios_p)
 {
     if (!termios_p)
@@ -68,9 +83,14 @@ int tcgetattr(int fd, struct termios *termios_p)
 
 int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
 {
-    (void)optional_actions;
     if (!termios_p)
         return -1;
+    if (optional_actions != TCSANOW &&
+        optional_actions != TCSADRAIN &&
+        optional_actions != TCSAFLUSH) {
+        errno = EINVAL;
+        return -1;
+    }
 
     if (ioctl(fd, TIOCSETA, (void *)termios_p) != 0)
         return -1;

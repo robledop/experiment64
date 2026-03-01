@@ -17,6 +17,7 @@
       <w>bzero</w>
       <w>caplength</w>
       <w>cfiles</w>
+      <w>cfmakeraw</w>
       <w>chardevice</w>
       <w>cilas</w>
       <w>connfd</w>

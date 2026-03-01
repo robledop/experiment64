@@ -48,3 +48,9 @@ coalescing all backend failures to `-EIO`.
 - Kernel metadata paths (`stat`/`fstat`) populate both legacy `type` and POSIX `st_mode`.
 - Legacy fields remain available for existing programs (`size`, `i_mtime`, etc.); libc also provides aliases like
   `st_size`, `st_mtime`, `st_uid`, and `st_gid`.
+
+## `termios` Compatibility
+
+- `<termios.h>` now exposes `TCSANOW`, `TCSADRAIN`, and `TCSAFLUSH`.
+- `tcsetattr()` accepts those three action values and returns `-1` with `errno=EINVAL` for invalid actions.
+- libc provides `cfmakeraw(struct termios *)` and additional POSIX-style termios constants to ease third-party ports.

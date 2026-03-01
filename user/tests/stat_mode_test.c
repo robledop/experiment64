@@ -1,5 +1,7 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 
 int main(void)
@@ -29,5 +31,43 @@ int main(void)
 
     if (unlink(path) != 0)
         return 9;
+
+    fd = open("/dev/console", O_RDONLY);
+    if (fd < 0)
+        return 10;
+
+    struct termios saved = {0};
+    if (tcgetattr(fd, &saved) != 0) {
+        close(fd);
+        return 11;
+    }
+
+    struct termios raw = saved;
+    cfmakeraw(&raw);
+    if (tcsetattr(fd, TCSANOW, &raw) != 0) {
+        close(fd);
+        return 12;
+    }
+    if (tcsetattr(fd, TCSADRAIN, &saved) != 0) {
+        close(fd);
+        return 13;
+    }
+    if (tcsetattr(fd, TCSAFLUSH, &saved) != 0) {
+        close(fd);
+        return 14;
+    }
+
+    errno = 0;
+    if (tcsetattr(fd, 99, &saved) != -1) {
+        close(fd);
+        return 15;
+    }
+    if (errno != EINVAL) {
+        close(fd);
+        return 16;
+    }
+    if (close(fd) != 0)
+        return 17;
+
     return 0;
 }
