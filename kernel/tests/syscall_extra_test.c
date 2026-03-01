@@ -218,6 +218,23 @@ TEST(test_sys_openpty_sigint_foreground_pid)
     return true;
 }
 
+TEST(test_sys_openpty_tiocgpgrp_roundtrip)
+{
+    int fds[2] = {-1, -1};
+    TEST_ASSERT(sys_openpty(fds) == 0);
+
+    int set_pid = 12345;
+    TEST_ASSERT(sys_ioctl(fds[1], TIOCSPGRP, &set_pid) == 0);
+
+    int got_pid = -1;
+    TEST_ASSERT(sys_ioctl(fds[0], TIOCGPGRP, &got_pid) == 0);
+    TEST_ASSERT(got_pid == set_pid);
+
+    sys_close(fds[0]);
+    sys_close(fds[1]);
+    return true;
+}
+
 TEST(test_sys_openpty_shell_smoke)
 {
     int pid = sys_spawn("/tests/pty_shell_test");
@@ -226,5 +243,72 @@ TEST(test_sys_openpty_shell_smoke)
     int status = -1;
     TEST_ASSERT(sys_waitpid(pid, &status, 0) == pid);
     TEST_ASSERT(status == 0);
+    return true;
+}
+
+TEST(test_sys_pipe_fionbio_nonblocking_write)
+{
+    int pipefd[2] = {-1, -1};
+    TEST_ASSERT(sys_pipe(pipefd) == 0);
+
+    // Set non-blocking on write end
+    int one = 1;
+    TEST_ASSERT(sys_ioctl(pipefd[1], FIONBIO, &one) == 0);
+
+    // Fill the pipe buffer (PIPE_BUF_SIZE = 4096)
+    char fill[256];
+    memset(fill, 'A', sizeof(fill));
+    int total_written = 0;
+    for (int i = 0; i < 16; i++) {
+        int w = sys_write(pipefd[1], fill, sizeof(fill));
+        if (w > 0)
+            total_written += w;
+    }
+    TEST_ASSERT(total_written == 4096);
+
+    // Next write should return 0 (non-blocking, pipe full)
+    int w = sys_write(pipefd[1], fill, sizeof(fill));
+    TEST_ASSERT(w == 0);
+
+    // Drain some data so there's space
+    char drain[128];
+    int r = sys_read(pipefd[0], drain, sizeof(drain));
+    TEST_ASSERT(r == 128);
+
+    // Now a write should succeed (up to available space)
+    w = sys_write(pipefd[1], fill, sizeof(fill));
+    TEST_ASSERT(w == 128);
+
+    sys_close(pipefd[0]);
+    sys_close(pipefd[1]);
+    return true;
+}
+
+TEST(test_sys_openpty_tiochup_revoke)
+{
+    int fds[2] = {-1, -1};
+    TEST_ASSERT(sys_openpty(fds) == 0);
+
+    // Write some data via master→slave direction
+    const char msg[] = "hello";
+    TEST_ASSERT(sys_write(fds[0], msg, 5) == 5);
+
+    // Revoke the PTY
+    TEST_ASSERT(sys_ioctl(fds[0], TIOCHUP, nullptr) == 0);
+
+    // Buffered data is still returned, then EOF
+    char buf[16] = {0};
+    TEST_ASSERT(sys_read(fds[1], buf, sizeof(buf)) == 5);
+    TEST_ASSERT(sys_read(fds[1], buf, sizeof(buf)) == 0);
+
+    // Master read (empty ring) returns 0 immediately
+    TEST_ASSERT(sys_read(fds[0], buf, sizeof(buf)) == 0);
+
+    // Writes on both sides should return 0 (revoked)
+    TEST_ASSERT(sys_write(fds[0], msg, 5) == 0);
+    TEST_ASSERT(sys_write(fds[1], msg, 5) == 0);
+
+    sys_close(fds[0]);
+    sys_close(fds[1]);
     return true;
 }
