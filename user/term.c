@@ -678,8 +678,10 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
         terminal_newline_locked();
         return;
     case '\b':
-        if (term->cursor_col > 0)
+        if (term->cursor_col > 0) {
             term->cursor_col--;
+            terminal_set_cell_locked(term->cursor_row, term->cursor_col, ' ');
+        }
         term->wrap_pending = false;
         return;
     case '\t':
