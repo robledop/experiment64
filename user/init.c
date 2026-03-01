@@ -22,7 +22,11 @@
         exit(1);
     } else if (pid_wm > 0) {
         int status;
-        wait(&status);
+        for (;;) {
+            const int pid = wait(&status);
+            if (pid < 0 || pid == pid_wm)
+                break;
+        }
         printf("Window manager exited with status %d\n", status);
     }
 
