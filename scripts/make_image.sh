@@ -117,6 +117,9 @@ fi
 if [ -f assets/fbdoom ]; then
     cp -v assets/fbdoom build/rootfs_ext2/bin/doom
 fi
+if [ -f assets/httpd.c ]; then
+    cp -v assets/httpd.c build/rootfs_ext2/var/httpd.c
+fi
 for bin in "$USER_BUILD_DIR"/*; do
     if [ ! -f "$bin" ]; then
         continue
