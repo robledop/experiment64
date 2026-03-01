@@ -51,7 +51,8 @@ void taskbar_init(int16_t x, int16_t y, uint16_t w, uint16_t h)
 
 void taskbar_button_activate(int index)
 {
-    button_t *button = arr_get(g_taskbar_buttons, index).button;
+    taskbar_button_t taskbar_button = arr_get(g_taskbar_buttons, index);
+    button_t *button                = taskbar_button.button;
     if (!button)
         return;
     button->color_toggle = 1;
@@ -99,9 +100,23 @@ static void taskbar_button_mousedown_handler(button_t *button, [[maybe_unused]] 
     int index = taskbar_find_button(button);
     if (index == -1)
         return;
+    taskbar_button_t taskbar_button = arr_get(g_taskbar_buttons, index);
 
-    window_t *window = arr_get(g_taskbar_buttons, index).window;
-    window_raise(window, true);
+    window_t *window = taskbar_button.window;
+    window_t *parent = window->parent;
+    if (button->color_toggle) {
+        if (window->flags & WIN_MINIMIZED) {
+            window_restore(window);
+            return;
+        }
+        if (parent->active_child == window) {
+            window_minimize(window);
+            return;
+        }
+    }
+
+    window_restore(window);
+    // window_raise(window, true);
 }
 
 void taskbar_add_button(const char *title, window_t *window)

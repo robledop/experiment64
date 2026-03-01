@@ -1,18 +1,18 @@
-#include <wm/wmclient.h>
-#include <wm/wm_protocol.h>
-#include <wm/video_context.h>
-#include <pty.h>
-#include <pthread.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
-#include <sys/signal.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <wm/window.h>
 #include <array.h>
+#include <pthread.h>
+#include <pty.h>
 #include <signal.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <wm/video_context.h>
+#include <wm/window.h>
+#include <wm/wm_protocol.h>
+#include <wm/wmclient.h>
 
 #define DEFAULT_TERM_COLS 80
 #define DEFAULT_TERM_ROWS 25
@@ -25,22 +25,16 @@
 #define SCANCODE_TABLE_SIZE 84
 
 static constexpr char scancode_to_char[SCANCODE_TABLE_SIZE] = {
-    0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,
-    '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*',
-    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
-    0, 0, 0, '+'
-};
+    0,    27,  '1', '2',  '3', '4', '5', '6', '7',  '8', '9', '0', '-', '=', '\b', '\t', 'q', 'w', 'e', 'r',
+    't',  'y', 'u', 'i',  'o', 'p', '[', ']', '\n', 0,   'a', 's', 'd', 'f', 'g',  'h',  'j', 'k', 'l', ';',
+    '\'', '`', 0,   '\\', 'z', 'x', 'c', 'v', 'b',  'n', 'm', ',', '.', '/', 0,    '*',  0,   ' ', 0,   0,
+    0,    0,   0,   0,    0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   '-',  0,    0,   0,   '+'};
 
 static constexpr char scancode_to_char_shifted[SCANCODE_TABLE_SIZE] = {
-    0, 27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
-    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
-    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,
-    '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*',
-    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '-',
-    0, 0, 0, '+'
-};
+    0,   27,  '!', '@', '#', '$', '%', '^', '&',  '*', '(', ')', '_', '+', '\b', '\t', 'Q', 'W', 'E', 'R',
+    'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', 0,   'A', 'S', 'D', 'F', 'G',  'H',  'J', 'K', 'L', ':',
+    '"', '~', 0,   '|', 'Z', 'X', 'C', 'V', 'B',  'N', 'M', '<', '>', '?', 0,    '*',  0,   ' ', 0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   '-',  0,    0,   0,   '+'};
 
 static constexpr uint32_t ansi_palette[16] = {
     0xFF0E1012u,
@@ -61,15 +55,13 @@ static constexpr uint32_t ansi_palette[16] = {
     0xFFFFFFFFu,
 };
 
-typedef enum
-{
+typedef enum {
     TERM_PARSER_NORMAL = 0,
-    TERM_PARSER_ESC = 1,
-    TERM_PARSER_CSI = 2,
+    TERM_PARSER_ESC    = 1,
+    TERM_PARSER_CSI    = 2,
 } term_parser_state_t;
 
-typedef struct
-{
+typedef struct {
     wm_window_t *win;
     video_context_t *context;
     int master_fd;
@@ -453,120 +445,130 @@ static void terminal_apply_csi_locked(char final_char)
     const int param_count = csi_parse_params(term.csi_buf, params, 16);
 
     switch (final_char) {
-    case 'A': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        if ((uint16_t)n > term.cursor_row)
-            term.cursor_row = 0;
-        else
-            term.cursor_row = (uint16_t)(term.cursor_row - n);
-        break;
-    }
-    case 'B': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        uint16_t next = (uint16_t)(term.cursor_row + n);
-        if (next >= term.rows)
-            term.cursor_row = term.rows - 1;
-        else
-            term.cursor_row = next;
-        break;
-    }
-    case 'C': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        uint16_t next = (uint16_t)(term.cursor_col + n);
-        if (next >= term.cols)
-            term.cursor_col = term.cols - 1;
-        else
-            term.cursor_col = next;
-        break;
-    }
-    case 'D': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        if ((uint16_t)n > term.cursor_col)
+    case 'A':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            if ((uint16_t)n > term.cursor_row)
+                term.cursor_row = 0;
+            else
+                term.cursor_row = (uint16_t)(term.cursor_row - n);
+            break;
+        }
+    case 'B':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            uint16_t next = (uint16_t)(term.cursor_row + n);
+            if (next >= term.rows)
+                term.cursor_row = term.rows - 1;
+            else
+                term.cursor_row = next;
+            break;
+        }
+    case 'C':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            uint16_t next = (uint16_t)(term.cursor_col + n);
+            if (next >= term.cols)
+                term.cursor_col = term.cols - 1;
+            else
+                term.cursor_col = next;
+            break;
+        }
+    case 'D':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            if ((uint16_t)n > term.cursor_col)
+                term.cursor_col = 0;
+            else
+                term.cursor_col = (uint16_t)(term.cursor_col - n);
+            break;
+        }
+    case 'E':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            for (int i = 0; i < n; i++)
+                terminal_newline_locked();
             term.cursor_col = 0;
-        else
-            term.cursor_col = (uint16_t)(term.cursor_col - n);
-        break;
-    }
-    case 'E': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        for (int i = 0; i < n; i++)
-            terminal_newline_locked();
-        term.cursor_col = 0;
-        break;
-    }
-    case 'F': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        if ((uint16_t)n > term.cursor_row)
-            term.cursor_row = 0;
-        else
-            term.cursor_row = (uint16_t)(term.cursor_row - n);
-        term.cursor_col = 0;
-        break;
-    }
-    case 'G': {
-        int col = csi_param_or_default(params, param_count, 0, 1);
-        if (col < 1)
-            col = 1;
-        if (col > term.cols)
-            col = term.cols;
-        term.cursor_col = (uint16_t)(col - 1);
-        break;
-    }
-    case 'd': {
-        int row = csi_param_or_default(params, param_count, 0, 1);
-        if (row < 1)
-            row = 1;
-        if (row > term.rows)
-            row = term.rows;
-        term.cursor_row = (uint16_t)(row - 1);
-        break;
-    }
+            break;
+        }
+    case 'F':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            if ((uint16_t)n > term.cursor_row)
+                term.cursor_row = 0;
+            else
+                term.cursor_row = (uint16_t)(term.cursor_row - n);
+            term.cursor_col = 0;
+            break;
+        }
+    case 'G':
+        {
+            int col = csi_param_or_default(params, param_count, 0, 1);
+            if (col < 1)
+                col = 1;
+            if (col > term.cols)
+                col = term.cols;
+            term.cursor_col = (uint16_t)(col - 1);
+            break;
+        }
+    case 'd':
+        {
+            int row = csi_param_or_default(params, param_count, 0, 1);
+            if (row < 1)
+                row = 1;
+            if (row > term.rows)
+                row = term.rows;
+            term.cursor_row = (uint16_t)(row - 1);
+            break;
+        }
     case 'H':
-    case 'f': {
-        int row = csi_param_or_default(params, param_count, 0, 1);
-        int col = csi_param_or_default(params, param_count, 1, 1);
-        if (row < 1)
-            row = 1;
-        if (col < 1)
-            col = 1;
-        if (row > term.rows)
-            row = term.rows;
-        if (col > term.cols)
-            col = term.cols;
-        term.cursor_row = (uint16_t)(row - 1);
-        term.cursor_col = (uint16_t)(col - 1);
-        break;
-    }
+    case 'f':
+        {
+            int row = csi_param_or_default(params, param_count, 0, 1);
+            int col = csi_param_or_default(params, param_count, 1, 1);
+            if (row < 1)
+                row = 1;
+            if (col < 1)
+                col = 1;
+            if (row > term.rows)
+                row = term.rows;
+            if (col > term.cols)
+                col = term.cols;
+            term.cursor_row = (uint16_t)(row - 1);
+            term.cursor_col = (uint16_t)(col - 1);
+            break;
+        }
     case 'J':
         terminal_erase_display_locked(csi_param_or_default(params, param_count, 0, 0));
         break;
     case 'K':
         terminal_erase_line_locked(csi_param_or_default(params, param_count, 0, 0));
         break;
-    case 'X': {
-        int n = csi_param_or_default(params, param_count, 0, 1);
-        if (n < 1)
-            n = 1;
-        uint16_t end_col = (uint16_t)(term.cursor_col + n);
-        if (end_col > term.cols)
-            end_col = term.cols;
-        const size_t start = terminal_cell_index(term.cursor_row, term.cursor_col);
-        const size_t end   = terminal_cell_index(term.cursor_row, end_col);
-        terminal_fill_cells_locked(start, end);
-        break;
-    }
+    case 'X':
+        {
+            int n = csi_param_or_default(params, param_count, 0, 1);
+            if (n < 1)
+                n = 1;
+            uint16_t end_col = (uint16_t)(term.cursor_col + n);
+            if (end_col > term.cols)
+                end_col = term.cols;
+            const size_t start = terminal_cell_index(term.cursor_row, term.cursor_col);
+            const size_t end   = terminal_cell_index(term.cursor_row, end_col);
+            terminal_fill_cells_locked(start, end);
+            break;
+        }
     case 's':
         term.saved_row = term.cursor_row;
         term.saved_col = term.cursor_col;
@@ -575,15 +577,16 @@ static void terminal_apply_csi_locked(char final_char)
         term.cursor_row = term.saved_row < term.rows ? term.saved_row : (uint16_t)(term.rows - 1);
         term.cursor_col = term.saved_col < term.cols ? term.saved_col : (uint16_t)(term.cols - 1);
         break;
-    case 'm': {
-        if (param_count == 0)
-            terminal_apply_sgr_code(0);
-        else {
-            for (int i = 0; i < param_count; i++)
-                terminal_apply_sgr_code(params[i]);
+    case 'm':
+        {
+            if (param_count == 0)
+                terminal_apply_sgr_code(0);
+            else {
+                for (int i = 0; i < param_count; i++)
+                    terminal_apply_sgr_code(params[i]);
+            }
+            break;
         }
-        break;
-    }
     default:
         break;
     }
@@ -595,16 +598,16 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
         switch (byte) {
         case '[':
             term->parser_state = TERM_PARSER_CSI;
-            term->csi_len    = 0;
-            term->csi_buf[0] = '\0';
+            term->csi_len      = 0;
+            term->csi_buf[0]   = '\0';
             return;
         case '7':
-            term->saved_row = term->cursor_row;
+            term->saved_row    = term->cursor_row;
             term->saved_col    = term->cursor_col;
             term->parser_state = TERM_PARSER_NORMAL;
             return;
         case '8':
-            term->cursor_row = term->saved_row < term->rows ? term->saved_row : (uint16_t)(term->rows - 1);
+            term->cursor_row   = term->saved_row < term->rows ? term->saved_row : (uint16_t)(term->rows - 1);
             term->cursor_col   = term->saved_col < term->cols ? term->saved_col : (uint16_t)(term->cols - 1);
             term->parser_state = TERM_PARSER_NORMAL;
             return;
@@ -657,14 +660,15 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
         if (term->cursor_col > 0)
             term->cursor_col--;
         return;
-    case '\t': {
-        int spaces = 8 - (term->cursor_col % 8);
-        if (spaces <= 0)
-            spaces = 8;
-        for (int i = 0; i < spaces; i++)
-            terminal_put_char_locked(' ');
-        return;
-    }
+    case '\t':
+        {
+            int spaces = 8 - (term->cursor_col % 8);
+            if (spaces <= 0)
+                spaces = 8;
+            for (int i = 0; i < spaces; i++)
+                terminal_put_char_locked(' ');
+            return;
+        }
     default:
         break;
     }
@@ -727,8 +731,8 @@ static int write_all(int fd, const char *buf, size_t len)
 static int terminal_set_pty_winsize(int fd, uint16_t rows, uint16_t cols, uint16_t width, uint16_t height)
 {
     struct winsize ws = {
-        .ws_row = rows,
-        .ws_col = cols,
+        .ws_row    = rows,
+        .ws_col    = cols,
         .ws_xpixel = width,
         .ws_ypixel = height,
     };
@@ -834,9 +838,7 @@ static size_t terminal_translate_key(terminal_state_t *term, const wm_event_key_
     if (term->caps_lock && c >= 'a' && c <= 'z')
         use_shift = !use_shift;
 
-    c = use_shift
-        ? (unsigned char)scancode_to_char_shifted[code]
-        : (unsigned char)scancode_to_char[code];
+    c = use_shift ? (unsigned char)scancode_to_char_shifted[code] : (unsigned char)scancode_to_char[code];
 
     if (term->ctrl_pressed) {
         if (c >= 'a' && c <= 'z')
@@ -903,8 +905,8 @@ static void *terminal_shell_wait_thread(void *arg)
     return nullptr;
 }
 
-static int spawn_shell_on_pty(int *master_fd_out, int *slave_fd_out, int *child_pid_out,
-                              uint16_t rows, uint16_t cols, uint16_t width, uint16_t height)
+static int spawn_shell_on_pty(int *master_fd_out, int *slave_fd_out, int *child_pid_out, uint16_t rows, uint16_t cols,
+                              uint16_t width, uint16_t height)
 {
     if (!master_fd_out || !slave_fd_out || !child_pid_out)
         return -1;
@@ -917,8 +919,8 @@ static int spawn_shell_on_pty(int *master_fd_out, int *slave_fd_out, int *child_
     const int slave_fd  = pty_fds[1];
 
     struct winsize ws = {
-        .ws_row = rows,
-        .ws_col = cols,
+        .ws_row    = rows,
+        .ws_col    = cols,
         .ws_xpixel = width,
         .ws_ypixel = height,
     };
@@ -957,10 +959,8 @@ static int spawn_shell_on_pty(int *master_fd_out, int *slave_fd_out, int *child_
 
 static int terminal_rebuild_context_locked(terminal_state_t *term)
 {
-    video_context_t *new_context = context_new(term->win->buffer,
-                                               term->win->width,
-                                               term->win->height,
-                                               (uint32_t)term->win->width * 4U);
+    video_context_t *new_context =
+        context_new(term->win->buffer, term->win->width, term->win->height, (uint32_t)term->win->width * 4U);
     if (!new_context)
         return -1;
 
@@ -972,7 +972,13 @@ static int terminal_rebuild_context_locked(terminal_state_t *term)
 int main(void)
 {
     signal(SIGINT, sigint_handler);
-    wm_window_t *window = wm_create_window(140, 70, DEFAULT_TERM_WIDTH, DEFAULT_TERM_HEIGHT, WIN_RESIZABLE | WIN_CLOSEABLE,0, "Terminal");
+    wm_window_t *window = wm_create_window(140,
+                                           70,
+                                           DEFAULT_TERM_WIDTH,
+                                           DEFAULT_TERM_HEIGHT,
+                                           WIN_RESIZABLE | WIN_CLOSEABLE | WIN_MINIMIZABLE,
+                                           0,
+                                           "Terminal");
     if (!window)
         return 1;
 
@@ -1032,8 +1038,7 @@ int main(void)
     uint8_t event_buf[64];
     uint8_t event_type = 0;
 
-    while (__atomic_load_n(&term.running, __ATOMIC_RELAXED) &&
-        wm_next_event(event_buf, &event_type) == 0) {
+    while (__atomic_load_n(&term.running, __ATOMIC_RELAXED) && wm_next_event(event_buf, &event_type) == 0) {
         if (event_type == WM_EVENT_KEY) {
             auto ev = (const wm_event_key_t *)event_buf;
             if (ev->window_id != term.win->window_id)

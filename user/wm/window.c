@@ -8,18 +8,18 @@
 #include <wm/video_context.h>
 #include <wm/window.h>
 #include "taskbar.h"
-#include "wm.h"
 
 static constexpr int WIN_RESIZE_HANDLE_SIZE          = 14;
 static constexpr uint64_t WIN_DRAG_FRAME_INTERVAL_MS = 16;
 
-static const uint8_t glyph_close[7] = {0x00, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x00};
+static const uint8_t glyph_close[7]    = {0x00, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x00};
+static const uint8_t glyph_minimize[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F};
 
-static void draw_close_button_icon(const video_context_t *context, const int x, const int y, const int scale,
-                                   const uint32_t color)
+static void draw_button_icon(const video_context_t *context, const uint8_t glyph[7], const int x, const int y,
+                             const int scale, const uint32_t color)
 {
     for (int row = 0; row < 7; row++) {
-        uint8_t bits = glyph_close[row];
+        uint8_t bits = glyph[row];
         for (int col = 0; col < 5; col++) {
             if (!(bits & (uint8_t)(1u << (4 - col))))
                 continue;
@@ -33,6 +33,13 @@ static bool window_close_clicked(const window_t *window, uint16_t x, uint16_t y)
     int close_x = window->x + window->width - WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH;
     int close_y = window->y + WIN_BORDER_WIDTH;
     return x >= close_x && x < close_x + WIN_TITLE_HEIGHT && y >= close_y && y < close_y + WIN_TITLE_HEIGHT;
+}
+
+static bool window_minimize_clicked(const window_t *window, uint16_t x, uint16_t y)
+{
+    int minimize_x = window->x + window->width - (2 * WIN_TITLE_HEIGHT) + (2 * WIN_BORDER_WIDTH);
+    int minimize_y = window->y + WIN_BORDER_WIDTH;
+    return x >= minimize_x && x < minimize_x + WIN_TITLE_HEIGHT && y >= minimize_y && y < minimize_y + WIN_TITLE_HEIGHT;
 }
 
 static uint64_t window_now_ms(void)
@@ -114,6 +121,9 @@ int window_screen_y(const window_t *window)
 
 static void window_draw_border(window_t *window)
 {
+    if (window->flags & WIN_MINIMIZED) {
+        return;
+    }
     const int screen_x = window_screen_x(window);
     const int screen_y = window_screen_y(window);
 
@@ -150,7 +160,7 @@ static void window_draw_border(window_t *window)
 
     if (window->flags & WIN_CLOSEABLE) {
         // Draw close button
-        int close_x = screen_x + window->width - WIN_BORDER_WIDTH - WIN_TITLE_HEIGHT + (2 * WIN_BORDER_WIDTH);
+        int close_x = screen_x + window->width - WIN_TITLE_HEIGHT + WIN_BORDER_WIDTH;
         int close_y = screen_y + WIN_BORDER_WIDTH;
         context_fill_rect(window->context,
                           close_x,
@@ -159,7 +169,22 @@ static void window_draw_border(window_t *window)
                           WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
                           WIN_CLOSE_BUTTON_BG_COLOR);
 
-        draw_close_button_icon(window->context, close_x + 6, close_y + 3, 2, WIN_CLOSE_BUTTON_FG_COLOR);
+        draw_button_icon(window->context, glyph_close, close_x + 6, close_y + 3, 2, WIN_CLOSE_BUTTON_FG_COLOR);
+    }
+
+    if (window->flags & WIN_MINIMIZABLE) {
+        // Draw minimize button
+        int minimize_x = screen_x + window->width - (2 * WIN_TITLE_HEIGHT) + (2 * WIN_BORDER_WIDTH);
+        int minimize_y = screen_y + WIN_BORDER_WIDTH;
+        context_fill_rect(window->context,
+                          minimize_x,
+                          minimize_y,
+                          WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
+                          WIN_TITLE_HEIGHT - (2 * WIN_BORDER_WIDTH),
+                          WIN_MINIMIZE_BUTTON_BG_COLOR);
+
+        draw_button_icon(
+            window->context, glyph_minimize, minimize_x + 6, minimize_y + 3, 2, WIN_MINIMIZE_BUTTON_FG_COLOR);
     }
 
     if (window->title) {
@@ -174,7 +199,7 @@ static void window_draw_border(window_t *window)
 
 static void window_apply_bound_clipping(window_t *window, int in_recursion, rect_t **dirty_regions)
 {
-    if (!window || !window->context)
+    if (!window || !window->context || window->flags & WIN_MINIMIZED)
         return;
 
     int screen_x = window_screen_x(window);
@@ -322,7 +347,7 @@ void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_childr
     window_t *current_child;
     rect_t *temp_rect;
 
-    if (!window->context) {
+    if (!window->context || window->flags & WIN_MINIMIZED) {
         return;
     }
 
@@ -346,7 +371,7 @@ void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_childr
     size_t child_count = arr_len(window->children);
     for (size_t i = 0; i < child_count; i++) {
         current_child = arr_get(window->children, i);
-        if (!current_child) {
+        if (!current_child || current_child->flags & WIN_MINIMIZED) {
             continue;
         }
 
@@ -427,7 +452,7 @@ window_t **window_get_windows_above(const window_t *parent, window_t *child)
     size_t child_count = arr_len(parent->children);
     for (size_t i = (size_t)idx + 1; i < child_count; i++) {
         window_t *current_window = arr_get(parent->children, i);
-        if (!current_window) {
+        if (!current_window || current_window->flags & WIN_MINIMIZED) {
             continue;
         }
 
@@ -473,7 +498,8 @@ window_t **window_get_windows_below(const window_t *parent, window_t *child)
 
 void window_raise(window_t *window, uint8_t do_draw)
 {
-    if (!window->parent || window->flags & WIN_BACKGROUND || window->flags & WIN_BUTTON) {
+    if (!window->parent || window->flags & WIN_BACKGROUND || window->flags & WIN_BUTTON ||
+        window->flags & WIN_MINIMIZED) {
         return;
     }
 
@@ -498,10 +524,9 @@ void window_raise(window_t *window, uint8_t do_draw)
     for (size_t j = (size_t)idx + 1; j < child_count; j++) {
         parent->children[j - 1] = parent->children[j];
     }
+
     parent->children[child_count - 1] = raised_window;
-
-    parent->active_child = window;
-
+    parent->active_child              = window;
 
     if (!do_draw) {
         return;
@@ -514,9 +539,23 @@ void window_raise(window_t *window, uint8_t do_draw)
     }
 }
 
+void window_minimize(window_t *window)
+{
+    window->flags |= WIN_MINIMIZED;
+    auto parent          = window->parent;
+    parent->active_child = nullptr;
+    window_paint(parent, nullptr, 1);
+}
+
+void window_restore(window_t *window)
+{
+    window->flags &= ~WIN_MINIMIZED;
+    window_raise(window, true);
+}
+
 void window_move(window_t *window, int new_x, int new_y)
 {
-    if (!window)
+    if (!window || window->flags & WIN_MINIMIZED)
         return;
 
     int old_x = window->x;
@@ -585,7 +624,7 @@ static window_t *window_root(window_t *window)
 
 void window_resize(window_t *window, int new_width, int new_height)
 {
-    if (!window)
+    if (!window || window->flags & WIN_MINIMIZED)
         return;
 
     int min_width  = 1;
@@ -619,7 +658,7 @@ void window_resize(window_t *window, int new_width, int new_height)
 
 void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, uint8_t mouse_buttons)
 {
-    if (!window) {
+    if (!window || window->flags & WIN_MINIMIZED) {
         return;
     }
 
@@ -643,6 +682,13 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
             if (!(child->flags & WIN_NODECORATION) && (child->flags & WIN_CLOSEABLE) &&
                 window_close_clicked(child, mouse_x, mouse_y)) {
                 child->close_function(child);
+                return;
+            }
+
+            if (!(child->flags & WIN_NODECORATION) && (child->flags & WIN_MINIMIZABLE) &&
+                window_minimize_clicked(child, mouse_x, mouse_y)) {
+                // child->close_function(child);
+                window_minimize(child);
                 return;
             }
 
@@ -750,7 +796,7 @@ void window_insert_child(window_t *window, window_t *child)
     child->parent = window;
     if (arr_find(window->children, child) < 0)
         arr_push(window->children, child);
-    window->active_child = child;
+    // window->active_child = child;
 
     window_update_context(child, window->context);
 }

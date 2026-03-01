@@ -10,8 +10,10 @@
 #define WIN_TITLE_TEXT_COLOR_INACTIVE 0xFFDEDDDA
 #define WIN_BORDER_COLOR_ACTIVE 0xFF99C1F1
 #define WIN_BORDER_COLOR_INACTIVE 0xFF1C71D8
-#define WIN_CLOSE_BUTTON_BG_COLOR 0XFFFF3333
+#define WIN_CLOSE_BUTTON_BG_COLOR 0XFFE01B24
 #define WIN_CLOSE_BUTTON_FG_COLOR 0XFFFFFFFF
+#define WIN_MINIMIZE_BUTTON_BG_COLOR 0XFF2EC27E
+#define WIN_MINIMIZE_BUTTON_FG_COLOR 0XFFFFFFFF
 #define WIN_TITLE_HEIGHT 25
 #define WIN_BORDER_WIDTH 2
 #define WIN_TEXT_COLOR 0xFF241F31
@@ -23,6 +25,7 @@
 #define WIN_BACKGROUND 0x8
 #define WIN_BUTTON 0x10
 #define WIN_MINIMIZED 0x20
+#define WIN_MINIMIZABLE 0x40
 
 struct window;
 
@@ -70,6 +73,8 @@ void window_mousedown_handler(window_t *window, int16_t x, int16_t y);
 window_t **window_get_windows_above(const window_t *parent, window_t *child);
 window_t **window_get_windows_below(const window_t *parent, window_t *child);
 void window_raise(window_t *window, uint8_t do_draw);
+void window_minimize(window_t *window);
+void window_restore(window_t *window);
 void window_move(window_t *window, int new_x, int new_y);
 void window_resize(window_t *window, int new_width, int new_height);
 window_t *window_create_window(window_t *window, int16_t x, int16_t y, uint16_t width, int16_t height, uint16_t flags);

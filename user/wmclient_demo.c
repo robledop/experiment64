@@ -1,8 +1,9 @@
-#include <wm/wmclient.h>
 #include <signal.h>
-#include <wm/wm_protocol.h>
 #include <stdlib.h>
 #include <wm/imui.h>
+#include <wm/wm_protocol.h>
+#include <wm/wmclient.h>
+#include "wm/window.h"
 
 #define EVENT_DECOR_X 2
 #define EVENT_DECOR_Y 25
@@ -28,7 +29,8 @@ static void render_screen(imui_context_t *ui)
 int main(void)
 {
     signal(SIGINT, SIG_IGN);
-    wm_window_t *win = wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE, 0, "Demo Client");
+    wm_window_t *win =
+        wm_create_window(50, 60, DEMO_WIDTH, DEMO_HEIGHT, WIN_CLOSEABLE | WIN_MINIMIZABLE, 0, "Demo Client");
     if (win == nullptr)
         exit(1);
 

@@ -15,9 +15,10 @@
 #include <wm/wm_protocol.h>
 #include <wm/wmclient.h>
 
-#include "doomgeneric.h"
 #include <doomkeys.h>
 #include <m_argv.h>
+#include "doomgeneric.h"
+#include "wm/window.h"
 
 static int FrameBufferFd       = -1;
 static int *FrameBuffer        = nullptr;
@@ -38,8 +39,7 @@ static unsigned short s_KeyQueue[KEYQUEUE_SIZE];
 static unsigned int s_KeyQueueWriteIndex = 0;
 static unsigned int s_KeyQueueReadIndex  = 0;
 
-typedef struct
-{
+typedef struct {
     unsigned char key;
     int ticks;
 } pending_key_t;
@@ -173,8 +173,8 @@ static int mapWmFramebufferLocked(void)
 
     if (ioctl(FrameBufferFd, FB_IOCTL_GET_WIDTH, &s_WmFbWidth) != 0 ||
         ioctl(FrameBufferFd, FB_IOCTL_GET_HEIGHT, &s_WmFbHeight) != 0 ||
-        ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_WmFbPitch) != 0 ||
-        s_WmFbWidth == 0 || s_WmFbHeight == 0 || s_WmFbPitch == 0) {
+        ioctl(FrameBufferFd, FB_IOCTL_GET_PITCH, &s_WmFbPitch) != 0 || s_WmFbWidth == 0 || s_WmFbHeight == 0 ||
+        s_WmFbPitch == 0) {
         close(FrameBufferFd);
         FrameBufferFd = -1;
         s_WmFbWidth   = 0;
@@ -461,7 +461,8 @@ void disableRawMode()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 
     unsigned char discard;
-    while (read(STDIN_FILENO, &discard, 1) > 0);
+    while (read(STDIN_FILENO, &discard, 1) > 0)
+        ;
 
     write(STDOUT_FILENO, "\x1b[2J", 4);
 }
@@ -475,11 +476,11 @@ void enableRawMode()
     }
     tcgetattr(STDIN_FILENO, &orig_termios);
     struct termios raw = orig_termios;
-    raw.c_lflag        &= ~(ECHO | ICANON);
-    raw.c_iflag        &= ~(IXON | ICRNL);
-    raw.c_oflag        &= ~(OPOST);
-    raw.c_cc[VMIN]     = 0;
-    raw.c_cc[VTIME]    = 0;
+    raw.c_lflag &= ~(ECHO | ICANON);
+    raw.c_iflag &= ~(IXON | ICRNL);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cc[VMIN]  = 0;
+    raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
@@ -494,59 +495,62 @@ static void *wmEventThreadMain([[maybe_unused]] void *arg)
             break;
 
         switch (event_type) {
-        case WM_EVENT_KEY: {
-            auto ev = (wm_event_key_t *)event_buf;
-            if (!DoomWindow || ev->window_id != DoomWindow->window_id)
-                break;
+        case WM_EVENT_KEY:
+            {
+                auto ev = (wm_event_key_t *)event_buf;
+                if (!DoomWindow || ev->window_id != DoomWindow->window_id)
+                    break;
 
-            if (isAltScancode(ev->keycode)) {
-                s_WmAltPressed = ev->pressed ? 1 : 0;
-                break;
-            }
+                if (isAltScancode(ev->keycode)) {
+                    s_WmAltPressed = ev->pressed ? 1 : 0;
+                    break;
+                }
 
-            if (isEnterScancode(ev->keycode)) {
-                if (s_WmAltEnterToggleKeyConsumed) {
-                    if (!ev->pressed)
+                if (isEnterScancode(ev->keycode)) {
+                    if (s_WmAltEnterToggleKeyConsumed) {
+                        if (!ev->pressed)
+                            s_WmAltEnterToggleKeyConsumed = 0;
+                        break;
+                    }
+
+                    if (s_WmAltPressed && ev->pressed) {
+                        toggleWmRenderTarget();
+                        s_WmAltEnterToggleKeyConsumed = 1;
+                        break;
+                    }
+
+                    if (s_WmAltPressed && !ev->pressed) {
                         s_WmAltEnterToggleKeyConsumed = 0;
-                    break;
+                        break;
+                    }
                 }
 
-                if (s_WmAltPressed && ev->pressed) {
-                    toggleWmRenderTarget();
-                    s_WmAltEnterToggleKeyConsumed = 1;
-                    break;
-                }
-
-                if (s_WmAltPressed && !ev->pressed) {
-                    s_WmAltEnterToggleKeyConsumed = 0;
-                    break;
-                }
-            }
-
-            addKeyToQueueRaw(ev->pressed ? 1 : 0, ev->keycode);
-            break;
-        }
-        case WM_EVENT_WINDOW_RESIZED: {
-            auto ev = (wm_event_window_resized_t *)event_buf;
-            if (!DoomWindow || ev->window_id != DoomWindow->window_id)
+                addKeyToQueueRaw(ev->pressed ? 1 : 0, ev->keycode);
                 break;
+            }
+        case WM_EVENT_WINDOW_RESIZED:
+            {
+                auto ev = (wm_event_window_resized_t *)event_buf;
+                if (!DoomWindow || ev->window_id != DoomWindow->window_id)
+                    break;
 
-            pthread_mutex_lock(&s_FrameMutex);
-            s_WmWindowFrameBuffer = (int *)DoomWindow->buffer;
-            s_WmWindowWidth       = DoomWindow->width;
-            s_WmWindowHeight      = DoomWindow->height;
-            s_WmWindowPitch       = (uint32_t)DoomWindow->width * 4U;
-            if (!s_WmRenderToFramebuffer)
-                useWmWindowRenderTargetLocked();
-            pthread_mutex_unlock(&s_FrameMutex);
-            break;
-        }
-        case WM_EVENT_WINDOW_CLOSED: {
-            auto ev = (wm_event_window_closed_t *)event_buf;
-            if (DoomWindow && ev->window_id == DoomWindow->window_id)
-                WMWindowClosed = 1;
-            goto done;
-        }
+                pthread_mutex_lock(&s_FrameMutex);
+                s_WmWindowFrameBuffer = (int *)DoomWindow->buffer;
+                s_WmWindowWidth       = DoomWindow->width;
+                s_WmWindowHeight      = DoomWindow->height;
+                s_WmWindowPitch       = (uint32_t)DoomWindow->width * 4U;
+                if (!s_WmRenderToFramebuffer)
+                    useWmWindowRenderTargetLocked();
+                pthread_mutex_unlock(&s_FrameMutex);
+                break;
+            }
+        case WM_EVENT_WINDOW_CLOSED:
+            {
+                auto ev = (wm_event_window_closed_t *)event_buf;
+                if (DoomWindow && ev->window_id == DoomWindow->window_id)
+                    WMWindowClosed = 1;
+                goto done;
+            }
         default:
             break;
         }
@@ -577,7 +581,8 @@ void DG_Init()
         if (argPosY > 0)
             wm_pos_y = (int16_t)s_PositionY;
 
-        DoomWindow = wm_create_window(wm_pos_x, wm_pos_y, DOOMGENERIC_RESX, DOOMGENERIC_RESY, WIN_CLOSEABLE, 0, "Doom");
+        DoomWindow = wm_create_window(
+            wm_pos_x, wm_pos_y, DOOMGENERIC_RESX, DOOMGENERIC_RESY, WIN_CLOSEABLE | WIN_MINIMIZABLE, 0, "Doom");
         if (!DoomWindow) {
             print("doom: failed to create window\n");
             exit();
@@ -717,7 +722,7 @@ static void handleKeyInput()
 
         unsigned char code = scancode & 0x7F;
         if (extendedScan) {
-            code         |= 0x80;
+            code |= 0x80;
             extendedScan = 0;
         }
 

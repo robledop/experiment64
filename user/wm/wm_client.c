@@ -573,6 +573,7 @@ static void handle_create_window(client_manager_t *mgr, window_t *parent, int cm
     write(connection->evt_fd, &resp, sizeof(resp));
 
     taskbar_add_button(cw->window.title, (window_t *)cw);
+    window_raise((window_t *)cw, true);
 }
 
 void handle_destroy_window([[maybe_unused]] window_t *parent, const wm_msg_destroy_window_t *msg)

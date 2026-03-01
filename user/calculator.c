@@ -128,7 +128,7 @@ int main(void)
                                         60,
                                         CALC_WIDTH,
                                         CALC_HEIGHT,
-                                        WIN_CLOSEABLE,
+                                        WIN_CLOSEABLE | WIN_MINIMIZABLE,
                                         0,
                                         "Calculator");
     if (!win)
