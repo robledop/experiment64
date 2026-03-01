@@ -1,7 +1,5 @@
 #include <syscall_common.h>
 
-#include "task/signal.h"
-
 void sys_exit(int code)
 {
     TEST_SYSCALL_LOG("sys_exit: pid=%d code=%d (exit_hook=%p)\n", current_process->pid, code, syscall_exit_hook);

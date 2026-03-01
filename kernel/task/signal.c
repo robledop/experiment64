@@ -44,7 +44,7 @@ static void signal_mark_threads_ready(process_t *target)
     thread_t *t;
     list_foreach_entry(t, &target->threads, list) {
         if (t->state == THREAD_BLOCKED)
-            t->state = THREAD_READY;
+            thread_state_store(t, THREAD_READY);
     }
 }
 
@@ -219,7 +219,7 @@ int signal_send_pid(int pid, int sig)
         target->sig_pending |= signal_bit(sig); // Set bit
         // Only send signal immediately if not masked
         if ((target->sig_mask & signal_bit(sig)) == 0) {
-            signal_mark_threads_ready(parent);
+            signal_mark_threads_ready(target);
         }
     }
 

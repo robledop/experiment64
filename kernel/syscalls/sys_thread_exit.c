@@ -1,8 +1,6 @@
 #include <sys/syscall.h>
 #include <syscall_common.h>
 
-#include "task/signal.h"
-
 void sys_thread_exit(int code)
 {
     thread_t *self  = current_thread;

@@ -4,6 +4,7 @@
 #include <lib/string.h>
 #include <mem/heap.h>
 #include <sys/ioctl.h>
+#include <syscall_common.h>
 #include <task/process.h>
 #include <task/signal.h>
 
@@ -24,6 +25,7 @@ typedef struct
     pty_ring_t slave_to_master;
     int master_open;
     int slave_open;
+    int revoked;
     struct winsize winsz;
     int fg_pid;
 } pty_t;
@@ -191,6 +193,7 @@ static uint64_t pty_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_
         spinlock_acquire(&pty->lock);
         pty_ring_t *rx = pty_rx_ring(ep);
         int peer_open = pty_peer_open_locked(ep);
+        int revoked = pty->revoked;
 
         while (bytes_read < size && rx->count > 0) {
             uint8_t c = 0;
@@ -203,7 +206,7 @@ static uint64_t pty_inode_read(const vfs_inode_t *node, uint64_t offset, uint64_
 
         if (bytes_read > 0)
             break;
-        if (peer_open == 0)
+        if (peer_open == 0 || revoked)
             break;
 
         schedule();
@@ -234,7 +237,7 @@ static uint64_t pty_inode_write(vfs_inode_t *node, uint64_t offset, uint64_t siz
         spinlock_acquire(&pty->lock);
         pty_ring_t *tx = pty_tx_ring(ep);
         peer_open = pty_peer_open_locked(ep);
-        if (peer_open == 0) {
+        if (peer_open == 0 || pty->revoked) {
             spinlock_release(&pty->lock);
             break;
         }
@@ -289,9 +292,12 @@ static void pty_inode_close(vfs_inode_t *node)
     if (ep->is_master) {
         if (pty->master_open > 0)
             pty->master_open--;
-        if (pty->master_open == 0 && pty->slave_open > 0 && pty->fg_pid > 1) {
-            hangup_pid = pty->fg_pid;
-            pty->fg_pid = 0;
+        if (pty->master_open == 0) {
+            pty->revoked = 1;
+            if (pty->slave_open > 0 && pty->fg_pid > 1) {
+                hangup_pid = pty->fg_pid;
+                pty->fg_pid = 0;
+            }
         }
     } else {
         if (pty->slave_open > 0)
@@ -328,7 +334,7 @@ static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg)
         spinlock_acquire(&pty->lock);
         ws = pty->winsz;
         spinlock_release(&pty->lock);
-        memcpy(arg, &ws, sizeof(ws));
+        copy_to_user(arg, &ws, sizeof(ws));
         return 0;
     }
     case TIOCSWINSZ:
@@ -336,21 +342,43 @@ static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg)
         if (!arg)
             return -1;
         struct winsize ws = {0};
-        memcpy(&ws, arg, sizeof(ws));
+        copy_from_user(&ws, arg, sizeof(ws));
         spinlock_acquire(&pty->lock);
         pty->winsz = ws;
         spinlock_release(&pty->lock);
+        return 0;
+    }
+    // TIOCGPGRP works on both master and slave (read-only query),
+    // while TIOCSPGRP is slave-only to prevent the master from
+    // setting fg_pid (matches POSIX convention).
+    case TIOCGPGRP:
+    {
+        if (!arg)
+            return -1;
+        int pid = 0;
+        spinlock_acquire(&pty->lock);
+        pid = pty->fg_pid;
+        spinlock_release(&pty->lock);
+        copy_to_user(arg, &pid, sizeof(pid));
         return 0;
     }
     case TIOCSPGRP:
     {
         if (!arg || ep->is_master)
             return -1;
-        int pid = *(int *)arg;
+        int pid = 0;
+        copy_from_user(&pid, arg, sizeof(pid));
         if (pid < 0)
             pid = 0;
         spinlock_acquire(&pty->lock);
         pty->fg_pid = pid;
+        spinlock_release(&pty->lock);
+        return 0;
+    }
+    case TIOCHUP:
+    {
+        spinlock_acquire(&pty->lock);
+        pty->revoked = 1;
         spinlock_release(&pty->lock);
         return 0;
     }

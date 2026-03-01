@@ -177,6 +177,7 @@ void schedule(void);
 void yield(void);
 void thread_sleep(void *chan, spinlock_t *lock);
 void thread_wakeup(void *chan);
+void thread_wakeup_locked(void *chan);
 int thread_wakeup_n(void *chan, process_t *scope, int max_count);
 void switch_to(thread_t *prev, thread_t *next);
 
