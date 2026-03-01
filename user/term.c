@@ -87,6 +87,7 @@ typedef struct {
     uint8_t current_bg;
     bool bold;
     bool reverse;
+    bool wrap_pending;
 
     term_parser_state_t parser_state;
     char csi_buf[48];
@@ -158,6 +159,7 @@ static void terminal_clear_locked()
     term.cursor_col   = 0;
     term.saved_row    = 0;
     term.saved_col    = 0;
+    term.wrap_pending = false;
     term.parser_state = TERM_PARSER_NORMAL;
     term.csi_len      = 0;
     term.csi_buf[0]   = '\0';
@@ -297,15 +299,19 @@ static void terminal_newline_locked()
 
 static void terminal_put_char_locked(char ch)
 {
+    if (term.wrap_pending) {
+        term.wrap_pending = false;
+        term.cursor_col   = 0;
+        terminal_newline_locked();
+    }
+
     terminal_set_cell_locked(term.cursor_row, term.cursor_col, ch);
 
     if (term.cursor_col + 1 >= term.cols) {
-        term.cursor_col = 0;
-        terminal_newline_locked();
-        return;
+        term.wrap_pending = true;
+    } else {
+        term.cursor_col++;
     }
-
-    term.cursor_col++;
 }
 
 static void terminal_erase_line_locked(int mode)
@@ -454,6 +460,7 @@ static void terminal_apply_csi_locked(char final_char)
                 term.cursor_row = 0;
             else
                 term.cursor_row = (uint16_t)(term.cursor_row - n);
+            term.wrap_pending = false;
             break;
         }
     case 'B':
@@ -466,6 +473,7 @@ static void terminal_apply_csi_locked(char final_char)
                 term.cursor_row = term.rows - 1;
             else
                 term.cursor_row = next;
+            term.wrap_pending = false;
             break;
         }
     case 'C':
@@ -478,6 +486,7 @@ static void terminal_apply_csi_locked(char final_char)
                 term.cursor_col = term.cols - 1;
             else
                 term.cursor_col = next;
+            term.wrap_pending = false;
             break;
         }
     case 'D':
@@ -489,6 +498,7 @@ static void terminal_apply_csi_locked(char final_char)
                 term.cursor_col = 0;
             else
                 term.cursor_col = (uint16_t)(term.cursor_col - n);
+            term.wrap_pending = false;
             break;
         }
     case 'E':
@@ -498,7 +508,8 @@ static void terminal_apply_csi_locked(char final_char)
                 n = 1;
             for (int i = 0; i < n; i++)
                 terminal_newline_locked();
-            term.cursor_col = 0;
+            term.cursor_col   = 0;
+            term.wrap_pending = false;
             break;
         }
     case 'F':
@@ -510,7 +521,8 @@ static void terminal_apply_csi_locked(char final_char)
                 term.cursor_row = 0;
             else
                 term.cursor_row = (uint16_t)(term.cursor_row - n);
-            term.cursor_col = 0;
+            term.cursor_col   = 0;
+            term.wrap_pending = false;
             break;
         }
     case 'G':
@@ -520,7 +532,8 @@ static void terminal_apply_csi_locked(char final_char)
                 col = 1;
             if (col > term.cols)
                 col = term.cols;
-            term.cursor_col = (uint16_t)(col - 1);
+            term.cursor_col   = (uint16_t)(col - 1);
+            term.wrap_pending = false;
             break;
         }
     case 'd':
@@ -530,7 +543,8 @@ static void terminal_apply_csi_locked(char final_char)
                 row = 1;
             if (row > term.rows)
                 row = term.rows;
-            term.cursor_row = (uint16_t)(row - 1);
+            term.cursor_row   = (uint16_t)(row - 1);
+            term.wrap_pending = false;
             break;
         }
     case 'H':
@@ -546,8 +560,9 @@ static void terminal_apply_csi_locked(char final_char)
                 row = term.rows;
             if (col > term.cols)
                 col = term.cols;
-            term.cursor_row = (uint16_t)(row - 1);
-            term.cursor_col = (uint16_t)(col - 1);
+            term.cursor_row   = (uint16_t)(row - 1);
+            term.cursor_col   = (uint16_t)(col - 1);
+            term.wrap_pending = false;
             break;
         }
     case 'J':
@@ -574,8 +589,9 @@ static void terminal_apply_csi_locked(char final_char)
         term.saved_col = term.cursor_col;
         break;
     case 'u':
-        term.cursor_row = term.saved_row < term.rows ? term.saved_row : (uint16_t)(term.rows - 1);
-        term.cursor_col = term.saved_col < term.cols ? term.saved_col : (uint16_t)(term.cols - 1);
+        term.cursor_row   = term.saved_row < term.rows ? term.saved_row : (uint16_t)(term.rows - 1);
+        term.cursor_col   = term.saved_col < term.cols ? term.saved_col : (uint16_t)(term.cols - 1);
+        term.wrap_pending = false;
         break;
     case 'm':
         {
@@ -609,13 +625,16 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
         case '8':
             term->cursor_row   = term->saved_row < term->rows ? term->saved_row : (uint16_t)(term->rows - 1);
             term->cursor_col   = term->saved_col < term->cols ? term->saved_col : (uint16_t)(term->cols - 1);
+            term->wrap_pending = false;
             term->parser_state = TERM_PARSER_NORMAL;
             return;
         case 'D':
+            term->wrap_pending = false;
             terminal_newline_locked();
             term->parser_state = TERM_PARSER_NORMAL;
             return;
         case 'E':
+            term->wrap_pending = false;
             terminal_newline_locked();
             term->cursor_col   = 0;
             term->parser_state = TERM_PARSER_NORMAL;
@@ -651,14 +670,17 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
         term->parser_state = TERM_PARSER_ESC;
         return;
     case '\r':
-        term->cursor_col = 0;
+        term->cursor_col   = 0;
+        term->wrap_pending = false;
         return;
     case '\n':
+        term->wrap_pending = false;
         terminal_newline_locked();
         return;
     case '\b':
         if (term->cursor_col > 0)
             term->cursor_col--;
+        term->wrap_pending = false;
         return;
     case '\t':
         {
