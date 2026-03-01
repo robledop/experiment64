@@ -5,7 +5,9 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <poll.h>
+#include <fcntl.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <util.h>
 #include <termios.h>
 
@@ -278,6 +280,18 @@ int dup2(int oldfd, int newfd)
 int ftruncate(int fd, long length)
 {
     return clamp_signed_to_int(syscall2(SYS_FTRUNCATE, fd, length));
+}
+
+int fcntl(int fd, int cmd, ...)
+{
+    long arg = 0;
+    if (cmd == F_SETFD || cmd == F_SETFL) {
+        va_list ap;
+        va_start(ap, cmd);
+        arg = (long)va_arg(ap, int);
+        va_end(ap);
+    }
+    return clamp_signed_to_int(syscall3(SYS_FCNTL, fd, cmd, arg));
 }
 
 int poll(struct pollfd *fds, nfds_t nfds, int timeout)

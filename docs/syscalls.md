@@ -27,7 +27,7 @@ Syscall groups with differentiated status returns:
 - Path/metadata syscalls (`SYS_CHDIR`, `SYS_GETCWD`, `SYS_STAT`, `SYS_FSTAT`, `SYS_LINK`, `SYS_UNLINK`, `SYS_RENAME`,
   `SYS_MKNOD`)
 - Shared memory syscalls (`SYS_SHM_OPEN`, `SYS_SHM_UNLINK`)
-- File descriptor syscalls (`SYS_DUP`, `SYS_DUP2`)
+- File descriptor syscalls (`SYS_DUP`, `SYS_DUP2`, `SYS_FCNTL`)
 - PTY syscall (`SYS_OPENPTY`)
 
 For path/metadata operations, syscall wrappers return VFS/backend status codes directly when available rather than

@@ -6,3 +6,12 @@
 #define O_TRUNC   0x400 // truncate file upon open
 #define O_APPEND   0x800  // append on each write
 #define O_NONBLOCK 0x1000 // non-blocking I/O
+
+#define FD_CLOEXEC 1
+
+#define F_GETFD 1
+#define F_SETFD 2
+#define F_GETFL 3
+#define F_SETFL 4
+
+int fcntl(int fd, int cmd, ...);

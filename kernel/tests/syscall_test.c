@@ -1715,6 +1715,52 @@ TEST(test_syscall_ftruncate_nonzero_unsupported)
     return true;
 }
 
+TEST(test_syscall_fcntl_get_setfl)
+{
+    int fd = sys_open("/fcntl_flags.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    int flags = sys_fcntl(fd, F_GETFL, 0);
+    TEST_ASSERT(flags >= 0);
+    TEST_ASSERT((flags & O_RDWR) == O_RDWR);
+    TEST_ASSERT((flags & O_NONBLOCK) == 0);
+    TEST_ASSERT((flags & O_APPEND) == 0);
+
+    TEST_ASSERT(sys_fcntl(fd, F_SETFL, O_NONBLOCK | O_APPEND) == 0);
+    flags = sys_fcntl(fd, F_GETFL, 0);
+    TEST_ASSERT((flags & O_RDWR) == O_RDWR);
+    TEST_ASSERT((flags & O_NONBLOCK) != 0);
+    TEST_ASSERT((flags & O_APPEND) != 0);
+
+    TEST_ASSERT(sys_fcntl(fd, F_SETFL, 0) == 0);
+    flags = sys_fcntl(fd, F_GETFL, 0);
+    TEST_ASSERT((flags & O_RDWR) == O_RDWR);
+    TEST_ASSERT((flags & O_NONBLOCK) == 0);
+    TEST_ASSERT((flags & O_APPEND) == 0);
+
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_unlink("/fcntl_flags.txt") == 0);
+    return true;
+}
+
+TEST(test_syscall_fcntl_invalid)
+{
+    TEST_ASSERT(sys_fcntl(-1, F_GETFL, 0) == -EBADF);
+    TEST_ASSERT(sys_fcntl(999, F_GETFL, 0) == -EBADF);
+
+    int fd = sys_open("/fcntl_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    TEST_ASSERT(fd >= 3);
+
+    TEST_ASSERT(sys_fcntl(fd, 999, 0) == -EINVAL);
+    TEST_ASSERT(sys_fcntl(fd, F_GETFD, 0) == 0);
+    TEST_ASSERT(sys_fcntl(fd, F_SETFD, FD_CLOEXEC) == 0);
+    TEST_ASSERT(sys_fcntl(fd, F_SETFD, FD_CLOEXEC | 2) == -EINVAL);
+
+    TEST_ASSERT(sys_close(fd) == 0);
+    TEST_ASSERT(sys_unlink("/fcntl_invalid.txt") == 0);
+    return true;
+}
+
 TEST(test_syscall_poll_timeout)
 {
     int pipefd[2] = {-1, -1};

@@ -45,6 +45,8 @@
       <w>fmtname</w>
       <w>fsgsbase</w>
       <w>fsize</w>
+      <w>getfd</w>
+      <w>getfl</w>
       <w>gettid</w>
       <w>gettimeofday</w>
       <w>hccparams</w>
@@ -109,6 +111,8 @@
       <w>rflags</w>
       <w>rsvd</w>
       <w>rtsoff</w>
+      <w>setfd</w>
+      <w>setfl</w>
       <w>setjmp</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
