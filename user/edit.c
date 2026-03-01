@@ -80,6 +80,12 @@ struct editorSyntax
     int flags;
 };
 
+enum editorMode
+{
+    MODE_INSERT = 0,
+    MODE_NORMAL
+};
+
 /* This structure represents a single line of the file we are editing. */
 typedef struct erow
 {
@@ -107,6 +113,7 @@ struct editorConfig
     int screencols; /* Number of cols that we can show */
     int numrows;    /* Number of rows */
     int rawmode;    /* Is terminal raw mode enabled? */
+    enum editorMode mode;
     erow *row;      /* Rows */
     int dirty;      /* File modified but not saved. */
     char *filename; /* Currently open filename */
@@ -184,6 +191,11 @@ enum KEY_ACTION
 };
 
 void editorSetStatusMessage(const char *fmt, ...);
+
+static const char *editorModeName(void)
+{
+    return E.mode == MODE_NORMAL ? "NORMAL" : "INSERT";
+}
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -1143,7 +1155,8 @@ void editorRefreshScreen(void)
     char status[80], rstatus[80];
     int len = snprintf(status,
                        sizeof(status),
-                       "%.20s - %d lines %s",
+                       "[%s] %.20s - %d lines %s",
+                       editorModeName(),
                        E.filename,
                        E.numrows,
                        E.dirty ? "(modified)" : "");
@@ -1393,6 +1406,18 @@ void editorMoveCursor(int key)
  * is typing stuff on the terminal. */
 #define KILO_QUIT_TIMES 3
 
+static void editorMovePage(int key)
+{
+    if (key == PAGE_UP && E.cy != 0)
+        E.cy = 0;
+    else if (key == PAGE_DOWN && E.cy != E.screenrows - 1)
+        E.cy = E.screenrows - 1;
+
+    int times = E.screenrows;
+    while (times--)
+        editorMoveCursor(key == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+}
+
 void editorProcessKeypress(int fd)
 {
     /* When the file is modified, requires Ctrl-q to be pressed N times
@@ -1401,10 +1426,6 @@ void editorProcessKeypress(int fd)
 
     int c = editorReadKey(fd);
     switch (c) {
-    case ENTER: /* Enter */
-    case '\n':  /* Also accept newline (10) */
-        editorInsertNewline();
-        break;
     case CTRL_C: /* Ctrl-c */
         /* We ignore ctrl-c, it can't be so simple to lose the changes
          * to the edited file. */
@@ -1425,38 +1446,71 @@ void editorProcessKeypress(int fd)
     case CTRL_F:
         editorFind(fd);
         break;
-    case BACKSPACE: /* Backspace */
-    case CTRL_H:    /* Ctrl-h */
-    case DEL_KEY:
-        editorDelChar();
-        break;
-    case PAGE_UP:
-    case PAGE_DOWN:
-        if (c == PAGE_UP && E.cy != 0)
-            E.cy = 0;
-        else if (c == PAGE_DOWN && E.cy != E.screenrows - 1)
-            E.cy = E.screenrows - 1;
-        {
-            int times = E.screenrows;
-            while (times--)
-                editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
-        }
-        break;
-
-    case ARROW_UP:
-    case ARROW_DOWN:
-    case ARROW_LEFT:
-    case ARROW_RIGHT:
-        editorMoveCursor(c);
-        break;
     case CTRL_L: /* ctrl+l, clear screen */
         /* Just refresht the line as side effect. */
         break;
     case ESC:
-        /* Nothing to do for ESC in this mode. */
+        if (E.mode == MODE_INSERT) {
+            E.mode = MODE_NORMAL;
+            editorSetStatusMessage("-- NORMAL --");
+        }
         break;
     default:
-        editorInsertChar(c);
+        if (E.mode == MODE_NORMAL) {
+            switch (c) {
+            case 'h':
+            case ARROW_LEFT:
+                editorMoveCursor(ARROW_LEFT);
+                break;
+            case 'j':
+            case ARROW_DOWN:
+                editorMoveCursor(ARROW_DOWN);
+                break;
+            case 'k':
+            case ARROW_UP:
+                editorMoveCursor(ARROW_UP);
+                break;
+            case 'l':
+            case ARROW_RIGHT:
+                editorMoveCursor(ARROW_RIGHT);
+                break;
+            case PAGE_UP:
+            case PAGE_DOWN:
+                editorMovePage(c);
+                break;
+            case 'i':
+                E.mode = MODE_INSERT;
+                editorSetStatusMessage("-- INSERT --");
+                break;
+            default:
+                break;
+            }
+        } else {
+            switch (c) {
+            case ENTER: /* Enter */
+            case '\n':  /* Also accept newline (10) */
+                editorInsertNewline();
+                break;
+            case BACKSPACE: /* Backspace */
+            case CTRL_H:    /* Ctrl-h */
+            case DEL_KEY:
+                editorDelChar();
+                break;
+            case PAGE_UP:
+            case PAGE_DOWN:
+                editorMovePage(c);
+                break;
+            case ARROW_UP:
+            case ARROW_DOWN:
+            case ARROW_LEFT:
+            case ARROW_RIGHT:
+                editorMoveCursor(c);
+                break;
+            default:
+                editorInsertChar(c);
+                break;
+            }
+        }
         break;
     }
 
@@ -1499,6 +1553,7 @@ void initEditor(void)
     E.rowoff   = 0;
     E.coloff   = 0;
     E.numrows  = 0;
+    E.mode     = MODE_INSERT;
     E.row      = nullptr;
     E.dirty    = 0;
     E.filename = nullptr;
@@ -1518,7 +1573,7 @@ int main(int argc, char **argv)
     editorOpen(argv[1]);
     enableRawMode(STDIN_FILENO);
     editorSetStatusMessage(
-        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+        "HELP: Esc = normal | i = insert | hjkl = move | Ctrl-S/Q/F");
     while (1) {
         editorRefreshScreen();
         editorProcessKeypress(STDIN_FILENO);
