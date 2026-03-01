@@ -703,6 +703,9 @@ static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
 
 static void terminal_render_locked(terminal_state_t *term)
 {
+    if (!term->win)
+        return;
+
     term->context->buffer = term->win->buffer;
 
     const uint32_t default_bg = ansi_palette[term->default_bg & 0x0Fu];
@@ -761,6 +764,16 @@ static int terminal_set_pty_winsize(int fd, uint16_t rows, uint16_t cols, uint16
         .ws_ypixel = height,
     };
     return ioctl(fd, TIOCSWINSZ, &ws);
+}
+
+static void terminal_hangup_foreground(int master_fd, int shell_pid)
+{
+    int fg_pid = 0;
+    if (ioctl(master_fd, TIOCGPGRP, &fg_pid) != 0)
+        return;
+    if (fg_pid <= 1 || fg_pid == shell_pid)
+        return;
+    kill(fg_pid, SIGHUP);
 }
 
 static uint16_t terminal_cols_from_width(uint16_t width)
@@ -1102,28 +1115,47 @@ int main(void)
         }
     }
 
-    __atomic_store_n(&term.running, false, __ATOMIC_RELAXED);
-    wm_shutdown_events();
-    kill(shell_pid, SIGTERM);
-    close(master_fd);
+    // Revoke the PTY so in-progress reads/writes return immediately.
+    ioctl(master_fd, TIOCHUP, nullptr);
 
-    // if (reader_started) {
-    //     pthread_join(reader_thread, nullptr);
-    // }
+    __atomic_store_n(&term.running, false, __ATOMIC_RELAXED);
+
+    // Mark the WM event stream as dead.  This wakes the reader thread
+    // if it is stuck inside wm_invalidate_region → pthread_cond_wait
+    // waiting for an INVALIDATED ack that the WM may never send (the
+    // window is already closed).  The condition variable checks
+    // g_reader_dead, so the reader thread will exit the wait, release
+    // g_present_lock and term.lock, and then exit its loop because
+    // running is false.
+    wm_shutdown_events();
+
+    // Clear term.win under the lock so the reader thread's render path
+    // sees nullptr and bails out before touching the window.
+    pthread_mutex_lock(&term.lock);
+    wm_window_t *win_to_destroy = term.win;
+    term.win = nullptr;
+    pthread_mutex_unlock(&term.lock);
+
+    // Kill shell and foreground processes.
+    terminal_hangup_foreground(master_fd, shell_pid);
+    kill(shell_pid, SIGTERM);
 
     if (shell_wait_started) {
         pthread_join(shell_wait_thread, nullptr);
     } else {
         int status = 0;
-        if (waitpid(shell_pid, &status, WNOHANG) == 0) {
-            waitpid(shell_pid, &status, 0);
-        }
+        waitpid(shell_pid, &status, 0);
     }
+
+    close(master_fd);
+    pthread_join(reader_thread, nullptr);
+
+    // Reader thread is dead — safe to destroy the window now.
+    wm_destroy_window(win_to_destroy);
 
     free(term.cells);
     free(term.fg);
     free(term.bg);
     terminal_context_free(term.context);
-    wm_destroy_window(term.win);
     return 0;
 }
