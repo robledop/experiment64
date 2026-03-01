@@ -7,6 +7,7 @@
 #include <drivers/console.h>
 #include <fs/devfs.h>
 #include <sys/ioctl.h>
+#include <syscall_common.h>
 #include <task/process.h>
 
 bool console_has_char(void)
@@ -67,14 +68,22 @@ static int console_ioctl([[maybe_unused]] vfs_inode_t *node, int request, void *
             .ws_xpixel = (uint16_t)width,
             .ws_ypixel = (uint16_t)height,
         };
-        memcpy(arg, &ws, sizeof(ws));
+        copy_to_user(arg, &ws, sizeof(ws));
         return 0;
     }
     if (request == TIOCSPGRP) {
         if (!arg)
             return -1;
-        int pid = *(int *)arg;
+        int pid = 0;
+        copy_from_user(&pid, arg, sizeof(pid));
         keyboard_set_foreground_pid(pid);
+        return 0;
+    }
+    if (request == TIOCGPGRP) {
+        if (!arg)
+            return -1;
+        int pid = keyboard_get_foreground_pid();
+        copy_to_user(arg, &pid, sizeof(pid));
         return 0;
     }
     return -1;
