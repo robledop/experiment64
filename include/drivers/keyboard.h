@@ -14,6 +14,7 @@ void keyboard_inject_scancode(uint8_t scancode);
 void keyboard_reset_state_for_test(void);
 void keyboard_handler_main(void);
 char keyboard_get_char(void);
+bool keyboard_try_get_char(char *out);
 bool keyboard_has_char(void);
 uint64_t keyboard_read_raw(uint8_t* out, uint64_t max);
 void keyboard_clear_modifiers(void);

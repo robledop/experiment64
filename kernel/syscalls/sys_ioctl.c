@@ -3,6 +3,7 @@
 #include <fs/vfs.h>
 #include <net/network.h>
 #include <sys/ioctl.h>
+#include <sys/termios.h>
 #include <task/process.h>
 
 typedef enum { IOCTL_DIR_READ, IOCTL_DIR_WRITE } ioctl_dir_t;
@@ -13,6 +14,9 @@ static size_t ioctl_arg_size(int request)
     case TIOCGWINSZ:
     case TIOCSWINSZ:
         return sizeof(struct winsize);
+    case TIOCGETA:
+    case TIOCSETA:
+        return sizeof(struct termios);
     case TIOCGPGRP:
     case TIOCSPGRP:
     case FIONBIO:
@@ -37,6 +41,7 @@ static ioctl_dir_t ioctl_arg_dir(int request)
 {
     switch (request) {
     case TIOCSWINSZ:
+    case TIOCSETA:
     case TIOCSPGRP:
     case FIONBIO:
         return IOCTL_DIR_READ;

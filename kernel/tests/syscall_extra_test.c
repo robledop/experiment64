@@ -3,8 +3,11 @@
 #include <sys/signal.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/termios.h>
 #include <lib/string.h>
 #include <task/process.h>
+#include <drivers/keyboard.h>
+#include <drivers/tsc.h>
 
 TEST(test_sys_thread_join_basic)
 {
@@ -173,6 +176,39 @@ TEST(test_sys_ioctl_tiocgwinsz)
     return true;
 }
 
+TEST(test_sys_console_termios_vmin_vtime)
+{
+    int fd = sys_open("/dev/console", 0);
+    TEST_ASSERT(fd >= 0);
+
+    struct termios old_t = {0};
+    TEST_ASSERT(sys_ioctl(fd, TIOCGETA, &old_t) == 0);
+
+    struct termios new_t = old_t;
+    new_t.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    new_t.c_cc[VMIN] = 0;
+    new_t.c_cc[VTIME] = 1;
+    TEST_ASSERT(sys_ioctl(fd, TIOCSETA, &new_t) == 0);
+
+    char c = 0;
+    uint64_t start = tsc_nanos();
+    TEST_ASSERT(sys_read(fd, &c, 1) == 0);
+    uint64_t end = tsc_nanos();
+    if (start > 0 && end >= start) {
+        uint64_t elapsed_ms = (end - start) / 1000000ull;
+        TEST_ASSERT(elapsed_ms >= 50);
+        TEST_ASSERT(elapsed_ms < 1000);
+    }
+
+    keyboard_inject_scancode(0x01); // ESC
+    TEST_ASSERT(sys_read(fd, &c, 1) == 1);
+    TEST_ASSERT(c == 27);
+
+    TEST_ASSERT(sys_ioctl(fd, TIOCSETA, &old_t) == 0);
+    sys_close(fd);
+    return true;
+}
+
 TEST(test_sys_openpty_data_path)
 {
     int fds[2] = {-1, -1};
@@ -192,6 +228,41 @@ TEST(test_sys_openpty_data_path)
     TEST_ASSERT(sys_read(fds[0], out_b, 3) == 3);
     TEST_ASSERT(memcmp(in_b, out_b, 3) == 0);
 
+    sys_close(fds[0]);
+    sys_close(fds[1]);
+    return true;
+}
+
+TEST(test_sys_openpty_termios_vmin_vtime)
+{
+    int fds[2] = {-1, -1};
+    TEST_ASSERT(sys_openpty(fds) == 0);
+
+    struct termios old_t = {0};
+    TEST_ASSERT(sys_ioctl(fds[1], TIOCGETA, &old_t) == 0);
+
+    struct termios new_t = old_t;
+    new_t.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    new_t.c_cc[VMIN] = 0;
+    new_t.c_cc[VTIME] = 1;
+    TEST_ASSERT(sys_ioctl(fds[1], TIOCSETA, &new_t) == 0);
+
+    char c = 0;
+    uint64_t start = tsc_nanos();
+    TEST_ASSERT(sys_read(fds[1], &c, 1) == 0);
+    uint64_t end = tsc_nanos();
+    if (start > 0 && end >= start) {
+        uint64_t elapsed_ms = (end - start) / 1000000ull;
+        TEST_ASSERT(elapsed_ms >= 50);
+        TEST_ASSERT(elapsed_ms < 1000);
+    }
+
+    const char esc = 27;
+    TEST_ASSERT(sys_write(fds[0], &esc, 1) == 1);
+    TEST_ASSERT(sys_read(fds[1], &c, 1) == 1);
+    TEST_ASSERT(c == esc);
+
+    TEST_ASSERT(sys_ioctl(fds[1], TIOCSETA, &old_t) == 0);
     sys_close(fds[0]);
     sys_close(fds[1]);
     return true;

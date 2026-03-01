@@ -315,23 +315,43 @@ bool keyboard_has_char(void)
     return read_ptr != write_ptr;
 }
 
+bool keyboard_try_get_char(char *out)
+{
+    if (!out)
+        return false;
+
+    uint64_t rflags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
+
+    if (read_ptr == write_ptr) {
+        if (rflags & RFLAGS_IF)
+            __asm__ volatile("sti");
+        return false;
+    }
+
+    *out = buffer[read_ptr];
+    read_ptr = (read_ptr + 1) % BUFFER_SIZE;
+
+    if (rflags & RFLAGS_IF)
+        __asm__ volatile("sti");
+    return true;
+}
+
 char keyboard_get_char(void)
 {
     while (1) {
-        // Disable interrupts to check buffer and sleep atomically
+        // Disable interrupts to check buffer and sleep atomically.
         uint64_t rflags;
         __asm__ volatile("pushfq; pop %0; cli" : "=r"(rflags));
 
         if (read_ptr != write_ptr) {
-            char c   = buffer[read_ptr];
+            char c = buffer[read_ptr];
             read_ptr = (read_ptr + 1) % BUFFER_SIZE;
-            // Restore interrupts
             if (rflags & RFLAGS_IF)
                 __asm__ volatile("sti");
             return c;
         }
 
-        // Buffer empty, sleep
         thread_t *cur = get_current_thread();
         if (cur) {
             keyboard_waiter = cur;

@@ -1,5 +1,7 @@
 #include <termios.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 
 static struct termios termios_table[16];
 static bool termios_initialized = false;
@@ -54,10 +56,13 @@ int tcgetattr(int fd, struct termios *termios_p)
 {
     if (!termios_p)
         return -1;
-    struct termios *entry = get_entry(fd);
-    if (!entry)
+
+    if (ioctl(fd, TIOCGETA, termios_p) != 0)
         return -1;
-    memcpy(termios_p, entry, sizeof(struct termios));
+
+    struct termios *entry = get_entry(fd);
+    if (entry)
+        memcpy(entry, termios_p, sizeof(struct termios));
     return 0;
 }
 
@@ -66,9 +71,12 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
     (void)optional_actions;
     if (!termios_p)
         return -1;
-    struct termios *entry = get_entry(fd);
-    if (!entry)
+
+    if (ioctl(fd, TIOCSETA, (void *)termios_p) != 0)
         return -1;
-    memcpy(entry, termios_p, sizeof(struct termios));
+
+    struct termios *entry = get_entry(fd);
+    if (entry)
+        memcpy(entry, termios_p, sizeof(struct termios));
     return 0;
 }

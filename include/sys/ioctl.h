@@ -6,6 +6,10 @@
 #define TIOCGWINSZ 0x5413
 // Set terminal window size
 #define TIOCSWINSZ 0x5414
+// Get terminal attributes
+#define TIOCGETA 0x5401
+// Set terminal attributes
+#define TIOCSETA 0x5402
 // Get foreground process
 #define TIOCGPGRP 0x540F
 // Set foreground process
