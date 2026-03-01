@@ -26,6 +26,7 @@ Syscall groups with differentiated status returns:
 - Core fd/data-path syscalls (`SYS_OPEN`, `SYS_CLOSE`, `SYS_READ`, `SYS_WRITE`, `SYS_LSEEK`, `SYS_DUP`, `SYS_READDIR`)
 - Path/metadata syscalls (`SYS_CHDIR`, `SYS_GETCWD`, `SYS_STAT`, `SYS_FSTAT`, `SYS_LINK`, `SYS_UNLINK`, `SYS_RENAME`,
   `SYS_MKNOD`)
+- Signal syscalls (`SYS_SIGACTION`, `SYS_SIGRETURN`, `SYS_SIGPROCMASK`)
 - Shared memory syscalls (`SYS_SHM_OPEN`, `SYS_SHM_UNLINK`)
 - File descriptor syscalls (`SYS_DUP`, `SYS_DUP2`, `SYS_FCNTL`)
 - PTY syscall (`SYS_OPENPTY`)

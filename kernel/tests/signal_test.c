@@ -41,6 +41,33 @@ TEST (test_signal_sigaction_invalid)
     return true;
 }
 
+TEST(test_signal_sigprocmask_basic)
+{
+    sigset_t original = 0;
+    TEST_ASSERT(sys_sigprocmask(SIG_SETMASK, nullptr, &original) == 0);
+
+    const sigset_t block_set = ((sigset_t)1 << (SIGUSR1 - 1)) | ((sigset_t)1 << (SIGKILL - 1)) |
+        ((sigset_t)1 << (SIGSTOP - 1));
+    sigset_t previous = 0;
+    TEST_ASSERT(sys_sigprocmask(SIG_BLOCK, &block_set, &previous) == 0);
+    TEST_ASSERT(previous == original);
+
+    sigset_t current = 0;
+    TEST_ASSERT(sys_sigprocmask(SIG_SETMASK, nullptr, &current) == 0);
+    TEST_ASSERT((current & ((sigset_t)1 << (SIGUSR1 - 1))) != 0);
+    TEST_ASSERT((current & ((sigset_t)1 << (SIGKILL - 1))) == 0);
+    TEST_ASSERT((current & ((sigset_t)1 << (SIGSTOP - 1))) == 0);
+
+    const sigset_t unblock_set = ((sigset_t)1 << (SIGUSR1 - 1));
+    TEST_ASSERT(sys_sigprocmask(SIG_UNBLOCK, &unblock_set, nullptr) == 0);
+    TEST_ASSERT(sys_sigprocmask(SIG_SETMASK, nullptr, &current) == 0);
+    TEST_ASSERT((current & ((sigset_t)1 << (SIGUSR1 - 1))) == 0);
+
+    TEST_ASSERT(sys_sigprocmask(99, &unblock_set, nullptr) == -1);
+    TEST_ASSERT(sys_sigprocmask(SIG_SETMASK, &original, nullptr) == 0);
+    return true;
+}
+
 TEST (test_signal_user_handler)
 {
     const int pid = sys_spawn("/tests/sigtest_handler");

@@ -89,6 +89,7 @@
       <w>oldact</w>
       <w>oldfd</w>
       <w>oldpath</w>
+      <w>oldset</w>
       <w>onpaint</w>
       <w>ostep</w>
       <w>outsl</w>
@@ -114,6 +115,7 @@
       <w>setfd</w>
       <w>setfl</w>
       <w>setjmp</w>
+      <w>sigprocmask</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
       <w>snprintf</w>

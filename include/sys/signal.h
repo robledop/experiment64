@@ -54,6 +54,10 @@ typedef uint64_t sigset_t;
 
 #define SIG_MAX 32
 
+#define SIG_BLOCK 0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
+
 // Provide behavior compatible with BSD signal semantics by making certain
 // system calls restartable across signals. (not yet implemented)
 #define SA_RESTART 0x1

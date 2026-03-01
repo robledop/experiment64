@@ -74,6 +74,7 @@ typedef struct syscall_regs syscall_regs_t;
 #define SYS_FTRUNCATE 55
 #define SYS_POLL 56
 #define SYS_FCNTL 57
+#define SYS_SIGPROCMASK 58
 
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
@@ -115,6 +116,7 @@ long sys_lseek(int fd, long offset, int whence);
 int sys_ftruncate(int fd, long length);
 int sys_poll(struct pollfd *fds, long nfds, int timeout);
 int sys_fcntl(int fd, int cmd, long arg);
+int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 int sys_dup(int oldfd);
 int sys_kill(int pid, int sig);
 int sys_socket(int domain, int type, int protocol);

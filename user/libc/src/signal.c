@@ -30,3 +30,8 @@ sighandler_t signal(const int signum, const sighandler_t handler)
     }
     return old.sa_handler;
 }
+
+int sigprocmask(const int how, const sigset_t *set, sigset_t *oldset)
+{
+    return clamp_signed_to_int(syscall3(SYS_SIGPROCMASK, how, (long)set, (long)oldset));
+}
