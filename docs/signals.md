@@ -8,7 +8,7 @@ https://www.youtube.com/watch?v=d0gS5TXarXc&t=1009s
 
 The signal numbers are defined in `include/sys/signal.h` and
 `user/libc/include/sys/signal.h`. `SIG_MAX` is 32, and the implemented set is
-the traditional POSIX signals from `SIGHUP` through `SIGTTOU`.
+the traditional POSIX signals from `SIGHUP` through `SIGTTOU`, plus `SIGWINCH`.
 
 Signals are process-wide, not per-thread, and are represented as a bitset
 (`sigset_t`). Multiple deliveries of the same signal coalesce into a single
@@ -126,6 +126,9 @@ Libc provides:
 
 - `sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)`
 - `signal(int signum, sighandler_t handler)`
+- `sigemptyset(sigset_t *set)`, `sigfillset(sigset_t *set)`
+- `sigaddset(sigset_t *set, int signum)`, `sigdelset(sigset_t *set, int signum)`
+- `sigismember(const sigset_t *set, int signum)`
 - `kill(int pid, int sig)`
 
 Handlers use the signature:

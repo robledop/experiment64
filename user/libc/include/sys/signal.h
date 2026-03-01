@@ -5,6 +5,7 @@
 typedef void (*sighandler_t)(int);
 
 typedef uint64_t sigset_t;
+typedef int sig_atomic_t;
 
 #define SIG_DFL ((sighandler_t)0)
 // Ignore signals
@@ -53,8 +54,11 @@ typedef uint64_t sigset_t;
 #define SIGTTIN 21
 // Background write to controlling terminal.
 #define SIGTTOU 22
+// Window size change.
+#define SIGWINCH 28
 
 #define SIG_MAX 32
+#define NSIG (SIG_MAX + 1)
 
 #define SIG_BLOCK 0
 #define SIG_UNBLOCK 1

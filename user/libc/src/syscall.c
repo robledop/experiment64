@@ -10,8 +10,27 @@
 #include <stdarg.h>
 #include <util.h>
 #include <termios.h>
+#include <errno.h>
 
 #undef exit
+
+static int syscall_to_int(const long ret)
+{
+    if (ret < 0) {
+        errno = (int)-ret;
+        return -1;
+    }
+    return clamp_signed_to_int(ret);
+}
+
+static ssize_t syscall_to_ssize(const long ret)
+{
+    if (ret < 0) {
+        errno = (int)-ret;
+        return -1;
+    }
+    return (ssize_t)ret;
+}
 
 ssize_t write(int fd, const void *buf, size_t count)
 {
@@ -20,7 +39,7 @@ ssize_t write(int fd, const void *buf, size_t count)
     const bool do_post = (oflags & OPOST) && isatty(fd);
 
     if (!do_post || count == 0)
-        return syscall3(SYS_WRITE, fd, (long)buf, (long)count);
+        return syscall_to_ssize(syscall3(SYS_WRITE, fd, (long)buf, (long)count));
 
     const char *in            = (const char *)buf;
     ssize_t total_src_written = 0;
@@ -42,8 +61,12 @@ ssize_t write(int fd, const void *buf, size_t count)
         }
 
         ssize_t res = syscall3(SYS_WRITE, fd, (long)tmp, (long)out_len);
-        if (res < 0)
-            return (total_src_written > 0) ? total_src_written : res;
+        if (res < 0) {
+            if (total_src_written > 0)
+                return total_src_written;
+            errno = (int)-res;
+            return -1;
+        }
 
         if ((size_t)res == out_len) {
             total_src_written += (ssize_t)slice_src;
@@ -72,19 +95,19 @@ ssize_t write(int fd, const void *buf, size_t count)
 
 ssize_t read(int fd, void *buf, size_t count)
 {
-    return syscall3(SYS_READ, fd, (long)buf, (long)count);
+    return syscall_to_ssize(syscall3(SYS_READ, fd, (long)buf, (long)count));
 }
 
 int exec(const char *path)
 {
     const char *argv[] = {(char *)path, nullptr};
-    return clamp_signed_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, 0));
+    return syscall_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, 0));
 }
 
 int execve(const char *path, char *const argv[], char *const envp[])
 {
     (void)envp; // envp is currently ignored by the kernel
-    return clamp_signed_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, (long)envp));
+    return syscall_to_int(syscall3(SYS_EXECVE, (long)path, (long)argv, (long)envp));
 }
 
 [[noreturn]] void __exit_impl(int status)
@@ -109,27 +132,27 @@ void exit(int status)
 
 int fork(void)
 {
-    return clamp_signed_to_int(syscall0(SYS_FORK));
+    return syscall_to_int(syscall0(SYS_FORK));
 }
 
 int wait(int *status)
 {
-    return clamp_signed_to_int(syscall1(SYS_WAIT, (long)status));
+    return syscall_to_int(syscall1(SYS_WAIT, (long)status));
 }
 
 int waitpid(int pid, int *status, int options)
 {
-    return clamp_signed_to_int(syscall3(SYS_WAITPID, pid, (long)status, options));
+    return syscall_to_int(syscall3(SYS_WAITPID, pid, (long)status, options));
 }
 
 int getpid(void)
 {
-    return clamp_signed_to_int(syscall0(SYS_GETPID));
+    return syscall_to_int(syscall0(SYS_GETPID));
 }
 
 int gettid(void)
 {
-    return clamp_signed_to_int(syscall0(SYS_GETTID));
+    return syscall_to_int(syscall0(SYS_GETTID));
 }
 
 void yield(void)
@@ -139,7 +162,7 @@ void yield(void)
 
 int spawn(const char *path)
 {
-    return clamp_signed_to_int(syscall1(SYS_SPAWN, (long)path));
+    return syscall_to_int(syscall1(SYS_SPAWN, (long)path));
 }
 
 int thread_create(void (*entry)(void *), void *arg)
@@ -176,17 +199,22 @@ int futex_wake(volatile int *addr, int count)
 
 void *sbrk(intptr_t increment)
 {
-    return (void *)syscall1(SYS_SBRK, (long)increment);
+    long ret = syscall1(SYS_SBRK, (long)increment);
+    if (ret < 0) {
+        errno = (int)-ret;
+        return (void *)-1;
+    }
+    return (void *)ret;
 }
 
 int open(const char *path, int flags, ...)
 {
-    return clamp_signed_to_int(syscall2(SYS_OPEN, (long)path, flags));
+    return syscall_to_int(syscall2(SYS_OPEN, (long)path, flags));
 }
 
 int close(int fd)
 {
-    return clamp_signed_to_int(syscall1(SYS_CLOSE, fd));
+    return syscall_to_int(syscall1(SYS_CLOSE, fd));
 }
 
 int sys_readdir(int fd, void *dent)
@@ -196,90 +224,94 @@ int sys_readdir(int fd, void *dent)
 
 int chdir(const char *path)
 {
-    return clamp_signed_to_int(syscall1(SYS_CHDIR, (long)path));
+    return syscall_to_int(syscall1(SYS_CHDIR, (long)path));
 }
 
 int link(const char *oldpath, const char *newpath)
 {
-    return clamp_signed_to_int(syscall2(SYS_LINK, (long)oldpath, (long)newpath));
+    return syscall_to_int(syscall2(SYS_LINK, (long)oldpath, (long)newpath));
 }
 
 int unlink(const char *path)
 {
-    return clamp_signed_to_int(syscall1(SYS_UNLINK, (long)path));
+    return syscall_to_int(syscall1(SYS_UNLINK, (long)path));
 }
 
 int stat(const char *path, struct stat *st)
 {
-    return clamp_signed_to_int(syscall2(SYS_STAT, (long)path, (long)st));
+    return syscall_to_int(syscall2(SYS_STAT, (long)path, (long)st));
 }
 
 int fstat(int fd, struct stat *st)
 {
-    return clamp_signed_to_int(syscall2(SYS_FSTAT, fd, (long)st));
+    return syscall_to_int(syscall2(SYS_FSTAT, fd, (long)st));
 }
 
 int sleep(int milliseconds)
 {
     if (milliseconds < 0)
         milliseconds = 0;
-    return clamp_signed_to_int(syscall1(SYS_SLEEP, milliseconds));
+    return syscall_to_int(syscall1(SYS_SLEEP, milliseconds));
 }
 
 int usleep(unsigned int usec)
 {
-    return clamp_signed_to_int(syscall1(SYS_USLEEP, (long)usec));
+    return syscall_to_int(syscall1(SYS_USLEEP, (long)usec));
 }
 
 int ioctl(int fd, unsigned long request, void *arg)
 {
-    return clamp_signed_to_int(syscall3(SYS_IOCTL, fd, (long)request, (long)arg));
+    return syscall_to_int(syscall3(SYS_IOCTL, fd, (long)request, (long)arg));
 }
 
 char *getcwd(char *buf, size_t size)
 {
     long ret = syscall2(SYS_GETCWD, (long)buf, (long)size);
-    if (ret < 0)
+    if (ret < 0) {
+        errno = (int)-ret;
         return nullptr;
+    }
     return buf;
 }
 
 int gettimeofday(struct timeval *tv, struct timezone *tz)
 {
-    return clamp_signed_to_int(syscall2(SYS_GETTIMEOFDAY, (long)tv, (long)tz));
+    return syscall_to_int(syscall2(SYS_GETTIMEOFDAY, (long)tv, (long)tz));
 }
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)
 {
     long ret = syscall6(SYS_MMAP, (long)addr, (long)length, prot, flags, fd, (long)offset);
-    if (ret < 0)
+    if (ret < 0) {
+        errno = (int)-ret;
         return MAP_FAILED;
+    }
     return (void *)ret;
 }
 
 int munmap(void *addr, size_t length)
 {
-    return clamp_signed_to_int(syscall2(SYS_MUNMAP, (long)addr, (long)length));
+    return syscall_to_int(syscall2(SYS_MUNMAP, (long)addr, (long)length));
 }
 
 int pipe(int pipefd[2])
 {
-    return clamp_signed_to_int(syscall1(SYS_PIPE, (long)pipefd));
+    return syscall_to_int(syscall1(SYS_PIPE, (long)pipefd));
 }
 
 int dup(int oldfd)
 {
-    return clamp_signed_to_int(syscall1(SYS_DUP, oldfd));
+    return syscall_to_int(syscall1(SYS_DUP, oldfd));
 }
 
 int dup2(int oldfd, int newfd)
 {
-    return clamp_signed_to_int(syscall2(SYS_DUP2, oldfd, newfd));
+    return syscall_to_int(syscall2(SYS_DUP2, oldfd, newfd));
 }
 
 int ftruncate(int fd, long length)
 {
-    return clamp_signed_to_int(syscall2(SYS_FTRUNCATE, fd, length));
+    return syscall_to_int(syscall2(SYS_FTRUNCATE, fd, length));
 }
 
 int fcntl(int fd, int cmd, ...)
@@ -291,22 +323,22 @@ int fcntl(int fd, int cmd, ...)
         arg = (long)va_arg(ap, int);
         va_end(ap);
     }
-    return clamp_signed_to_int(syscall3(SYS_FCNTL, fd, cmd, arg));
+    return syscall_to_int(syscall3(SYS_FCNTL, fd, cmd, arg));
 }
 
 int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    return clamp_signed_to_int(syscall3(SYS_POLL, (long)fds, (long)nfds, timeout));
+    return syscall_to_int(syscall3(SYS_POLL, (long)fds, (long)nfds, timeout));
 }
 
 int openpty(int fds[2])
 {
-    return clamp_signed_to_int(syscall1(SYS_OPENPTY, (long)fds));
+    return syscall_to_int(syscall1(SYS_OPENPTY, (long)fds));
 }
 
 int kill(int pid, int sig)
 {
-    return clamp_signed_to_int(syscall2(SYS_KILL, pid, sig));
+    return syscall_to_int(syscall2(SYS_KILL, pid, sig));
 }
 
 void shutdown(void)
@@ -321,7 +353,7 @@ void reboot(void)
 
 int socket(int domain, int type, int protocol)
 {
-    return clamp_signed_to_int(syscall3(SYS_SOCKET, domain, type, protocol));
+    return syscall_to_int(syscall3(SYS_SOCKET, domain, type, protocol));
 }
 
 /**
@@ -333,7 +365,7 @@ int socket(int domain, int type, int protocol)
  */
 int bind(int sockfd, const struct sockaddr *addr, size_t addrlen)
 {
-    return clamp_signed_to_int(syscall3(SYS_BIND, sockfd, (long)addr, (long)addrlen));
+    return syscall_to_int(syscall3(SYS_BIND, sockfd, (long)addr, (long)addrlen));
 }
 
 /**
@@ -344,7 +376,7 @@ int bind(int sockfd, const struct sockaddr *addr, size_t addrlen)
  */
 int listen(int sockfd, int backlog)
 {
-    return clamp_signed_to_int(syscall2(SYS_LISTEN, sockfd, backlog));
+    return syscall_to_int(syscall2(SYS_LISTEN, sockfd, backlog));
 }
 
 /**
@@ -356,7 +388,7 @@ int listen(int sockfd, int backlog)
  */
 int accept(int sockfd, struct sockaddr *addr, socklen_t addrlen)
 {
-    return clamp_signed_to_int(syscall3(SYS_ACCEPT, sockfd, (long)addr, (long)addrlen));
+    return syscall_to_int(syscall3(SYS_ACCEPT, sockfd, (long)addr, (long)addrlen));
 }
 
 /**
@@ -385,7 +417,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags)
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
                const struct sockaddr *dest_addr, socklen_t addrlen)
 {
-    return syscall6(SYS_SENDTO, sockfd, (long)buf, (long)len, flags, (long)dest_addr, (long)addrlen);
+    return syscall_to_ssize(syscall6(SYS_SENDTO, sockfd, (long)buf, (long)len, flags, (long)dest_addr, (long)addrlen));
 }
 
 /**
@@ -401,15 +433,15 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
                  struct sockaddr *src_addr, socklen_t *addrlen)
 {
-    return syscall6(SYS_RECVFROM, sockfd, (long)buf, (long)len, flags, (long)src_addr, (long)addrlen);
+    return syscall_to_ssize(syscall6(SYS_RECVFROM, sockfd, (long)buf, (long)len, flags, (long)src_addr, (long)addrlen));
 }
 
 int shm_open(const char *name, int flags, size_t size)
 {
-    return clamp_signed_to_int(syscall3(SYS_SHM_OPEN, (long)name, flags, (long)size));
+    return syscall_to_int(syscall3(SYS_SHM_OPEN, (long)name, flags, (long)size));
 }
 
 int shm_unlink(const char *name)
 {
-    return clamp_signed_to_int(syscall1(SYS_SHM_UNLINK, (long)name));
+    return syscall_to_int(syscall1(SYS_SHM_UNLINK, (long)name));
 }

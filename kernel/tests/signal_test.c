@@ -79,6 +79,19 @@ TEST (test_signal_user_handler)
     return true;
 }
 
+TEST (test_signal_winch_and_sigset_helpers)
+{
+    const int pid = sys_spawn("/tests/sigtest_winch");
+    TEST_ASSERT(pid > 1);
+
+    int status = 0;
+    TEST_ASSERT(signal_wait_pid(pid, &status));
+    if (status != 0)
+        printk("test_signal_winch_and_sigset_helpers: pid=%d status=%d\n", pid, status);
+    TEST_ASSERT(status == 0);
+    return true;
+}
+
 TEST (test_signal_sigchld)
 {
     const int pid = sys_spawn("/tests/sigtest_sigchld");

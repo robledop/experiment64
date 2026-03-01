@@ -56,48 +56,52 @@
 
 USED static inline char *strerror(const int error)
 {
-    switch (error) {
-    case -EIO:
+    int code = error;
+    if (code < 0)
+        code = -code;
+
+    switch (code) {
+    case EIO:
         return "Input/output error";
-    case -EINVARG:
+    case EINVARG:
         return "Invalid argument";
-    case -ENOMEM:
+    case ENOMEM:
         return "Out of memory";
-    case -EBADPATH:
+    case EBADPATH:
         return "Invalid path";
-    case -EFSNOTUS:
+    case EFSNOTUS:
         return "File system not supported";
-    case -ERDONLY:
+    case ERDONLY:
         return "Read only file system";
-    case -EUNIMP:
+    case EUNIMP:
         return "Operation not implemented";
-    case -EINSTKN:
+    case EINSTKN:
         return "Instance already taken";
-    case -EINFORMAT:
+    case EINFORMAT:
         return "Invalid format";
-    case -ENOENT:
+    case ENOENT:
         return "No such file or directory";
-    case -EAGAIN:
+    case EAGAIN:
         return "Resource temporarily unavailable";
-    case -ENOTDIR:
+    case ENOTDIR:
         return "Not a directory";
-    case -EBADF:
+    case EBADF:
         return "Bad file descriptor";
-    case -EFAULT:
+    case EFAULT:
         return "Invalid memory address";
-    case -ENOTSUP:
+    case ENOTSUP:
         return "Operation not supported";
-    case -EISDIR:
+    case EISDIR:
         return "Is a directory";
-    case -EPERM:
+    case EPERM:
         return "Operation not permitted";
-    case -EBUSY:
+    case EBUSY:
         return "Device or resource busy";
-    case -EDEADLK:
+    case EDEADLK:
         return "Resource deadlock would occur";
-    case -ETIMEDOUT:
+    case ETIMEDOUT:
         return "Operation timed out";
-    case -EINTR:
+    case EINTR:
         return "Interrupted system call";
     default:
         return "Unknown error";

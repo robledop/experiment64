@@ -33,3 +33,11 @@ Syscall groups with differentiated status returns:
 
 For path/metadata operations, syscall wrappers return VFS/backend status codes directly when available rather than
 coalescing all backend failures to `-EIO`.
+
+## libc Wrapper Semantics
+
+- Kernel syscalls use the negative-status convention above.
+- libc POSIX-style wrappers (`open`, `read`, `write`, `stat`, `ioctl`, `poll`, sockets, signals, etc.) now map
+  failures to `-1` (or `NULL`/`MAP_FAILED`) and set `errno` to the positive status code.
+- Internal/low-level APIs used by the threading layer (`thread_*`, `futex_*`, internal `sys_readdir`) still expose
+  raw status returns.
