@@ -284,10 +284,15 @@ static void pty_inode_close(vfs_inode_t *node)
     }
 
     bool free_pty = false;
+    int hangup_pid = 0;
     spinlock_acquire(&pty->lock);
     if (ep->is_master) {
         if (pty->master_open > 0)
             pty->master_open--;
+        if (pty->master_open == 0 && pty->slave_open > 0 && pty->fg_pid > 1) {
+            hangup_pid = pty->fg_pid;
+            pty->fg_pid = 0;
+        }
     } else {
         if (pty->slave_open > 0)
             pty->slave_open--;
@@ -295,6 +300,9 @@ static void pty_inode_close(vfs_inode_t *node)
     if (pty->master_open == 0 && pty->slave_open == 0)
         free_pty = true;
     spinlock_release(&pty->lock);
+
+    if (hangup_pid > 0)
+        signal_send_pid(hangup_pid, SIGHUP);
 
     kfree(ep);
     if (free_pty)
