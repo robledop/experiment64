@@ -1603,6 +1603,7 @@ TEST(test_syscall_stat_basic)
     TEST_ASSERT(rc == 0);
     TEST_ASSERT(st.size == strlen(content));
     TEST_ASSERT(st.type == VFS_FILE);
+    TEST_ASSERT(S_ISREG(st.st_mode));
 
     sys_unlink("/stat_test.txt");
     return true;
@@ -1614,6 +1615,7 @@ TEST(test_syscall_stat_directory)
     int rc    = sys_stat("/", &st);
     TEST_ASSERT(rc == 0);
     TEST_ASSERT(st.type == VFS_DIRECTORY);
+    TEST_ASSERT(S_ISDIR(st.st_mode));
     return true;
 }
 
@@ -1638,6 +1640,7 @@ TEST(test_syscall_fstat_basic)
     TEST_ASSERT(rc == 0);
     TEST_ASSERT(st.size == strlen(content));
     TEST_ASSERT(st.type == VFS_FILE);
+    TEST_ASSERT(S_ISREG(st.st_mode));
 
     sys_close(fd);
     sys_unlink("/fstat_test.txt");

@@ -149,6 +149,7 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
     ip->ref   = 1;
     ip->valid = 0;
     ip->type  = 0;
+    ip->i_mode = 0;
     ip->size  = 0;
     ip->nlink = 0;
     ip->addrs = &ext2fs_addrs[ip - icache.inode];
@@ -450,13 +451,15 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
 
         memset(slot, 0, sb->s_inode_size);
         struct ext2_disk_inode *din = (struct ext2_disk_inode *)slot;
+        uint16_t mode = 0;
         if (type == T_DIR) {
-            din->i_mode = (uint16_t)(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+            mode = (uint16_t)(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         } else if (type == T_FILE) {
-            din->i_mode = (uint16_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+            mode = (uint16_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         } else if (type == T_DEV) {
-            din->i_mode = (uint16_t)(S_IFCHR | S_IRUSR | S_IWUSR);
+            mode = (uint16_t)(S_IFCHR | S_IRUSR | S_IWUSR);
         }
+        din->i_mode = mode;
         bwrite(dinode_buff);
         bwrite(ibitmap_buff);
         brelse(dinode_buff);
@@ -465,6 +468,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         const uint32_t inum   = i * sb->s_inodes_per_group + (uint32_t)fbit + 1;
         struct ext2_inode *ip = iget(dev, inum);
         ip->type              = type;
+        ip->i_mode            = mode;
         return ip;
     }
     printk("PANIC: ");
@@ -492,12 +496,10 @@ void ext2fs_iupdate(const struct ext2_inode *ip)
 
     struct ext2_disk_inode *din = (struct ext2_disk_inode *)(bp1->data + sector_byte_offset);
 
-    if (ip->type == T_DIR)
-        din->i_mode = (uint16_t)(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-    else if (ip->type == T_FILE)
-        din->i_mode = (uint16_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    else if (ip->type == T_DEV)
-        din->i_mode = (uint16_t)(S_IFCHR | S_IRUSR | S_IWUSR);
+    uint16_t mode = ip->i_mode;
+    if ((mode & S_IFMT) == 0)
+        mode = (uint16_t)vfs_mode_from_type(ip->type);
+    din->i_mode = mode;
 
     din->i_atime = ip->i_atime;
     din->i_ctime = ip->i_ctime;
@@ -552,6 +554,7 @@ int ext2fs_ilock(struct ext2_inode *ip)
         brelse(bp1);
 
         const struct ext2_disk_inode *din = (struct ext2_disk_inode *)raw;
+        ip->i_mode                        = din->i_mode;
 
         if (S_ISDIR(din->i_mode) || din->i_mode == T_DIR) {
             ip->type = T_DIR;
@@ -680,6 +683,7 @@ void ext2_stat_inode(const struct ext2_inode *ip, struct stat *st)
     st->dev     = clamp_to_int(ip->dev);
     st->ino     = clamp_to_int(ip->inum);
     st->type    = ip->type;
+    st->st_mode = ((ip->i_mode & S_IFMT) != 0) ? ip->i_mode : vfs_mode_from_type(ip->type);
     st->nlink   = ip->nlink;
     st->size    = ip->size;
     st->ref     = ip->ref;

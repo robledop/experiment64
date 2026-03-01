@@ -41,3 +41,10 @@ coalescing all backend failures to `-EIO`.
   failures to `-1` (or `NULL`/`MAP_FAILED`) and set `errno` to the positive status code.
 - Internal/low-level APIs used by the threading layer (`thread_*`, `futex_*`, internal `sys_readdir`) still expose
   raw status returns.
+
+## `stat` Compatibility
+
+- `struct stat` now exposes `st_mode` and POSIX mode/type macros in `<sys/stat.h>` (`S_IF*`, `S_IS*`, permission bits).
+- Kernel metadata paths (`stat`/`fstat`) populate both legacy `type` and POSIX `st_mode`.
+- Legacy fields remain available for existing programs (`size`, `i_mtime`, etc.); libc also provides aliases like
+  `st_size`, `st_mtime`, `st_uid`, and `st_gid`.

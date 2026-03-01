@@ -222,6 +222,7 @@ struct ext2_dir_entry_2
 };
 
 // file type
+#ifndef S_IFMT
 #define S_IFMT 00170000  // type of file
 #define S_IFSOCK 0140000 // socket
 #define S_IFLNK 0120000  // symbolic link
@@ -245,7 +246,9 @@ struct ext2_dir_entry_2
 #define S_IRWXU (S_IRUSR | S_IWUSR | S_IXUSR)
 #define S_IRWXG (S_IRGRP | S_IWGRP | S_IXGRP)
 #define S_IRWXO (S_IROTH | S_IWOTH | S_IXOTH)
+#endif
 
+#ifndef S_ISLNK
 #define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
 #define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
@@ -253,6 +256,7 @@ struct ext2_dir_entry_2
 #define S_ISBLK(m) (((m) & S_IFMT) == S_IFBLK)
 #define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
+#endif
 
 #include <task/sleeplock.h>
 
@@ -266,6 +270,7 @@ struct ext2_inode
     int valid;
 
     uint16_t type;
+    uint16_t i_mode;
     uint16_t major;
     uint16_t minor;
     uint16_t nlink;

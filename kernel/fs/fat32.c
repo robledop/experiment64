@@ -1042,6 +1042,7 @@ static int fat32_vfs_stat(const vfs_inode_t *node, struct stat *st)
     st->dev     = 0;
     st->ino     = (int)node->inode;
     st->type    = (int)(node->flags & 0x07);
+    st->st_mode = vfs_mode_from_type((uint32_t)st->type);
     st->nlink   = 1;
     st->size    = node->size;
     st->ref     = 0;
