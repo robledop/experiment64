@@ -91,6 +91,8 @@ USED static inline char *strerror(const int error)
         return "Invalid memory address";
     case ENOTSUP:
         return "Operation not supported";
+    case ENOTTY:
+        return "Not a tty";
     case EISDIR:
         return "Is a directory";
     case EPERM:

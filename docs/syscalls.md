@@ -30,6 +30,8 @@ Syscall groups with differentiated status returns:
 - Shared memory syscalls (`SYS_SHM_OPEN`, `SYS_SHM_UNLINK`)
 - File descriptor syscalls (`SYS_DUP`, `SYS_DUP2`, `SYS_FCNTL`)
 - PTY syscall (`SYS_OPENPTY`)
+- `SYS_IOCTL` now returns `-EBADF` for bad fds, `-EFAULT` for invalid pointers, and `-ENOTTY` for unsupported
+  requests/devices.
 
 For path/metadata operations, syscall wrappers return VFS/backend status codes directly when available rather than
 coalescing all backend failures to `-EIO`.

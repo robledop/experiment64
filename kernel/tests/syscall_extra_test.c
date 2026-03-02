@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <sys/termios.h>
 #include <lib/string.h>
+#include <status.h>
 #include <task/process.h>
 #include <drivers/keyboard.h>
 #include <drivers/tsc.h>
@@ -194,6 +195,18 @@ TEST(test_sys_ioctl_tiocgwinsz)
     TEST_ASSERT(rc == 0);
     TEST_ASSERT(ws.ws_col > 0);
     TEST_ASSERT(ws.ws_row > 0);
+    sys_close(fd);
+    return true;
+}
+
+TEST(test_sys_ioctl_error_codes)
+{
+    struct winsize ws = {0};
+    TEST_ASSERT(sys_ioctl(-1, TIOCGWINSZ, &ws) == -EBADF);
+
+    int fd = sys_open("/dev/console", 0);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(sys_ioctl(fd, 0x7FFFFFFF, &ws) == -ENOTTY);
     sys_close(fd);
     return true;
 }

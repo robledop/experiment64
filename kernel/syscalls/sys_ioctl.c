@@ -2,6 +2,7 @@
 
 #include <fs/vfs.h>
 #include <net/network.h>
+#include <status.h>
 #include <sys/ioctl.h>
 #include <sys/termios.h>
 #include <task/process.h>
@@ -57,31 +58,37 @@ static ioctl_dir_t ioctl_arg_dir(int request)
 int sys_ioctl(int fd, int request, void *arg)
 {
     if (fd < 0 || fd >= MAX_FDS)
-        return -1;
+        return -EBADF;
     file_descriptor_t *desc = fd_get(fd);
     if (!desc)
-        return -1;
+        return -EBADF;
     if (!desc->inode) {
         fd_put(desc);
-        return -1;
+        return -EBADF;
     }
 
     if (request != KDFLUSH && request != TIOCHUP) {
         size_t arg_size = ioctl_arg_size(request);
-        if (arg_size == 0 || !arg) {
+        if (arg_size == 0) {
             fd_put(desc);
-            return -1;
+            return -ENOTTY;
+        }
+        if (!arg) {
+            fd_put(desc);
+            return -EFAULT;
         }
         bool ok = (ioctl_arg_dir(request) == IOCTL_DIR_READ)
             ? user_ptr_read_ok(arg, arg_size, "sys_ioctl")
             : user_ptr_write_ok(arg, arg_size, "sys_ioctl");
         if (!ok) {
             fd_put(desc);
-            return -1;
+            return -EFAULT;
         }
     }
 
     int res = vfs_ioctl(desc->inode, request, arg);
     fd_put(desc);
+    if (res == -1)
+        return -ENOTTY;
     return res;
 }

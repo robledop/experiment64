@@ -1,7 +1,7 @@
 # Ioctl Support
 
 The kernel only accepts a small set of ioctl requests. Any other request
-returns -1.
+returns `-ENOTTY` (libc wrapper: `-1` with `errno=ENOTTY`).
 
 ## /dev/console
 

@@ -73,16 +73,45 @@ int main(void)
     }
 
     errno = 0;
-    if (tcsetattr(fd, 99, &saved) != -1) {
+    if (ioctl(fd, 0x7FFFFFFF, &saved) != -1) {
         close(fd);
         return 18;
     }
-    if (errno != EINVAL) {
+    if (errno != ENOTTY) {
         close(fd);
         return 19;
     }
-    if (close(fd) != 0)
+
+    errno = 0;
+    if (tcsetattr(fd, 99, &saved) != -1) {
+        close(fd);
         return 20;
+    }
+    if (errno != EINVAL) {
+        close(fd);
+        return 21;
+    }
+    if (close(fd) != 0)
+        return 22;
+
+    const char *nontty = "/ioctl_notty_test.txt";
+    int nfd = open(nontty, O_CREAT | O_RDWR | O_TRUNC, 0644);
+    if (nfd < 0)
+        return 23;
+
+    errno = 0;
+    if (tcgetattr(nfd, &saved) != -1) {
+        close(nfd);
+        return 24;
+    }
+    if (errno != ENOTTY) {
+        close(nfd);
+        return 25;
+    }
+    if (close(nfd) != 0)
+        return 26;
+    if (unlink(nontty) != 0)
+        return 27;
 
     return 0;
 }

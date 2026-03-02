@@ -1222,9 +1222,9 @@ TEST(test_syscall_ioctl_ptr_noncanonical)
         syscall_test_resume_after_longjmp();
         if (t)
             t->is_user = old_is_user;
-        bool passed = (test_exit_code == -1);
+        bool passed = (test_exit_code == -EFAULT);
         if (!passed)
-            printk("Syscall Test: ioctl noncanonical expected -1, got %d\n", test_exit_code);
+            printk("Syscall Test: ioctl noncanonical expected -EFAULT, got %d\n", test_exit_code);
         syscall_set_exit_hook(nullptr);
         return passed;
     }
