@@ -252,7 +252,8 @@ static void *connection_entry(void *arg)
 
     while (1) {
         struct sockaddr_in client_addr = {0};
-        const int connfd               = accept(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr));
+        socklen_t client_addr_len      = sizeof(client_addr);
+        const int connfd               = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len);
         if (connfd < 0)
             continue;
 

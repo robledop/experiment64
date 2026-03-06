@@ -7,7 +7,7 @@
 
 int sys_close(int fd);
 
-int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
+int sys_accept(const int fd, struct sockaddr* addr, socklen_t* addrlen)
 {
     if (fd < 0 || fd >= MAX_FDS)
         return -EBADF;
@@ -25,6 +25,7 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         fd_put(desc);
         return -ENOTSUP;
     }
+    const bool nonblock = (desc->flags & O_NONBLOCK) != 0;
 
     auto listener = (socket_t*)desc->inode->device;
     if (!listener)
@@ -44,22 +45,44 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         socket_put(listener);
         return -EINVAL;
     }
-    if (addr && addrlen < sizeof(struct sockaddr_in))
+    const socklen_t actual_len = sizeof(struct sockaddr_in);
+    socklen_t caller_len       = 0;
+    if (addr)
     {
-        socket_put(listener);
-        return -EINVAL;
-    }
-    if (addr && !user_ptr_write_ok(addr, sizeof(struct sockaddr_in), "sys_accept"))
-    {
-        socket_put(listener);
-        return -EFAULT;
+        if (!addrlen)
+        {
+            socket_put(listener);
+            return -EFAULT;
+        }
+        if (!user_ptr_read_ok(addrlen, sizeof(*addrlen), "sys_accept addrlen read") ||
+            !user_ptr_write_ok(addrlen, sizeof(*addrlen), "sys_accept addrlen write"))
+        {
+            socket_put(listener);
+            return -EFAULT;
+        }
+        if (!copy_from_user(&caller_len, addrlen, sizeof(caller_len)))
+        {
+            socket_put(listener);
+            return -EFAULT;
+        }
+        if (caller_len > 0 && !user_ptr_write_ok(addr, caller_len, "sys_accept addr"))
+        {
+            socket_put(listener);
+            return -EFAULT;
+        }
     }
 
     socket_t* child = nullptr;
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
-    while (list_empty(&listener->accept_queue))
+    while (list_empty(&listener->accept_queue)) {
+        if (nonblock) {
+            SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
+            socket_put(listener);
+            return -EAGAIN;
+        }
         thread_sleep(listener, &listener->accept_lock);
+    }
     child = list_entry(listener->accept_queue.next, socket_t, accept_list);
     list_del(&child->accept_list);
     if (listener->accept_queue_len > 0)
@@ -106,7 +129,15 @@ int sys_accept(const int fd, struct sockaddr* addr, const size_t addrlen)
         out.sin_family = AF_INET;
         out.sin_port = child->remote.port;
         memcpy(out.sin_addr, child->remote.ip, sizeof(out.sin_addr));
-        if (!copy_to_user(addr, &out, sizeof(out)))
+        size_t copy_len = caller_len < actual_len ? caller_len : actual_len;
+        if (copy_len > 0 && !copy_to_user(addr, &out, copy_len))
+        {
+            sys_close(new_fd);
+            socket_put(listener);
+            return -EFAULT;
+        }
+        socklen_t out_len = actual_len;
+        if (!copy_to_user(addrlen, &out_len, sizeof(out_len)))
         {
             sys_close(new_fd);
             socket_put(listener);

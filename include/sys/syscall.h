@@ -61,7 +61,7 @@ int sys_kill(int pid, int sig);
 int sys_socket(int domain, int type, int protocol);
 int sys_bind(int fd, const struct sockaddr* addr, size_t addrlen);
 int sys_listen(int fd, int backlog);
-int sys_accept(int fd, struct sockaddr* addr, size_t addrlen);
+int sys_accept(int fd, struct sockaddr* addr, socklen_t* addrlen);
 int sys_sendto(int fd, const void* buf, size_t len, int flags,
                const struct sockaddr* dest_addr, socklen_t addrlen);
 int sys_recvfrom(int fd, void* buf, size_t len, int flags,

@@ -43,6 +43,8 @@ coalescing all backend failures to `-EIO`.
   failures to `-1` (or `NULL`/`MAP_FAILED`) and set `errno` to the positive status code.
 - Internal/low-level APIs used by the threading layer (`thread_*`, `futex_*`, internal `sys_readdir`) still expose
   raw status returns.
+- `accept()` now uses a POSIX-style `socklen_t *addrlen` value-result argument, and nonblocking listeners surface
+  `EAGAIN` when no connection is pending.
 
 ## `stat` Compatibility
 

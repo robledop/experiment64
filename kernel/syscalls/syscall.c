@@ -204,7 +204,7 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         ret = sys_listen((int)arg1, (int)arg2);
         break;
     case SYS_ACCEPT:
-        ret = sys_accept((int)arg1, (struct sockaddr*)arg2, (size_t)arg3);
+        ret = sys_accept((int)arg1, (struct sockaddr*)arg2, (socklen_t*)arg3);
         break;
     case SYS_SENDTO:
         ret = sys_sendto((int)arg1, (const void*)arg2, (size_t)arg3, (int)arg4,

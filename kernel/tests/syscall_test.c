@@ -2342,9 +2342,12 @@ TEST(test_syscall_accept_basic)
     socket_put(pending);
 
     sockaddr_in_t client = {0};
-    const int conn_fd    = sys_accept(listen_fd, (sockaddr_t *)&client, sizeof(client));
+    socklen_t client_len = sizeof(sa_family_t) + sizeof(client.sin_port) + sizeof(client.sin_addr);
+    memset(&client, 0xA5, sizeof(client));
+    const int conn_fd    = sys_accept(listen_fd, (sockaddr_t *)&client, &client_len);
     TEST_ASSERT(conn_fd >= 0);
     TEST_ASSERT(conn_fd != listen_fd);
+    TEST_ASSERT(client_len == sizeof(client));
     TEST_ASSERT(client.sin_family == AF_INET);
     TEST_ASSERT(client.sin_port == remote_port);
     TEST_ASSERT(memcmp(client.sin_addr, remote_ip, sizeof(client.sin_addr)) == 0);
@@ -2357,6 +2360,27 @@ TEST(test_syscall_accept_basic)
     TEST_ASSERT((conn_sock->flags & SOCKET_FLAG_TCP_ESTABLISHED) != 0);
 
     TEST_ASSERT(sys_close(conn_fd) == 0);
+    TEST_ASSERT(sys_close(listen_fd) == 0);
+    return true;
+}
+
+TEST(test_syscall_accept_nonblock_empty_queue)
+{
+    const int listen_fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    TEST_ASSERT(listen_fd >= 0);
+
+    sockaddr_in_t addr = {0};
+    addr.sin_family    = AF_INET;
+    addr.sin_port      = htons(45679);
+
+    TEST_ASSERT(sys_bind(listen_fd, (const sockaddr_t *)&addr, sizeof(addr)) == 0);
+    TEST_ASSERT(sys_listen(listen_fd, 1) == 0);
+    TEST_ASSERT(sys_fcntl(listen_fd, F_SETFL, O_NONBLOCK) == 0);
+
+    sockaddr_in_t client = {0};
+    socklen_t client_len = sizeof(client);
+    TEST_ASSERT(sys_accept(listen_fd, (sockaddr_t *)&client, &client_len) == -EAGAIN);
+
     TEST_ASSERT(sys_close(listen_fd) == 0);
     return true;
 }

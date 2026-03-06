@@ -31,5 +31,7 @@ Error return convention for these syscalls:
 
 Notable behavior:
 
+- `SYS_ACCEPT` follows the POSIX-style `accept(fd, addr, addrlen)` contract where `addrlen` is a value-result pointer.
+- `SYS_ACCEPT` returns `-EAGAIN` when the listening socket has `O_NONBLOCK` set and no connection is queued.
 - `SYS_RECVFROM` with `MSG_DONTWAIT` returns `-EAGAIN` when no packet is queued.
 - Pointer validation failures return `-EFAULT`.

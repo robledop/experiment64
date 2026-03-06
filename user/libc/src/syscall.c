@@ -373,7 +373,7 @@ int socket(int domain, int type, int protocol)
  * @param addrlen The length of the address
  * @return
  */
-int bind(int sockfd, const struct sockaddr *addr, size_t addrlen)
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
     return syscall_to_int(syscall3(SYS_BIND, sockfd, (long)addr, (long)addrlen));
 }
@@ -393,10 +393,10 @@ int listen(int sockfd, int backlog)
  * @brief Accept an incoming connection on a listening socket
  * @param sockfd The listening socket file descriptor
  * @param addr The buffer to receive the peer address
- * @param addrlen The size of the address buffer
+ * @param addrlen Pointer to the size of the address buffer
  * @return A new socket descriptor, or -1 on error
  */
-int accept(int sockfd, struct sockaddr *addr, socklen_t addrlen)
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
     return syscall_to_int(syscall3(SYS_ACCEPT, sockfd, (long)addr, (long)addrlen));
 }
