@@ -13,6 +13,7 @@
       <w>bgcolor</w>
       <w>blockdevice</w>
       <w>bsize</w>
+      <w>bufsiz</w>
       <w>bufsz</w>
       <w>bzero</w>
       <w>caplength</w>
@@ -38,8 +39,10 @@
       <w>erdonly</w>
       <w>erdp</w>
       <w>eunimp</w>
+      <w>execv</w>
       <w>execve</w>
       <w>fbline</w>
+      <w>fchdir</w>
       <w>ffreestanding</w>
       <w>fileno</w>
       <w>finddir</w>
@@ -48,11 +51,14 @@
       <w>fsize</w>
       <w>getfd</w>
       <w>getfl</w>
+      <w>gethostbyname</w>
+      <w>getservbyname</w>
       <w>gettid</w>
       <w>gettimeofday</w>
       <w>hccparams</w>
       <w>hcsparams</w>
       <w>hhdm</w>
+      <w>hstrerror</w>
       <w>ifree</w>
       <w>iget</w>
       <w>ilock</w>
@@ -116,6 +122,7 @@
       <w>setfd</w>
       <w>setfl</w>
       <w>setjmp</w>
+      <w>setsid</w>
       <w>sigprocmask</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
@@ -124,13 +131,16 @@
       <w>strnlen</w>
       <w>strtol</w>
       <w>syncronous</w>
+      <w>sysno</w>
       <w>toolprefix</w>
       <w>trapgate</w>
       <w>trbs</w>
+      <w>ttyname</w>
       <w>unreapable</w>
       <w>usbboot</w>
       <w>usercopy</w>
       <w>vcbprintf</w>
+      <w>vfork</w>
       <w>vformat</w>
       <w>virt</w>
       <w>vpath</w>

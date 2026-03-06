@@ -32,54 +32,6 @@ static ssize_t syscall_to_ssize(const long ret)
     return (ssize_t)ret;
 }
 
-#define DEFINE_ERRNO_INT0(name, sysno) \
-    int name(void) \
-    { \
-        return syscall_to_int(syscall0(sysno)); \
-    }
-
-#define DEFINE_ERRNO_INT1(name, sysno, t1, a1) \
-    int name(t1 a1) \
-    { \
-        return syscall_to_int(syscall1(sysno, (long)(a1))); \
-    }
-
-#define DEFINE_ERRNO_INT2(name, sysno, t1, a1, t2, a2) \
-    int name(t1 a1, t2 a2) \
-    { \
-        return syscall_to_int(syscall2(sysno, (long)(a1), (long)(a2))); \
-    }
-
-#define DEFINE_ERRNO_INT3(name, sysno, t1, a1, t2, a2, t3, a3) \
-    int name(t1 a1, t2 a2, t3 a3) \
-    { \
-        return syscall_to_int(syscall3(sysno, (long)(a1), (long)(a2), (long)(a3))); \
-    }
-
-#define DEFINE_CLAMP_INT1(name, sysno, t1, a1) \
-    int name(t1 a1) \
-    { \
-        return clamp_signed_to_int(syscall1(sysno, (long)(a1))); \
-    }
-
-#define DEFINE_CLAMP_INT2(name, sysno, t1, a1, t2, a2) \
-    int name(t1 a1, t2 a2) \
-    { \
-        return clamp_signed_to_int(syscall2(sysno, (long)(a1), (long)(a2))); \
-    }
-
-#define DEFINE_ERRNO_SSIZE3(name, sysno, t1, a1, t2, a2, t3, a3) \
-    ssize_t name(t1 a1, t2 a2, t3 a3) \
-    { \
-        return syscall_to_ssize(syscall3(sysno, (long)(a1), (long)(a2), (long)(a3))); \
-    }
-
-#define DEFINE_VOID0(name, sysno) \
-    void name(void) \
-    { \
-        syscall0(sysno); \
-    }
-
 ssize_t write(int fd, const void *buf, size_t count)
 {
     // Honor basic OPOST: map '\n' -> "\r\n" for terminal FDs when enabled.
@@ -141,7 +93,10 @@ ssize_t write(int fd, const void *buf, size_t count)
     return total_src_written;
 }
 
-DEFINE_ERRNO_SSIZE3(read, SYS_READ, int, fd, void *, buf, size_t, count)
+ssize_t read(int fd, void *buf, size_t count)
+{
+    return syscall_to_ssize(syscall3(SYS_READ, fd, (long)buf, (long)count));
+}
 
 int exec(const char *path)
 {
@@ -175,13 +130,41 @@ void exit(int status)
     __builtin_unreachable();
 }
 
-DEFINE_ERRNO_INT0(fork, SYS_FORK)
-DEFINE_ERRNO_INT1(wait, SYS_WAIT, int *, status)
-DEFINE_ERRNO_INT3(waitpid, SYS_WAITPID, int, pid, int *, status, int, options)
-DEFINE_ERRNO_INT0(getpid, SYS_GETPID)
-DEFINE_ERRNO_INT0(gettid, SYS_GETTID)
-DEFINE_VOID0(yield, SYS_YIELD)
-DEFINE_ERRNO_INT1(spawn, SYS_SPAWN, const char *, path)
+int fork(void)
+{
+    return syscall_to_int(syscall0(SYS_FORK));
+}
+
+int wait(int *status)
+{
+    return syscall_to_int(syscall1(SYS_WAIT, (long)status));
+}
+
+int waitpid(int pid, int *status, int options)
+{
+    return syscall_to_int(syscall3(SYS_WAITPID, pid, (long)status, options));
+}
+
+int getpid(void)
+{
+    return syscall_to_int(syscall0(SYS_GETPID));
+}
+
+int gettid(void)
+{
+    return syscall_to_int(syscall0(SYS_GETTID));
+}
+
+void yield(void)
+{
+    syscall0(SYS_YIELD);
+}
+
+int spawn(const char *path)
+{
+    return syscall_to_int(syscall1(SYS_SPAWN, (long)path));
+}
+
 int thread_create(void (*entry)(void *), void *arg)
 {
     return clamp_signed_to_int(syscall2(SYS_THREAD_CREATE, (long)entry, (long)arg));
@@ -194,10 +177,25 @@ int thread_create(void (*entry)(void *), void *arg)
     __builtin_unreachable();
 }
 
-DEFINE_CLAMP_INT2(thread_join, SYS_THREAD_JOIN, int, tid, int *, status)
-DEFINE_CLAMP_INT1(thread_detach, SYS_THREAD_DETACH, int, tid)
-DEFINE_CLAMP_INT2(futex_wait, SYS_FUTEX_WAIT, volatile int *, addr, int, expected)
-DEFINE_CLAMP_INT2(futex_wake, SYS_FUTEX_WAKE, volatile int *, addr, int, count)
+int thread_join(int tid, int *status)
+{
+    return clamp_signed_to_int(syscall2(SYS_THREAD_JOIN, tid, (long)status));
+}
+
+int thread_detach(int tid)
+{
+    return clamp_signed_to_int(syscall1(SYS_THREAD_DETACH, tid));
+}
+
+int futex_wait(volatile int *addr, int expected)
+{
+    return clamp_signed_to_int(syscall2(SYS_FUTEX_WAIT, (long)addr, expected));
+}
+
+int futex_wake(volatile int *addr, int count)
+{
+    return clamp_signed_to_int(syscall2(SYS_FUTEX_WAKE, (long)addr, count));
+}
 
 void *sbrk(intptr_t increment)
 {
@@ -214,20 +212,50 @@ int open(const char *path, int flags, ...)
     return syscall_to_int(syscall2(SYS_OPEN, (long)path, flags));
 }
 
-DEFINE_ERRNO_INT1(close, SYS_CLOSE, int, fd)
-DEFINE_CLAMP_INT2(sys_readdir, SYS_READDIR, int, fd, void *, dent)
-DEFINE_ERRNO_INT1(chdir, SYS_CHDIR, const char *, path)
-DEFINE_ERRNO_INT2(link, SYS_LINK, const char *, oldpath, const char *, newpath)
-DEFINE_ERRNO_INT1(unlink, SYS_UNLINK, const char *, path)
-DEFINE_ERRNO_INT2(stat, SYS_STAT, const char *, path, struct stat *, st)
+int close(int fd)
+{
+    return syscall_to_int(syscall1(SYS_CLOSE, fd));
+}
+
+int sys_readdir(int fd, void *dent)
+{
+    return clamp_signed_to_int(syscall2(SYS_READDIR, fd, (long)dent));
+}
+
+int chdir(const char *path)
+{
+    return syscall_to_int(syscall1(SYS_CHDIR, (long)path));
+}
+
+int link(const char *oldpath, const char *newpath)
+{
+    return syscall_to_int(syscall2(SYS_LINK, (long)oldpath, (long)newpath));
+}
+
+int unlink(const char *path)
+{
+    return syscall_to_int(syscall1(SYS_UNLINK, (long)path));
+}
+
+int stat(const char *path, struct stat *st)
+{
+    return syscall_to_int(syscall2(SYS_STAT, (long)path, (long)st));
+}
 
 int lstat(const char *path, struct stat *st)
 {
     return stat(path, st);
 }
 
-DEFINE_ERRNO_INT3(mknod, SYS_MKNOD, const char *, path, mode_t, mode, dev_t, dev)
-DEFINE_ERRNO_INT2(fstat, SYS_FSTAT, int, fd, struct stat *, st)
+int mknod(const char *path, mode_t mode, dev_t dev)
+{
+    return syscall_to_int(syscall3(SYS_MKNOD, (long)path, (long)mode, (long)dev));
+}
+
+int fstat(int fd, struct stat *st)
+{
+    return syscall_to_int(syscall2(SYS_FSTAT, fd, (long)st));
+}
 
 int sleep(int milliseconds)
 {
@@ -236,8 +264,15 @@ int sleep(int milliseconds)
     return syscall_to_int(syscall1(SYS_SLEEP, milliseconds));
 }
 
-DEFINE_ERRNO_INT1(usleep, SYS_USLEEP, unsigned int, usec)
-DEFINE_ERRNO_INT3(ioctl, SYS_IOCTL, int, fd, unsigned long, request, void *, arg)
+int usleep(unsigned int usec)
+{
+    return syscall_to_int(syscall1(SYS_USLEEP, (long)usec));
+}
+
+int ioctl(int fd, unsigned long request, void *arg)
+{
+    return syscall_to_int(syscall3(SYS_IOCTL, fd, (long)request, (long)arg));
+}
 
 char *getcwd(char *buf, size_t size)
 {
@@ -249,7 +284,10 @@ char *getcwd(char *buf, size_t size)
     return buf;
 }
 
-DEFINE_ERRNO_INT2(gettimeofday, SYS_GETTIMEOFDAY, struct timeval *, tv, struct timezone *, tz)
+int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+    return syscall_to_int(syscall2(SYS_GETTIMEOFDAY, (long)tv, (long)tz));
+}
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset)
 {
@@ -261,12 +299,30 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, size_t offset
     return (void *)ret;
 }
 
-DEFINE_ERRNO_INT2(munmap, SYS_MUNMAP, void *, addr, size_t, length)
-DEFINE_ERRNO_INT1(pipe, SYS_PIPE, int *, pipefd)
-DEFINE_ERRNO_INT1(dup, SYS_DUP, int, oldfd)
-DEFINE_ERRNO_INT2(dup2, SYS_DUP2, int, oldfd, int, newfd)
+int munmap(void *addr, size_t length)
+{
+    return syscall_to_int(syscall2(SYS_MUNMAP, (long)addr, (long)length));
+}
 
-DEFINE_ERRNO_INT2(ftruncate, SYS_FTRUNCATE, int, fd, long, length)
+int pipe(int pipefd[2])
+{
+    return syscall_to_int(syscall1(SYS_PIPE, (long)pipefd));
+}
+
+int dup(int oldfd)
+{
+    return syscall_to_int(syscall1(SYS_DUP, oldfd));
+}
+
+int dup2(int oldfd, int newfd)
+{
+    return syscall_to_int(syscall2(SYS_DUP2, oldfd, newfd));
+}
+
+int ftruncate(int fd, long length)
+{
+    return syscall_to_int(syscall2(SYS_FTRUNCATE, fd, length));
+}
 
 int fcntl(int fd, int cmd, ...)
 {
@@ -280,12 +336,35 @@ int fcntl(int fd, int cmd, ...)
     return syscall_to_int(syscall3(SYS_FCNTL, fd, cmd, arg));
 }
 
-DEFINE_ERRNO_INT3(poll, SYS_POLL, struct pollfd *, fds, nfds_t, nfds, int, timeout)
-DEFINE_ERRNO_INT1(openpty, SYS_OPENPTY, int *, fds)
-DEFINE_ERRNO_INT2(kill, SYS_KILL, int, pid, int, sig)
-DEFINE_VOID0(shutdown, SYS_SHUTDOWN)
-DEFINE_VOID0(reboot, SYS_REBOOT)
-DEFINE_ERRNO_INT3(socket, SYS_SOCKET, int, domain, int, type, int, protocol)
+int poll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+    return syscall_to_int(syscall3(SYS_POLL, (long)fds, (long)nfds, timeout));
+}
+
+int openpty(int fds[2])
+{
+    return syscall_to_int(syscall1(SYS_OPENPTY, (long)fds));
+}
+
+int kill(int pid, int sig)
+{
+    return syscall_to_int(syscall2(SYS_KILL, pid, sig));
+}
+
+void shutdown(void)
+{
+    syscall0(SYS_SHUTDOWN);
+}
+
+void reboot(void)
+{
+    syscall0(SYS_REBOOT);
+}
+
+int socket(int domain, int type, int protocol)
+{
+    return syscall_to_int(syscall3(SYS_SOCKET, domain, type, protocol));
+}
 
 /**
  * @brief Bind a socket to an address
@@ -294,7 +373,10 @@ DEFINE_ERRNO_INT3(socket, SYS_SOCKET, int, domain, int, type, int, protocol)
  * @param addrlen The length of the address
  * @return
  */
-DEFINE_ERRNO_INT3(bind, SYS_BIND, int, sockfd, const struct sockaddr *, addr, size_t, addrlen)
+int bind(int sockfd, const struct sockaddr *addr, size_t addrlen)
+{
+    return syscall_to_int(syscall3(SYS_BIND, sockfd, (long)addr, (long)addrlen));
+}
 
 /**
  * @brief Mark a socket as listening for incoming connections
@@ -302,7 +384,10 @@ DEFINE_ERRNO_INT3(bind, SYS_BIND, int, sockfd, const struct sockaddr *, addr, si
  * @param backlog The maximum pending connection queue length
  * @return 0 on success, or -1 on error
  */
-DEFINE_ERRNO_INT2(listen, SYS_LISTEN, int, sockfd, int, backlog)
+int listen(int sockfd, int backlog)
+{
+    return syscall_to_int(syscall2(SYS_LISTEN, sockfd, backlog));
+}
 
 /**
  * @brief Accept an incoming connection on a listening socket
@@ -311,7 +396,10 @@ DEFINE_ERRNO_INT2(listen, SYS_LISTEN, int, sockfd, int, backlog)
  * @param addrlen The size of the address buffer
  * @return A new socket descriptor, or -1 on error
  */
-DEFINE_ERRNO_INT3(accept, SYS_ACCEPT, int, sockfd, struct sockaddr *, addr, socklen_t, addrlen)
+int accept(int sockfd, struct sockaddr *addr, socklen_t addrlen)
+{
+    return syscall_to_int(syscall3(SYS_ACCEPT, sockfd, (long)addr, (long)addrlen));
+}
 
 /**
  * @brief Send data on a connected socket
@@ -358,14 +446,12 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
     return syscall_to_ssize(syscall6(SYS_RECVFROM, sockfd, (long)buf, (long)len, flags, (long)src_addr, (long)addrlen));
 }
 
-DEFINE_ERRNO_INT3(shm_open, SYS_SHM_OPEN, const char *, name, int, flags, size_t, size)
-DEFINE_ERRNO_INT1(shm_unlink, SYS_SHM_UNLINK, const char *, name)
+int shm_open(const char *name, int flags, size_t size)
+{
+    return syscall_to_int(syscall3(SYS_SHM_OPEN, (long)name, flags, (long)size));
+}
 
-#undef DEFINE_ERRNO_INT0
-#undef DEFINE_ERRNO_INT1
-#undef DEFINE_ERRNO_INT2
-#undef DEFINE_ERRNO_INT3
-#undef DEFINE_CLAMP_INT1
-#undef DEFINE_CLAMP_INT2
-#undef DEFINE_ERRNO_SSIZE3
-#undef DEFINE_VOID0
+int shm_unlink(const char *name)
+{
+    return syscall_to_int(syscall1(SYS_SHM_UNLINK, (long)name));
+}
