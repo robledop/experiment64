@@ -32,7 +32,6 @@ bool fd_can_write(const file_descriptor_t* desc);
 file_descriptor_t* fd_get(int fd);
 void fd_put(file_descriptor_t* desc);
 int fd_assign(file_descriptor_t* desc, int start_fd);
-void release_resolved_inode(vfs_inode_t *node);
 int split_parent_path(const char *path, char *parent, size_t parent_size);
 void fill_stat_from_inode(const vfs_inode_t* inode, struct stat* st);
 int resolve_user_path(const char* path, char* resolved, size_t size);

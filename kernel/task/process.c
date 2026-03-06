@@ -12,6 +12,54 @@ process_t *kernel_process                             = nullptr;
 process_t *init_process                               = nullptr;
 int next_pid                                           = 1;
 
+static vfs_inode_t *process_clone_fd_inode(vfs_inode_t *inode)
+{
+    if (!inode)
+        return nullptr;
+
+    if (inode->flags & VFS_PIPE) {
+        inode->ref++;
+        return inode;
+    }
+
+    if (inode->iops && inode->iops->clone) {
+        vfs_inode_t *clone = inode->iops->clone(inode);
+        if (clone)
+            clone->ref = 1;
+        return clone;
+    }
+
+    vfs_inode_t *clone = kmalloc(sizeof(vfs_inode_t));
+    if (!clone)
+        return nullptr;
+
+    memcpy(clone, inode, sizeof(vfs_inode_t));
+    clone->ref = 1;
+    return clone;
+}
+
+static file_descriptor_t *process_clone_fd(const file_descriptor_t *desc)
+{
+    if (!desc || !desc->inode)
+        return nullptr;
+
+    file_descriptor_t *clone = kmalloc(sizeof(file_descriptor_t));
+    if (!clone)
+        return nullptr;
+
+    memset(clone, 0, sizeof(file_descriptor_t));
+    clone->flags  = desc->flags;
+    clone->offset = desc->offset;
+    clone->ref    = 1;
+    clone->inode  = process_clone_fd_inode(desc->inode);
+    if (!clone->inode) {
+        kfree(clone);
+        return nullptr;
+    }
+
+    return clone;
+}
+
 /**
  * Initialize the virtual memory area list for a process.
  * @param proc
@@ -153,52 +201,10 @@ void process_copy_fds(process_t *dest, process_t *src)
     SPIN_UNLOCK_INT_RESTORE(src->fd_lock, fd_flags);
 
     for (int i = 0; i < MAX_FDS; i++) {
-        if (fds[i]) {
-            file_descriptor_t *old_desc = fds[i];
-            file_descriptor_t *new_desc = kmalloc(sizeof(file_descriptor_t));
-            if (new_desc) {
-                memset(new_desc, 0, sizeof(file_descriptor_t));
-                new_desc->flags  = old_desc->flags;
-                new_desc->offset = old_desc->offset;
-                new_desc->ref    = 1;
-
-                if (old_desc->inode) {
-                    // For pipes and special files, share the inode
-                    // For regular files with a clone op, clone it
-                    // Otherwise copy the inode
-                    if (old_desc->inode->flags & VFS_PIPE) {
-                        // Pipes are shared across fork - just increment ref
-                        new_desc->inode = old_desc->inode;
-                        old_desc->inode->ref++;
-                    } else if (old_desc->inode->iops && old_desc->inode->iops->clone) {
-                        new_desc->inode = old_desc->inode->iops->clone(old_desc->inode);
-                        if (new_desc->inode)
-                            new_desc->inode->ref = 1;
-                    } else {
-                        new_desc->inode = kmalloc(sizeof(vfs_inode_t));
-                        if (new_desc->inode) {
-                            memcpy(new_desc->inode, old_desc->inode, sizeof(vfs_inode_t));
-                            new_desc->inode->ref = 1;
-                        }
-                    }
-                } else {
-                    kfree(new_desc);
-                    dest->fd_table[i] = nullptr;
-                    continue;
-                }
-                if (!new_desc->inode) {
-                    kfree(new_desc);
-                    dest->fd_table[i] = nullptr;
-                    continue;
-                }
-                dest->fd_table[i] = new_desc;
-            } else {
-                dest->fd_table[i] = nullptr;
-            }
+        file_descriptor_t *old_desc = fds[i];
+        dest->fd_table[i] = process_clone_fd(old_desc);
+        if (old_desc)
             fd_put(old_desc);
-        } else {
-            dest->fd_table[i] = nullptr;
-        }
     }
 }
 

@@ -90,7 +90,7 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
         request = TCSETS;
     } else if (optional_actions == TCSADRAIN) {
         request = TCSETSW;
-    } else if (optional_actions == TCSAFLUSH) {
+    } else     if (optional_actions == TCSAFLUSH) {
         request = TCSETSF;
     } else {
         errno = EINVAL;
@@ -103,5 +103,12 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
     struct termios *entry = get_entry(fd);
     if (entry)
         memcpy(entry, termios_p, sizeof(struct termios));
+    return 0;
+}
+
+int tcflush(int fd, int queue_selector)
+{
+    (void)fd;
+    (void)queue_selector;
     return 0;
 }

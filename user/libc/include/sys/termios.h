@@ -65,9 +65,32 @@ typedef uint32_t speed_t;
 #define VLNEXT 14
 #define VEOL2 15
 
+#define B0      0
+#define B50     1
+#define B75     2
+#define B110    3
+#define B134    4
+#define B150    5
+#define B200    6
+#define B300    7
+#define B600    8
+#define B1200   9
+#define B1800   10
+#define B2400   11
+#define B4800   12
+#define B9600   13
+#define B19200  14
+#define B38400  15
+#define B57600  16
+#define B115200 17
+
 #define TCSANOW 0
 #define TCSADRAIN 1
 #define TCSAFLUSH 2
+
+#define TCIFLUSH  0
+#define TCOFLUSH  1
+#define TCIOFLUSH 2
 
 struct termios
 {

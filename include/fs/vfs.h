@@ -132,9 +132,10 @@ uint64_t vfs_write(vfs_inode_t *node, uint64_t offset, uint64_t size, uint8_t *b
 int vfs_truncate(vfs_inode_t *node);
 void vfs_open(const vfs_inode_t *node);
 void vfs_close(vfs_inode_t *node);
+void vfs_release(vfs_inode_t *node);
 int vfs_poll(const vfs_inode_t *node, short events, short *revents);
 vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index);
-vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name);
+vfs_inode_t *vfs_finddir(vfs_inode_t *node, const char *name);
 vfs_inode_t *vfs_resolve_path(const char *path);
 int vfs_mknod(char *path, int mode, int dev);
 int vfs_ioctl(vfs_inode_t *node, int request, void *arg);

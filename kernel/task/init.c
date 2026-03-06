@@ -56,8 +56,7 @@ void init_process_entry(void)
             stdio_opened++;
 
         if (stdio_opened == 0) {
-            vfs_close(console);
-            kfree(console);
+            vfs_release(console);
         }
     } else {
         boot_message(WARNING, "Failed to open /dev/console for init process");
