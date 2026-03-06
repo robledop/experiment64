@@ -8,9 +8,9 @@ bool fs_initialized = false;
 
 TEST_PRIO(test_fat32_init, 0)
 {
-    // Data partition starts at 95MiB (LBA 194560) per scripts/make_image.sh.
+    // Data partition starts at 127MiB (LBA 260096) per scripts/make_image.sh.
     printk("fat32_init: begin\n");
-    const int rc = fat32_init(&test_fs, 0, 194560);
+    const int rc = fat32_init(&test_fs, 0, 260096);
     printk("fat32_init: rc=%d\n", rc);
     if (rc == 0)
     {
