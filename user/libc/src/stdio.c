@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 
 int putchar(int c)
@@ -439,6 +441,38 @@ int snprintf(char *buf, size_t size, const char *format, ...)
     return res;
 }
 
+int sprintf(char *buf, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int res = vsnprintf(buf, (size_t)-1, format, args);
+    va_end(args);
+    return res;
+}
+
+int vasprintf(char **strp, const char *fmt, va_list ap)
+{
+    char buf[1024];
+    va_list ap2;
+    va_copy(ap2, ap);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap2);
+    va_end(ap2);
+    if (n < 0)
+        return -1;
+    char *p = malloc((size_t)n + 1);
+    if (!p)
+        return -1;
+    if (n < (int)sizeof(buf))
+        memcpy(p, buf, (size_t)n + 1);
+    else {
+        va_copy(ap2, ap);
+        vsnprintf(p, (size_t)n + 1, fmt, ap2);
+        va_end(ap2);
+    }
+    *strp = p;
+    return n;
+}
+
 int printf(const char *format, ...)
 {
     va_list args;
@@ -446,6 +480,19 @@ int printf(const char *format, ...)
     int res = vprintf(format, args);
     va_end(args);
     return res;
+}
+
+int dprintf(int fd, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    char buf[1024];
+    int n = vsnprintf(buf, sizeof buf, format, args);
+    va_end(args);
+    if (n < 0)
+        return -1;
+    ssize_t w = write(fd, buf, (size_t)n);
+    return (w >= 0 && (size_t)w == (size_t)n) ? n : -1;
 }
 
 int vprintf(const char *format, va_list args)
@@ -592,6 +639,8 @@ out:
     va_end(args);
     return assigned;
 }
+
+int __isoc23_sscanf(const char *str, const char *format, ...) __attribute__((alias("sscanf")));
 
 int getchar_blocking()
 {

@@ -6,3 +6,4 @@
 #define WEXITSTATUS(status) (status) // Exit code when WIFEXITED is true.
 #define WIFSIGNALED(status) ((status) >= 128) // True when terminated by a signal.
 #define WTERMSIG(status) ((status) - 128) // Signal number when WIFSIGNALED is true.
+#define WCOREDUMP(status) 0

@@ -39,6 +39,9 @@ FILE *__stdin_file = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
 
+#undef stdout
+FILE *const stdout = &__stdout_file_obj;
+
 static int seek_to_position(FILE *f, size_t target, bool for_write)
 {
     if (!f)
@@ -164,6 +167,30 @@ FILE *fopen(const char *path, const char *mode)
     return f;
 }
 
+FILE *fdopen(int fd, const char *mode)
+{
+    if (fd < 0 || !mode)
+        return nullptr;
+    bool rd = false, wr = false, ap = false, trunc = false, create = false;
+    parse_mode(mode, &rd, &wr, &ap, &trunc, &create);
+    FILE *f = malloc(sizeof(FILE));
+    if (!f)
+        return nullptr;
+    memset(f, 0, sizeof(FILE));
+    f->fd = fd;
+    f->path[0] = '\0';
+    f->readable = rd || (!wr && !ap);
+    f->writable = wr;
+    f->append = ap;
+    f->need_seek = false;
+    f->open_flags = (f->readable && f->writable) ? O_RDWR : (f->writable ? O_WRONLY : O_RDONLY);
+    f->data = nullptr;
+    struct stat st;
+    f->size = (fstat(fd, &st) == 0) ? (size_t)st.size : 0;
+    f->pos = 0;
+    return f;
+}
+
 int fclose(FILE *stream)
 {
     if (!stream)
@@ -248,6 +275,121 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     return (size_t)w / size;
 }
 
+int getc_unlocked(FILE *stream)
+{
+    if (!stream || !stream->readable)
+        return EOF;
+    unsigned char c;
+    if (fread(&c, 1, 1, stream) != 1)
+        return EOF;
+    return c;
+}
+
+int putc_unlocked(int c, FILE *stream)
+{
+    unsigned char ch = (unsigned char)c;
+    return (fwrite(&ch, 1, 1, stream) == 1) ? c : EOF;
+}
+
+int fgetc(FILE *stream)
+{
+    return getc_unlocked(stream);
+}
+
+int fputc(int c, FILE *stream)
+{
+    return putc_unlocked(c, stream);
+}
+
+int putchar_unlocked(int c)
+{
+    return putc_unlocked(c, stdout);
+}
+
+int fileno(FILE *stream)
+{
+    return stream ? stream->fd : -1;
+}
+
+int fileno_unlocked(FILE *stream)
+{
+    return fileno(stream);
+}
+
+void clearerr(FILE *stream)
+{
+    (void)stream;
+}
+
+int fputs_unlocked(const char *s, FILE *stream)
+{
+    if (!s || !stream)
+        return EOF;
+    size_t len = strlen(s);
+    return (fwrite(s, 1, len, stream) == len) ? 0 : EOF;
+}
+
+char *fgets_unlocked(char *s, int n, FILE *stream)
+{
+    if (!s || n <= 0 || !stream)
+        return nullptr;
+    int c;
+    char *p = s;
+    while (n > 1) {
+        c = fgetc(stream);
+        if (c == EOF)
+            break;
+        *p++ = (char)c;
+        n--;
+        if (c == '\n')
+            break;
+    }
+    *p = '\0';
+    return (p > s) ? s : nullptr;
+}
+
+ssize_t getline(char **lineptr, size_t *n, FILE *stream)
+{
+    if (!lineptr || !n || !stream)
+        return -1;
+    size_t alloc = *n;
+    char *buf = *lineptr;
+    if (!buf || alloc < 2) {
+        alloc = 128;
+        buf = malloc(alloc);
+        if (!buf)
+            return -1;
+        *lineptr = buf;
+        *n = alloc;
+    }
+    size_t i = 0;
+    int c;
+    while ((c = fgetc(stream)) != EOF) {
+        if (i + 2 > alloc) {
+            alloc *= 2;
+            char *newbuf = realloc(buf, alloc);
+            if (!newbuf) {
+                if (i > 0) {
+                    buf[i] = '\0';
+                    *n = alloc / 2;
+                    return (ssize_t)i;
+                }
+                return -1;
+            }
+            buf = newbuf;
+            *lineptr = buf;
+            *n = alloc;
+        }
+        buf[i++] = (char)c;
+        if (c == '\n')
+            break;
+    }
+    if (i == 0 && c == EOF)
+        return -1;
+    buf[i] = '\0';
+    return (ssize_t)i;
+}
+
 int fseek(FILE *stream, long offset, int whence)
 {
     if (!stream)
@@ -272,11 +414,72 @@ int fseek(FILE *stream, long offset, int whence)
     return 0;
 }
 
+int fseeko(FILE *stream, off_t offset, int whence)
+{
+    return fseek(stream, (long)offset, whence);
+}
+
 long ftell(FILE *stream)
 {
     if (!stream)
         return -1;
     return (long)stream->pos;
+}
+
+off_t ftello(FILE *stream)
+{
+    if (!stream)
+        return -1;
+    return (off_t)stream->pos;
+}
+
+FILE *freopen(const char *path, const char *mode, FILE *stream)
+{
+    if (!path || !mode || !stream)
+        return nullptr;
+    if (stream->fd >= 0 && stream != __stdin_file && stream != __stdout_file && stream != __stderr_file)
+        close(stream->fd);
+    stream->fd = -1;
+    if (stream->data) {
+        free(stream->data);
+        stream->data = nullptr;
+    }
+    bool rd = false, wr = false, ap = false, trunc = false, create = false;
+    parse_mode(mode, &rd, &wr, &ap, &trunc, &create);
+    stream->readable = rd || (!wr && !ap);
+    stream->writable = wr;
+    stream->append = ap;
+    stream->need_seek = false;
+    stream->open_flags = (stream->readable && stream->writable) ? O_RDWR : (stream->writable ? O_WRONLY : O_RDONLY);
+    if (create)
+        stream->open_flags |= O_CREATE;
+    if (trunc && !ap)
+        stream->open_flags |= O_TRUNC;
+    strncpy(stream->path, path, sizeof(stream->path) - 1);
+    stream->path[sizeof(stream->path) - 1] = '\0';
+    stream->fd = open(path, stream->open_flags);
+    if (stream->fd < 0)
+        return nullptr;
+    if (stream->open_flags & O_TRUNC)
+        stream->open_flags &= ~O_TRUNC;
+    struct stat st;
+    stream->size = (fstat(stream->fd, &st) == 0) ? (size_t)st.size : 0;
+    stream->pos = ap ? stream->size : 0;
+    if (ap && stream->pos > 0)
+        stream->need_seek = true;
+    return stream;
+}
+
+int ferror(FILE *stream)
+{
+    (void)stream;
+    return 0;
+}
+
+int ferror_unlocked(FILE *stream)
+{
+    (void)stream;
+    return 0;
 }
 
 int fflush([[maybe_unused]] FILE *stream)

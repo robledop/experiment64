@@ -10,7 +10,7 @@
 #define TIOCGETA 0x5401
 // Set terminal attributes
 #define TIOCSETA 0x5402
-// Linux termios aliases used by BusyBox and other ports
+// Linux termios aliases
 #define TCGETS TIOCGETA
 #define TCSETS TIOCSETA
 #define TCSETSW 0x5403

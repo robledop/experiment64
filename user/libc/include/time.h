@@ -17,10 +17,12 @@ struct tm
     int tm_isdst; // daylight saving time flag
 };
 
-#define strftime e64_strftime
-
 // Convert UNIX timestamp (seconds since 1970-01-01 UTC) to struct tm (UTC).
 void unix_timestamp_to_tm(uint32_t timestamp, struct tm *out);
+struct tm *localtime_r(const time_t *clock, struct tm *result);
+struct tm *localtime(const time_t *clock);
+time_t mktime(struct tm *tm);
+size_t strftime(char *s, size_t max, const char *format, const struct tm *tm);
 size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t max);
 time_t time(long long int *time);
 uint64_t now_ms(void);

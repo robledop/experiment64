@@ -48,11 +48,19 @@
 #define ETIMEDOUT 22
 // Interrupted system call
 #define EINTR 23
+#define EEXIST 24
+#define ESPIPE 25
+#define ERANGE 26
 
 // POSIX aliases mapped to existing project status codes.
 #define EINVAL EINVARG
 #define ESRCH ENOENT
 #define ENOSYS EUNIMP
+#define EACCES EPERM
+#define EAFNOSUPPORT ENOTSUP
+#define ENOEXEC EINFORMAT
+#define ELOOP EUNIMP
+#define ENAMETOOLONG EBADPATH
 
 USED static inline char *strerror(const int error)
 {
@@ -105,6 +113,12 @@ USED static inline char *strerror(const int error)
         return "Operation timed out";
     case EINTR:
         return "Interrupted system call";
+    case EEXIST:
+        return "File exists";
+    case ESPIPE:
+        return "Illegal seek";
+    case ERANGE:
+        return "Result too large";
     default:
         return "Unknown error";
     }

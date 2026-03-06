@@ -30,6 +30,8 @@ struct winsize
 // Pipe / generic fd ioctls
 #define FIONBIO 0x5421 // Set non-blocking I/O on fd
 
+#define BLKGETSIZE 0x1260
+
 // Keyboard ioctl
 #define KDFLUSH 0x4B00 // Flush keyboard input buffers
 

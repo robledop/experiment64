@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h>
 #include <stdarg.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <termcolors.h>
@@ -42,7 +43,9 @@ extern FILE *__stderr_file;
 int printf(const char *format, ...);
 int vprintf(const char *format, va_list args);
 int vsnprintf(char *restrict buf, size_t size, const char *restrict format, va_list args);
+int vasprintf(char **strp, const char *fmt, va_list ap);
 int snprintf(char *restrict buf, size_t size, const char *restrict format, ...);
+int sprintf(char *restrict buf, const char *restrict format, ...);
 int getchar(void);
 int putchar(int c);
 char *gets(char *s);
@@ -51,12 +54,30 @@ int sscanf(const char *str, const char *format, ...);
 int vfprintf(FILE *stream, const char *format, va_list args);
 int fprintf(FILE *stream, const char *format, ...);
 FILE *fopen(const char *path, const char *mode);
+FILE *fdopen(int fd, const char *mode);
 int fclose(FILE *stream);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+int getc_unlocked(FILE *stream);
+int putc_unlocked(int c, FILE *stream);
+int fgetc(FILE *stream);
+int fputc(int c, FILE *stream);
+char *fgets_unlocked(char *s, int n, FILE *stream);
+int fputs_unlocked(const char *s, FILE *stream);
+int putchar_unlocked(int c);
+int fileno(FILE *stream);
+int fileno_unlocked(FILE *stream);
+void clearerr(FILE *stream);
+int dprintf(int fd, const char *format, ...);
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 int fseek(FILE *stream, long offset, int whence);
+int fseeko(FILE *stream, off_t offset, int whence);
 long ftell(FILE *stream);
+off_t ftello(FILE *stream);
+FILE *freopen(const char *path, const char *mode, FILE *stream);
 int fflush(FILE *stream);
+int ferror(FILE *stream);
+int ferror_unlocked(FILE *stream);
 int remove(const char *path);
 int rename(const char *oldpath, const char *newpath);
 int getchar_blocking();

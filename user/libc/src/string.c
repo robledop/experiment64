@@ -160,6 +160,15 @@ void *memcpy(void *dest, const void *src, size_t n)
     return memcpy_impl(dest, src, n);
 }
 
+void *mempcpy(void *dest, const void *src, size_t n)
+{
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    while (n--)
+        *d++ = *s++;
+    return d;
+}
+
 int memcmp(const void *s1, const void *s2, size_t n)
 {
     const unsigned char *p1 = s1, *p2 = s2;
@@ -219,6 +228,52 @@ char *strchr(const char *s, int c)
         }
     }
     return (char *)s;
+}
+
+char *strpbrk(const char *s, const char *accept)
+{
+    for (; *s; s++)
+        for (const char *a = accept; *a; a++)
+            if (*s == *a)
+                return (char *)s;
+    return nullptr;
+}
+
+char *stpcpy(char *dest, const char *src)
+{
+    while ((*dest++ = *src++) != '\0')
+        ;
+    return dest - 1;
+}
+
+char *stpncpy(char *dest, const char *src, size_t n)
+{
+    while (n && (*dest = *src)) {
+        dest++;
+        src++;
+        n--;
+    }
+    while (n--)
+        *dest++ = '\0';
+    return dest;
+}
+
+char *strtok_r(char *str, const char *delim, char **saveptr)
+{
+    char *p = str ? str : *saveptr;
+    if (!p)
+        return nullptr;
+    p += strspn(p, delim);
+    if (!*p) {
+        *saveptr = nullptr;
+        return nullptr;
+    }
+    char *start = p;
+    p += strcspn(p, delim);
+    if (*p)
+        *p++ = '\0';
+    *saveptr = p;
+    return start;
 }
 
 char *strtok(char *str, const char *delim)
@@ -336,6 +391,46 @@ char *strdup(const char *s)
     return p;
 }
 
+char *strndup(const char *s, size_t n)
+{
+    if (!s)
+        return nullptr;
+    size_t len = strnlen(s, n);
+    char *p = malloc(len + 1);
+    if (!p)
+        return nullptr;
+    memcpy(p, s, len);
+    p[len] = '\0';
+    return p;
+}
+
+void *memchr(const void *s, int c, size_t n)
+{
+    const unsigned char *p = s;
+    unsigned char ch = (unsigned char)c;
+    for (; n; n--, p++)
+        if (*p == ch)
+            return (void *)p;
+    return nullptr;
+}
+
+void *memrchr(const void *s, int c, size_t n)
+{
+    const unsigned char *p = (const unsigned char *)s + n;
+    unsigned char ch = (unsigned char)c;
+    while (n--)
+        if (*--p == ch)
+            return (void *)p;
+    return nullptr;
+}
+
+char *strchrnul(const char *s, int c)
+{
+    while (*s && *s != (char)c)
+        s++;
+    return (char *)s;
+}
+
 char *strrchr(const char *s, int c)
 {
     const char *last = nullptr;
@@ -397,4 +492,28 @@ bool ends_with(const char *str, const char *suffix)
     }
 
     return strncmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
+}
+
+size_t strspn(const char *s, const char *accept)
+{
+    size_t n = 0;
+    while (s[n]) {
+        const char *a = accept;
+        while (*a && *a != s[n]) a++;
+        if (!*a) break;
+        n++;
+    }
+    return n;
+}
+
+size_t strcspn(const char *s, const char *reject)
+{
+    size_t n = 0;
+    while (s[n]) {
+        const char *r = reject;
+        while (*r && *r != s[n]) r++;
+        if (*r) break;
+        n++;
+    }
+    return n;
 }

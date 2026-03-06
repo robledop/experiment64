@@ -59,6 +59,7 @@ struct stat
     int i_uid;
     int i_gid;
     int i_flags;
+    dev_t st_rdev;
 };
 
 #define st_dev dev

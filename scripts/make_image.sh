@@ -76,12 +76,12 @@ check_usb_disk() {
 }
 
 rm -f image.hdd part.img "$SECOND_DISK" second_root.img "$USB_DISK" usb_root.img
-dd if=/dev/zero of=image.hdd bs=1M count=128
+dd if=/dev/zero of=image.hdd bs=1M count=160
 parted -s image.hdd mklabel gpt
 parted -s image.hdd mkpart ESP fat32 1MiB 63MiB
 parted -s image.hdd set 1 esp on
-parted -s image.hdd mkpart LINUX ext2 63MiB 95MiB
-parted -s image.hdd mkpart DATA fat32 95MiB 127MiB
+parted -s image.hdd mkpart LINUX ext2 63MiB 127MiB
+parted -s image.hdd mkpart DATA fat32 127MiB 159MiB
 
 # Prepare directories
 rm -rf build/rootfs_esp build/rootfs_ext2 build/rootfs_data
@@ -166,8 +166,8 @@ dd if=/dev/zero of=esp.img bs=1M count=62
 mformat -i esp.img -F ::
 mcopy -i esp.img -s build/rootfs_esp/* ::/
 
-# Create RootFS Image (Part 2, 32MB)
-dd if=/dev/zero of=root.img bs=1M count=32
+# Create RootFS Image (Part 2, 64MB)
+dd if=/dev/zero of=root.img bs=1M count=64
 mkfs.ext2 -b 1024 -d build/rootfs_ext2 -r 1 -N 0 -m 0 -L "ROOT" root.img
 
 # Create Data Image (Part 3, 32MB)
@@ -183,7 +183,7 @@ mcopy -i data.img -s build/rootfs_data/* ::/
 # Assemble Image
 dd if=esp.img of=image.hdd bs=1M seek=1 conv=notrunc
 dd if=root.img of=image.hdd bs=1M seek=63 conv=notrunc
-dd if=data.img of=image.hdd bs=1M seek=95 conv=notrunc
+dd if=data.img of=image.hdd bs=1M seek=127 conv=notrunc
 
 ./limine/limine bios-install image.hdd
 

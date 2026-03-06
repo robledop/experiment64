@@ -5,17 +5,6 @@
 #include <lib/string.h>
 #include <drivers/terminal.h>
 
-// Helper to properly release a VFS inode allocated by vfs_resolve_path() / clone ops.
-// Calls the filesystem close handler (drops inode refs) and frees the wrapper.
-static inline void vfs_release(vfs_inode_t *node)
-{
-    if (node)
-    {
-        vfs_close(node);
-        kfree(node);
-    }
-}
-
 
 // Ensure a regular file exists at path; creates it if missing.
 static inline vfs_inode_t* test_vfs_ensure_file(const char* path)
@@ -39,7 +28,6 @@ static inline bool test_vfs_write_file(const char* path, uint64_t offset, const 
         return false;
     }
     bool ok = vfs_write(node, offset, len, (uint8_t*)data) == len;
-    vfs_close(node);
-    kfree(node);
+    vfs_release(node);
     return ok;
 }

@@ -2,6 +2,8 @@
 #include <sys/syscall.h>
 #include <util.h>
 #include <errno.h>
+#include <unistd.h>
+#include <status.h>
 
 extern void __signal_trampoline(void);
 
@@ -103,4 +105,22 @@ int sigismember(const sigset_t *set, const int signum)
         return -1;
     }
     return (*set & ((sigset_t)1 << (signum - 1))) ? 1 : 0;
+}
+
+int sigsuspend(const sigset_t *sigmask)
+{
+    (void)sigmask;
+    errno = EUNIMP;
+    return -1;
+}
+
+int raise(int sig)
+{
+    return kill(getpid(), sig);
+}
+
+char *strsignal(int sig)
+{
+    (void)sig;
+    return "Unknown signal";
 }

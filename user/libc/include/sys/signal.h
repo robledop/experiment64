@@ -54,6 +54,14 @@ typedef int sig_atomic_t;
 #define SIGTTIN 21
 // Background write to controlling terminal.
 #define SIGTTOU 22
+// CPU time limit exceeded.
+#define SIGXCPU 24
+// File size limit exceeded.
+#define SIGXFSZ 25
+// Virtual alarm clock.
+#define SIGVTALRM 26
+// Stop for profiling (not implemented).
+#define SIGPROF 27
 // Window size change.
 #define SIGWINCH 28
 

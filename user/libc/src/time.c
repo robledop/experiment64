@@ -58,6 +58,34 @@ void unix_timestamp_to_tm(uint32_t timestamp, struct tm *out)
     out->tm_isdst = 0;
 }
 
+struct tm *localtime_r(const time_t *clock, struct tm *result)
+{
+    if (!clock || !result)
+        return nullptr;
+    unix_timestamp_to_tm((uint32_t)*clock, result);
+    return result;
+}
+
+static struct tm localtime_buf;
+
+struct tm *localtime(const time_t *clock)
+{
+    if (!clock)
+        return nullptr;
+    return localtime_r(clock, &localtime_buf);
+}
+
+time_t mktime(struct tm *tm)
+{
+    (void)tm;
+    return (time_t)-1;
+}
+
+size_t strftime(char *s, size_t max, const char *format, const struct tm *tm)
+{
+    return e64_strftime(format, tm, s, max);
+}
+
 static void append_str(char **out, size_t *remaining, const char *s)
 {
     while (*s && *remaining > 1)

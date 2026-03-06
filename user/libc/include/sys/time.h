@@ -1,17 +1,7 @@
 #pragma once
 
-#include <stdint.h>
-
-struct timeval
-{
-    int64_t tv_sec;  // seconds
-    int64_t tv_usec; // microseconds
-};
-
-struct timezone
-{
-    int tz_minuteswest; // minutes west of Greenwich
-    int tz_dsttime;     // daylight savings flag
-};
+#include <uapi/sys/time.h>
 
 int gettimeofday(struct timeval *tv, struct timezone *tz);
+int settimeofday(const struct timeval *tv, const struct timezone *tz);
+int nanosleep(const struct timespec *req, struct timespec *rem);
