@@ -1,6 +1,5 @@
 #include <syscall_common.h>
 
-#include <mem/heap.h>
 #include <status.h>
 
 int sys_stat(const char* path, struct stat* st)
@@ -21,10 +20,6 @@ int sys_stat(const char* path, struct stat* st)
         return -ENOENT;
 
     fill_stat_from_inode(inode, st);
-    if (inode != vfs_root)
-    {
-        vfs_close(inode);
-        kfree(inode);
-    }
+    vfs_release(inode);
     return ALL_OK;
 }

@@ -313,7 +313,7 @@ static int send_with_retry(const int sockfd, const struct sockaddr_in *dest,
     return -1;
 }
 
-uint32_t gethostbyname(const char *name, struct sockaddr_in *address)
+uint32_t dns_lookup(const char *name, struct sockaddr_in *address)
 {
     struct netinfo netinfo;
     const int fd = open("/dev/eth0", O_RDONLY);
@@ -327,7 +327,7 @@ uint32_t gethostbyname(const char *name, struct sockaddr_in *address)
     struct sockaddr_in dest = {0};
     dest.sin_family         = AF_INET;
     dest.sin_port           = htons(53);
-    memcpy(dest.sin_addr, dns_ip_bytes, sizeof(dest.sin_addr));
+    memcpy(&dest.sin_addr, dns_ip_bytes, sizeof(dest.sin_addr));
 
     const int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0)
@@ -436,7 +436,7 @@ uint32_t gethostbyname(const char *name, struct sockaddr_in *address)
             // TODO: Add support for CNAME
             for (int i = 0; i < ntohs(message_out.header.ancount); i++) {
                 if (ntohs(message_out.answers[i].type) == DNS_TYPE_A) {
-                    memcpy(address->sin_addr, &message_out.answers[i].rdata, sizeof(*address));
+                    memcpy(&address->sin_addr, &message_out.answers[i].rdata, sizeof(address->sin_addr));
                     free(message_out.answers);
                     free(message_out.questions);
                     free(message->questions);

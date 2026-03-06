@@ -4,15 +4,6 @@
 #include <sys/fcntl.h>
 #include <status.h>
 
-static void release_open_inode(vfs_inode_t *inode)
-{
-    if (!inode)
-        return;
-    vfs_close(inode);
-    if (inode != vfs_root)
-        kfree(inode);
-}
-
 int sys_open(const char* path, int flags)
 {
     if (!path)
@@ -34,7 +25,7 @@ int sys_open(const char* path, int flags)
 
     if ((inode->flags & 0x07) == VFS_DIRECTORY && want_write)
     {
-        release_open_inode(inode);
+        vfs_release(inode);
         return -EISDIR;
     }
 
@@ -46,12 +37,12 @@ int sys_open(const char* path, int flags)
     {
         if (!want_write)
         {
-            release_open_inode(inode);
+            vfs_release(inode);
             return -EINVAL;
         }
         if (vfs_truncate(inode) != 0)
         {
-            release_open_inode(inode);
+            vfs_release(inode);
             return -EIO;
         }
     }
@@ -59,7 +50,7 @@ int sys_open(const char* path, int flags)
     file_descriptor_t* desc = kmalloc(sizeof(file_descriptor_t));
     if (!desc)
     {
-        release_open_inode(inode);
+        vfs_release(inode);
         return -ENOMEM;
     }
 
@@ -73,7 +64,7 @@ int sys_open(const char* path, int flags)
     if (fd == -1)
     {
         kfree(desc);
-        release_open_inode(inode);
+        vfs_release(inode);
         return -EBUFFULL;
     }
 

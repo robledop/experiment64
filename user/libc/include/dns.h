@@ -102,4 +102,4 @@ struct dns_pool_item
     struct dns_pool_item *next;
 };
 
-uint32_t gethostbyname(const char *name, struct sockaddr_in *address);
+uint32_t dns_lookup(const char *name, struct sockaddr_in *address);

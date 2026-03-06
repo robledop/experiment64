@@ -1,6 +1,5 @@
 #include <syscall_common.h>
 
-#include <mem/heap.h>
 #include <status.h>
 
 int sys_chdir(const char *path)
@@ -17,17 +16,11 @@ int sys_chdir(const char *path)
     if (!node)
         return -ENOENT;
     if ((node->flags & 0x07) != VFS_DIRECTORY) {
-        if (node != vfs_root) {
-            vfs_close(node);
-            kfree(node);
-        }
+        vfs_release(node);
         return -ENOTDIR;
     }
 
     path_safe_copy(current_process->cwd, sizeof(current_process->cwd), abs_path);
-    if (node != vfs_root) {
-        vfs_close(node);
-        kfree(node);
-    }
+    vfs_release(node);
     return ALL_OK;
 }

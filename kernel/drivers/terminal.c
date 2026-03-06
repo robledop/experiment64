@@ -858,8 +858,7 @@ void boot_log_flush(void)
         boot_log_flushed_len += pending;
     }
 
-    vfs_close(node);
-    kfree(node);
+    vfs_release(node);
 
     if (boot_log_flushed_len != flushed_before) {
         storage_flush(0);

@@ -23,36 +23,36 @@ int sys_link(const char* oldpath, const char* newpath)
     if (!target)
         return -ENOENT;
     if ((target->flags & 0x07) == VFS_DIRECTORY) {
-        release_resolved_inode(target);
+        vfs_release(target);
         return -EPERM;
     }
 
     vfs_inode_t *existing = vfs_resolve_path(abs_new);
     if (existing) {
-        release_resolved_inode(existing);
-        release_resolved_inode(target);
+        vfs_release(existing);
+        vfs_release(target);
         return -EINSTKN;
     }
 
     char new_parent_path[PATH_MAX];
     int split_status = split_parent_path(abs_new, new_parent_path, sizeof(new_parent_path));
     if (split_status != 0) {
-        release_resolved_inode(target);
+        vfs_release(target);
         return split_status;
     }
 
     vfs_inode_t *new_parent = vfs_resolve_path(new_parent_path);
     if (!new_parent) {
-        release_resolved_inode(target);
+        vfs_release(target);
         return -ENOENT;
     }
     if ((new_parent->flags & 0x07) != VFS_DIRECTORY) {
-        release_resolved_inode(new_parent);
-        release_resolved_inode(target);
+        vfs_release(new_parent);
+        vfs_release(target);
         return -ENOTDIR;
     }
-    release_resolved_inode(new_parent);
-    release_resolved_inode(target);
+    vfs_release(new_parent);
+    vfs_release(target);
 
     return vfs_link(abs_old, abs_new);
 }

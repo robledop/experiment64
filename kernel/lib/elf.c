@@ -130,30 +130,20 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
     if (vfs_read(node, 0, sizeof(header), (uint8_t *)&header) != sizeof(header)) {
         printk("ELF: Failed to read header\n");
-        if (node != vfs_root) {
-            vfs_close(node);
-            kfree(node);
-        }
+        vfs_release(node);
         return false;
     }
 
 
     if (!elf_validate_header(&header)) {
-
-        if (node != vfs_root) {
-            vfs_close(node);
-            kfree(node);
-        }
+        vfs_release(node);
         return false;
     }
 
 
     Elf64_Phdr *phdrs = elf_read_program_headers(node, &header);
     if (!phdrs) {
-        if (node != vfs_root) {
-            vfs_close(node);
-            kfree(node);
-        }
+        vfs_release(node);
         return false;
     }
 
@@ -164,10 +154,7 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
             if (!elf_load_segment(node, ph, pml4, max_vaddr)) {
                 kfree(phdrs);
-                if (node != vfs_root) {
-                    vfs_close(node);
-                    kfree(node);
-                }
+                vfs_release(node);
                 return false;
             }
 
@@ -176,9 +163,6 @@ bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4
 
     kfree(phdrs);
     *entry_point = header.e_entry;
-    if (node != vfs_root) {
-        vfs_close(node);
-        kfree(node);
-    }
+    vfs_release(node);
     return true;
 }

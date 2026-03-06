@@ -20,6 +20,7 @@ struct mount_point
 
 static struct mount_point mount_table[16];
 static int mount_count = 0;
+typedef vfs_inode_t *(*vfs_mount_fn_t)(uint8_t drive_index, uint32_t partition_lba);
 
 void vfs_register_mount(const char *name, vfs_inode_t *root)
 {
@@ -62,6 +63,19 @@ static void vfs_put_inode(vfs_inode_t *node)
     kfree(node);
 }
 
+void vfs_release(vfs_inode_t *node)
+{
+    if (!node || node == vfs_root)
+        return;
+
+    if (node->ref > 1) {
+        node->ref--;
+        return;
+    }
+
+    vfs_put_inode(node);
+}
+
 struct gpt_scan_state
 {
     partition_info_t root_part; // Linux filesystem partition candidate.
@@ -98,6 +112,8 @@ static void vfs_scan_callback(const partition_info_t *part)
 
 static void vfs_scan_device(uint8_t device)
 {
+    if (device >= (sizeof(gpt_states) / sizeof(gpt_states[0])))
+        return;
     if (!storage_device_present(device))
         return;
 
@@ -107,47 +123,96 @@ static void vfs_scan_device(uint8_t device)
     gpt_scan_target = nullptr;
 }
 
+static bool vfs_state_has_boot_parts(const struct gpt_scan_state *state)
+{
+    return state && state->esp_found && state->root_found;
+}
+
+static bool vfs_state_has_esp(const struct gpt_scan_state *state)
+{
+    return state && state->esp_found;
+}
+
+static bool vfs_state_has_root(const struct gpt_scan_state *state)
+{
+    return state && state->root_found;
+}
+
+static int vfs_find_matching_device(uint8_t device_count, bool (*predicate)(const struct gpt_scan_state *))
+{
+    for (uint8_t dev = 0; dev < device_count; dev++) {
+        if (!storage_device_present(dev))
+            continue;
+        if (!predicate || predicate(&gpt_states[dev]))
+            return dev;
+    }
+    return -1;
+}
+
+static int vfs_select_boot_device(uint8_t device_count)
+{
+    static bool (*const predicates[])(const struct gpt_scan_state *) = {
+        vfs_state_has_boot_parts,
+        vfs_state_has_esp,
+        vfs_state_has_root,
+        nullptr,
+    };
+
+    for (size_t i = 0; i < sizeof(predicates) / sizeof(predicates[0]); i++) {
+        int dev = vfs_find_matching_device(device_count, predicates[i]);
+        if (dev >= 0)
+            return dev;
+    }
+
+    return -1;
+}
+
+static bool vfs_mount_named_partition(const char *mount_name, const char *label,
+                                      const partition_info_t *part, vfs_mount_fn_t mount_fn)
+{
+    vfs_inode_t *placeholder = vfs_finddir(vfs_root, mount_name);
+    if (!placeholder) {
+        boot_message(WARNING, "VFS: /%s not found in root, skipping %s mount", mount_name, label);
+        return false;
+    }
+
+    vfs_release(placeholder);
+
+    vfs_inode_t *mounted = mount_fn(part->drive, part->start_lba);
+    if (!mounted) {
+        boot_message(ERROR, "VFS: Failed to mount %s on /%s", label, mount_name);
+        return false;
+    }
+
+    vfs_register_mount(mount_name, mounted);
+    boot_message(INFO, "VFS: Mounted %s on /%s", label, mount_name);
+    return true;
+}
+
+static void vfs_mount_extra_root_device(uint8_t device, int boot_device, const char *mount_name)
+{
+    if (!vfs_root || device == boot_device || !storage_device_present(device))
+        return;
+
+    struct gpt_scan_state *state = &gpt_states[device];
+    if (!state->root_found)
+        return;
+
+    vfs_mount_named_partition(mount_name, "EXT2", &state->root_part, ext2_mount);
+}
+
 void vfs_mount_root(void)
 {
     const uint8_t device_count = storage_device_count();
-    for (uint8_t dev = 0; dev < device_count; dev++) {
+    const uint8_t scan_count = device_count < (sizeof(gpt_states) / sizeof(gpt_states[0]))
+        ? device_count
+        : (uint8_t)(sizeof(gpt_states) / sizeof(gpt_states[0]));
+
+    for (uint8_t dev = 0; dev < scan_count; dev++) {
         vfs_scan_device(dev);
     }
 
-    int boot_device = -1;
-    for (uint8_t dev = 0; dev < device_count; dev++) {
-        if (storage_device_present(dev) && gpt_states[dev].esp_found && gpt_states[dev].root_found) {
-            boot_device = dev;
-            break;
-        }
-    }
-
-    if (boot_device < 0) {
-        for (uint8_t dev = 0; dev < device_count; dev++) {
-            if (storage_device_present(dev) && gpt_states[dev].esp_found) {
-                boot_device = dev;
-                break;
-            }
-        }
-    }
-
-    if (boot_device < 0) {
-        for (uint8_t dev = 0; dev < device_count; dev++) {
-            if (storage_device_present(dev) && gpt_states[dev].root_found) {
-                boot_device = dev;
-                break;
-            }
-        }
-    }
-
-    if (boot_device < 0) {
-        for (uint8_t dev = 0; dev < device_count; dev++) {
-            if (storage_device_present(dev)) {
-                boot_device = dev;
-                break;
-            }
-        }
-    }
+    int boot_device = vfs_select_boot_device(scan_count);
 
     if (boot_device < 0) {
         boot_message(ERROR, "VFS: No storage devices detected");
@@ -182,74 +247,17 @@ void vfs_mount_root(void)
     }
 
     if (vfs_root && boot_state->data_found) {
-        vfs_inode_t *mnt_node = vfs_finddir(vfs_root, "mnt");
-        if (mnt_node) {
-            kfree(mnt_node); // Free the EXT2 node, we will mount over it
-            vfs_inode_t *fat_root = fat32_mount(boot_state->data_part.drive, boot_state->data_part.start_lba);
-            if (fat_root) {
-                vfs_register_mount("mnt", fat_root);
-                boot_message(INFO, "VFS: Mounted FAT32 on /mnt");
-            } else {
-                boot_message(ERROR, "VFS: Failed to mount FAT32 on /mnt");
-            }
-        } else {
-            boot_message(WARNING, "VFS: /mnt not found in root, skipping FAT32 mount");
-        }
+        vfs_mount_named_partition("mnt", "FAT32", &boot_state->data_part, fat32_mount);
     }
 
     if (vfs_root && boot_state->esp_found) {
-        vfs_inode_t *boot_node = vfs_finddir(vfs_root, "boot");
-        if (boot_node) {
-            kfree(boot_node); // replace placeholder
-            vfs_inode_t *esp_root = fat32_mount(boot_state->esp_part.drive, boot_state->esp_part.start_lba);
-            if (esp_root) {
-                vfs_register_mount("boot", esp_root);
-                boot_message(INFO, "VFS: Mounted ESP on /boot");
-            } else {
-                boot_message(ERROR, "VFS: Failed to mount ESP on /boot");
-            }
-        } else {
-            boot_message(WARNING, "VFS: /boot not found in root, skipping ESP mount");
-        }
+        vfs_mount_named_partition("boot", "ESP", &boot_state->esp_part, fat32_mount);
     }
 
-    if (vfs_root && device_count > 1u && storage_device_present(1) && boot_device != 1) {
-        struct gpt_scan_state *disk1_state = &gpt_states[1];
-        if (disk1_state->root_found) {
-            vfs_inode_t *node = vfs_finddir(vfs_root, "disk1");
-            if (node) {
-                kfree(node); // replace placeholder
-                vfs_inode_t *ext_root = ext2_mount(disk1_state->root_part.drive, disk1_state->root_part.start_lba);
-                if (ext_root) {
-                    vfs_register_mount("disk1", ext_root);
-                    boot_message(INFO, "VFS: Mounted EXT2 on /disk1");
-                } else {
-                    boot_message(ERROR, "VFS: Failed to mount EXT2 on /disk1");
-                }
-            } else {
-                boot_message(WARNING, "VFS: /disk1 not found in root, skipping disk1 mount");
-            }
-        }
-    }
-
-    if (vfs_root && device_count > 2u && storage_device_present(2) && boot_device != 2) {
-        struct gpt_scan_state *usb_state = &gpt_states[2];
-        if (usb_state->root_found) {
-            vfs_inode_t *node = vfs_finddir(vfs_root, "usb");
-            if (node) {
-                kfree(node); // replace placeholder
-                vfs_inode_t *ext_root = ext2_mount(usb_state->root_part.drive, usb_state->root_part.start_lba);
-                if (ext_root) {
-                    vfs_register_mount("usb", ext_root);
-                    boot_message(INFO, "VFS: Mounted EXT2 on /usb");
-                } else {
-                    boot_message(ERROR, "VFS: Failed to mount EXT2 on /usb");
-                }
-            } else {
-                boot_message(WARNING, "VFS: /usb not found in root, skipping USB mount");
-            }
-        }
-    }
+    if (scan_count > 1u)
+        vfs_mount_extra_root_device(1, boot_device, "disk1");
+    if (scan_count > 2u)
+        vfs_mount_extra_root_device(2, boot_device, "usb");
 
     // Flush buffered boot logs to disk once mounts are ready.
     boot_log_flush();
@@ -342,7 +350,7 @@ vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
                 vfs_inode_t *found = node->iops->finddir(node, mount_table[i].name);
                 if (found) {
                     on_disk = true;
-                    kfree(found);
+                    vfs_release(found);
                 }
             }
 
@@ -365,7 +373,7 @@ vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
     return nullptr;
 }
 
-vfs_inode_t *vfs_finddir(vfs_inode_t *node, char *name)
+vfs_inode_t *vfs_finddir(vfs_inode_t *node, const char *name)
 {
     if (!node || !name)
         return nullptr;
@@ -389,7 +397,7 @@ static void vfs_put_inode_hold(vfs_inode_t *node, const vfs_inode_t *hold)
 {
     if (!node || node == hold)
         return;
-    vfs_put_inode(node);
+    vfs_release(node);
 }
 
 static vfs_inode_t *vfs_resolve_path_hold(const char *path, const vfs_inode_t *hold)
@@ -509,7 +517,7 @@ int vfs_mknod(char *path, int mode, int dev)
 
     vfs_inode_t *existing = vfs_resolve_path(path);
     if (existing) {
-        vfs_put_inode(existing);
+        vfs_release(existing);
         return -EINSTKN;
     }
 
@@ -526,7 +534,7 @@ int vfs_mknod(char *path, int mode, int dev)
         res = vfs_normalize_status(parent->iops->mknod(parent, filename, mode, dev));
     }
 
-    vfs_put_inode(parent);
+    vfs_release(parent);
     return res;
 }
 
@@ -543,14 +551,14 @@ int vfs_link(const char *oldpath, const char *newpath)
     if (!target)
         return -ENOENT;
     if ((target->flags & 0x07) == VFS_DIRECTORY) {
-        vfs_put_inode(target);
+        vfs_release(target);
         return -EPERM;
     }
 
     vfs_inode_t *existing = vfs_resolve_path(newpath);
     if (existing) {
-        vfs_put_inode(existing);
-        vfs_put_inode(target);
+        vfs_release(existing);
+        vfs_release(target);
         return -EINSTKN;
     }
 
@@ -558,13 +566,13 @@ int vfs_link(const char *oldpath, const char *newpath)
     char filename[128];
     int split_status = vfs_split_parent_name(newpath, parent_path, sizeof(parent_path), filename, sizeof(filename));
     if (split_status != 0) {
-        vfs_put_inode(target);
+        vfs_release(target);
         return split_status;
     }
 
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent) {
-        vfs_put_inode(target);
+        vfs_release(target);
         return -ENOENT;
     }
 
@@ -577,8 +585,8 @@ int vfs_link(const char *oldpath, const char *newpath)
         res = vfs_normalize_status(parent->iops->link(parent, filename, target));
     }
 
-    vfs_put_inode(parent);
-    vfs_put_inode(target);
+    vfs_release(parent);
+    vfs_release(target);
     return res;
 }
 
@@ -601,10 +609,10 @@ int vfs_unlink(const char *path)
     if (!target)
         return -ENOENT;
     if ((target->flags & 0x07) == VFS_DIRECTORY) {
-        vfs_put_inode(target);
+        vfs_release(target);
         return -EISDIR;
     }
-    vfs_put_inode(target);
+    vfs_release(target);
 
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent)
@@ -619,7 +627,7 @@ int vfs_unlink(const char *path)
         res = vfs_normalize_status(parent->iops->unlink(parent, filename));
     }
 
-    vfs_put_inode(parent);
+    vfs_release(parent);
     return res;
 }
 
@@ -656,18 +664,18 @@ int vfs_rename(const char *oldpath, const char *newpath)
     if (!old_node)
         return -ENOENT;
     if ((old_node->flags & 0x07) == VFS_DIRECTORY) {
-        vfs_put_inode(old_node);
+        vfs_release(old_node);
         return -EPERM;
     }
-    vfs_put_inode(old_node);
+    vfs_release(old_node);
 
     vfs_inode_t *new_node = vfs_resolve_path(newpath);
     if (new_node) {
         if ((new_node->flags & 0x07) == VFS_DIRECTORY) {
-            vfs_put_inode(new_node);
+            vfs_release(new_node);
             return -EISDIR;
         }
-        vfs_put_inode(new_node);
+        vfs_release(new_node);
     }
 
     if (strcmp(oldpath, newpath) == 0)
@@ -687,14 +695,14 @@ int vfs_rename(const char *oldpath, const char *newpath)
                 memcpy(new_parent, new_parent_hold, sizeof(vfs_inode_t));
         }
 
-        vfs_put_inode(new_parent_hold);
+        vfs_release(new_parent_hold);
         if (!new_parent)
             return -ENOMEM;
     }
 
     vfs_inode_t *old_parent = vfs_resolve_path_hold(old_parent_path, new_parent);
     if (!old_parent) {
-        vfs_put_inode(new_parent);
+        vfs_release(new_parent);
         return -ENOENT;
     }
 
@@ -707,8 +715,8 @@ int vfs_rename(const char *oldpath, const char *newpath)
         res = vfs_normalize_status(old_parent->iops->rename(old_parent, old_name, new_parent, new_name));
     }
 
-    vfs_put_inode(old_parent);
+    vfs_release(old_parent);
     if (new_parent != old_parent)
-        vfs_put_inode(new_parent);
+        vfs_release(new_parent);
     return res;
 }

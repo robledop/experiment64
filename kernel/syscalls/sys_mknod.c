@@ -22,7 +22,7 @@ int sys_mknod(const char* path, int mode, int dev)
 
     vfs_inode_t *existing = vfs_resolve_path(abs_path);
     if (existing) {
-        release_resolved_inode(existing);
+        vfs_release(existing);
         return -EINSTKN;
     }
 
@@ -35,10 +35,10 @@ int sys_mknod(const char* path, int mode, int dev)
     if (!parent)
         return -ENOENT;
     if ((parent->flags & 0x07) != VFS_DIRECTORY) {
-        release_resolved_inode(parent);
+        vfs_release(parent);
         return -ENOTDIR;
     }
-    release_resolved_inode(parent);
+    vfs_release(parent);
 
     return vfs_mknod(abs_path, mode, dev);
 }

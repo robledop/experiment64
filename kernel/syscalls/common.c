@@ -333,14 +333,7 @@ void fd_put(file_descriptor_t *desc)
         return;
     __atomic_thread_fence(__ATOMIC_ACQUIRE);
 
-    if (desc->inode && desc->inode != vfs_root) {
-        if (desc->inode->ref <= 1) {
-            vfs_close(desc->inode);
-            kfree(desc->inode);
-        } else {
-            desc->inode->ref--;
-        }
-    }
+    vfs_release(desc->inode);
     kfree(desc);
 }
 
@@ -369,14 +362,6 @@ int fd_assign(file_descriptor_t *desc, int start_fd)
     }
     SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
     return fd;
-}
-
-void release_resolved_inode(vfs_inode_t *node)
-{
-    if (!node || node == vfs_root)
-        return;
-    vfs_close(node);
-    kfree(node);
 }
 
 /**

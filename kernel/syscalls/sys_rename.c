@@ -25,10 +25,10 @@ int sys_rename(const char *oldpath, const char *newpath)
     if (!old_node)
         return -ENOENT;
     if ((old_node->flags & 0x07) == VFS_DIRECTORY) {
-        release_resolved_inode(old_node);
+        vfs_release(old_node);
         return -EPERM;
     }
-    release_resolved_inode(old_node);
+    vfs_release(old_node);
 
     char new_parent_path[PATH_MAX];
     int split_status = split_parent_path(abs_new, new_parent_path, sizeof(new_parent_path));
@@ -39,18 +39,18 @@ int sys_rename(const char *oldpath, const char *newpath)
     if (!new_parent)
         return -ENOENT;
     if ((new_parent->flags & 0x07) != VFS_DIRECTORY) {
-        release_resolved_inode(new_parent);
+        vfs_release(new_parent);
         return -ENOTDIR;
     }
-    release_resolved_inode(new_parent);
+    vfs_release(new_parent);
 
     vfs_inode_t *new_node = vfs_resolve_path(abs_new);
     if (new_node) {
         if ((new_node->flags & 0x07) == VFS_DIRECTORY) {
-            release_resolved_inode(new_node);
+            vfs_release(new_node);
             return -EISDIR;
         }
-        release_resolved_inode(new_node);
+        vfs_release(new_node);
     }
 
     if (strcmp(abs_old, abs_new) == 0)

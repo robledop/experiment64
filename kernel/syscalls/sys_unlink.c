@@ -20,10 +20,10 @@ int sys_unlink(const char* path)
     if (!node)
         return -ENOENT;
     if ((node->flags & 0x07) == VFS_DIRECTORY) {
-        release_resolved_inode(node);
+        vfs_release(node);
         return -EISDIR;
     }
-    release_resolved_inode(node);
+    vfs_release(node);
 
     return vfs_unlink(abs_path);
 }

@@ -40,18 +40,15 @@ int sys_openpty(int fds[2])
 
     file_descriptor_t *master_desc = pty_fd_new(master_inode);
     if (!master_desc) {
-        vfs_close(master_inode);
-        kfree(master_inode);
-        vfs_close(slave_inode);
-        kfree(slave_inode);
+        vfs_release(master_inode);
+        vfs_release(slave_inode);
         return -1;
     }
 
     file_descriptor_t *slave_desc = pty_fd_new(slave_inode);
     if (!slave_desc) {
         fd_put(master_desc);
-        vfs_close(slave_inode);
-        kfree(slave_inode);
+        vfs_release(slave_inode);
         return -1;
     }
 
