@@ -79,8 +79,8 @@ int main(int argc, char** argv)
     if (ip == 0)
     {
         struct sockaddr_in resolved_address = {0};
-        gethostbyname(argv[1], &resolved_address);
-        bytes_to_ip(resolved_address.sin_addr, &ip);
+        dns_lookup(argv[1], &resolved_address);
+        ip = ntohl(resolved_address.sin_addr.s_addr);
     }
 
     if (ip == 0 && strcmp(argv[1], "0.0.0.0") != 0)
@@ -102,7 +102,7 @@ int main(int argc, char** argv)
     struct sockaddr_in dest = {0};
     dest.sin_family = AF_INET;
     dest.sin_port = 0;
-    memcpy(dest.sin_addr, ip_bytes, sizeof(dest.sin_addr));
+    memcpy(&dest.sin_addr, ip_bytes, sizeof(dest.sin_addr));
 
     printf("PING %d.%d.%d.%d: 32 data bytes\n",
            ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3]);
@@ -154,9 +154,10 @@ int main(int argc, char** argv)
                     continue;
 
                 const uint64_t rtt = now_ms() - start;
+                const uint8_t *src_ip = (const uint8_t *)&src.sin_addr.s_addr;
                 printf("%zd bytes from %d.%d.%d.%d: icmp_seq=%d time=%llums\n",
                        n,
-                       src.sin_addr[0], src.sin_addr[1], src.sin_addr[2], src.sin_addr[3],
+                       src_ip[0], src_ip[1], src_ip[2], src_ip[3],
                        seq,
                        (unsigned long long)rtt);
                 got_reply = true;
