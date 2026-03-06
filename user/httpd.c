@@ -256,8 +256,7 @@ static void *connection_entry(void *arg)
         if (connfd < 0)
             continue;
 
-        uint32_t client_ip = 0;
-        bytes_to_ip(client_addr.sin_addr, &client_ip);
+        uint32_t client_ip = ntohl(client_addr.sin_addr.s_addr);
         http_conn_t *conn = malloc(sizeof(*conn));
         if (!conn) {
             close(connfd);

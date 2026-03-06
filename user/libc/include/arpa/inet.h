@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <netinet/in.h>
 
 /**
  * @brief Convert 16-bit value from network byte order to host byte order.
@@ -54,7 +55,8 @@ uint32_t htonl(uint32_t hostlong);
  * @param cp Pointer to a NUL-terminated IPv4 dotted-decimal string.
  * @return 32-bit IPv4 address in network byte order, or 0 on invalid input.
  */
-uint32_t inet_addr(const char* cp);
+uint32_t inet_addr(const char *cp);
+int inet_aton(const char *cp, struct in_addr *inp);
 
 /**
  * @brief Convert a 32-bit IPv4 address in network byte order to a
@@ -67,7 +69,8 @@ uint32_t inet_addr(const char* cp);
  * @param addr 32-bit IPv4 address in network byte order.
  * @param buf Output buffer with capacity of at least 16 bytes.
  */
-void inet_ntoa_r(uint32_t addr, char* buf);
+void inet_ntoa_r(uint32_t addr, char *buf);
+char *inet_ntoa(struct in_addr in);
 
 
 /**

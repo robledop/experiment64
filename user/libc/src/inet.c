@@ -60,10 +60,29 @@ uint32_t inet_addr(const char* cp)
     return v;
 }
 
+int inet_aton(const char *cp, struct in_addr *inp)
+{
+    if (!cp || !inp)
+        return 0;
+    uint32_t a = inet_addr(cp);
+    if (a == 0 && *cp != '0')
+        return 0;
+    inp->s_addr = a;
+    return 1;
+}
+
 static inline void write_digit(char** p, uint8_t digit)
 {
     **p = (char)((unsigned char)('0' + digit));
     (*p)++;
+}
+
+static char inet_ntoa_buf[16];
+
+char *inet_ntoa(struct in_addr in)
+{
+    inet_ntoa_r(in.s_addr, inet_ntoa_buf);
+    return inet_ntoa_buf;
 }
 
 void inet_ntoa_r(uint32_t addr, char* buf)
