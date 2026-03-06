@@ -69,7 +69,7 @@ static void print_entry(char *name, const struct stat *st)
     const char *date_time_format = "%Y %B %d %H:%M";
     char modify_time_str[25]     = {0};
 
-    strftime(date_time_format, &modify_time, modify_time_str, sizeof(modify_time_str));
+    strftime(modify_time_str, sizeof(modify_time_str), date_time_format, &modify_time);
     printf(" %-25s ", modify_time_str);
 
     switch (st->type) {
