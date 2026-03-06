@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/signal.h>
+#include <termios.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <wm/video_context.h>
@@ -994,6 +995,16 @@ static int spawn_shell_on_pty(int *master_fd_out, int *slave_fd_out, int *child_
     return 0;
 }
 
+static void terminal_configure_master_fd(int fd)
+{
+    struct termios tio = {0};
+    if (tcgetattr(fd, &tio) != 0)
+        return;
+
+    tio.c_oflag &= ~OPOST;
+    tcsetattr(fd, TCSANOW, &tio);
+}
+
 static int terminal_rebuild_context_locked(terminal_state_t *term)
 {
     video_context_t *new_context =
@@ -1055,6 +1066,7 @@ int main(void)
         return 4;
     }
     close(slave_fd);
+    terminal_configure_master_fd(master_fd);
 
     term.master_fd = master_fd;
     term.shell_pid = shell_pid;
