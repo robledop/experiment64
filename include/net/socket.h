@@ -7,8 +7,13 @@
 #include <fs/vfs.h>
 
 // Domain
-#define PF_INET 1 // IPv4
-#define AF_INET PF_INET
+#define PF_UNIX   1
+#define PF_INET   2 // IPv4
+#define PF_INET6 10
+#define AF_UNSPEC 0
+#define AF_UNIX   PF_UNIX
+#define AF_INET   PF_INET
+#define AF_INET6  PF_INET6
 
 // Type
 #define SOCK_STREAM 1

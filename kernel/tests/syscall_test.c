@@ -352,7 +352,7 @@ static uint8_t ioctl_bad_ptr_noncanonical_stub_bytes[] = {
 
 static uint8_t bind_bad_ptr_unmapped_stub_bytes[] = {
     0xB8, 0x21, 0x00, 0x00, 0x00,                               // mov eax, 33 (SYS_SOCKET)
-    0xBF, 0x01, 0x00, 0x00, 0x00,                               // mov edi, 1 (AF_INET)
+    0xBF, AF_INET, 0x00, 0x00, 0x00,                            // mov edi, AF_INET
     0xBE, 0x02, 0x00, 0x00, 0x00,                               // mov esi, 2 (SOCK_DGRAM)
     0xBA, 0x11, 0x00, 0x00, 0x00,                               // mov edx, 17 (IPPROTO_UDP)
     0x0F, 0x05,                                                 // syscall
@@ -375,7 +375,7 @@ static uint8_t bind_bad_ptr_unmapped_stub_bytes[] = {
 
 static uint8_t sendto_bad_buf_unmapped_stub_bytes[] = {
     0xB8, 0x21, 0x00, 0x00, 0x00,                               // mov eax, 33 (SYS_SOCKET)
-    0xBF, 0x01, 0x00, 0x00, 0x00,                               // mov edi, 1 (AF_INET)
+    0xBF, AF_INET, 0x00, 0x00, 0x00,                            // mov edi, AF_INET
     0xBE, 0x02, 0x00, 0x00, 0x00,                               // mov esi, 2 (SOCK_DGRAM)
     0xBA, 0x11, 0x00, 0x00, 0x00,                               // mov edx, 17 (IPPROTO_UDP)
     0x0F, 0x05,                                                 // syscall
