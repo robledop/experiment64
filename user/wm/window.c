@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 #include <wm/rect.h>
 #include <wm/video_context.h>
 #include <wm/window.h>
@@ -42,13 +43,6 @@ static bool window_minimize_clicked(const window_t *window, uint16_t x, uint16_t
     return x >= minimize_x && x < minimize_x + WIN_TITLE_HEIGHT && y >= minimize_y && y < minimize_y + WIN_TITLE_HEIGHT;
 }
 
-static uint64_t window_now_ms(void)
-{
-    struct timeval tv = {0};
-    if (gettimeofday(&tv, nullptr) != 0)
-        return 0;
-    return (uint64_t)tv.tv_sec * 1000u + (uint64_t)tv.tv_usec / 1000u;
-}
 
 static bool window_children_push(window_t *parent, window_t *child)
 {
@@ -723,10 +717,10 @@ void window_process_mouse(window_t *window, uint16_t mouse_x, uint16_t mouse_y, 
         const int target_y = (int)mouse_y - (int)window->drag_off_y;
 
         if (left_click) {
-            const uint64_t now_ms = window_now_ms();
-            if (window->drag_last_move_ms == 0 || now_ms - window->drag_last_move_ms >= WIN_DRAG_FRAME_INTERVAL_MS) {
+            const uint64_t cur_ms = now_ms();
+            if (window->drag_last_move_ms == 0 || cur_ms - window->drag_last_move_ms >= WIN_DRAG_FRAME_INTERVAL_MS) {
                 window_move(window->drag_child, target_x, target_y);
-                window->drag_last_move_ms = now_ms;
+                window->drag_last_move_ms = cur_ms;
             }
         } else if (was_left_click) {
             window_move(window->drag_child, target_x, target_y);
