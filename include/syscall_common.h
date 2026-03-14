@@ -29,6 +29,7 @@ bool copy_from_user_str(char* dst, const char* src, size_t max_len);
 bool map_user_anonymous_range(process_t* proc, pml4_t pml4, uint64_t start, uint64_t length, uint32_t vma_flags);
 bool fd_can_read(const file_descriptor_t* desc);
 bool fd_can_write(const file_descriptor_t* desc);
+file_descriptor_t *fd_alloc(vfs_inode_t *inode, int flags);
 file_descriptor_t* fd_get(int fd);
 void fd_put(file_descriptor_t* desc);
 int fd_assign(file_descriptor_t* desc, int start_fd);

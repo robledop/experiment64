@@ -283,6 +283,18 @@ void free_thread_resources(thread_t *t)
     kfree(t);
 }
 
+file_descriptor_t *fd_alloc(vfs_inode_t *inode, int flags)
+{
+    file_descriptor_t *desc = kmalloc(sizeof(file_descriptor_t));
+    if (!desc)
+        return nullptr;
+    memset(desc, 0, sizeof(file_descriptor_t));
+    desc->inode = inode;
+    desc->flags = flags;
+    desc->ref   = 1;
+    return desc;
+}
+
 bool fd_can_read(const file_descriptor_t *desc)
 {
     if (!desc)
