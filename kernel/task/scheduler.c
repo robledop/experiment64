@@ -209,6 +209,8 @@ bool scheduler_tick(void)
     bool need_resched = false;
 
     spinlock_acquire(&scheduler_lock);
+
+#ifdef TEST_MODE
     process_t *p;
     list_foreach_entry(p, &process_list, list) {
         if (list_empty(&p->threads)) {
@@ -229,6 +231,7 @@ bool scheduler_tick(void)
             }
         }
     }
+#endif
 
     cpu_t *cpu     = get_cpu();
     thread_t *curr = cpu != nullptr ? cpu->active_thread : nullptr;
