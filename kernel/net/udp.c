@@ -1,6 +1,7 @@
 #include <net/udp.h>
 #include <arpa/inet.h>
 #include <net/dhcp.h>
+#include <net/ipv4.h>
 #include <net/socket.h>
 #include <mem/heap.h>
 #include <net/arp.h>
@@ -65,18 +66,8 @@ int udp_sendto(const void* buf, const size_t len, socket_t* const sock, struct s
     eth->ether_type = htons(ETHERTYPE_IP);
 
     auto const ip = (struct ipv4_header*)(packet + sizeof(struct ether_header));
-    ip->version = 4;
-    ip->ihl = 0x05;
-    ip->dscp_ecn = 0;
-    ip->total_length = htons(sizeof(struct ipv4_header) + sizeof(struct udp_header) + len);
-    ip->identification = 0;
-    ip->flags_fragment_offset = 0;
-    ip->ttl = 64;
-    ip->protocol = IP_PROTOCOL_UDP;
-    ip->header_checksum = 0;
-    memcpy(ip->source_ip, src_ip, 4);
-    memcpy(ip->dest_ip, in.sin_addr, 4);
-    ip->header_checksum = checksum(ip, (int)sizeof(struct ipv4_header), 0);
+    ipv4_fill_header(ip, IP_PROTOCOL_UDP, src_ip, in.sin_addr,
+                     (uint16_t)(sizeof(struct udp_header) + len));
 
     auto const udp = (struct udp_header*)((uint8_t*)ip + sizeof(struct ipv4_header));
     udp->src_port = sock->local.port;

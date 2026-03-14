@@ -33,3 +33,8 @@ struct ipv4_header
 
 
 typedef struct ipv4_header ipv4_header_t;
+
+// Fill a standard 20-byte IPv4 header and compute its checksum.
+void ipv4_fill_header(struct ipv4_header *ip, uint8_t protocol,
+                      const uint8_t src[4], const uint8_t dst[4],
+                      uint16_t payload_len);
