@@ -86,6 +86,9 @@ enum editorMode
     MODE_NORMAL
 };
 
+#define KILO_HISTORY_DEPTH 10
+#define KILO_TAB_STOP 4
+
 /* This structure represents a single line of the file we are editing. */
 typedef struct erow
 {
@@ -98,6 +101,15 @@ typedef struct erow
     int hl_oc;         /* Row had open comment at end in last syntax highlight
                            check. */
 } erow;
+
+typedef struct editorSnapshot
+{
+    erow *row;
+    int numrows;
+    int dirty;
+    int cx, cy;
+    int rowoff, coloff;
+} editorSnapshot;
 
 typedef struct hlcolor
 {
@@ -116,6 +128,10 @@ struct editorConfig
     enum editorMode mode;
     erow *row;      /* Rows */
     int dirty;      /* File modified but not saved. */
+    editorSnapshot undo_stack[KILO_HISTORY_DEPTH];
+    int undo_len;
+    editorSnapshot redo_stack[KILO_HISTORY_DEPTH];
+    int redo_len;
     char *filename; /* Currently open filename */
     char statusmsg[80];
     time_t statusmsg_time;
@@ -127,6 +143,9 @@ static void editorDie(const char *msg);
 static void editorCleanExit(void);
 static void disableRawMode(int fd);
 static int enableRawMode(int fd);
+int editorReadKey(int fd);
+void editorRefreshScreen(void);
+int editorSave(void);
 
 static void ensure_line_capacity(char **buf, size_t *cap, size_t needed)
 {
@@ -173,6 +192,7 @@ enum KEY_ACTION
     CTRL_L = 12,     /* Ctrl+l */
     ENTER = 13,      /* Enter */
     CTRL_Q = 17,     /* Ctrl-q */
+    CTRL_R = 18,     /* Ctrl-r */
     CTRL_S = 19,     /* Ctrl-s */
     CTRL_U = 21,     /* Ctrl-u */
     ESC = 27,        /* Escape */
@@ -195,6 +215,77 @@ void editorSetStatusMessage(const char *fmt, ...);
 static const char *editorModeName(void)
 {
     return E.mode == MODE_NORMAL ? "NORMAL" : "INSERT";
+}
+
+#define KILO_COMMAND_LEN 64
+
+static void editorRunExCommand(const char *cmd)
+{
+    if (!cmd || cmd[0] == '\0') {
+        return;
+    }
+
+    if (!strcmp(cmd, "w")) {
+        editorSave();
+        return;
+    }
+
+    if (!strcmp(cmd, "q")) {
+        if (E.dirty) {
+            editorSetStatusMessage("Unsaved changes. Use :wq or :q!");
+            return;
+        }
+        editorCleanExit();
+    }
+
+    if (!strcmp(cmd, "q!")) {
+        editorCleanExit();
+    }
+
+    if (!strcmp(cmd, "wq")) {
+        if (editorSave() == 0) {
+            editorCleanExit();
+        }
+        return;
+    }
+
+    editorSetStatusMessage("Unknown command: :%s", cmd);
+}
+
+static void editorCommandMode(int fd)
+{
+    char cmd[KILO_COMMAND_LEN + 1] = {0};
+    int cmdlen = 0;
+
+    while (1) {
+        editorSetStatusMessage(":%s", cmd);
+        editorRefreshScreen();
+
+        int c = editorReadKey(fd);
+
+        if (c == ESC) {
+            editorSetStatusMessage("");
+            return;
+        }
+
+        if (c == ENTER || c == '\n') {
+            editorSetStatusMessage("");
+            editorRunExCommand(cmd);
+            return;
+        }
+
+        if (c == BACKSPACE || c == CTRL_H || c == DEL_KEY) {
+            if (cmdlen > 0) {
+                cmd[--cmdlen] = '\0';
+            }
+            continue;
+        }
+
+        if (isprint(c) && cmdlen < KILO_COMMAND_LEN) {
+            cmd[cmdlen++] = c;
+            cmd[cmdlen] = '\0';
+        }
+    }
 }
 
 /* =========================== Syntax highlights DB =========================
@@ -516,7 +607,7 @@ void editorUpdateSyntax(erow *row)
         /* Handle multi line comments. */
         if (in_comment) {
             row->hl[i] = HL_MLCOMMENT;
-            if (*p == mce[0] && *(p + 1) == mce[1]) {
+            if (*(p + 1) != '\0' && *p == mce[0] && *(p + 1) == mce[1]) {
                 row->hl[i + 1] = HL_MLCOMMENT;
                 p += 2;
                 i += 2;
@@ -529,7 +620,7 @@ void editorUpdateSyntax(erow *row)
                 i++;
                 continue;
             }
-        } else if (*p == mcs[0] && *(p + 1) == mcs[1]) {
+        } else if (*(p + 1) != '\0' && *p == mcs[0] && *(p + 1) == mcs[1]) {
             row->hl[i]     = HL_MLCOMMENT;
             row->hl[i + 1] = HL_MLCOMMENT;
             p += 2;
@@ -543,9 +634,14 @@ void editorUpdateSyntax(erow *row)
         if (in_string) {
             row->hl[i] = HL_STRING;
             if (*p == '\\') {
-                row->hl[i + 1] = HL_STRING;
-                p += 2;
-                i += 2;
+                if (*(p + 1) != '\0') {
+                    row->hl[i + 1] = HL_STRING;
+                    p += 2;
+                    i += 2;
+                } else {
+                    p++;
+                    i++;
+                }
                 prev_sep = 0;
                 continue;
             }
@@ -682,17 +778,17 @@ void editorUpdateRow(erow *row)
             tabs++;
 
     unsigned long long allocsize =
-        (unsigned long long)row->size + tabs * 8 + nonprint * 9 + 1;
+        (unsigned long long)row->size + tabs * KILO_TAB_STOP + nonprint * 9 + 1;
     if (allocsize > UINT32_MAX) {
         editorDie("Some line of the edited file is too long for kilo");
     }
 
-    row->render = malloc(row->size + tabs * 8 + nonprint * 9 + 1);
+    row->render = malloc(row->size + tabs * KILO_TAB_STOP + nonprint * 9 + 1);
     idx         = 0;
     for (j = 0; j < row->size; j++) {
         if (row->chars[j] == TAB) {
             row->render[idx++] = ' ';
-            while ((idx + 1) % 8 != 0)
+            while ((idx + 1) % KILO_TAB_STOP != 0)
                 row->render[idx++] = ' ';
         } else {
             row->render[idx++] = row->chars[j];
@@ -736,6 +832,159 @@ void editorFreeRow(erow *row)
     free(row->render);
     free(row->chars);
     free(row->hl);
+}
+
+static void editorFreeRows(erow *rows, int numrows)
+{
+    if (rows == nullptr) {
+        return;
+    }
+    for (int i = 0; i < numrows; i++) {
+        editorFreeRow(&rows[i]);
+    }
+    free(rows);
+}
+
+static erow *editorCloneRowsBare(erow *rows, int numrows)
+{
+    if (numrows <= 0) {
+        return nullptr;
+    }
+
+    erow *clone = malloc(sizeof(erow) * numrows);
+    if (clone == nullptr) {
+        editorDie("out of memory");
+    }
+
+    for (int i = 0; i < numrows; i++) {
+        clone[i].idx = i;
+        clone[i].size = rows[i].size;
+        clone[i].rsize = 0;
+        clone[i].hl_oc = 0;
+        clone[i].render = nullptr;
+        clone[i].hl = nullptr;
+        clone[i].chars = malloc(rows[i].size + 1);
+        if (clone[i].chars == nullptr) {
+            editorFreeRows(clone, i);
+            editorDie("out of memory");
+        }
+        memcpy(clone[i].chars, rows[i].chars, rows[i].size + 1);
+    }
+
+    return clone;
+}
+
+static void editorRebuildRows(void)
+{
+    for (int i = 0; i < E.numrows; i++) {
+        E.row[i].idx = i;
+        editorUpdateRow(&E.row[i]);
+    }
+}
+
+static void editorClearSnapshot(editorSnapshot *snap)
+{
+    editorFreeRows(snap->row, snap->numrows);
+    snap->row = nullptr;
+    snap->numrows = 0;
+    snap->dirty = 0;
+    snap->cx = 0;
+    snap->cy = 0;
+    snap->rowoff = 0;
+    snap->coloff = 0;
+}
+
+static void editorCaptureSnapshot(editorSnapshot *snap)
+{
+    editorClearSnapshot(snap);
+    snap->row = editorCloneRowsBare(E.row, E.numrows);
+    snap->numrows = E.numrows;
+    snap->dirty = E.dirty;
+    snap->cx = E.cx;
+    snap->cy = E.cy;
+    snap->rowoff = E.rowoff;
+    snap->coloff = E.coloff;
+}
+
+static void editorClearHistory(editorSnapshot *stack, int *len)
+{
+    for (int i = 0; i < *len; i++) {
+        editorClearSnapshot(&stack[i]);
+    }
+    *len = 0;
+}
+
+static void editorPushHistory(editorSnapshot *stack, int *len)
+{
+    if (*len == KILO_HISTORY_DEPTH) {
+        editorClearSnapshot(&stack[0]);
+        memmove(&stack[0],
+                &stack[1],
+                sizeof(stack[0]) * (KILO_HISTORY_DEPTH - 1));
+        stack[KILO_HISTORY_DEPTH - 1].row = nullptr;
+        stack[KILO_HISTORY_DEPTH - 1].numrows = 0;
+        stack[KILO_HISTORY_DEPTH - 1].dirty = 0;
+        stack[KILO_HISTORY_DEPTH - 1].cx = 0;
+        stack[KILO_HISTORY_DEPTH - 1].cy = 0;
+        stack[KILO_HISTORY_DEPTH - 1].rowoff = 0;
+        stack[KILO_HISTORY_DEPTH - 1].coloff = 0;
+        (*len)--;
+    }
+    editorCaptureSnapshot(&stack[*len]);
+    (*len)++;
+}
+
+static void editorApplySnapshot(editorSnapshot *snap)
+{
+    editorFreeRows(E.row, E.numrows);
+    E.row = snap->row;
+    E.numrows = snap->numrows;
+    E.dirty = snap->dirty;
+    E.cx = snap->cx;
+    E.cy = snap->cy;
+    E.rowoff = snap->rowoff;
+    E.coloff = snap->coloff;
+    snap->row = nullptr;
+    snap->numrows = 0;
+    editorRebuildRows();
+}
+
+static void editorSaveUndoSnapshot(void)
+{
+    editorPushHistory(E.undo_stack, &E.undo_len);
+    editorClearHistory(E.redo_stack, &E.redo_len);
+}
+
+static void editorClearUndoSnapshot(void)
+{
+    editorClearHistory(E.undo_stack, &E.undo_len);
+    editorClearHistory(E.redo_stack, &E.redo_len);
+}
+
+static void editorUndoLastChange(void)
+{
+    if (E.undo_len == 0) {
+        editorSetStatusMessage("Nothing to undo");
+        return;
+    }
+
+    editorPushHistory(E.redo_stack, &E.redo_len);
+    E.undo_len--;
+    editorApplySnapshot(&E.undo_stack[E.undo_len]);
+    editorSetStatusMessage("Undid last change");
+}
+
+static void editorRedoLastChange(void)
+{
+    if (E.redo_len == 0) {
+        editorSetStatusMessage("Nothing to redo");
+        return;
+    }
+
+    editorPushHistory(E.undo_stack, &E.undo_len);
+    E.redo_len--;
+    editorApplySnapshot(&E.redo_stack[E.redo_len]);
+    editorSetStatusMessage("Redid last change");
 }
 
 /* Remove the row at the specified position, shifting the remainign on the
@@ -933,6 +1182,7 @@ void editorDelChar(void)
 int editorOpen(char *filename)
 {
     E.dirty = 0;
+    editorClearUndoSnapshot();
     free(E.filename);
     size_t fnlen = strlen(filename) + 1;
     E.filename   = malloc(fnlen);
@@ -1195,7 +1445,7 @@ void editorRefreshScreen(void)
     if (row) {
         for (j = E.coloff; j < (E.cx + E.coloff); j++) {
             if (j < row->size && row->chars[j] == TAB)
-                cx += 7 - ((cx) % 8);
+                cx += (KILO_TAB_STOP - 1) - ((cx) % KILO_TAB_STOP);
             cx++;
         }
     }
@@ -1404,8 +1654,6 @@ void editorMoveCursor(int key)
 
 /* Process events arriving from the standard input, which is, the user
  * is typing stuff on the terminal. */
-#define KILO_QUIT_TIMES 3
-
 static void editorMovePage(int key)
 {
     if (key == PAGE_UP && E.cy != 0)
@@ -1418,12 +1666,269 @@ static void editorMovePage(int key)
         editorMoveCursor(key == PAGE_UP ? ARROW_UP : ARROW_DOWN);
 }
 
+static void editorSetCursorToFilePosition(int filerow, int filecol)
+{
+    if (filerow < 0) {
+        filerow = 0;
+    }
+    if (filerow > E.numrows) {
+        filerow = E.numrows;
+    }
+
+    if (filerow < E.rowoff) {
+        E.rowoff = filerow;
+        E.cy     = 0;
+    } else if (filerow >= E.rowoff + E.screenrows) {
+        E.rowoff = filerow - E.screenrows + 1;
+        E.cy     = E.screenrows - 1;
+    } else {
+        E.cy = filerow - E.rowoff;
+    }
+
+    if (filecol < 0) {
+        filecol = 0;
+    }
+    if (filecol < E.coloff) {
+        E.coloff = filecol;
+        E.cx     = 0;
+    } else if (filecol >= E.coloff + E.screencols) {
+        E.coloff = filecol - E.screencols + 1;
+        E.cx     = E.screencols - 1;
+    } else {
+        E.cx = filecol - E.coloff;
+    }
+}
+
+static int editorIsWordChar(int c)
+{
+    return isalnum((unsigned char)c) || c == '_';
+}
+
+static void editorMoveToNextWord(void)
+{
+    if (E.numrows == 0) {
+        return;
+    }
+
+    int filerow = E.rowoff + E.cy;
+    int filecol = E.coloff + E.cx;
+    if (filerow < 0) {
+        filerow = 0;
+        filecol = 0;
+    }
+    if (filerow >= E.numrows) {
+        filerow = E.numrows - 1;
+        filecol = E.row[filerow].size;
+    }
+
+    erow *row = &E.row[filerow];
+    if (filecol > row->size) {
+        filecol = row->size;
+    }
+
+    while (filerow < E.numrows) {
+        row = &E.row[filerow];
+        while (filecol < row->size && editorIsWordChar(row->chars[filecol])) {
+            filecol++;
+        }
+        if (filecol < row->size || filerow == E.numrows - 1) {
+            break;
+        }
+        filerow++;
+        filecol = 0;
+    }
+
+    while (filerow < E.numrows) {
+        row = &E.row[filerow];
+        while (filecol < row->size && !editorIsWordChar(row->chars[filecol])) {
+            filecol++;
+        }
+        if (filecol < row->size) {
+            editorSetCursorToFilePosition(filerow, filecol);
+            return;
+        }
+        if (filerow == E.numrows - 1) {
+            editorSetCursorToFilePosition(filerow, row->size);
+            return;
+        }
+        filerow++;
+        filecol = 0;
+    }
+}
+
+static void editorMoveToPrevWord(void)
+{
+    if (E.numrows == 0) {
+        return;
+    }
+
+    int filerow = E.rowoff + E.cy;
+    int filecol = E.coloff + E.cx;
+    if (filerow < 0) {
+        filerow = 0;
+        filecol = 0;
+    }
+    if (filerow >= E.numrows) {
+        filerow = E.numrows - 1;
+        filecol = E.row[filerow].size;
+    }
+
+    if (filecol > E.row[filerow].size) {
+        filecol = E.row[filerow].size;
+    }
+
+    while (filerow > 0 || filecol > 0) {
+        if (filecol == 0) {
+            filerow--;
+            filecol = E.row[filerow].size;
+            if (filecol == 0) {
+                continue;
+            }
+        }
+        filecol--;
+        break;
+    }
+
+    while (1) {
+        if (editorIsWordChar(E.row[filerow].chars[filecol])) {
+            break;
+        }
+        if (filerow == 0 && filecol == 0) {
+            editorSetCursorToFilePosition(0, 0);
+            return;
+        }
+        if (filecol == 0) {
+            filerow--;
+            filecol = E.row[filerow].size;
+            if (filecol == 0) {
+                continue;
+            }
+        }
+        filecol--;
+    }
+
+    while (filecol > 0 && editorIsWordChar(E.row[filerow].chars[filecol - 1])) {
+        filecol--;
+    }
+    editorSetCursorToFilePosition(filerow, filecol);
+}
+
+static void editorEnterInsertMode(void)
+{
+    E.mode = MODE_INSERT;
+    editorSetStatusMessage("-- INSERT --");
+}
+
+static void editorOpenLineBelow(void)
+{
+    int filerow = E.rowoff + E.cy;
+    if (filerow < 0) {
+        filerow = 0;
+    }
+    if (filerow > E.numrows) {
+        filerow = E.numrows;
+    }
+
+    int at = (filerow >= E.numrows) ? E.numrows : filerow + 1;
+    editorInsertRow(at, "", 0);
+    editorSetCursorToFilePosition(at, 0);
+}
+
+static void editorOpenLineAbove(void)
+{
+    int filerow = E.rowoff + E.cy;
+    if (filerow < 0) {
+        filerow = 0;
+    }
+    if (filerow > E.numrows) {
+        filerow = E.numrows;
+    }
+
+    editorInsertRow(filerow, "", 0);
+    editorSetCursorToFilePosition(filerow, 0);
+}
+
+static void editorDeleteCharUnderCursor(void)
+{
+    int filerow = E.rowoff + E.cy;
+    int filecol = E.coloff + E.cx;
+    if (filerow < 0 || filerow >= E.numrows) {
+        return;
+    }
+
+    erow *row = &E.row[filerow];
+    if (filecol < 0 || filecol >= row->size) {
+        return;
+    }
+
+    editorMoveCursor(ARROW_RIGHT);
+    editorDelChar();
+}
+
+static void editorDeleteCurrentLine(void)
+{
+    int filerow = E.rowoff + E.cy;
+    int filecol = E.coloff + E.cx;
+    if (filerow < 0 || filerow >= E.numrows) {
+        return;
+    }
+
+    editorDelRow(filerow);
+    if (E.numrows == 0) {
+        E.rowoff = 0;
+        E.coloff = 0;
+        E.cy     = 0;
+        E.cx     = 0;
+        return;
+    }
+
+    if (filerow >= E.numrows) {
+        filerow = E.numrows - 1;
+    }
+    if (filecol < 0) {
+        filecol = 0;
+    }
+    if (filecol > E.row[filerow].size) {
+        filecol = E.row[filerow].size;
+    }
+    editorSetCursorToFilePosition(filerow, filecol);
+}
+
+static void editorDeleteToEndOfLine(void)
+{
+    int filerow = E.rowoff + E.cy;
+    int filecol = E.coloff + E.cx;
+    if (filerow < 0 || filerow >= E.numrows) {
+        return;
+    }
+
+    erow *row = &E.row[filerow];
+    if (filecol < 0) {
+        filecol = 0;
+    }
+    if (filecol > row->size) {
+        filecol = row->size;
+    }
+    if (filecol == row->size) {
+        return;
+    }
+
+    row->chars[filecol] = '\0';
+    row->size = filecol;
+    editorUpdateRow(row);
+    E.dirty++;
+}
+
+static void editorChangeCharUnderCursor(void)
+{
+    editorDeleteCharUnderCursor();
+    editorEnterInsertMode();
+}
+
 void editorProcessKeypress(int fd)
 {
-    /* When the file is modified, requires Ctrl-q to be pressed N times
-     * before actually quitting. */
-    static int quit_times = KILO_QUIT_TIMES;
-
+    static int normal_d_pending = 0;
+    static int normal_g_pending = 0;
     int c = editorReadKey(fd);
     switch (c) {
     case CTRL_C: /* Ctrl-c */
@@ -1431,17 +1936,15 @@ void editorProcessKeypress(int fd)
          * to the edited file. */
         break;
     case CTRL_Q: /* Ctrl-q */
-        if (E.dirty && quit_times > 0) {
-            editorSetStatusMessage("WARNING!!! File has unsaved changes. "
-                                   "Press Ctrl-Q %d more times to quit.",
-                                   quit_times);
-            quit_times--;
-            return;
-        }
-        editorCleanExit();
-        break;
     case CTRL_S: /* Ctrl-s */
-        editorSave();
+        editorSetStatusMessage("Use :q, :w, or :wq");
+        break;
+    case CTRL_R: /* Ctrl-r */
+        normal_d_pending = 0;
+        normal_g_pending = 0;
+        if (E.mode == MODE_NORMAL) {
+            editorRedoLastChange();
+        }
         break;
     case CTRL_F:
         editorFind(fd);
@@ -1450,6 +1953,8 @@ void editorProcessKeypress(int fd)
         /* Just refresht the line as side effect. */
         break;
     case ESC:
+        normal_d_pending = 0;
+        normal_g_pending = 0;
         if (E.mode == MODE_INSERT) {
             E.mode = MODE_NORMAL;
             editorSetStatusMessage("-- NORMAL --");
@@ -1457,6 +1962,28 @@ void editorProcessKeypress(int fd)
         break;
     default:
         if (E.mode == MODE_NORMAL) {
+            if (normal_d_pending) {
+                normal_d_pending = 0;
+                normal_g_pending = 0;
+                if (c == 'd') {
+                    editorSaveUndoSnapshot();
+                    editorDeleteCurrentLine();
+                } else {
+                    editorSetStatusMessage("Unknown command: d%c", c);
+                }
+                break;
+            }
+            if (normal_g_pending) {
+                normal_d_pending = 0;
+                normal_g_pending = 0;
+                if (c == 'g') {
+                    editorSetCursorToFilePosition(0, 0);
+                } else {
+                    editorSetStatusMessage("Unknown command: g%c", c);
+                }
+                break;
+            }
+
             switch (c) {
             case 'h':
             case ARROW_LEFT:
@@ -1478,22 +2005,118 @@ void editorProcessKeypress(int fd)
             case PAGE_DOWN:
                 editorMovePage(c);
                 break;
+            case 'w':
+                editorMoveToNextWord();
+                break;
+            case 'b':
+                editorMoveToPrevWord();
+                break;
+            case 'G':
+                if (E.numrows > 0) {
+                    editorSetCursorToFilePosition(E.numrows - 1, 0);
+                }
+                break;
             case 'i':
-                E.mode = MODE_INSERT;
-                editorSetStatusMessage("-- INSERT --");
+                editorEnterInsertMode();
+                break;
+            case 'I': {
+                int filerow = E.rowoff + E.cy;
+                int target  = 0;
+                if (filerow >= 0 && filerow < E.numrows) {
+                    erow *row = &E.row[filerow];
+                    while (target < row->size &&
+                           isspace((unsigned char)row->chars[target])) {
+                        target++;
+                    }
+                }
+                editorSetCursorToFilePosition(filerow, target);
+                editorEnterInsertMode();
+                break;
+            }
+            case 'a': {
+                int filerow = E.rowoff + E.cy;
+                int filecol = E.coloff + E.cx;
+                if (filerow >= 0 && filerow < E.numrows) {
+                    erow *row = &E.row[filerow];
+                    if (filecol < row->size) {
+                        filecol++;
+                    }
+                }
+                editorSetCursorToFilePosition(filerow, filecol);
+                editorEnterInsertMode();
+                break;
+            }
+            case 'A': {
+                int filerow = E.rowoff + E.cy;
+                int filecol = 0;
+                if (filerow >= 0 && filerow < E.numrows) {
+                    filecol = E.row[filerow].size;
+                }
+                editorSetCursorToFilePosition(filerow, filecol);
+                editorEnterInsertMode();
+                break;
+            }
+            case 'o':
+                editorSaveUndoSnapshot();
+                editorOpenLineBelow();
+                editorEnterInsertMode();
+                break;
+            case 'O':
+                editorSaveUndoSnapshot();
+                editorOpenLineAbove();
+                editorEnterInsertMode();
+                break;
+            case 'x':
+                editorSaveUndoSnapshot();
+                editorDeleteCharUnderCursor();
+                break;
+            case 'c':
+                editorSaveUndoSnapshot();
+                editorChangeCharUnderCursor();
+                break;
+            case 'C':
+                editorSaveUndoSnapshot();
+                editorDeleteToEndOfLine();
+                editorEnterInsertMode();
+                break;
+            case 'D':
+                editorSaveUndoSnapshot();
+                editorDeleteToEndOfLine();
+                break;
+            case 'u':
+                editorUndoLastChange();
+                break;
+            case 'd':
+                normal_d_pending = 1;
+                normal_g_pending = 0;
+                editorSetStatusMessage("d");
+                break;
+            case 'g':
+                normal_d_pending = 0;
+                normal_g_pending = 1;
+                editorSetStatusMessage("g");
+                break;
+            case ':':
+                normal_d_pending = 0;
+                normal_g_pending = 0;
+                editorCommandMode(fd);
                 break;
             default:
+                normal_d_pending = 0;
+                normal_g_pending = 0;
                 break;
             }
         } else {
             switch (c) {
             case ENTER: /* Enter */
             case '\n':  /* Also accept newline (10) */
+                editorSaveUndoSnapshot();
                 editorInsertNewline();
                 break;
             case BACKSPACE: /* Backspace */
             case CTRL_H:    /* Ctrl-h */
             case DEL_KEY:
+                editorSaveUndoSnapshot();
                 editorDelChar();
                 break;
             case PAGE_UP:
@@ -1507,15 +2130,12 @@ void editorProcessKeypress(int fd)
                 editorMoveCursor(c);
                 break;
             default:
+                editorSaveUndoSnapshot();
                 editorInsertChar(c);
                 break;
             }
         }
         break;
-    }
-
-    if (c != CTRL_Q) {
-        quit_times = KILO_QUIT_TIMES; /* Reset countdown after other keys */
     }
 }
 
@@ -1553,11 +2173,31 @@ void initEditor(void)
     E.rowoff   = 0;
     E.coloff   = 0;
     E.numrows  = 0;
-    E.mode     = MODE_INSERT;
+    E.mode     = MODE_NORMAL;
     E.row      = nullptr;
     E.dirty    = 0;
+    E.undo_len = 0;
+    E.redo_len = 0;
+    for (int i = 0; i < KILO_HISTORY_DEPTH; i++) {
+        E.undo_stack[i].row = nullptr;
+        E.undo_stack[i].numrows = 0;
+        E.undo_stack[i].dirty = 0;
+        E.undo_stack[i].cx = 0;
+        E.undo_stack[i].cy = 0;
+        E.undo_stack[i].rowoff = 0;
+        E.undo_stack[i].coloff = 0;
+        E.redo_stack[i].row = nullptr;
+        E.redo_stack[i].numrows = 0;
+        E.redo_stack[i].dirty = 0;
+        E.redo_stack[i].cx = 0;
+        E.redo_stack[i].cy = 0;
+        E.redo_stack[i].rowoff = 0;
+        E.redo_stack[i].coloff = 0;
+    }
     E.filename = nullptr;
     E.syntax   = nullptr;
+    E.statusmsg[0] = '\0';
+    E.statusmsg_time = 0;
     updateWindowSize();
 }
 
@@ -1573,7 +2213,7 @@ int main(int argc, char **argv)
     editorOpen(argv[1]);
     enableRawMode(STDIN_FILENO);
     editorSetStatusMessage(
-        "HELP: Esc = normal | i = insert | hjkl = move | Ctrl-S/Q/F");
+        "HELP: Esc = normal | hjkl w b gg G | i/I/a/A/o/O | x c C d dd D u Ctrl+R | :w :q :wq");
     while (1) {
         editorRefreshScreen();
         editorProcessKeypress(STDIN_FILENO);
