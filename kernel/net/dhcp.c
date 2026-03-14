@@ -274,16 +274,27 @@ void dhcp_receive(uint8_t* packet, uint16_t len)
     }
 }
 
-/// @brief Sends a DHCP Request packet.
-/// This is in response to a DHCP Offer packet from the server.
-void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
+/// @brief Shared packet builder for DHCP Discover and Request.
+/// @param mac        Client MAC address (used for chaddr and, for Discover, ether src).
+/// @param src_mac    MAC to place in the Ethernet source field (may differ for Request).
+/// @param dhcp_op    DHCP op code (DHCP_OP_DISCOVER / DHCP_OP_REQUEST).
+/// @param label      Log message printed before sending.
+/// @param set_options Callback that fills dhcp_header.options; receives (options, ctx).
+/// @param ctx        Opaque context forwarded to set_options.
+static void dhcp_send_packet(const uint8_t mac[static 6],
+                              const uint8_t src_mac[static 6],
+                              uint8_t dhcp_op,
+                              const char *label,
+                              void (*set_options)(uint8_t *, const void *),
+                              const void *ctx)
 {
-    boot_message(INFO, "Sending DHCP Request...");
+    boot_message(INFO, "%s", label);
+
     struct ether_header ether_header = {
         .dest_host = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
         .ether_type = htons(ETHERTYPE_IP),
     };
-    memcpy(ether_header.src_host, network_get_my_mac_address(), 6);
+    memcpy(ether_header.src_host, src_mac, 6);
 
     constexpr uint8_t zero_ip[4] = {0, 0, 0, 0};
     constexpr uint8_t bcast_ip[4] = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -292,19 +303,19 @@ void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
                      (uint16_t)(sizeof(struct udp_header) + sizeof(struct dhcp_header)));
 
     struct udp_header udp_header = {
-        .src_port = htons(DHCP_SOURCE_PORT),
+        .src_port  = htons(DHCP_SOURCE_PORT),
         .dest_port = htons(DHCP_DEST_PORT),
-        .len = htons(sizeof(struct udp_header) + sizeof(struct dhcp_header)),
-        .checksum = 0x0000,
+        .len       = htons(sizeof(struct udp_header) + sizeof(struct dhcp_header)),
+        .checksum  = 0x0000,
     };
 
     struct dhcp_header dhcp_header = {
-        .op = DHCP_OP_REQUEST,
+        .op    = dhcp_op,
         .htype = DHCP_HTYPE_ETH,
-        .hlen = DHCP_HLEN_ETH,
-        .hops = 0,
-        .xid = 0x726f626,
-        .secs = 0x0000,
+        .hlen  = DHCP_HLEN_ETH,
+        .hops  = 0,
+        .xid   = 0x726f626,
+        .secs  = 0x0000,
         .flags = htons(DHCP_FLAG_BROADCAST),
         .ciaddr = {0},
         .yiaddr = {0},
@@ -312,14 +323,13 @@ void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
         .giaddr = {0},
         .magic = htonl(DHCP_MAGIC_COOKIE),
     };
-
     memcpy(dhcp_header.chaddr, mac, 6);
 
-    set_request_dhcp_options(dhcp_header.options, ip, server_ip);
+    set_options(dhcp_header.options, ctx);
 
     // Pseudo-header for UDP checksum calculation
-    struct udp_pseudo_header pseudo_header = {
-        .src_ip = {
+    const struct udp_pseudo_header pseudo_header = {
+        .src_ip  = {
             ipv4_header.source_ip[0],
             ipv4_header.source_ip[1],
             ipv4_header.source_ip[2],
@@ -331,109 +341,60 @@ void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
             ipv4_header.dest_ip[2],
             ipv4_header.dest_ip[3],
         },
-        .zero = 0,
-        .protocol = IP_PROTOCOL_UDP,
+        .zero       = 0,
+        .protocol   = IP_PROTOCOL_UDP,
         .udp_length = udp_header.len,
     };
 
     uint8_t udp_checksum_buf[sizeof(struct udp_pseudo_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)];
-
     memcpy(udp_checksum_buf, &pseudo_header, sizeof(struct udp_pseudo_header));
     memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header), &udp_header, sizeof(struct udp_header));
     memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header) + sizeof(struct udp_header),
-           &dhcp_header,
-           sizeof(struct dhcp_header));
+           &dhcp_header, sizeof(struct dhcp_header));
 
     udp_header.checksum = checksum(udp_checksum_buf, sizeof(udp_checksum_buf), 0);
 
     const struct dhcp_packet packet = {
-        .eth = ether_header,
-        .ip = ipv4_header,
-        .udp = udp_header,
+        .eth  = ether_header,
+        .ip   = ipv4_header,
+        .udp  = udp_header,
         .dhcp = dhcp_header,
     };
 
     network_send_packet(&packet, sizeof(struct dhcp_packet));
 }
 
+// Context struct for set_request_dhcp_options callback
+struct dhcp_request_ctx {
+    const uint8_t *ip;
+    const uint8_t *server_ip;
+};
+
+static void set_request_options_cb(uint8_t *options, const void *ctx)
+{
+    const struct dhcp_request_ctx *r = ctx;
+    set_request_dhcp_options(options, r->ip, r->server_ip);
+}
+
+static void set_discover_options_cb(uint8_t *options, const void *ctx)
+{
+    (void)ctx;
+    set_discover_dhcp_options(options);
+}
+
+/// @brief Sends a DHCP Request packet.
+/// This is in response to a DHCP Offer packet from the server.
+void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
+{
+    const struct dhcp_request_ctx ctx = { .ip = ip, .server_ip = server_ip };
+    dhcp_send_packet(mac, network_get_my_mac_address(), DHCP_OP_REQUEST,
+                     "Sending DHCP Request...", set_request_options_cb, &ctx);
+}
+
 /// @brief Sends a DHCP Discover packet.
 /// This is the first step in the DHCP process.
 void dhcp_send_discover(uint8_t mac[6])
 {
-    boot_message(INFO, "Sending DHCP Discover...");
-    struct ether_header ether_header = {
-        .dest_host = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-        .ether_type = htons(ETHERTYPE_IP),
-    };
-    memcpy(ether_header.src_host, mac, 6);
-
-    constexpr uint8_t zero_ip[4] = {0, 0, 0, 0};
-    constexpr uint8_t bcast_ip[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-    struct ipv4_header ipv4_header = {0};
-    ipv4_fill_header(&ipv4_header, IP_PROTOCOL_UDP, zero_ip, bcast_ip,
-                     (uint16_t)(sizeof(struct udp_header) + sizeof(struct dhcp_header)));
-
-    struct udp_header udp_header = {
-        .src_port = htons(DHCP_SOURCE_PORT),
-        .dest_port = htons(DHCP_DEST_PORT),
-        .len = htons(sizeof(struct udp_header) + sizeof(struct dhcp_header)),
-        .checksum = 0x0000,
-    };
-
-    struct dhcp_header dhcp_header = {
-        .op = DHCP_OP_DISCOVER,
-        .htype = DHCP_HTYPE_ETH,
-        .hlen = DHCP_HLEN_ETH,
-        .hops = 0,
-        .xid = 0x726f626,
-        .secs = 0x0000,
-        .flags = htons(DHCP_FLAG_BROADCAST),
-        .ciaddr = {0},
-        .yiaddr = {0},
-        .siaddr = {0},
-        .giaddr = {0},
-        .magic = htonl(DHCP_MAGIC_COOKIE),
-    };
-
-    memcpy(dhcp_header.chaddr, mac, 6);
-
-    set_discover_dhcp_options(dhcp_header.options);
-
-    // Pseudo-header for UDP checksum calculation
-    const struct udp_pseudo_header pseudo_header = {
-        .src_ip = {
-            ipv4_header.source_ip[0],
-            ipv4_header.source_ip[1],
-            ipv4_header.source_ip[2],
-            ipv4_header.source_ip[3],
-        },
-        .dest_ip = {
-            ipv4_header.dest_ip[0],
-            ipv4_header.dest_ip[1],
-            ipv4_header.dest_ip[2],
-            ipv4_header.dest_ip[3],
-        },
-        .zero = 0,
-        .protocol = IP_PROTOCOL_UDP,
-        .udp_length = udp_header.len,
-    };
-
-    uint8_t udp_checksum_buf[sizeof(struct udp_pseudo_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)];
-
-    memcpy(udp_checksum_buf, &pseudo_header, sizeof(struct udp_pseudo_header));
-    memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header), &udp_header, sizeof(struct udp_header));
-    memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header) + sizeof(struct udp_header),
-           &dhcp_header,
-           sizeof(struct dhcp_header));
-
-    udp_header.checksum = checksum(udp_checksum_buf, sizeof(udp_checksum_buf), 0);
-
-    const struct dhcp_packet packet = {
-        .eth = ether_header,
-        .ip = ipv4_header,
-        .udp = udp_header,
-        .dhcp = dhcp_header,
-    };
-
-    network_send_packet(&packet, sizeof(struct dhcp_packet));
+    dhcp_send_packet(mac, mac, DHCP_OP_DISCOVER,
+                     "Sending DHCP Discover...", set_discover_options_cb, NULL);
 }

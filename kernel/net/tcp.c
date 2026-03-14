@@ -72,18 +72,8 @@ int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], cons
     eth->ether_type = htons(ETHERTYPE_IP);
 
     auto const ip = (struct ipv4_header*)(packet + eth_len);
-    ip->version = 4;
-    ip->ihl = (uint8_t)(ip_header_len / 4);
-    ip->dscp_ecn = 0;
-    ip->total_length = htons((uint16_t)(ip_header_len + tcp_header_len + payload_len));
-    ip->identification = 0;
-    ip->flags_fragment_offset = 0;
-    ip->ttl = 64;
-    ip->protocol = IP_PROTOCOL_TCP;
-    ip->header_checksum = 0;
-    memcpy(ip->source_ip, src_ip, sizeof(src_ip));
-    memcpy(ip->dest_ip, dest_ip, 4);
-    ip->header_checksum = checksum(ip, (int)ip_header_len, 0);
+    ipv4_fill_header(ip, IP_PROTOCOL_TCP, src_ip, dest_ip,
+                     (uint16_t)(tcp_header_len + payload_len));
 
     auto const tcp = (struct tcp_header*)((uint8_t*)ip + ip_header_len);
     memset(tcp, 0, sizeof(*tcp));
