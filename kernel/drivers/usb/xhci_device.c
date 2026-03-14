@@ -301,6 +301,7 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
 
     if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
         boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR failed", dev->slot_id);
+        dma_free_pages(desc_phys, PAGE_SIZE);
         return false;
     }
 
@@ -316,6 +317,7 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
                  pci_find_vendor(desc->id_vendor),
                  (unsigned)desc->id_product,
                  (unsigned)desc->b_device_class);
+    dma_free_pages(desc_phys, PAGE_SIZE);
     return true;
 }
 
@@ -339,6 +341,7 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
 
     if (!xhci_control_transfer(xhci, dev, &setup, desc_phys, setup.w_length, true)) {
         boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR(CONFIG) failed", dev->slot_id);
+        dma_free_pages(desc_phys, PAGE_SIZE);
         return false;
     }
 
@@ -352,6 +355,7 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
                      cfg->b_length,
                      cfg->b_descriptor_type,
                      cfg->w_total_length);
+        dma_free_pages(desc_phys, PAGE_SIZE);
         return false;
     }
 
@@ -368,14 +372,17 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     if (total_len > 64u) {
         if (!dma_alloc_pages(total_len, PAGE_SIZE, 0, &full_phys, &full_buf)) {
             boot_message(ERROR, "[xHCI] Config descriptor full alloc failed");
+            dma_free_pages(desc_phys, PAGE_SIZE);
             return false;
         }
+        dma_free_pages(desc_phys, PAGE_SIZE);
     }
 
     memset(full_buf, 0, total_len);
     setup.w_length = total_len;
     if (!xhci_control_transfer(xhci, dev, &setup, full_phys, total_len, true)) {
         boot_message(WARNING, "[xHCI] Slot %u GET_DESCRIPTOR(CONFIG) full failed", dev->slot_id);
+        dma_free_pages(full_phys, PAGE_SIZE);
         return false;
     }
 
@@ -383,16 +390,20 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     if (msc_ok) {
         if (!xhci_set_configuration(xhci, dev, xhci_msc_config_value())) {
             boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+            dma_free_pages(full_phys, PAGE_SIZE);
             return false;
         }
         tsc_sleep_ms(20);
 
-        if (!xhci_msc_configure_endpoints(xhci))
+        if (!xhci_msc_configure_endpoints(xhci)) {
+            dma_free_pages(full_phys, PAGE_SIZE);
             return false;
+        }
 
         if (!xhci_msc_init(xhci))
             boot_message(WARNING, "[xHCI] Slot %u MSC inquiry failed", dev->slot_id);
 
+        dma_free_pages(full_phys, PAGE_SIZE);
         return true;
     }
 
@@ -400,18 +411,23 @@ bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device
     if (hid_ok) {
         if (!xhci_set_configuration(xhci, dev, xhci_hid_mouse_config_value())) {
             boot_message(WARNING, "[xHCI] Slot %u SET_CONFIGURATION failed", dev->slot_id);
+            dma_free_pages(full_phys, PAGE_SIZE);
             return false;
         }
         tsc_sleep_ms(20);
 
-        if (!xhci_hid_mouse_configure_endpoints(xhci))
+        if (!xhci_hid_mouse_configure_endpoints(xhci)) {
+            dma_free_pages(full_phys, PAGE_SIZE);
             return false;
+        }
 
         if (!xhci_hid_mouse_init(xhci))
             boot_message(WARNING, "[xHCI] Slot %u HID mouse init failed", dev->slot_id);
 
+        dma_free_pages(full_phys, PAGE_SIZE);
         return true;
     }
 
+    dma_free_pages(full_phys, PAGE_SIZE);
     return true;
 }
