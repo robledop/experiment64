@@ -34,20 +34,13 @@ int sys_read(int fd, char *buf, size_t count)
             return -EBADF;
         }
 
-        uint8_t kbuf[256];
-        size_t max = count < sizeof(kbuf) ? count : sizeof(kbuf);
         size_t read = 0;
-        while (read < max) {
+        while (read < count) {
             if (read > 0 && !console_has_char()) {
                 break;
             }
 
-            kbuf[read++] = console_get_char();
-        }
-        if (read > 0 && !copy_to_user(buf, kbuf, read)) {
-            if (desc)
-                fd_put(desc);
-            return -EFAULT;
+            buf[read++] = console_get_char();
         }
         if (desc)
             fd_put(desc);

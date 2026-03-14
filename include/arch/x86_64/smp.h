@@ -2,8 +2,6 @@
 #include <stdint.h>
 #include <arch/x86_64/cpu.h>
 
-#define MAX_CPUS 32
-
 void smp_init_cpu0(void);
 void smp_boot_aps(void);
 void smp_init_ap_scheduler(void);

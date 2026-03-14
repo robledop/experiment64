@@ -19,10 +19,7 @@ int sys_stat(const char* path, struct stat* st)
     if (!inode)
         return -ENOENT;
 
-    struct stat kst;
-    fill_stat_from_inode(inode, &kst);
+    fill_stat_from_inode(inode, st);
     vfs_release(inode);
-    if (!copy_to_user(st, &kst, sizeof(kst)))
-        return -EFAULT;
     return ALL_OK;
 }

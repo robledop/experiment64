@@ -19,10 +19,7 @@ int sys_fstat(int fd, struct stat *st)
         return -EBADF;
     }
 
-    struct stat kst;
-    fill_stat_from_inode(desc->inode, &kst);
+    fill_stat_from_inode(desc->inode, st);
     fd_put(desc);
-    if (!copy_to_user(st, &kst, sizeof(kst)))
-        return -EFAULT;
     return ALL_OK;
 }

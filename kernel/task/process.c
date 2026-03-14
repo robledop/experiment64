@@ -331,13 +331,6 @@ void process_mark_exited_locked(process_t *proc, int exit_code, process_t **pare
         thread_state_store(t, THREAD_TERMINATED);
     }
 
-    // Enqueue detached terminated threads for cleanup
-    thread_t *t2, *tmp;
-    list_foreach_entry_safe(t2, tmp, &proc->threads, list) {
-        if (t2->detached)
-            scheduler_enqueue_terminated(t2);
-    }
-
     process_t *new_parent = init_process ? init_process : kernel_process;
     process_t *child;
     list_foreach_entry(child, &process_list, list) {

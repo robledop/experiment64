@@ -2,9 +2,7 @@
 
 #include <fs/pty.h>
 #include <mem/heap.h>
-#include <status.h>
 #include <sys/fcntl.h>
-#include <sys/syscall.h>
 
 static file_descriptor_t *pty_fd_new(vfs_inode_t *inode)
 {
@@ -81,11 +79,7 @@ int sys_openpty(int fds[2])
         return -1;
     }
 
-    int fds_out[2] = { master_fd, slave_fd };
-    if (!copy_to_user(fds, fds_out, sizeof(fds_out))) {
-        sys_close(master_fd);
-        sys_close(slave_fd);
-        return -EFAULT;
-    }
+    fds[0] = master_fd;
+    fds[1] = slave_fd;
     return 0;
 }

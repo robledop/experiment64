@@ -7,6 +7,8 @@
 #include <arch/x86_64/apic.h>
 #include <sys/syscall.h>
 
+#define MAX_CPUS 32
+
 static volatile int cpus_started        = 0;
 static volatile bool ap_scheduler_ready = false;
 static cpu_t cpus[MAX_CPUS];

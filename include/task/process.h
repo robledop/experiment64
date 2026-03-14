@@ -7,7 +7,6 @@
 #include <mem/vmm.h>
 #include <sys/signal.h>
 #include <arch/x86_64/cpu.h>
-#include <arch/x86_64/apic.h>
 
 #define KSTACK_SIZE 65536
 #define KSTACK_SYSCALL_HEADROOM 512
@@ -15,7 +14,6 @@
 #define PROCESS_NAME_MAX 64
 #define MAX_FDS 128
 #define TIME_SLICE_MS 50
-#define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 #define VMA_READ (1u << 0)
 #define VMA_WRITE (1u << 1)
@@ -111,8 +109,7 @@ typedef struct Thread
     uint64_t _align[1];       // Padding to keep list 16-byte aligned relative to start
     list_item_t list;         // Thread list node
     int tid;
-    int last_cpu;       // Last CPU the thread ran on (for debugging)
-    int running_on_cpu; // CPU index this thread is active on, or -1 if not running
+    int last_cpu; // Last CPU the thread ran on (for debugging)
     thread_state_t state;
     int exit_code;
     bool is_idle;  // Is this the idle thread?
@@ -185,7 +182,6 @@ int thread_wakeup_n(void *chan, process_t *scope, int max_count);
 void switch_to(thread_t *prev, thread_t *next);
 
 void process_mark_exited_locked(process_t *proc, int exit_code, process_t **parent_out);
-void scheduler_enqueue_terminated(thread_t *t);
 void process_spawn_init(void);
 void process_dump(void);
 void cpu_set_active_thread(cpu_t *cpu, thread_t *thread);

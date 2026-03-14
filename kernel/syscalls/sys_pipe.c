@@ -1,9 +1,7 @@
 #include <syscall_common.h>
 #include <fs/pipe.h>
 #include <mem/heap.h>
-#include <status.h>
 #include <sys/fcntl.h>
-#include <sys/syscall.h>
 
 int sys_pipe(int pipefd[2])
 {
@@ -66,12 +64,8 @@ int sys_pipe(int pipefd[2])
         return -1;
     }
 
-    int fds_out[2] = { read_fd, write_fd };
-    if (!copy_to_user(pipefd, fds_out, sizeof(fds_out))) {
-        sys_close(read_fd);
-        sys_close(write_fd);
-        return -EFAULT;
-    }
+    pipefd[0] = read_fd;
+    pipefd[1] = write_fd;
 
     return 0;
 }
