@@ -146,6 +146,7 @@ static int enableRawMode(int fd);
 int editorReadKey(int fd);
 void editorRefreshScreen(void);
 int editorSave(void);
+static void editorClearUndoSnapshot(void);
 
 static void ensure_line_capacity(char **buf, size_t *cap, size_t needed)
 {
@@ -176,6 +177,7 @@ static void editorDie(const char *msg)
 
 static void editorCleanExit(void)
 {
+    editorClearUndoSnapshot();
     disableRawMode(STDIN_FILENO);
     write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
     exit();
@@ -921,13 +923,7 @@ static void editorPushHistory(editorSnapshot *stack, int *len)
         memmove(&stack[0],
                 &stack[1],
                 sizeof(stack[0]) * (KILO_HISTORY_DEPTH - 1));
-        stack[KILO_HISTORY_DEPTH - 1].row = nullptr;
-        stack[KILO_HISTORY_DEPTH - 1].numrows = 0;
-        stack[KILO_HISTORY_DEPTH - 1].dirty = 0;
-        stack[KILO_HISTORY_DEPTH - 1].cx = 0;
-        stack[KILO_HISTORY_DEPTH - 1].cy = 0;
-        stack[KILO_HISTORY_DEPTH - 1].rowoff = 0;
-        stack[KILO_HISTORY_DEPTH - 1].coloff = 0;
+        stack[KILO_HISTORY_DEPTH - 1] = (editorSnapshot){0};
         (*len)--;
     }
     editorCaptureSnapshot(&stack[*len]);
@@ -1813,13 +1809,7 @@ static void editorMoveToPrevWord(void)
     editorSetCursorToFilePosition(filerow, filecol);
 }
 
-static void editorEnterInsertMode(void)
-{
-    E.mode = MODE_INSERT;
-    editorSetStatusMessage("-- INSERT --");
-}
-
-static void editorOpenLineBelow(void)
+static int editorCurrentFileRow(void)
 {
     int filerow = E.rowoff + E.cy;
     if (filerow < 0) {
@@ -1828,7 +1818,19 @@ static void editorOpenLineBelow(void)
     if (filerow > E.numrows) {
         filerow = E.numrows;
     }
+    return filerow;
+}
 
+static void editorEnterInsertMode(void)
+{
+    editorSaveUndoSnapshot();
+    E.mode = MODE_INSERT;
+    editorSetStatusMessage("-- INSERT --");
+}
+
+static void editorOpenLineBelow(void)
+{
+    int filerow = editorCurrentFileRow();
     int at = (filerow >= E.numrows) ? E.numrows : filerow + 1;
     editorInsertRow(at, "", 0);
     editorSetCursorToFilePosition(at, 0);
@@ -1836,14 +1838,7 @@ static void editorOpenLineBelow(void)
 
 static void editorOpenLineAbove(void)
 {
-    int filerow = E.rowoff + E.cy;
-    if (filerow < 0) {
-        filerow = 0;
-    }
-    if (filerow > E.numrows) {
-        filerow = E.numrows;
-    }
-
+    int filerow = editorCurrentFileRow();
     editorInsertRow(filerow, "", 0);
     editorSetCursorToFilePosition(filerow, 0);
 }
@@ -1861,8 +1856,7 @@ static void editorDeleteCharUnderCursor(void)
         return;
     }
 
-    editorMoveCursor(ARROW_RIGHT);
-    editorDelChar();
+    editorRowDelChar(row, filecol);
 }
 
 static void editorDeleteCurrentLine(void)
@@ -2110,13 +2104,11 @@ void editorProcessKeypress(int fd)
             switch (c) {
             case ENTER: /* Enter */
             case '\n':  /* Also accept newline (10) */
-                editorSaveUndoSnapshot();
                 editorInsertNewline();
                 break;
             case BACKSPACE: /* Backspace */
             case CTRL_H:    /* Ctrl-h */
             case DEL_KEY:
-                editorSaveUndoSnapshot();
                 editorDelChar();
                 break;
             case PAGE_UP:
@@ -2130,7 +2122,6 @@ void editorProcessKeypress(int fd)
                 editorMoveCursor(c);
                 break;
             default:
-                editorSaveUndoSnapshot();
                 editorInsertChar(c);
                 break;
             }
@@ -2179,20 +2170,8 @@ void initEditor(void)
     E.undo_len = 0;
     E.redo_len = 0;
     for (int i = 0; i < KILO_HISTORY_DEPTH; i++) {
-        E.undo_stack[i].row = nullptr;
-        E.undo_stack[i].numrows = 0;
-        E.undo_stack[i].dirty = 0;
-        E.undo_stack[i].cx = 0;
-        E.undo_stack[i].cy = 0;
-        E.undo_stack[i].rowoff = 0;
-        E.undo_stack[i].coloff = 0;
-        E.redo_stack[i].row = nullptr;
-        E.redo_stack[i].numrows = 0;
-        E.redo_stack[i].dirty = 0;
-        E.redo_stack[i].cx = 0;
-        E.redo_stack[i].cy = 0;
-        E.redo_stack[i].rowoff = 0;
-        E.redo_stack[i].coloff = 0;
+        E.undo_stack[i] = (editorSnapshot){0};
+        E.redo_stack[i] = (editorSnapshot){0};
     }
     E.filename = nullptr;
     E.syntax   = nullptr;
