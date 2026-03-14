@@ -24,7 +24,7 @@ int sys_rename(const char *oldpath, const char *newpath)
     vfs_inode_t *old_node = vfs_resolve_path(abs_old);
     if (!old_node)
         return -ENOENT;
-    if ((old_node->flags & 0x07) == VFS_DIRECTORY) {
+    if ((old_node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
         vfs_release(old_node);
         return -EPERM;
     }
@@ -38,7 +38,7 @@ int sys_rename(const char *oldpath, const char *newpath)
     vfs_inode_t *new_parent = vfs_resolve_path(new_parent_path);
     if (!new_parent)
         return -ENOENT;
-    if ((new_parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((new_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         vfs_release(new_parent);
         return -ENOTDIR;
     }
@@ -46,7 +46,7 @@ int sys_rename(const char *oldpath, const char *newpath)
 
     vfs_inode_t *new_node = vfs_resolve_path(abs_new);
     if (new_node) {
-        if ((new_node->flags & 0x07) == VFS_DIRECTORY) {
+        if ((new_node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
             vfs_release(new_node);
             return -EISDIR;
         }

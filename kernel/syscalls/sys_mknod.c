@@ -34,7 +34,7 @@ int sys_mknod(const char* path, int mode, int dev)
     vfs_inode_t *parent = vfs_resolve_path(parent_path);
     if (!parent)
         return -ENOENT;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         vfs_release(parent);
         return -ENOTDIR;
     }

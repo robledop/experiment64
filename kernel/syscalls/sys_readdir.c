@@ -17,7 +17,7 @@ int sys_readdir(int fd, vfs_dirent_t* dent)
         fd_put(desc);
         return -EBADF;
     }
-    if ((desc->inode->flags & 0x07) != VFS_DIRECTORY)
+    if ((desc->inode->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
     {
         fd_put(desc);
         return -ENOTDIR;

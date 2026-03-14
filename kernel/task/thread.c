@@ -4,7 +4,6 @@
 #include <drivers/terminal.h>
 #include <arch/x86_64/apic.h>
 
-#define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 int next_tid = 1;
 

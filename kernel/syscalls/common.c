@@ -407,7 +407,7 @@ void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
     // Fallback to generic stat
     st->dev     = 0;
     st->ino     = (int)inode->inode;
-    st->type    = (int)(inode->flags & 0x07);
+    st->type    = (int)(inode->flags & VFS_TYPE_MASK);
     st->st_mode = vfs_mode_from_type((uint32_t)st->type);
     st->nlink   = 1;
     st->size    = inode->size;

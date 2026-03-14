@@ -17,6 +17,7 @@ uint8_t* my_ip_address = nullptr;
 uint8_t* default_gateway = nullptr;
 uint8_t* subnet_mask = nullptr;
 uint32_t* dns_servers;
+static uint32_t dns_count;
 
 static uint8_t* mac = nullptr;
 static network_send_fn network_send;
@@ -60,6 +61,7 @@ void network_set_dns_servers(uint32_t dns_servers_p[static 1], uint32_t dns_serv
             kfree(dns_servers);
             dns_servers = nullptr;
         }
+        dns_count = 0;
         return;
     }
 
@@ -69,6 +71,7 @@ void network_set_dns_servers(uint32_t dns_servers_p[static 1], uint32_t dns_serv
     if (dns_servers)
         kfree(dns_servers);
     dns_servers = new_servers;
+    dns_count = dns_server_count;
     memcpy(dns_servers, dns_servers_p, sizeof(uint32_t) * dns_server_count);
 }
 
@@ -132,7 +135,7 @@ uint32_t* network_get_dns_servers(void)
 
 uint32_t network_get_dns_server_count(void)
 {
-    return dns_servers ? *dns_servers : 0;
+    return dns_count;
 }
 
 const char* find_ether_type(const uint16_t ether_type)

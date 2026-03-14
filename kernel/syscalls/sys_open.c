@@ -23,7 +23,7 @@ int sys_open(const char* path, int flags)
     if (!inode)
         return -ENOENT;
 
-    if ((inode->flags & 0x07) == VFS_DIRECTORY && want_write)
+    if ((inode->flags & VFS_TYPE_MASK) == VFS_DIRECTORY && want_write)
     {
         vfs_release(inode);
         return -EISDIR;

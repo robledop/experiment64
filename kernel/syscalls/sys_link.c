@@ -22,7 +22,7 @@ int sys_link(const char* oldpath, const char* newpath)
     vfs_inode_t *target = vfs_resolve_path(abs_old);
     if (!target)
         return -ENOENT;
-    if ((target->flags & 0x07) == VFS_DIRECTORY) {
+    if ((target->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
         vfs_release(target);
         return -EPERM;
     }
@@ -46,7 +46,7 @@ int sys_link(const char* oldpath, const char* newpath)
         vfs_release(target);
         return -ENOENT;
     }
-    if ((new_parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((new_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         vfs_release(new_parent);
         vfs_release(target);
         return -ENOTDIR;

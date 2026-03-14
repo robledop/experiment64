@@ -9,6 +9,7 @@
 #define VFS_PIPE 0x05
 #define VFS_SYMLINK 0x06
 #define VFS_MOUNTPOINT 0x08
+#define VFS_TYPE_MASK 0x07u
 
 #ifndef S_IFMT
 #define S_IFMT 00170000

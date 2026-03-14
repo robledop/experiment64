@@ -10,8 +10,6 @@
 #include <arch/x86_64/gdt.h>
 #include <debug.h>
 
-#define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
-static constexpr size_t MAX_CPUS = 32;
 
 spinlock_t scheduler_lock;
 volatile uint64_t scheduler_ticks = 0;

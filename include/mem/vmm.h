@@ -9,6 +9,7 @@
 #define PTE_PCD (1ull << 4)      // Page Cache Disable
 #define PTE_HUGE (1ull << 7)     // Huge Page (1GB in PDPT, 2MB in PD)
 #define PTE_NX (1ull << 63)      // No Execute
+#define PTE_ADDR_MASK 0x000FFFFFFFFFF000ull // Physical address mask (strips flags)
 
 /**
  * PML4 is the top-level page table in x86_64. It contains 512 entries, each of which points to a PDPT (Page Directory
@@ -28,6 +29,16 @@ typedef uint64_t *pml4_t;
  * bootloader (Limine) for the kernel's higher half mapping.
  */
 extern uint64_t g_hhdm_offset;
+
+static inline void *phys_to_virt(const void *phys)
+{
+    return (void *)((uintptr_t)phys + g_hhdm_offset);
+}
+
+static inline void *virt_to_phys(const void *virt)
+{
+    return (void *)((uintptr_t)virt - g_hhdm_offset);
+}
 
 void vmm_init(uint64_t hhdm_offset);
 void vmm_map_page(pml4_t pml4, uint64_t virt, uint64_t phys, uint64_t flags);

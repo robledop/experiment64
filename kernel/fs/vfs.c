@@ -314,7 +314,7 @@ int vfs_poll(const vfs_inode_t *node, short events, short *revents)
 
 vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
 {
-    if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->readdir) {
+    if ((node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY && node->iops && node->iops->readdir) {
         // Try to get entry from the underlying filesystem
         vfs_dirent_t *dirent = node->iops->readdir(node, index);
 
@@ -378,7 +378,7 @@ vfs_inode_t *vfs_finddir(vfs_inode_t *node, const char *name)
     if (!node || !name)
         return nullptr;
 
-    if ((node->flags & 0x07) == VFS_DIRECTORY && node->iops && node->iops->finddir) {
+    if ((node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY && node->iops && node->iops->finddir) {
         // Check mounts if we are at root
         if (node == vfs_root) {
             vfs_inode_t *mounted = vfs_check_mount(name);
@@ -526,7 +526,7 @@ int vfs_mknod(char *path, int mode, int dev)
         return -ENOENT;
 
     int res = ALL_OK;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         res = -ENOTDIR;
     } else if (!parent->iops || !parent->iops->mknod) {
         res = -ENOTSUP;
@@ -550,7 +550,7 @@ int vfs_link(const char *oldpath, const char *newpath)
     vfs_inode_t *target = vfs_resolve_path(oldpath);
     if (!target)
         return -ENOENT;
-    if ((target->flags & 0x07) == VFS_DIRECTORY) {
+    if ((target->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
         vfs_release(target);
         return -EPERM;
     }
@@ -577,7 +577,7 @@ int vfs_link(const char *oldpath, const char *newpath)
     }
 
     int res = ALL_OK;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         res = -ENOTDIR;
     } else if (!parent->iops || !parent->iops->link || parent->iops != target->iops) {
         res = -ENOTSUP;
@@ -608,7 +608,7 @@ int vfs_unlink(const char *path)
     vfs_inode_t *target = vfs_resolve_path(path);
     if (!target)
         return -ENOENT;
-    if ((target->flags & 0x07) == VFS_DIRECTORY) {
+    if ((target->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
         vfs_release(target);
         return -EISDIR;
     }
@@ -619,7 +619,7 @@ int vfs_unlink(const char *path)
         return -ENOENT;
 
     int res = ALL_OK;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         res = -ENOTDIR;
     } else if (!parent->iops || !parent->iops->unlink) {
         res = -ENOTSUP;
@@ -663,7 +663,7 @@ int vfs_rename(const char *oldpath, const char *newpath)
     vfs_inode_t *old_node = vfs_resolve_path(oldpath);
     if (!old_node)
         return -ENOENT;
-    if ((old_node->flags & 0x07) == VFS_DIRECTORY) {
+    if ((old_node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
         vfs_release(old_node);
         return -EPERM;
     }
@@ -671,7 +671,7 @@ int vfs_rename(const char *oldpath, const char *newpath)
 
     vfs_inode_t *new_node = vfs_resolve_path(newpath);
     if (new_node) {
-        if ((new_node->flags & 0x07) == VFS_DIRECTORY) {
+        if ((new_node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY) {
             vfs_release(new_node);
             return -EISDIR;
         }
@@ -707,7 +707,7 @@ int vfs_rename(const char *oldpath, const char *newpath)
     }
 
     int res = ALL_OK;
-    if ((old_parent->flags & 0x07) != VFS_DIRECTORY || (new_parent->flags & 0x07) != VFS_DIRECTORY) {
+    if ((old_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY || (new_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         res = -ENOTDIR;
     } else if (!old_parent->iops || old_parent->iops != new_parent->iops || !old_parent->iops->rename) {
         res = -ENOTSUP;

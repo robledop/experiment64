@@ -609,6 +609,10 @@ static void ext2_free_inode(const struct ext2_inode *ip)
 
     const int gno      = GET_GROUP_NO(ip->inum, *sb);
     buffer_head_t *bp1 = bread(ip->dev, desc_blockno);
+    if (!bp1) {
+        printk("ext2_free_inode: bread failed for group descriptor\n");
+        return;
+    }
     memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
     brelse(bp1);
 
@@ -1160,7 +1164,7 @@ static int ext2_vfs_link(vfs_inode_t *parent, const char *name, vfs_inode_t *tar
 {
     if (!parent || !target || !name)
         return -EINVAL;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
 
     struct ext2_inode *dp = (struct ext2_inode *)parent->device;
@@ -1208,7 +1212,7 @@ static int ext2_vfs_unlink(vfs_inode_t *parent, const char *name)
 {
     if (!parent || !name)
         return -EINVAL;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
 
     struct ext2_inode *dp = (struct ext2_inode *)parent->device;
@@ -1284,9 +1288,9 @@ static int ext2_vfs_rename(vfs_inode_t *old_parent, const char *old_name, vfs_in
 {
     if (!old_parent || !new_parent || !old_name || !new_name)
         return -EINVAL;
-    if ((old_parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((old_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
-    if ((new_parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((new_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
 
     auto old_dp = (struct ext2_inode *)old_parent->device;
@@ -1516,7 +1520,7 @@ static int ext2_vfs_mknod(const struct vfs_inode *node, const char *name, const 
 {
     if (!node || !name)
         return -EINVAL;
-    if ((node->flags & 0x07) != VFS_DIRECTORY)
+    if ((node->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
     if (mode != VFS_FILE && mode != VFS_DIRECTORY && mode != VFS_CHARDEVICE && mode != VFS_BLOCKDEVICE)
         return -EINVAL;

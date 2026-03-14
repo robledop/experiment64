@@ -79,7 +79,9 @@ void sleeplock_release(sleeplock_t *lk)
 bool sleeplock_holding(sleeplock_t *lk)
 {
     spinlock_acquire(&lk->lock);
-    bool r = lk->locked && (get_current_process() ? (lk->pid == get_current_process()->pid) : false);
+    bool r = lk->locked
+        && (get_current_process() ? (lk->pid == get_current_process()->pid) : false)
+        && (current_thread ? (lk->tid == current_thread->tid) : false);
     spinlock_release(&lk->lock);
     return r;
 }

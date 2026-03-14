@@ -15,7 +15,7 @@ int sys_chdir(const char *path)
     vfs_inode_t *node = vfs_resolve_path(abs_path);
     if (!node)
         return -ENOENT;
-    if ((node->flags & 0x07) != VFS_DIRECTORY) {
+    if ((node->flags & VFS_TYPE_MASK) != VFS_DIRECTORY) {
         vfs_release(node);
         return -ENOTDIR;
     }

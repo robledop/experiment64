@@ -4,17 +4,9 @@
 #include <lib/string.h>
 #include <arpa/inet.h>
 
-static spinlock_t socket_lock;
-static bool socket_lock_ready = false;
+static spinlock_t socket_lock = {0};
 static list_item_t socket_list = LIST_HEAD_INIT(socket_list);
 static uint16_t socket_next_ephemeral_port = 49152;
-
-static void socket_lock_init_once(void)
-{
-    if (socket_lock_ready) return;
-    spinlock_init(&socket_lock);
-    socket_lock_ready = true;
-}
 
 void socket_hold(socket_t* sock)
 {
@@ -109,7 +101,7 @@ void socket_register(socket_t* sock)
 {
     if (!sock) return;
 
-    socket_lock_init_once();
+
     list_init_head(&sock->list);
     list_init_head(&sock->rx_queue);
     list_init_head(&sock->accept_queue);
@@ -133,7 +125,7 @@ void socket_unregister(socket_t* sock)
 {
     if (!sock) return;
 
-    socket_lock_init_once();
+
     socket_mark_rx_closed(sock);
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
@@ -180,7 +172,7 @@ int socket_assign_port(socket_t* sock, const uint8_t ip[static 4], uint16_t requ
         return 0;
     }
 
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
 
@@ -287,7 +279,7 @@ socket_rx_packet_t* socket_rx_pop(socket_t* sock, const bool block)
 
 socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t dest_port)
 {
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     socket_t* s;
@@ -316,7 +308,7 @@ socket_t* socket_find_tcp_listener(const uint8_t dest_ip[static 4], uint16_t des
 socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t dest_port,
                                     const uint8_t src_ip[static 4], uint16_t src_port)
 {
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     socket_t* s;
@@ -350,7 +342,7 @@ socket_t* socket_find_tcp_connected(const uint8_t dest_ip[static 4], uint16_t de
 int socket_deliver_tcp(const uint8_t dest_ip[static 4], uint16_t dest_port,
                        const uint8_t src_ip[static 4], uint16_t src_port, const uint8_t* payload, size_t payload_len)
 {
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     socket_t* s;
@@ -391,7 +383,7 @@ int socket_deliver_udp(const uint8_t dest_ip[static 4], uint16_t dest_port,
                        const uint8_t src_ip[static 4], uint16_t src_port,
                        const uint8_t* payload, size_t payload_len)
 {
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     socket_t* s;
@@ -423,7 +415,7 @@ int socket_deliver_udp(const uint8_t dest_ip[static 4], uint16_t dest_port,
 int socket_deliver_icmp(const uint8_t dest_ip[static 4], const uint8_t src_ip[static 4],
                         const uint8_t* payload, size_t payload_len)
 {
-    socket_lock_init_once();
+
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
     socket_t* s;

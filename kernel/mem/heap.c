@@ -1,7 +1,9 @@
 // ReSharper disable CppDFAConstantParameter
 #include <mem/heap.h>
 #include <mem/pmm.h>
+#include <mem/vmm.h>
 #include <lib/string.h>
+#include <lib/util.h>
 #include <drivers/terminal.h>
 #include <lib/list.h>
 #include <task/spinlock.h>
@@ -77,10 +79,6 @@ static inline void slab_fill(void *dst, const int c, size_t n)
         *p++ = (uint8_t)c;
 }
 
-static inline size_t align_up_size(const size_t val, const size_t align)
-{
-    return (val + align - 1) & ~(align - 1);
-}
 
 
 static inline bool range_overlaps(const uintptr_t start, const uintptr_t end, const uintptr_t region_start,
@@ -93,7 +91,7 @@ static size_t slab_data_offset(void)
 {
     // Align slab payload area to 64 bytes so objects (e.g., FPU state) meet XSAVE/FXSAVE requirements.
     // Insert a guard region after the header to detect underflow into metadata.
-    return align_up_size(sizeof(slab_header_t) + SLAB_GUARD_LEN, 64);
+    return align_up(sizeof(slab_header_t) + SLAB_GUARD_LEN, 64);
 }
 
 static size_t slab_guard_size(void)
@@ -101,15 +99,6 @@ static size_t slab_guard_size(void)
     return slab_data_offset() - sizeof(slab_header_t);
 }
 
-static inline void *phys_to_virt(const void *phys)
-{
-    return (void *)((uintptr_t)phys + g_hhdm_offset);
-}
-
-static inline void *virt_to_phys(const void *virt)
-{
-    return (void *)((uintptr_t)virt - g_hhdm_offset);
-}
 
 
 static inline size_t slab_payload_size(const size_t obj_size)

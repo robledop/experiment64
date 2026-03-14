@@ -194,7 +194,7 @@ TEST(test_vfs_usb_mount)
         return false;
     }
 
-    const bool is_dir = ((node->flags & 0x07) == VFS_DIRECTORY);
+    const bool is_dir = ((node->flags & VFS_TYPE_MASK) == VFS_DIRECTORY);
     if (!is_dir)
     {
         printk("VFS: /usb is not a directory\n");

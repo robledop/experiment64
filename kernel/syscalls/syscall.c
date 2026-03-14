@@ -1,4 +1,5 @@
 #include <sys/syscall.h>
+#include <status.h>
 #include <arch/x86_64/cpu.h>
 #include <arch/x86_64/gdt.h>
 #include <debug.h>
@@ -269,9 +270,10 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
         ret = sys_sigprocmask((int)arg1, (const sigset_t *)arg2, (sigset_t *)arg3);
         break;
     default:
-        panic("Unknown syscall: %lu\n", syscall_number);
-        // ReSharper disable once CppDFAUnreachableCode
-        __builtin_unreachable();
+        printk("Unknown syscall: %lu pid=%d\n", syscall_number,
+               current_process ? current_process->pid : -1);
+        ret = -ENOSYS;
+        break;
     }
 
     signal_deliver_after_syscall(regs, &ret);

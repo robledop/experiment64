@@ -760,7 +760,7 @@ static int fat32_vfs_mknod(const vfs_inode_t *node, const char *name, int mode, 
 {
     if (!node || !name)
         return -EINVAL;
-    if ((node->flags & 0x07) != VFS_DIRECTORY)
+    if ((node->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
     if (mode != VFS_FILE && mode != VFS_DIRECTORY)
         return -ENOTSUP;
@@ -861,7 +861,7 @@ static int fat32_vfs_unlink(vfs_inode_t *parent, const char *name)
 {
     if (!parent || !name)
         return -EINVAL;
-    if ((parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
     fat32_inode_data_t *pdata = (fat32_inode_data_t *)parent->device;
     if (!pdata)
@@ -922,9 +922,9 @@ static int fat32_vfs_rename(vfs_inode_t *old_parent, const char *old_name,
 {
     if (!old_parent || !new_parent || !old_name || !new_name)
         return -EINVAL;
-    if ((old_parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((old_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
-    if ((new_parent->flags & 0x07) != VFS_DIRECTORY)
+    if ((new_parent->flags & VFS_TYPE_MASK) != VFS_DIRECTORY)
         return -ENOTDIR;
 
     fat32_inode_data_t *old_data = (fat32_inode_data_t *)old_parent->device;
@@ -1041,7 +1041,7 @@ static int fat32_vfs_stat(const vfs_inode_t *node, struct stat *st)
 
     st->dev     = 0;
     st->ino     = (int)node->inode;
-    st->type    = (int)(node->flags & 0x07);
+    st->type    = (int)(node->flags & VFS_TYPE_MASK);
     st->st_mode = vfs_mode_from_type((uint32_t)st->type);
     st->nlink   = 1;
     st->size    = node->size;

@@ -7,6 +7,7 @@
 #include <mem/vmm.h>
 #include <sys/signal.h>
 #include <arch/x86_64/cpu.h>
+#include <arch/x86_64/apic.h>
 
 #define KSTACK_SIZE 65536
 #define KSTACK_SYSCALL_HEADROOM 512
@@ -14,6 +15,7 @@
 #define PROCESS_NAME_MAX 64
 #define MAX_FDS 128
 #define TIME_SLICE_MS 50
+#define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
 
 #define VMA_READ (1u << 0)
 #define VMA_WRITE (1u << 1)
