@@ -225,8 +225,8 @@ static void e1000_rx_init(void)
         rx_descs[i]->status = 0;
     }
 
-    e1000_write_command(REG_RXDESCLO, (uint32_t)ring_phys);
-    e1000_write_command(REG_RXDESCHI, 0);
+    e1000_write_command(REG_RXDESCLO, (uint32_t)(ring_phys & 0xFFFFFFFF));
+    e1000_write_command(REG_RXDESCHI, (uint32_t)(ring_phys >> 32));
 
     e1000_write_command(REG_RXDESCLEN, E1000_RX_RING_SIZE * sizeof(struct e1000_rx_desc));
 
@@ -265,8 +265,8 @@ static void e1000_tx_init(void)
         tx_descs[i]->status = TSTA_DD;
     }
 
-    e1000_write_command(REG_TXDESCLO, (uint32_t)ring_phys);
-    e1000_write_command(REG_TXDESCHI, 0);
+    e1000_write_command(REG_TXDESCLO, (uint32_t)(ring_phys & 0xFFFFFFFF));
+    e1000_write_command(REG_TXDESCHI, (uint32_t)(ring_phys >> 32));
 
     e1000_write_command(REG_TXDESCLEN, E1000_TX_RING_SIZE * sizeof(struct e1000_tx_desc));
 
