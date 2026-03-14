@@ -61,6 +61,11 @@ USED static inline uint64_t align_up(uint64_t val, uint64_t align)
     return (val + align - 1) & ~(align - 1);
 }
 
+USED static inline uint64_t align_down(uint64_t val, uint64_t align)
+{
+    return val & ~(align - 1);
+}
+
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif

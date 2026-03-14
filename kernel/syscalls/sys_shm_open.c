@@ -58,16 +58,11 @@ int sys_shm_open(const char *name, int flags, size_t size)
     inode->size   = entry->size;
     inode->ref    = 1;
 
-    file_descriptor_t *desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *desc = fd_alloc(inode, O_RDWR);
     if (!desc) {
         kfree(inode);
         return -ENOMEM;
     }
-
-    desc->inode  = inode;
-    desc->offset = 0;
-    desc->flags  = O_RDWR;
-    desc->ref    = 1;
 
     int fd = fd_assign(desc, 0);
     if (fd < 0) {

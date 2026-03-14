@@ -15,30 +15,20 @@ int sys_pipe(int pipefd[2])
     if (pipe_alloc(&read_inode, &write_inode) != 0)
         return -1;
 
-    file_descriptor_t *read_desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *read_desc = fd_alloc(read_inode, O_RDONLY);
     if (!read_desc) {
         kfree(read_inode);
         kfree(write_inode);
         return -1;
     }
 
-    file_descriptor_t *write_desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *write_desc = fd_alloc(write_inode, O_WRONLY);
     if (!write_desc) {
         kfree(read_desc);
         kfree(read_inode);
         kfree(write_inode);
         return -1;
     }
-
-    read_desc->inode  = read_inode;
-    read_desc->offset = 0;
-    read_desc->flags  = O_RDONLY;
-    read_desc->ref    = 1;
-
-    write_desc->inode  = write_inode;
-    write_desc->offset = 0;
-    write_desc->flags  = O_WRONLY;
-    write_desc->ref    = 1;
     int read_fd        = -1;
     int write_fd       = -1;
     uint64_t flags;
@@ -59,6 +49,7 @@ int sys_pipe(int pipefd[2])
     if (read_fd == -1 || write_fd == -1) {
         kfree(write_desc);
         kfree(read_desc);
+        kfree(read_inode->device); // Free the shared pipe_t
         kfree(read_inode);
         kfree(write_inode);
         return -1;

@@ -13,10 +13,6 @@ static constexpr uint64_t THREAD_STACK_TOTAL_SIZE = THREAD_STACK_SIZE + THREAD_G
 static constexpr uint64_t THREAD_STACK_TOP_HINT   = 0x7FFFFFFFF000ull;
 static constexpr uint64_t THREAD_STACK_LOW_LIMIT  = 0x0000000000400000ull;
 
-static inline uint64_t align_down_u64(uint64_t val, uint64_t align)
-{
-    return val & ~(align - 1);
-}
 
 /**
  * Searches downward from a hint for a page-aligned, non-overlapping stack region of a given size in the process’s VM map.
@@ -38,7 +34,7 @@ static bool find_stack_range(process_t *proc, uint64_t size, uint64_t top_hint, 
 
     const uint64_t hint = top_hint != 0 ? top_hint : THREAD_STACK_TOP_HINT;
     uint64_t limit      = min(hint, user_top - PAGE_SIZE);
-    limit               = align_down_u64(limit, PAGE_SIZE);
+    limit               = align_down(limit, PAGE_SIZE);
 
     while (limit >= THREAD_STACK_LOW_LIMIT + size) {
         const uint64_t start = limit - size;
@@ -65,7 +61,7 @@ static bool find_stack_range(process_t *proc, uint64_t size, uint64_t top_hint, 
 
         if (next_end >= limit)
             break;
-        limit = align_down_u64(next_end, PAGE_SIZE);
+        limit = align_down(next_end, PAGE_SIZE);
     }
 
     return false;
@@ -125,7 +121,7 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     uint64_t top_hint = THREAD_STACK_TOP_HINT;
     cpu_t *cpu        = get_cpu();
     if (cpu && cpu->user_rsp) {
-        uint64_t rsp_hint = align_down_u64(cpu->user_rsp, PAGE_SIZE);
+        uint64_t rsp_hint = align_down(cpu->user_rsp, PAGE_SIZE);
         if (rsp_hint > THREAD_STACK_LOW_LIMIT + THREAD_STACK_TOTAL_SIZE)
             top_hint = min(top_hint, rsp_hint - THREAD_STACK_TOTAL_SIZE);
     }
@@ -162,7 +158,7 @@ int sys_thread_create(uint64_t entry, uint64_t arg)
     }
 
     // Thread entry is reached via iretq (no call frame), keep %rsp 8 mod 16 for SysV ABI.
-    uint64_t user_stack = align_down_u64(stack_end, 16) - 8;
+    uint64_t user_stack = align_down(stack_end, 16) - 8;
 
     thread->user_entry      = entry;
     thread->user_stack      = user_stack;

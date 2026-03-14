@@ -19,7 +19,7 @@ int64_t sys_sbrk(int64_t increment)
                 return -1; // OOM
             }
             vmm_map_page(current_process->pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
-            memset((void *)addr, 0, PAGE_SIZE);
+            memset((void *)((uint64_t)phys + g_hhdm_offset), 0, PAGE_SIZE);
         }
     } else if (increment < 0) {
         // Shrinking heap

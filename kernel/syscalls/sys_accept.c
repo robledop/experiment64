@@ -101,7 +101,7 @@ int sys_accept(const int fd, struct sockaddr* addr, socklen_t* addrlen)
     inode->iops = &socket_iops;
     inode->device = child;
 
-    auto const new_desc = (file_descriptor_t*)kzalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *new_desc = fd_alloc(inode, O_RDWR);
     if (!new_desc)
     {
         kfree(inode);
@@ -109,10 +109,6 @@ int sys_accept(const int fd, struct sockaddr* addr, socklen_t* addrlen)
         socket_put(listener);
         return -ENOMEM;
     }
-    new_desc->inode = inode;
-    new_desc->offset = 0;
-    new_desc->flags = O_RDWR;
-    new_desc->ref = 1;
     int new_fd = fd_assign(new_desc, 3);
     if (new_fd == -1)
     {

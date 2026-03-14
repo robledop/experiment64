@@ -124,17 +124,13 @@ int sys_socket(const int domain, const int type, int protocol)
     inode->iops = &socket_iops;
     inode->device = sock;
 
-    auto const desc = (file_descriptor_t*)kzalloc(sizeof(file_descriptor_t));
+    file_descriptor_t *desc = fd_alloc(inode, O_RDWR);
     if (!desc)
     {
         kfree(inode);
         socket_put(sock);
         return -ENOMEM;
     }
-    desc->inode = inode;
-    desc->offset = 0;
-    desc->flags = O_RDWR;
-    desc->ref = 1;
     int fd = fd_assign(desc, 3);
     if (fd == -1)
     {

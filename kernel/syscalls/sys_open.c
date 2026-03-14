@@ -47,19 +47,15 @@ int sys_open(const char* path, int flags)
         }
     }
 
-    file_descriptor_t* desc = kmalloc(sizeof(file_descriptor_t));
+    file_descriptor_t* desc = fd_alloc(inode, flags);
     if (!desc)
     {
         vfs_release(inode);
         return -ENOMEM;
     }
 
-    desc->inode = inode;
-    desc->offset = 0;
     if (flags & O_APPEND)
         desc->offset = inode->size;
-    desc->flags = flags;
-    desc->ref = 1;
     int fd = fd_assign(desc, 3);
     if (fd == -1)
     {

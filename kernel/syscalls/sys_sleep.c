@@ -1,6 +1,7 @@
 #include <task/process.h>
+#include <arch/x86_64/apic.h>
 
-#define TIMER_TICK_MS 10
+#define TIMER_TICK_MS (1000 / TIMER_FREQUENCY_HZ)
 
 int sys_sleep(uint64_t milliseconds)
 {

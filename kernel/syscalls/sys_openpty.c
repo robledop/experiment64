@@ -56,7 +56,7 @@ int sys_openpty(int fds[2])
     int slave_fd = -1;
     uint64_t flags = 0;
     SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
-    for (int i = 0; i < MAX_FDS; i++) {
+    for (int i = 3; i < MAX_FDS; i++) {
         if (current_process->fd_table[i] != nullptr)
             continue;
         if (master_fd < 0) {
