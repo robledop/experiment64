@@ -23,6 +23,7 @@ thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user)
     thread->process         = process;
     thread->is_user         = is_user;
     thread->ticks_remaining = TIME_SLICE_TICKS;
+    thread->running_on_cpu  = -1;
     thread_state_store(thread, THREAD_BLOCKED);
 
     init_fpu_state(&thread->fpu_state);

@@ -111,7 +111,8 @@ typedef struct Thread
     uint64_t _align[1];       // Padding to keep list 16-byte aligned relative to start
     list_item_t list;         // Thread list node
     int tid;
-    int last_cpu; // Last CPU the thread ran on (for debugging)
+    int last_cpu;       // Last CPU the thread ran on (for debugging)
+    int running_on_cpu; // CPU index this thread is active on, or -1 if not running
     thread_state_t state;
     int exit_code;
     bool is_idle;  // Is this the idle thread?
