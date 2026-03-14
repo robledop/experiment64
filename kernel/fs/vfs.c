@@ -20,6 +20,7 @@ struct mount_point
 
 static struct mount_point mount_table[16];
 static int mount_count = 0;
+static int root_real_count_cache = -1; // Cached count of real root entries, -1 = uncached
 typedef vfs_inode_t *(*vfs_mount_fn_t)(uint8_t drive_index, uint32_t partition_lba);
 
 void vfs_register_mount(const char *name, vfs_inode_t *root)
@@ -29,6 +30,7 @@ void vfs_register_mount(const char *name, vfs_inode_t *root)
         mount_table[mount_count].name[63] = '\0';
         mount_table[mount_count].root     = root;
         mount_count++;
+        root_real_count_cache = -1; // Invalidate cache on new mount
     }
 }
 
@@ -325,17 +327,19 @@ vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
         // If underlying FS is done (dirent == nullptr) AND we are at root,
         // check for virtual mount points that are NOT on disk.
 
-        // Count real entries to determine offset
-        uint32_t real_count = 0;
-        if (index > 0) {
+        // Count real entries to determine offset (cached across calls)
+        if (root_real_count_cache < 0) {
+            uint32_t count = 0;
             while (1) {
-                vfs_dirent_t *d = node->iops->readdir(node, real_count);
+                vfs_dirent_t *d = node->iops->readdir(node, count);
                 if (!d)
                     break;
                 kfree(d);
-                real_count++;
+                count++;
             }
+            root_real_count_cache = (int)count;
         }
+        uint32_t real_count = (uint32_t)root_real_count_cache;
 
         if (index < real_count)
             return nullptr; // Should have been caught by step 1
