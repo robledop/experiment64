@@ -317,6 +317,9 @@ uint32_t dns_lookup(const char *name, struct sockaddr_in *address)
 {
     struct netinfo netinfo;
     const int fd = open("/dev/eth0", O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
     ioctl(fd, GETNETINFO, &netinfo);
     close(fd);
 
