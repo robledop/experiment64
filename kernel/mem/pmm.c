@@ -18,6 +18,7 @@ static uint64_t highest_addr = 0;
 static uint64_t pmm_hhdm_offset = 0;
 static size_t reserved_base_page = 0;
 static spinlock_t pmm_lock;
+static size_t next_free_hint = 0;
 
 static int bitmap_test(size_t bit);
 
@@ -144,22 +145,26 @@ void *pmm_alloc_page(void)
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
-    for (size_t i = reserved_base_page; i < highest_page; i++)
-    {
-        if (!bitmap_test(i))
-        {
-            uintptr_t phys = i * PAGE_SIZE;
+    size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
 
-            // Never hand out a page that backs a slab header/payload.
-            if (heap_is_slab_page((void *)phys))
-            {
-                boot_message(ERROR, "pmm_alloc_page: bitmap free but slab-tracked phys=%p", (void *)phys);
-                continue;
+    // Scan from hint to end, then wrap around
+    for (int pass = 0; pass < 2 && !addr; pass++) {
+        size_t begin = (pass == 0) ? start : reserved_base_page;
+        size_t end   = (pass == 0) ? highest_page : start;
+        for (size_t i = begin; i < end; i++) {
+            if (!bitmap_test(i)) {
+                uintptr_t phys = i * PAGE_SIZE;
+
+                if (heap_is_slab_page((void *)phys)) {
+                    boot_message(ERROR, "pmm_alloc_page: bitmap free but slab-tracked phys=%p", (void *)phys);
+                    continue;
+                }
+
+                bitmap_set(i);
+                next_free_hint = i + 1;
+                addr = (void *)phys;
+                break;
             }
-
-            bitmap_set(i);
-            addr = (void *)phys;
-            break;
         }
     }
 
@@ -187,6 +192,8 @@ void pmm_free_page(void *ptr)
     }
 
     bitmap_unset(page);
+    if (page < next_free_hint)
+        next_free_hint = page;
     SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
 }
 
