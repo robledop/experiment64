@@ -1,5 +1,6 @@
 #include <net/helpers.h>
 #include <net/icmp.h>
+#include <net/ipv4.h>
 #include <net/network.h>
 #include <mem/heap.h>
 #include <lib/string.h>
@@ -29,7 +30,8 @@ void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
     const size_t payload_len = icmp_len - icmp_header_len;
     const uint8_t* payload = icmp_data + icmp_header_len;
 
-    const size_t reply_len = eth_len + ip_len;
+    constexpr size_t std_ip_len = sizeof(struct ipv4_header);
+    const size_t reply_len = eth_len + std_ip_len + icmp_len;
     uint8_t* reply_packet = kmalloc(reply_len);
     if (!reply_packet) return;
 
@@ -38,23 +40,11 @@ void icmp_send_echo_reply(const uint8_t* packet, const uint16_t len,
     memcpy(reply_ether_header->src_host, my_mac, 6);
     reply_ether_header->ether_type = htons(ETHERTYPE_IP);
 
-    uint8_t* reply_ip_base = reply_packet + eth_len;
-    memcpy(reply_ip_base, ipv4_header, ip_header_len);
-    auto const reply_ipv4_header = (struct ipv4_header*)reply_ip_base;
-    reply_ipv4_header->version = 4;
-    reply_ipv4_header->ihl = (uint8_t)(ip_header_len / 4);
-    reply_ipv4_header->dscp_ecn = 0;
-    reply_ipv4_header->total_length = htons((uint16_t)ip_len);
-    reply_ipv4_header->identification = 0;
-    reply_ipv4_header->flags_fragment_offset = 0;
-    reply_ipv4_header->ttl = 64;
-    reply_ipv4_header->protocol = IP_PROTOCOL_ICMP;
-    reply_ipv4_header->header_checksum = 0;
-    memcpy(reply_ipv4_header->source_ip, my_ip, 4);
-    memcpy(reply_ipv4_header->dest_ip, ipv4_header->source_ip, 4);
-    reply_ipv4_header->header_checksum = checksum(reply_ipv4_header, (int)ip_header_len, 0);
+    auto const reply_ipv4_header = (struct ipv4_header*)(reply_packet + eth_len);
+    ipv4_fill_header(reply_ipv4_header, IP_PROTOCOL_ICMP, my_ip,
+                     ipv4_header->source_ip, (uint16_t)icmp_len);
 
-    uint8_t* reply_icmp_data = reply_packet + eth_len + ip_header_len;
+    uint8_t* reply_icmp_data = reply_packet + eth_len + std_ip_len;
     auto const reply_icmp_header = (struct icmp_header*)reply_icmp_data;
     memcpy(reply_icmp_header, icmp_data, icmp_header_len);
     reply_icmp_header->type = ICMP_REPLY;
@@ -123,18 +113,7 @@ int icmp_sendto(const void* buf, const size_t len, struct sockaddr_in in, uint8_
     eth->ether_type = htons(ETHERTYPE_IP);
 
     auto const ip = (struct ipv4_header*)(packet + sizeof(struct ether_header));
-    ip->version = 4;
-    ip->ihl = 0x05;
-    ip->dscp_ecn = 0;
-    ip->total_length = htons(sizeof(struct ipv4_header) + len);
-    ip->identification = 0;
-    ip->flags_fragment_offset = 0;
-    ip->ttl = 64;
-    ip->protocol = IP_PROTOCOL_ICMP;
-    ip->header_checksum = 0;
-    memcpy(ip->source_ip, src_ip, 4);
-    memcpy(ip->dest_ip, in.sin_addr, 4);
-    ip->header_checksum = checksum(ip, (int)sizeof(struct ipv4_header), 0);
+    ipv4_fill_header(ip, IP_PROTOCOL_ICMP, src_ip, in.sin_addr, (uint16_t)len);
 
     uint8_t* icmp_data = (uint8_t*)ip + sizeof(struct ipv4_header);
     if (len > 0)
