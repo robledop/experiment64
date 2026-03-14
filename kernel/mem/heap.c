@@ -53,10 +53,9 @@ slab_header_t;
 
 extern uint64_t g_hhdm_offset;
 static spinlock_t heap_lock;
-// Track slab backing pages to detect accidental pmm frees
-#define SLAB_TRACK_MAX 4096
-static void *slab_pages[SLAB_TRACK_MAX];
-static size_t slab_pages_count = 0;
+// Bitmap tracking slab backing pages to detect accidental pmm frees (O(1) lookup)
+static uint8_t *slab_bitmap = nullptr;
+static size_t slab_bitmap_pages = 0; // Total pages the bitmap covers
 
 // Cache for each size
 // Sizes: 32, 64, 128, 256, 512, 1024, 2048
@@ -122,53 +121,52 @@ static inline slab_layout_t slab_layout(slab_header_t *slab, const size_t obj_si
 
 static void slab_track_add(const void *slab_virt)
 {
-    if (slab_pages_count >= SLAB_TRACK_MAX)
-        return;
-    void *phys                     = virt_to_phys(slab_virt);
-    slab_pages[slab_pages_count++] = phys;
+    if (!slab_bitmap) return;
+    uintptr_t phys = (uintptr_t)virt_to_phys(slab_virt);
+    size_t page = phys / PAGE_SIZE;
+    if (page < slab_bitmap_pages)
+        slab_bitmap[page / 8] |= (1u << (page % 8));
 }
 
 static void slab_track_remove(const void *slab_virt)
 {
-    const void *phys = virt_to_phys(slab_virt);
-    for (size_t i = 0; i < slab_pages_count; i++) {
-        if (slab_pages[i] == phys) {
-            slab_pages[i] = slab_pages[--slab_pages_count];
-            return;
-        }
-    }
+    if (!slab_bitmap) return;
+    uintptr_t phys = (uintptr_t)virt_to_phys(slab_virt);
+    size_t page = phys / PAGE_SIZE;
+    if (page < slab_bitmap_pages)
+        slab_bitmap[page / 8] &= ~(1u << (page % 8));
 }
 
 bool heap_is_slab_page(const void *phys)
 {
-    for (size_t i = 0; i < slab_pages_count; i++) {
-        if (slab_pages[i] == phys)
-            return true;
-    }
-    return false;
+    if (!slab_bitmap) return false;
+    size_t page = (uintptr_t)phys / PAGE_SIZE;
+    if (page >= slab_bitmap_pages) return false;
+    return (slab_bitmap[page / 8] & (1u << (page % 8))) != 0;
 }
 
 bool heap_is_slab_range(const void *virt_ptr, const size_t len)
 {
-    if (!virt_ptr || len == 0)
+    if (!virt_ptr || len == 0 || !slab_bitmap)
         return false;
 
     const uintptr_t start = (uintptr_t)virt_ptr;
     const uintptr_t end   = start + len;
 
-    for (size_t i = 0; i < slab_pages_count; i++) {
-        const uintptr_t slab_virt = (uintptr_t)phys_to_virt(slab_pages[i]);
-        const uintptr_t slab_end  = slab_virt + PAGE_SIZE;
-        if (!(end <= slab_virt || start >= slab_end)) {
+    // Check each page that the range touches
+    uintptr_t page_addr = start & ~(PAGE_SIZE - 1);
+    while (page_addr < end) {
+        uintptr_t phys = (uintptr_t)virt_to_phys((void *)page_addr);
+        if (heap_is_slab_page((void *)phys))
             return true;
-        }
+        page_addr += PAGE_SIZE;
     }
     return false;
 }
 
 bool heap_is_slab_header_range(const void *virt_ptr, const size_t len)
 {
-    if (!virt_ptr || len == 0)
+    if (!virt_ptr || len == 0 || !slab_bitmap)
         return false;
 
     const uintptr_t start = (uintptr_t)virt_ptr;
@@ -178,19 +176,30 @@ bool heap_is_slab_header_range(const void *virt_ptr, const size_t len)
     }
     const size_t header_span = slab_data_offset();
 
-    for (size_t i = 0; i < slab_pages_count; i++) {
-        const uintptr_t slab_phys     = (uintptr_t)slab_pages[i];
-        const uintptr_t slab_virt     = (uintptr_t)phys_to_virt(slab_pages[i]);
-        const uintptr_t slab_head_end = slab_virt + header_span;
-        if (range_overlaps(start, end, slab_virt, slab_head_end)) {
-            return true;
+    // Check each page the range touches, interpreting as HHDM virtual addresses
+    for (uintptr_t page_addr = start & ~(uintptr_t)(PAGE_SIZE - 1);
+         page_addr < end;
+         page_addr += PAGE_SIZE) {
+        uintptr_t phys = (uintptr_t)virt_to_phys((void *)page_addr);
+        if (heap_is_slab_page((void *)phys)) {
+            uintptr_t slab_virt     = page_addr;
+            uintptr_t slab_head_end = slab_virt + header_span;
+            if (range_overlaps(start, end, slab_virt, slab_head_end))
+                return true;
         }
+        if (page_addr > UINTPTR_MAX - PAGE_SIZE) break;
+    }
 
-        const uintptr_t slab_identity     = slab_phys;
-        const uintptr_t slab_identity_end = slab_identity + header_span;
-        if (range_overlaps(start, end, slab_identity, slab_identity_end)) {
-            return true;
+    // Also check if the range refers to identity-mapped (physical) addresses
+    for (uintptr_t page_addr = start & ~(uintptr_t)(PAGE_SIZE - 1);
+         page_addr < end;
+         page_addr += PAGE_SIZE) {
+        if (heap_is_slab_page((void *)page_addr)) {
+            uintptr_t slab_identity_end = page_addr + header_span;
+            if (range_overlaps(start, end, page_addr, slab_identity_end))
+                return true;
         }
+        if (page_addr > UINTPTR_MAX - PAGE_SIZE) break;
     }
     return false;
 }
@@ -278,6 +287,17 @@ void heap_init(uint64_t hhdm_offset)
     for (size_t i = 0; i < CACHE_COUNT; i++) {
         list_init_head(&slab_caches[i]);
     }
+
+    // Initialize slab tracking bitmap (must happen after PMM is ready)
+    slab_bitmap_pages = pmm_get_highest_addr() / PAGE_SIZE;
+    size_t bitmap_bytes = (slab_bitmap_pages + 7) / 8;
+    size_t bitmap_page_count = (bitmap_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+    void *bitmap_phys = pmm_alloc_pages(bitmap_page_count);
+    if (bitmap_phys) {
+        slab_bitmap = (uint8_t *)((uintptr_t)bitmap_phys + g_hhdm_offset);
+        memset(slab_bitmap, 0, bitmap_page_count * PAGE_SIZE);
+    }
+
     boot_message(INFO, "Heap Initialized. HHDM Offset: 0x%lx", g_hhdm_offset);
 }
 
