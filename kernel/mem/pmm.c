@@ -203,8 +203,12 @@ void *pmm_alloc_pages(size_t count)
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
 
-    // Simple first-fit search for contiguous pages
-    for (size_t i = reserved_base_page; i < highest_page; i++)
+    // First-fit search for contiguous pages, starting from hint
+    size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
+    for (int pass = 0; pass < 2 && !addr; pass++) {
+        size_t begin = (pass == 0) ? start : reserved_base_page;
+        size_t end   = (pass == 0) ? highest_page : start;
+    for (size_t i = begin; i < end; i++)
     {
         if (!bitmap_test(i))
         {
@@ -237,6 +241,7 @@ void *pmm_alloc_pages(size_t count)
                 {
                     bitmap_set(i + j);
                 }
+                next_free_hint = i + count;
                 addr = (void *)(i * PAGE_SIZE);
                 break;
             }
@@ -245,6 +250,7 @@ void *pmm_alloc_pages(size_t count)
                 i += free_count; // Skip checked pages
             }
         }
+    }
     }
 
     SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
