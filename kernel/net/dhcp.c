@@ -328,7 +328,7 @@ static void dhcp_send_packet(const uint8_t mac[static 6],
     set_options(dhcp_header.options, ctx);
 
     // Pseudo-header for UDP checksum calculation
-    const struct udp_pseudo_header pseudo_header = {
+    const struct ipv4_pseudo_header pseudo_header = {
         .src_ip  = {
             ipv4_header.source_ip[0],
             ipv4_header.source_ip[1],
@@ -343,13 +343,13 @@ static void dhcp_send_packet(const uint8_t mac[static 6],
         },
         .zero       = 0,
         .protocol   = IP_PROTOCOL_UDP,
-        .udp_length = udp_header.len,
+        .length = udp_header.len,
     };
 
-    uint8_t udp_checksum_buf[sizeof(struct udp_pseudo_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)];
-    memcpy(udp_checksum_buf, &pseudo_header, sizeof(struct udp_pseudo_header));
-    memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header), &udp_header, sizeof(struct udp_header));
-    memcpy(udp_checksum_buf + sizeof(struct udp_pseudo_header) + sizeof(struct udp_header),
+    uint8_t udp_checksum_buf[sizeof(struct ipv4_pseudo_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)];
+    memcpy(udp_checksum_buf, &pseudo_header, sizeof(struct ipv4_pseudo_header));
+    memcpy(udp_checksum_buf + sizeof(struct ipv4_pseudo_header), &udp_header, sizeof(struct udp_header));
+    memcpy(udp_checksum_buf + sizeof(struct ipv4_pseudo_header) + sizeof(struct udp_header),
            &dhcp_header, sizeof(struct dhcp_header));
 
     udp_header.checksum = checksum(udp_checksum_buf, sizeof(udp_checksum_buf), 0);
