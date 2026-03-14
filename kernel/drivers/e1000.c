@@ -157,10 +157,10 @@ static uint32_t e1000_eeprom_read(const uint8_t addr)
     uint32_t tmp  = 0;
     if (eeprom_exists) {
         e1000_write_command(REG_EERD, (1) | ((uint32_t)(addr) << 8));
-        while (!((tmp = e1000_read_command(REG_EERD)) & (1 << 4)));
+        for (int i = 0; i < 10000 && !((tmp = e1000_read_command(REG_EERD)) & (1 << 4)); i++);
     } else {
         e1000_write_command(REG_EERD, (1) | ((uint32_t)(addr) << 2));
-        while (!((tmp = e1000_read_command(REG_EERD)) & (1 << 1)));
+        for (int i = 0; i < 10000 && !((tmp = e1000_read_command(REG_EERD)) & (1 << 1)); i++);
     }
     data = (uint16_t)((tmp >> 16) & 0xFFFF);
     return data;
