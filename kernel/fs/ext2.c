@@ -391,14 +391,15 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
     // block group descriptor table starts at block 2
 
     const uint32_t bgcount = sb->s_blocks_count / sb->s_blocks_per_group;
+
+    buffer_head_t *group_desc_buf = bread(dev, desc_blockno);
+    if (!group_desc_buf) {
+        printk("ext2fs_ialloc: bread failed for group desc\n");
+        return nullptr;
+    }
+
     for (uint32_t i = 0; i <= bgcount; i++) {
-        buffer_head_t *group_desc_buf = bread(dev, desc_blockno);
-        if (!group_desc_buf) {
-            printk("ext2fs_ialloc: bread failed for group desc\n");
-            return nullptr;
-        }
         memcpy(&bgdesc, group_desc_buf->data + i * sizeof(bgdesc), sizeof(bgdesc));
-        brelse(group_desc_buf);
 
         // Search inode bitmap (may span multiple sectors)
         const uint32_t ibitmap_first_sector  = BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + ext2_part_offset(dev);
@@ -410,6 +411,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
             ibitmap_buff = bread(dev, ibitmap_first_sector + sec);
             if (!ibitmap_buff) {
                 printk("ext2fs_ialloc: bread failed for inode bitmap\n");
+                brelse(group_desc_buf);
                 return nullptr;
             }
             const uint32_t start_bit = sec * 512 * 8;
@@ -428,6 +430,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
             printk("PANIC: ");
             printk("ext2fs_ialloc: invalid inode size");
             brelse(ibitmap_buff);
+            brelse(group_desc_buf);
             return nullptr;
         }
 
@@ -445,6 +448,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         if (!dinode_buff) {
             printk("ext2fs_ialloc: bread failed for inode block\n");
             brelse(ibitmap_buff);
+            brelse(group_desc_buf);
             return nullptr;
         }
         u8 *slot = dinode_buff->data + sector_byte_offset;
@@ -469,8 +473,10 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         struct ext2_inode *ip = iget(dev, inum);
         ip->type              = type;
         ip->i_mode            = mode;
+        brelse(group_desc_buf);
         return ip;
     }
+    brelse(group_desc_buf);
     printk("PANIC: ");
     printk("ext2_ialloc: no inodes");
     return nullptr;
