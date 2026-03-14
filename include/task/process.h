@@ -185,6 +185,7 @@ int thread_wakeup_n(void *chan, process_t *scope, int max_count);
 void switch_to(thread_t *prev, thread_t *next);
 
 void process_mark_exited_locked(process_t *proc, int exit_code, process_t **parent_out);
+void scheduler_enqueue_terminated(thread_t *t);
 void process_spawn_init(void);
 void process_dump(void);
 void cpu_set_active_thread(cpu_t *cpu, thread_t *thread);

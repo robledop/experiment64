@@ -37,6 +37,8 @@ void sys_thread_exit(int code)
     process_t *parent = nullptr;
     if (last_thread) {
         process_mark_exited_locked(proc, code, &parent);
+    } else if (self->detached) {
+        scheduler_enqueue_terminated(self);
     }
 
     spinlock_release(&scheduler_lock);

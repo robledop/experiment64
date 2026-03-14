@@ -18,6 +18,8 @@ static thread_t *idle_threads[MAX_CPUS]  = {nullptr};
 static process_t *rr_last_proc[MAX_CPUS] = {nullptr};
 static bool scheduler_ready              = false;
 
+static list_item_t detached_terminated_list = LIST_HEAD_INIT(detached_terminated_list);
+
 extern int next_pid;
 extern int next_tid;
 extern void thread_trampoline(void);
@@ -134,37 +136,29 @@ static thread_t *create_scheduler_thread(uint32_t cpu_idx)
 
 /**
  * Collect detached, terminated user threads into free_list.
+ * Drains the dedicated detached_terminated_list populated at termination time.
  * @warning Caller must hold scheduler_lock.
  */
 static void collect_detached_terminated_threads(list_item_t *free_list)
 {
     spinlock_assert_held(&scheduler_lock);
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        thread_t *t, *next_t;
-        list_foreach_entry_safe(t, next_t, &p->threads, list) {
-            if (!t) {
-                continue;
-            }
-
-            if (!t->is_user || !t->detached)
-                continue;
-
-            uint32_t raw_state = thread_state_load_raw(t);
-            if (!thread_state_valid_raw(raw_state)) {
-                thread_state_store(t, THREAD_TERMINATED);
-                raw_state = THREAD_TERMINATED;
-            }
-            if ((thread_state_t)raw_state != THREAD_TERMINATED)
-                continue;
-            if (thread_is_active_on_any_cpu(t))
-                continue;
-
-            list_del(&t->list);
-            t->process = nullptr;
-            list_add_tail(&t->list, free_list);
-        }
+    thread_t *t, *tmp;
+    list_foreach_entry_safe(t, tmp, &detached_terminated_list, list) {
+        if (thread_is_active_on_any_cpu(t))
+            continue;
+        list_del(&t->list);
+        list_add_tail(&t->list, free_list);
     }
+}
+
+void scheduler_enqueue_terminated(thread_t *t)
+{
+    spinlock_assert_held(&scheduler_lock);
+    if (!t || !t->detached || t->state != THREAD_TERMINATED)
+        return;
+    list_del(&t->list);
+    t->process = nullptr;
+    list_add_tail(&t->list, &detached_terminated_list);
 }
 
 // ReSharper disable once CppDFAConstantParameter
