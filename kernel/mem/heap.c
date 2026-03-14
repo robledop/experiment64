@@ -51,7 +51,6 @@ typedef struct slab_header
     )
 slab_header_t;
 
-extern uint64_t g_hhdm_offset;
 static spinlock_t heap_lock;
 // Bitmap tracking slab backing pages to detect accidental pmm frees (O(1) lookup)
 static uint8_t *slab_bitmap = nullptr;

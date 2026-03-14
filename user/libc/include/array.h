@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct
-{
+typedef struct {
     unsigned long long magic;
     size_t count;
     size_t capacity;
@@ -169,9 +168,7 @@ static inline void *arr__insert_at_slot(void **arr, size_t elem_size, size_t idx
     array_header_t *header = arr__header(*arr);
     char *base             = (char *)(*arr);
     if (idx < header->count) {
-        memmove(base + ((idx + 1) * elem_size),
-                base + (idx * elem_size),
-                (header->count - idx) * elem_size);
+        memmove(base + ((idx + 1) * elem_size), base + (idx * elem_size), (header->count - idx) * elem_size);
     }
 
     header->count++;
@@ -189,9 +186,7 @@ static inline bool arr__remove_at(void *arr, size_t elem_size, size_t idx)
 
     size_t tail_count = header->count - idx - 1;
     if (tail_count > 0) {
-        memmove((char *)arr + (idx * elem_size),
-                (char *)arr + ((idx + 1) * elem_size),
-                tail_count * elem_size);
+        memmove((char *)arr + (idx * elem_size), (char *)arr + ((idx + 1) * elem_size), tail_count * elem_size);
     }
 
     header->count--;
@@ -282,84 +277,93 @@ static inline void arr__free(void **arr)
 }
 
 /** @brief Try appending one value to the end of the array. Returns true on success. */
-#define arr_try_push(arr, x) ({                                                                               \
-        auto __arr_slot = (typeof((arr)[0]) *)arr__append_slot((void**)&(arr), sizeof(*(arr)));              \
-        bool __arr_ok = __arr_slot != nullptr;                                                                \
-        if (__arr_ok)                                                                                          \
-            *__arr_slot = (x);                                                                                 \
-        __arr_ok;                                                                                              \
+#define arr_try_push(arr, x)                                                                                           \
+    ({                                                                                                                 \
+        auto __arr_slot = (typeof((arr)[0]) *)arr__append_slot((void **)&(arr), sizeof(*(arr)));                       \
+        bool __arr_ok   = __arr_slot != nullptr;                                                                       \
+        if (__arr_ok)                                                                                                  \
+            *__arr_slot = (x);                                                                                         \
+        __arr_ok;                                                                                                      \
     })
 /** @brief Append one value to the end of the array. */
-#define arr_push(arr, x) do {                                                                                  \
-        (void)arr_try_push((arr), (x));                                                                        \
-    } while(0)
+#define arr_push(arr, x)                                                                                               \
+    do {                                                                                                               \
+        (void)arr_try_push((arr), (x));                                                                                \
+    } while (0)
 
 /** @brief Remove the element at index @p idx, preserving order. */
-#define arr_remove_at(arr, idx) do {                                                                           \
-        (void)arr__remove_at((arr), sizeof(*(arr)), (size_t)(idx));                                           \
-    } while(0)
+#define arr_remove_at(arr, idx)                                                                                        \
+    do {                                                                                                               \
+        (void)arr__remove_at((arr), sizeof(*(arr)), (size_t)(idx));                                                    \
+    } while (0)
 
 /** @brief Remove all elements equal to @p val, preserving order. */
-#define arr_remove(arr, val) do {                                                                              \
-        auto __arr_remove_value = (val);                                                                       \
-        size_t __arr_remove_idx = 0;                                                                           \
-        while (__arr_remove_idx < arr_len(arr)) {                                                              \
-            if (arr_get((arr), __arr_remove_idx) == __arr_remove_value) {                                     \
-                arr_remove_at((arr), __arr_remove_idx);                                                        \
-            } else {                                                                                            \
-                __arr_remove_idx++;                                                                            \
-            }                                                                                                  \
-        }                                                                                                      \
-    } while(0)
+#define arr_remove(arr, val)                                                                                           \
+    do {                                                                                                               \
+        auto __arr_remove_value = (val);                                                                               \
+        size_t __arr_remove_idx = 0;                                                                                   \
+        while (__arr_remove_idx < arr_len(arr)) {                                                                      \
+            if (arr_get((arr), __arr_remove_idx) == __arr_remove_value) {                                              \
+                arr_remove_at((arr), __arr_remove_idx);                                                                \
+            } else {                                                                                                   \
+                __arr_remove_idx++;                                                                                    \
+            }                                                                                                          \
+        }                                                                                                              \
+    } while (0)
 
 /** @brief Insert @p val at index @p idx, shifting following elements right. */
-#define arr_insert_at(arr, idx, val) do {                                                                      \
-        auto __arr_slot =                                                                                       \
-            (typeof((arr)[0]) *)arr__insert_at_slot((void**)&(arr), sizeof(*(arr)), (size_t)(idx));          \
-        if (__arr_slot)                                                                                        \
-            *__arr_slot = (val);                                                                               \
-    } while(0)
+#define arr_insert_at(arr, idx, val)                                                                                   \
+    do {                                                                                                               \
+        auto __arr_slot = (typeof((arr)[0]) *)arr__insert_at_slot((void **)&(arr), sizeof(*(arr)), (size_t)(idx));     \
+        if (__arr_slot)                                                                                                \
+            *__arr_slot = (val);                                                                                       \
+    } while (0)
 
 /** @brief Remove the last element if the array is non-empty. */
-#define arr_pop(arr) do {                                                                                      \
-        (void)arr__pop((arr));                                                                                 \
-    } while(0)
+#define arr_pop(arr)                                                                                                   \
+    do {                                                                                                               \
+        (void)arr__pop((arr));                                                                                         \
+    } while (0)
 
 /** @brief Return the current element count. */
 #define arr_len(arr) arr__len((arr))
 /** @brief Return true when the array has no elements. */
 #define arr_empty(arr) arr__empty((arr))
 /** @brief Remove all elements and keep the current capacity. */
-#define arr_clear(arr) do {                                                                                    \
-        arr__clear((arr));                                                                                     \
-    } while(0)
+#define arr_clear(arr)                                                                                                 \
+    do {                                                                                                               \
+        arr__clear((arr));                                                                                             \
+    } while (0)
 /** @brief Return the first element. Asserts in debug if empty. */
 #define arr_front(arr) (*((typeof((arr)[0]) *)arr__front_ptr_const((arr), sizeof(*(arr)))))
 /** @brief Return the last element. Asserts in debug if empty. */
 #define arr_back(arr) (*((typeof((arr)[0]) *)arr__back_ptr_const((arr), sizeof(*(arr)))))
 /** @brief Free array storage and set the array pointer to nullptr. */
-#define arr_free(arr) do {                                                                                     \
-        arr__free((void**)&(arr));                                                                             \
-    } while(0)
+#define arr_free(arr)                                                                                                  \
+    do {                                                                                                               \
+        arr__free((void **)&(arr));                                                                                    \
+    } while (0)
 /** @brief Return the element at index @p idx. Asserts in debug if out of bounds. */
 #define arr_get(arr, idx) (*((typeof((arr)[0]) *)arr__get_ptr_const((arr), sizeof(*(arr)), (size_t)(idx))))
 /** @brief Assign a value to index @p idx using `arr[idx] = value` semantics. */
-#define arr_set(arr, idx, val) do {                                                                            \
-        auto __arr_set_ptr = (typeof((arr)[0]) *)arr__get_ptr((arr), sizeof(*(arr)), (size_t)(idx));         \
-        if (__arr_set_ptr)                                                                                     \
-            *__arr_set_ptr = (val);                                                                            \
-    } while(0)
+#define arr_set(arr, idx, val)                                                                                         \
+    do {                                                                                                               \
+        auto __arr_set_ptr = (typeof((arr)[0]) *)arr__get_ptr((arr), sizeof(*(arr)), (size_t)(idx));                   \
+        if (__arr_set_ptr)                                                                                             \
+            *__arr_set_ptr = (val);                                                                                    \
+    } while (0)
 /** @brief Return the first index of @p val using `==` semantics, or `-1` when not found. */
-#define arr_find(arr, val) ({                                                                                  \
-        typeof(arr) __arr_find_arr = (arr);                                                                   \
-        auto __arr_find_value = (val);                                                                        \
-        ptrdiff_t __arr_find_idx = -1;                                                                        \
-        size_t __arr_find_len = arr_len(__arr_find_arr);                                                      \
-        for (size_t __arr_find_i = 0; __arr_find_i < __arr_find_len; __arr_find_i++) {                       \
-            if (__arr_find_arr[__arr_find_i] == __arr_find_value) {                                           \
-                __arr_find_idx = (ptrdiff_t)__arr_find_i;                                                     \
-                break;                                                                                         \
-            }                                                                                                  \
-        }                                                                                                      \
-        __arr_find_idx;                                                                                        \
+#define arr_find(arr, val)                                                                                             \
+    ({                                                                                                                 \
+        typeof(arr) __arr_find_arr = (arr);                                                                            \
+        auto __arr_find_value      = (val);                                                                            \
+        ptrdiff_t __arr_find_idx   = -1;                                                                               \
+        size_t __arr_find_len      = arr_len(__arr_find_arr);                                                          \
+        for (size_t __arr_find_i = 0; __arr_find_i < __arr_find_len; __arr_find_i++) {                                 \
+            if (__arr_find_arr[__arr_find_i] == __arr_find_value) {                                                    \
+                __arr_find_idx = (ptrdiff_t)__arr_find_i;                                                              \
+                break;                                                                                                 \
+            }                                                                                                          \
+        }                                                                                                              \
+        __arr_find_idx;                                                                                                \
     })

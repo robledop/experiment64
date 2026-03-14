@@ -17,7 +17,7 @@ struct rlimit {
 #define RLIMIT_STACK  5
 
 #define RUSAGE_SELF 0
-#define RUSAGE_CHILDREN -1
+#define RUSAGE_CHILDREN (-1)
 
 struct rusage {
     long ru_utime_sec;

@@ -384,7 +384,7 @@ static void set_discover_options_cb(uint8_t *options, const void *ctx)
 
 /// @brief Sends a DHCP Request packet.
 /// This is in response to a DHCP Offer packet from the server.
-void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
+void dhcp_send_request(uint8_t mac[6], const uint8_t ip[4], const uint8_t server_ip[4])
 {
     const struct dhcp_request_ctx ctx = { .ip = ip, .server_ip = server_ip };
     dhcp_send_packet(mac, network_get_my_mac_address(), DHCP_OP_REQUEST,
@@ -396,5 +396,5 @@ void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
 void dhcp_send_discover(uint8_t mac[6])
 {
     dhcp_send_packet(mac, mac, DHCP_OP_DISCOVER,
-                     "Sending DHCP Discover...", set_discover_options_cb, NULL);
+                     "Sending DHCP Discover...", set_discover_options_cb, nullptr);
 }

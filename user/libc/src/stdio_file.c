@@ -135,7 +135,7 @@ FILE *fopen(const char *path, const char *mode)
     if (trunc && !ap)
         f->open_flags |= O_TRUNC;
     f->pos = 0;
-    f->fd = open(path, f->open_flags);
+    f->fd = (f->open_flags & O_CREAT) ? open(path, f->open_flags, 0644) : open(path, f->open_flags);
     f->data = nullptr;
 
     if (f->fd < 0)
@@ -457,7 +457,7 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
         stream->open_flags |= O_TRUNC;
     strncpy(stream->path, path, sizeof(stream->path) - 1);
     stream->path[sizeof(stream->path) - 1] = '\0';
-    stream->fd = open(path, stream->open_flags);
+    stream->fd = (stream->open_flags & O_CREAT) ? open(path, stream->open_flags, 0644) : open(path, stream->open_flags);
     if (stream->fd < 0)
         return nullptr;
     if (stream->open_flags & O_TRUNC)

@@ -79,7 +79,7 @@ struct dhcp_packet {
 } __attribute__((packed));
 
 void dhcp_send_discover(uint8_t mac[static 6]);
-void dhcp_send_request(uint8_t mac[static 6], uint8_t ip[static 4], uint8_t server_ip[static 4]);
+void dhcp_send_request(uint8_t mac[static 6], const uint8_t ip[static 4], const uint8_t server_ip[static 4]);
 uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LEN], int option);
 int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN],
                                  uint32_t dns_servers[static 1], size_t *dns_server_count);
