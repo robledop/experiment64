@@ -16,6 +16,7 @@ struct mount_point
 {
     char name[64];     // Mount name used for path matching.
     vfs_inode_t *root; // Root inode for the mounted filesystem.
+    bool is_virtual;   // true if this mount doesn't exist on the root filesystem
 };
 
 static struct mount_point mount_table[16];
@@ -29,6 +30,18 @@ void vfs_register_mount(const char *name, vfs_inode_t *root)
         strncpy(mount_table[mount_count].name, name, 63);
         mount_table[mount_count].name[63] = '\0';
         mount_table[mount_count].root     = root;
+
+        // Check if this mount name exists on the root filesystem
+        bool on_disk = false;
+        if (vfs_root && vfs_root->iops && vfs_root->iops->finddir) {
+            vfs_inode_t *found = vfs_root->iops->finddir(vfs_root, name);
+            if (found) {
+                on_disk = true;
+                vfs_release(found);
+            }
+        }
+        mount_table[mount_count].is_virtual = !on_disk;
+
         mount_count++;
         root_real_count_cache = -1; // Invalidate cache on new mount
     }
@@ -348,17 +361,7 @@ vfs_dirent_t *vfs_readdir(const vfs_inode_t *node, uint32_t index)
         uint32_t current_virt = 0;
 
         for (int i = 0; i < mount_count; i++) {
-            // Check if this mount point exists on disk
-            bool on_disk = false;
-            if (node->iops->finddir) {
-                vfs_inode_t *found = node->iops->finddir(node, mount_table[i].name);
-                if (found) {
-                    on_disk = true;
-                    vfs_release(found);
-                }
-            }
-
-            if (!on_disk) {
+            if (mount_table[i].is_virtual) {
                 if (current_virt == virt_index) {
                     vfs_dirent_t *virt_ent = kmalloc(sizeof(vfs_dirent_t));
                     if (!virt_ent)
