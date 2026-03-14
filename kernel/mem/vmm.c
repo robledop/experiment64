@@ -79,10 +79,17 @@ void vmm_map_page(pml4_t pml4, uint64_t virt, uint64_t phys, uint64_t flags)
     __asm__ volatile("invlpg [%0]" : : "r"(virt) : "memory");
 }
 
+static bool is_table_empty(const uint64_t *table)
+{
+    for (int i = 0; i < 512; i++) {
+        if (table[i] != 0)
+            return false;
+    }
+    return true;
+}
+
 void vmm_unmap_page(pml4_t pml4, uint64_t virt)
 {
-    // Similar traversal, but clear the entry.
-    // We won't free the page tables for now to keep it simple.
     size_t pml4_idx = (virt >> 39) & 0x1FF;
     size_t pdpt_idx = (virt >> 30) & 0x1FF;
     size_t pd_idx = (virt >> 21) & 0x1FF;
@@ -104,6 +111,25 @@ void vmm_unmap_page(pml4_t pml4, uint64_t virt)
 
     pt_virt[pt_idx] = 0;
     __asm__ volatile("invlpg [%0]" : : "r"(virt) : "memory");
+
+    // Free empty page tables bottom-up
+    if (is_table_empty(pt_virt)) {
+        uint64_t pt_phys = pd_virt[pd_idx] & PTE_ADDR_MASK;
+        pd_virt[pd_idx] = 0;
+        pmm_free_page((void *)pt_phys);
+
+        if (is_table_empty(pd_virt)) {
+            uint64_t pd_phys = pdpt_virt[pdpt_idx] & PTE_ADDR_MASK;
+            pdpt_virt[pdpt_idx] = 0;
+            pmm_free_page((void *)pd_phys);
+
+            if (is_table_empty(pdpt_virt)) {
+                uint64_t pdpt_phys = pml4_virt[pml4_idx] & PTE_ADDR_MASK;
+                pml4_virt[pml4_idx] = 0;
+                pmm_free_page((void *)pdpt_phys);
+            }
+        }
+    }
 }
 
 pml4_t vmm_new_pml4(void)

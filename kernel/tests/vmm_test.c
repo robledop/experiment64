@@ -80,6 +80,31 @@ TEST(test_vmm_unmap_clears_translation)
     return true;
 }
 
+TEST(test_vmm_unmap_frees_tables)
+{
+    pml4_t pml4 = vmm_new_pml4();
+    TEST_ASSERT(pml4 != nullptr);
+
+    void *phys = pmm_alloc_page();
+    TEST_ASSERT(phys != nullptr);
+
+    uint64_t virt = 0x400000;
+    vmm_map_page(pml4, virt, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+    TEST_ASSERT(vmm_virt_to_phys(pml4, virt) == (uint64_t)phys);
+
+    vmm_unmap_page(pml4, virt);
+    TEST_ASSERT(vmm_virt_to_phys(pml4, virt) == 0);
+
+    // Verify page table structures were freed — PML4 entry for user space should be clear
+    uint64_t *pml4_virt = (uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
+    size_t pml4_idx = (virt >> 39) & 0x1FF;
+    TEST_ASSERT(pml4_virt[pml4_idx] == 0);
+
+    pmm_free_page(phys);
+    vmm_destroy_pml4(pml4);
+    return true;
+}
+
 TEST(test_vmm_remap_overwrites_translation)
 {
     pml4_t pml4 = vmm_new_pml4();
