@@ -14,7 +14,8 @@ int sys_getcwd(char *buf, size_t size)
         return -EINVAL;
     if (!user_ptr_write_ok(buf, len + 1, "sys_getcwd"))
         return -EFAULT;
-    memcpy(buf, cwd, len + 1);
+    if (!copy_to_user(buf, cwd, len + 1))
+        return -EFAULT;
 
     return ALL_OK;
 }

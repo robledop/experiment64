@@ -50,8 +50,15 @@ int sys_recvfrom(const int fd, void *buf, const size_t len, const int flags,
     }
 
     size_t copy_len = (pkt->len < len) ? pkt->len : len;
-    if (copy_len > 0)
-        memcpy(buf, pkt->data, copy_len);
+    if (copy_len > 0) {
+        if (!copy_to_user(buf, pkt->data, copy_len)) {
+            if (pkt->data)
+                kfree(pkt->data);
+            kfree(pkt);
+            socket_put(sock);
+            return -EFAULT;
+        }
+    }
 
     if (src_addr) {
         struct sockaddr_in out = {0};
