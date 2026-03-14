@@ -1,5 +1,6 @@
 #include <net/tcp.h>
 #include <arpa/inet.h>
+#include <net/ipv4.h>
 #include <net/arp.h>
 #include <net/ethernet.h>
 #include <net/helpers.h>
@@ -12,14 +13,6 @@
 #include <attributes.h>
 #include <lib/util.h>
 
-struct tcp_pseudo_header
-{
-    uint8_t src_ip[4];
-    uint8_t dest_ip[4];
-    uint8_t zero;
-    uint8_t protocol;
-    uint16_t tcp_length;
-} __attribute__((packed));
 
 // Next Sequence Number
 static uint32_t tcp_next_isn = 1;
@@ -90,25 +83,25 @@ int tcp_send_segment(const socket_t* sock, const uint8_t dest_ip[static 4], cons
     if (payload_len > 0)
         memcpy((uint8_t*)tcp + tcp_header_len, payload, payload_len);
 
-    const struct tcp_pseudo_header pseudo = {
+    const struct ipv4_pseudo_header pseudo = {
         .src_ip = {src_ip[0], src_ip[1], src_ip[2], src_ip[3]},
         .dest_ip = {dest_ip[0], dest_ip[1], dest_ip[2], dest_ip[3]},
         .zero = 0,
         .protocol = IP_PROTOCOL_TCP,
-        .tcp_length = htons((uint16_t)(tcp_header_len + payload_len)),
+        .length = htons((uint16_t)(tcp_header_len + payload_len)),
     };
 
-    const size_t checksum_len = sizeof(struct tcp_pseudo_header) + tcp_header_len + payload_len;
+    const size_t checksum_len = sizeof(struct ipv4_pseudo_header) + tcp_header_len + payload_len;
     uint8_t* checksum_buf = kmalloc(checksum_len);
     if (!checksum_buf)
     {
         kfree(packet);
         return -1;
     }
-    memcpy(checksum_buf, &pseudo, sizeof(struct tcp_pseudo_header));
-    memcpy(checksum_buf + sizeof(struct tcp_pseudo_header), tcp, tcp_header_len);
+    memcpy(checksum_buf, &pseudo, sizeof(struct ipv4_pseudo_header));
+    memcpy(checksum_buf + sizeof(struct ipv4_pseudo_header), tcp, tcp_header_len);
     if (payload_len > 0)
-        memcpy(checksum_buf + sizeof(struct tcp_pseudo_header) + tcp_header_len, payload, payload_len);
+        memcpy(checksum_buf + sizeof(struct ipv4_pseudo_header) + tcp_header_len, payload, payload_len);
     tcp->checksum = checksum(checksum_buf, (int)checksum_len, 0);
     kfree(checksum_buf);
 

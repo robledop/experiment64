@@ -34,6 +34,16 @@ struct ipv4_header
 
 typedef struct ipv4_header ipv4_header_t;
 
+// Pseudo-header used for TCP and UDP checksum computation (RFC 793 / 768).
+struct ipv4_pseudo_header
+{
+    uint8_t src_ip[4];
+    uint8_t dest_ip[4];
+    uint8_t zero;
+    uint8_t protocol;
+    uint16_t length;
+} __attribute__((packed));
+
 // Fill a standard 20-byte IPv4 header and compute its checksum.
 void ipv4_fill_header(struct ipv4_header *ip, uint8_t protocol,
                       const uint8_t src[4], const uint8_t dst[4],

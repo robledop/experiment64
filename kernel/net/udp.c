@@ -79,25 +79,25 @@ int udp_sendto(const void* buf, const size_t len, socket_t* const sock, struct s
     if (len > 0)
         memcpy(payload, buf, len);
 
-    const struct udp_pseudo_header pseudo = {
+    const struct ipv4_pseudo_header pseudo = {
         .src_ip = {src_ip[0], src_ip[1], src_ip[2], src_ip[3]},
         .dest_ip = {in.sin_addr[0], in.sin_addr[1], in.sin_addr[2], in.sin_addr[3]},
         .zero = 0,
         .protocol = IP_PROTOCOL_UDP,
-        .udp_length = udp->len,
+        .length = udp->len,
     };
 
-    const size_t checksum_len = sizeof(struct udp_pseudo_header) + sizeof(struct udp_header) + len;
+    const size_t checksum_len = sizeof(struct ipv4_pseudo_header) + sizeof(struct udp_header) + len;
     uint8_t* checksum_buf = kmalloc(checksum_len);
     if (!checksum_buf)
     {
         kfree(packet);
         return -1;
     }
-    memcpy(checksum_buf, &pseudo, sizeof(struct udp_pseudo_header));
-    memcpy(checksum_buf + sizeof(struct udp_pseudo_header), udp, sizeof(struct udp_header));
+    memcpy(checksum_buf, &pseudo, sizeof(struct ipv4_pseudo_header));
+    memcpy(checksum_buf + sizeof(struct ipv4_pseudo_header), udp, sizeof(struct udp_header));
     if (len > 0)
-        memcpy(checksum_buf + sizeof(struct udp_pseudo_header) + sizeof(struct udp_header), payload, len);
+        memcpy(checksum_buf + sizeof(struct ipv4_pseudo_header) + sizeof(struct udp_header), payload, len);
     udp->checksum = checksum(checksum_buf, (int)checksum_len, 0);
     kfree(checksum_buf);
 
