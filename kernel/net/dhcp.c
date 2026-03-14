@@ -1,5 +1,6 @@
 #include "net/dhcp.h"
 #include "net/helpers.h"
+#include "net/ipv4.h"
 #include "net/network.h"
 #include <lib/string.h>
 #include <drivers/terminal.h>
@@ -284,21 +285,11 @@ void dhcp_send_request(uint8_t mac[6], uint8_t ip[4], uint8_t server_ip[4])
     };
     memcpy(ether_header.src_host, network_get_my_mac_address(), 6);
 
-    struct ipv4_header ipv4_header = {
-        .ihl = 0x05,
-        .version = 4,
-        .dscp_ecn = 0x00,
-        .total_length = htons(sizeof(struct ipv4_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)),
-        .identification = 0x0000,
-        .flags_fragment_offset = 0x0000,
-        .ttl = 0x40,
-        .protocol = IP_PROTOCOL_UDP,
-        .header_checksum = 0x0000,
-        .source_ip = {0x00, 0x00, 0x00, 0x00},
-        .dest_ip = {0xFF, 0xFF, 0xFF, 0xFF},
-    };
-
-    ipv4_header.header_checksum = checksum(&ipv4_header, ipv4_header.ihl * 4, 0);
+    constexpr uint8_t zero_ip[4] = {0, 0, 0, 0};
+    constexpr uint8_t bcast_ip[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+    struct ipv4_header ipv4_header = {0};
+    ipv4_fill_header(&ipv4_header, IP_PROTOCOL_UDP, zero_ip, bcast_ip,
+                     (uint16_t)(sizeof(struct udp_header) + sizeof(struct dhcp_header)));
 
     struct udp_header udp_header = {
         .src_port = htons(DHCP_SOURCE_PORT),
@@ -376,21 +367,11 @@ void dhcp_send_discover(uint8_t mac[6])
     };
     memcpy(ether_header.src_host, mac, 6);
 
-    struct ipv4_header ipv4_header = {
-        .ihl = 0x05,
-        .version = 4,
-        .dscp_ecn = 0x00,
-        .total_length = htons(sizeof(struct ipv4_header) + sizeof(struct udp_header) + sizeof(struct dhcp_header)),
-        .identification = 0x0000,
-        .flags_fragment_offset = 0x0000,
-        .ttl = 0x40,
-        .protocol = IP_PROTOCOL_UDP,
-        .header_checksum = 0x0000,
-        .source_ip = {0x00, 0x00, 0x00, 0x00},
-        .dest_ip = {0xFF, 0xFF, 0xFF, 0xFF},
-    };
-
-    ipv4_header.header_checksum = checksum(&ipv4_header, ipv4_header.ihl * 4, 0);
+    constexpr uint8_t zero_ip[4] = {0, 0, 0, 0};
+    constexpr uint8_t bcast_ip[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+    struct ipv4_header ipv4_header = {0};
+    ipv4_fill_header(&ipv4_header, IP_PROTOCOL_UDP, zero_ip, bcast_ip,
+                     (uint16_t)(sizeof(struct udp_header) + sizeof(struct dhcp_header)));
 
     struct udp_header udp_header = {
         .src_port = htons(DHCP_SOURCE_PORT),
