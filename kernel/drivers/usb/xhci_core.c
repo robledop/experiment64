@@ -70,6 +70,10 @@ static bool xhci_setup_scratchpads(const struct xhci_controller *xhci)
     for (uint32_t i = 0; i < xhci->max_scratchpad; i++) {
         void *scratch_phys = pmm_alloc_page();
         if (!scratch_phys) {
+            for (uint32_t j = 0; j < i; j++) {
+                pmm_free_page((void *)(uintptr_t)array[j]);
+            }
+            dma_free_pages((uintptr_t)array_virt, array_bytes);
             return false;
         }
         auto scratch_virt = (void *)((uintptr_t)scratch_phys + g_hhdm_offset);
