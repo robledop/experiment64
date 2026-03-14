@@ -349,7 +349,8 @@ int main(void)
 
         if (starts_with("cd ", buf)) {
             // Chdir must be called by the parent, not the child.
-            buf[strlen(buf)] = 0;
+            size_t len = strlen(buf);
+            if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
             if (chdir(buf + 3) < 0)
                 printf("cannot cd %s\n", buf + 3);
             continue;
