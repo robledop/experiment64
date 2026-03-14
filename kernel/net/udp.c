@@ -22,7 +22,7 @@ void udp_receive(uint8_t* packet, const uint16_t len, const size_t ip_len, const
     if (udp_len < sizeof(struct udp_header) || udp_len > ip_len - ip_header_len) return;
 
     if (udp_header->dest_port == htons(DHCP_SOURCE_PORT))
-        dhcp_receive(packet);
+        dhcp_receive(packet, len);
 
     const size_t payload_len = udp_len - sizeof(struct udp_header);
     const uint8_t* payload = packet + udp_off + sizeof(struct udp_header);

@@ -179,10 +179,15 @@ void set_discover_dhcp_options(uint8_t* options)
     options[offset] = DHCP_OPT_END;
 }
 
-void dhcp_receive(uint8_t* packet)
+void dhcp_receive(uint8_t* packet, uint16_t len)
 {
-    auto dhcp_packet = (struct dhcp_header*)(packet + sizeof(struct ether_header) +
-        sizeof(struct ipv4_header) + sizeof(struct udp_header));
+    const size_t headers_len = sizeof(struct ether_header) +
+                               sizeof(struct ipv4_header) +
+                               sizeof(struct udp_header);
+    if (len < headers_len + sizeof(struct dhcp_header))
+        return;
+
+    auto dhcp_packet = (struct dhcp_header*)(packet + headers_len);
     const uint16_t dhcp_message_type = dhcp_packet->options[2];
 
     // A response to our DHCP Discover (Offer)
