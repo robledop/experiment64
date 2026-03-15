@@ -1,5 +1,6 @@
 #include <task/process.h>
 #include <task/signal.h>
+#include "scheduler_internal.h"
 #include <mem/heap.h>
 #include <lib/string.h>
 #include <drivers/terminal.h>
@@ -11,13 +12,12 @@
 #include <debug.h>
 
 #define TIME_SLICE_TICKS ((TIME_SLICE_MS * TIMER_FREQUENCY_HZ) / 1000)
-static constexpr size_t MAX_CPUS = 32;
 
 spinlock_t scheduler_lock;
 volatile uint64_t scheduler_ticks = 0;
 
-static thread_t *idle_threads[MAX_CPUS]  = {nullptr};
-static process_t *rr_last_proc[MAX_CPUS] = {nullptr};
+thread_t *scheduler_idle_threads[SCHEDULER_MAX_CPUS]  = {nullptr};
+process_t *scheduler_rr_last_proc[SCHEDULER_MAX_CPUS] = {nullptr};
 static bool scheduler_ready              = false;
 
 extern int next_pid;
@@ -25,15 +25,6 @@ extern int next_tid;
 extern void thread_trampoline(void);
 
 [[noreturn]] static void scheduler_loop(void);
-static bool thread_is_active_on_any_cpu(thread_t *t);
-
-static inline void thread_list_move_to_tail(thread_t *t)
-{
-    if (!t || !t->process)
-        return;
-    list_del(&t->list);
-    list_add_tail(&t->list, &t->process->threads);
-}
 
 [[noreturn]] static void idle_task(void)
 {
@@ -132,163 +123,6 @@ static thread_t *create_scheduler_thread(uint32_t cpu_idx)
     return thread;
 }
 
-/**
- * Collect detached, terminated user threads into free_list.
- * @warning Caller must hold scheduler_lock.
- */
-static void collect_detached_terminated_threads(list_item_t *free_list)
-{
-    spinlock_assert_held(&scheduler_lock);
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        thread_t *t, *next_t;
-        list_foreach_entry_safe(t, next_t, &p->threads, list) {
-            if (!t) {
-                continue;
-            }
-
-            if (!t->is_user || !t->detached)
-                continue;
-
-            uint32_t raw_state = thread_state_load_raw(t);
-            if (!thread_state_valid_raw(raw_state)) {
-                thread_state_store(t, THREAD_TERMINATED);
-                raw_state = THREAD_TERMINATED;
-            }
-            if ((thread_state_t)raw_state != THREAD_TERMINATED)
-                continue;
-            if (thread_is_active_on_any_cpu(t))
-                continue;
-
-            list_del(&t->list);
-            t->process = nullptr;
-            list_add_tail(&t->list, free_list);
-        }
-    }
-}
-
-// ReSharper disable once CppDFAConstantParameter
-static inline bool thread_is_ready(thread_t *t, bool allow_user, const char *ctx)
-{
-    spinlock_assert_held(&scheduler_lock);
-    uint32_t raw_state = thread_state_load_raw(t);
-    if (!thread_state_valid_raw(raw_state)) {
-        boot_message(ERROR,
-                     "%s: invalid thread state pid=%d tid=%d state=%u",
-                     ctx,
-                     t->process ? t->process->pid : -1,
-                     t->tid,
-                     raw_state);
-        thread_state_store(t, THREAD_TERMINATED);
-        return false;
-    }
-
-    process_t *proc = t->process;
-    if (!proc || !process_in_list(proc)) {
-        boot_message(ERROR,
-                     "%s: thread with stale process pid=%d tid=%d",
-                     ctx,
-                     proc ? proc->pid : -1,
-                     t->tid);
-        thread_state_store(t, THREAD_TERMINATED);
-        return false;
-    }
-
-    auto state         = (thread_state_t)raw_state;
-    const bool userish = t->is_user || (t->saved_user_rsp != 0);
-    // ReSharper disable once CppDFAUnreachableCode
-    return state == THREAD_READY && !t->is_idle && (allow_user || !userish);
-}
-
-bool scheduler_tick(void)
-{
-    if (!__atomic_load_n(&scheduler_ready, __ATOMIC_ACQUIRE))
-        return false;
-
-    scheduler_ticks++;
-    bool need_resched = false;
-
-    spinlock_acquire(&scheduler_lock);
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        if (list_empty(&p->threads)) {
-            continue;
-        }
-
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
-            uint32_t raw_state = thread_state_load_raw(t);
-            if (!thread_state_valid_raw(raw_state)) {
-                boot_message(ERROR,
-                             "scheduler_tick: invalid thread state pid=%d tid=%d state=%u",
-                             p->pid,
-                             t->tid,
-                             raw_state);
-                thread_state_store(t, THREAD_TERMINATED);
-                continue;
-            }
-        }
-    }
-
-    cpu_t *cpu     = get_cpu();
-    thread_t *curr = cpu != nullptr ? cpu->active_thread : nullptr;
-    if (curr) {
-        if (cpu && cpu->scheduler_thread == curr) {
-            spinlock_release(&scheduler_lock);
-            return need_resched;
-        }
-
-        const uintptr_t curr_addr = (uintptr_t)curr;
-        const bool curr_aligned   = (curr_addr % __alignof__(thread_t)) == 0;
-
-        uint32_t raw_state = curr_aligned ? thread_state_load_raw(curr) : THREAD_TERMINATED;
-        bool curr_valid    = curr_aligned && thread_state_valid_raw(raw_state);
-        if (!curr_valid) {
-            const uintptr_t proc_addr = curr_aligned ? (uintptr_t)curr->process : 0;
-            int pid                   = -1;
-            int tid                   = -1;
-            if (curr_aligned) {
-                tid = curr->tid;
-                if (curr->process && (proc_addr % __alignof__(process_t) == 0))
-                    pid = curr->process->pid;
-            }
-
-            boot_message(ERROR,
-                         "scheduler_tick: invalid current thread state raw=%u curr=0x%lx pid=%d tid=%d proc=0x%lx",
-                         raw_state,
-                         (unsigned long)curr_addr,
-                         pid,
-                         tid,
-                         (unsigned long)proc_addr);
-
-            raw_state = THREAD_READY;
-            if (curr_aligned)
-                thread_state_store(curr, THREAD_READY);
-            need_resched = true; // Ask the scheduler to pick a safer thread.
-            curr         = nullptr;
-        }
-
-        if (curr) {
-            auto curr_state = (thread_state_t)raw_state;
-            if (!curr->is_idle && curr_state == THREAD_RUNNING) {
-                if (curr->ticks_remaining > 0)
-                    curr->ticks_remaining--;
-
-                if (curr->ticks_remaining == 0) {
-                    thread_state_store(curr, THREAD_READY);
-                    thread_list_move_to_tail(curr);
-                    need_resched = true;
-                }
-            } else {
-                need_resched = true;
-            }
-        }
-    }
-
-    spinlock_release(&scheduler_lock);
-    return need_resched;
-}
-
 void process_init(void)
 {
     spinlock_init(&scheduler_lock);
@@ -355,7 +189,7 @@ void process_init(void)
 
     // Create per-CPU scheduler pseudo-threads (not in any runnable list)
     uint32_t cpu_count = smp_get_cpu_count();
-    for (uint32_t i = 0; i < cpu_count && i < MAX_CPUS; i++) {
+    for (uint32_t i = 0; i < cpu_count && i < SCHEDULER_MAX_CPUS; i++) {
         thread_t *sched = create_scheduler_thread(i);
         cpu_t *c        = smp_get_cpu_by_index(i);
         if (!sched || !c) {
@@ -367,9 +201,9 @@ void process_init(void)
 
     // Create idle threads for all CPUs
     // These are NOT added to the thread list - they're only used when no other thread is ready
-    for (uint32_t i = 0; i < cpu_count && i < MAX_CPUS; i++) {
-        idle_threads[i] = create_idle_thread();
-        if (!idle_threads[i]) {
+    for (uint32_t i = 0; i < cpu_count && i < SCHEDULER_MAX_CPUS; i++) {
+        scheduler_idle_threads[i] = create_idle_thread();
+        if (!scheduler_idle_threads[i]) {
             boot_message(ERROR, "Process: Failed to create idle thread for CPU %d", i);
         }
     }
@@ -393,7 +227,7 @@ void smp_init_ap_scheduler(void)
     cpu_t *cpu       = get_cpu();
     uint32_t cpu_idx = (uint32_t)cpu->cpu_index;
 
-    if (cpu_idx < MAX_CPUS && cpu->scheduler_thread) {
+    if (cpu_idx < SCHEDULER_MAX_CPUS && cpu->scheduler_thread) {
         thread_t *scheduler_thread = cpu->scheduler_thread;
         cpu_set_active_thread(cpu, scheduler_thread);
         scheduler_thread->state = THREAD_RUNNING;
@@ -421,134 +255,6 @@ void smp_init_ap_scheduler(void)
 }
 
 /**
- * Check if a thread is currently the active thread on any CPU.
- * @warning Caller must hold scheduler_lock.
- * @param t Thread to check
- */
-static bool thread_is_active_on_any_cpu(thread_t *t)
-{
-    spinlock_assert_held(&scheduler_lock);
-    if (!t)
-        return false;
-
-    const uint32_t cpu_count = smp_get_cpu_count();
-    for (uint32_t i = 0; i < cpu_count; i++) {
-        cpu_t *c = smp_get_cpu_by_index(i);
-        if (c && c->active_thread == t)
-            return true;
-    }
-    return false;
-}
-
-bool process_can_reap_locked(process_t *proc)
-{
-    spinlock_assert_held(&scheduler_lock);
-    if (!proc)
-        return false;
-
-    thread_t *t;
-    list_foreach_entry(t, &proc->threads, list) {
-        if (thread_is_active_on_any_cpu(t))
-            return false;
-
-        uint32_t raw_state = thread_state_load_raw(t);
-        if (!thread_state_valid_raw(raw_state)) {
-            thread_state_store(t, THREAD_TERMINATED);
-            return false;
-        }
-        if ((thread_state_t)raw_state != THREAD_TERMINATED)
-            return false;
-    }
-
-    return true;
-}
-
-static process_t *claim_auto_reap_locked(void)
-{
-    spinlock_assert_held(&scheduler_lock);
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        if (!p || !p->terminated || !p->auto_reap || p->auto_reap_claimed)
-            continue;
-        if (!process_can_reap_locked(p))
-            continue;
-        p->auto_reap_claimed = true;
-        return p;
-    }
-    return nullptr;
-}
-
-/**
- * Scan all processes and return the first runnable thread.
- * @warning Caller must hold scheduler_lock.
- * @param allow_user Whether to consider user threads
- */
-// ReSharper disable once CppDFAConstantParameter
-static thread_t *find_any_runnable_thread(const bool allow_user)
-{
-    spinlock_assert_held(&scheduler_lock);
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
-            if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t))
-                return t;
-        }
-    }
-    return nullptr;
-}
-
-/**
- * Find any runnable thread using round-robin across processes.
- * @warning Caller must hold scheduler_lock.
- * @param cpu CPU to consider (or nullptr for any)
- * @param allow_user Whether to consider user threads
- * @return Runnable thread or nullptr if none found
- */
-// ReSharper disable once CppDFAConstantParameter
-static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
-{
-    spinlock_assert_held(&scheduler_lock);
-    if (!cpu)
-        return find_any_runnable_thread(allow_user);
-
-    const int cpu_idx = cpu->cpu_index;
-    if (cpu_idx < 0 || cpu_idx >= (int)MAX_CPUS)
-        return find_any_runnable_thread(allow_user);
-
-    list_item_t *head  = &process_list;
-    process_t *startp  = rr_last_proc[cpu_idx];
-    list_item_t *start = (startp != nullptr && process_in_list(startp)) ? startp->list.next : head->next;
-    if (start == head)
-        start = head->next;
-
-    for (list_item_t *pos = start; pos != head; pos = pos->next) {
-        process_t *p = list_entry(pos, process_t, list);
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
-            if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t)) {
-                rr_last_proc[cpu_idx] = p;
-                return t;
-            }
-        }
-    }
-
-    // Wrap-around: head -> start
-    for (list_item_t *pos = head->next; pos != start && pos != head; pos = pos->next) {
-        process_t *p = list_entry(pos, process_t, list);
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
-            if (thread_is_ready(t, allow_user, "sched") && !thread_is_active_on_any_cpu(t)) {
-                rr_last_proc[cpu_idx] = p;
-                return t;
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-/**
  * xv6-style scheduler loop running on a per-CPU scheduler pseudo-thread stack.
  * @note we do NOT keep scheduler_lock held while running normal threads.
  */
@@ -571,69 +277,25 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
 
         // Processes that have the SA_NOCLDWAIT flag set for the SIGCHLD signal
         // have their children automatically reaped
-        process_t *reap_proc = claim_auto_reap_locked();
+        process_t *reap_proc = scheduler_claim_auto_reap_locked();
         if (reap_proc) {
             spinlock_release(&scheduler_lock);
             process_reap(reap_proc);
             continue;
         }
         list_item_t free_list = LIST_HEAD_INIT(free_list);
-        collect_detached_terminated_threads(&free_list);
-        constexpr bool allow_user = true;
-        thread_t *next            = find_any_runnable_thread_rr(cpu, allow_user);
+        scheduler_collect_detached_terminated_threads(&free_list);
+        thread_t *next = scheduler_find_next_thread_locked(cpu);
         if (!next) {
-            thread_t *idle    = nullptr;
-            const int cpu_idx = cpu->cpu_index;
-            if (cpu_idx >= 0 && cpu_idx < (int)MAX_CPUS)
-                idle = idle_threads[cpu_idx];
-            if (!idle)
-                idle = idle_threads[0];
-            if (!idle) {
-                spinlock_release(&scheduler_lock);
-                __asm__ volatile ("sti; hlt; cli");
-                continue;
-            }
-            next = idle;
+            spinlock_release(&scheduler_lock);
+            scheduler_release_thread_list(&free_list);
+            __asm__ volatile ("sti; hlt; cli");
+            continue;
         }
 
-        const uintptr_t ktop  = next->kstack_top;
-        const uintptr_t kbase = (ktop != 0) ? (ktop - KSTACK_SIZE) : 0;
-        if (ktop == 0 || next->rsp < kbase || next->rsp >= ktop) {
-            boot_message(ERROR,
-                         "scheduler_loop: invalid rsp pid=%d tid=%d rsp=0x%lx kstack=[0x%lx-0x%lx)",
-                         next->process ? next->process->pid : -1,
-                         next->tid,
-                         next->rsp,
-                         kbase,
-                         ktop);
-            thread_state_store(next, THREAD_TERMINATED);
+        if (!scheduler_validate_next_thread_locked(next, "scheduler_loop")) {
             spinlock_release(&scheduler_lock);
-            continue;
-        }
-        const uintptr_t rip_slot = next->rsp + (6 * sizeof(uint64_t));
-        if (rip_slot < kbase || rip_slot + sizeof(uint64_t) > ktop) {
-            boot_message(ERROR,
-                         "scheduler_loop: invalid rip slot pid=%d tid=%d rsp=0x%lx kstack=[0x%lx-0x%lx)",
-                         next->process ? next->process->pid : -1,
-                         next->tid,
-                         next->rsp,
-                         kbase,
-                         ktop);
-            thread_state_store(next, THREAD_TERMINATED);
-            spinlock_release(&scheduler_lock);
-            continue;
-        }
-        const uint64_t saved_rip = *(const uint64_t *)rip_slot;
-        const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
-        if (saved_rip == 0 || saved_rip < user_top) {
-            boot_message(ERROR,
-                         "scheduler_loop: bad rip pid=%d tid=%d rip=0x%lx rsp=0x%lx",
-                         next->process ? next->process->pid : -1,
-                         next->tid,
-                         saved_rip,
-                         next->rsp);
-            thread_state_store(next, THREAD_TERMINATED);
-            spinlock_release(&scheduler_lock);
+            scheduler_release_thread_list(&free_list);
             continue;
         }
 
@@ -652,19 +314,7 @@ static thread_t *find_any_runnable_thread_rr(cpu_t *cpu, const bool allow_user)
         next->ticks_remaining = TIME_SLICE_TICKS;
 
         spinlock_release(&scheduler_lock);
-
-        thread_t *free_t, *free_next;
-        list_foreach_entry_safe(free_t, free_next, &free_list, list) {
-            if (!free_t) {
-                continue;
-            }
-            list_del(&free_t->list);
-            if (free_t->kstack_top != 0) {
-                auto kstack_base = (void *)(free_t->kstack_top - KSTACK_SIZE);
-                kfree(kstack_base);
-            }
-            kfree(free_t);
-        }
+        scheduler_release_thread_list(&free_list);
         switch_to(scheduler_thread, next);
 
         vmm_switch_pml4(kernel_process->pml4);
@@ -694,7 +344,7 @@ void schedule(void)
     // mark it runnable so the scheduler can pick it again.
     if (curr != scheduler_thread && curr->state == THREAD_RUNNING && !curr->is_idle) {
         thread_state_store(curr, THREAD_READY);
-        thread_list_move_to_tail(curr);
+        scheduler_thread_list_move_to_tail(curr);
     }
 
     curr->saved_user_rsp = cpu ? cpu->user_rsp : 0;
