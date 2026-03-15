@@ -14,6 +14,7 @@
         exit(1);
     }
 
+#ifndef HEADLESS
     printf("Starting window manager...\n");
     const int pid_wm = fork();
     if (pid_wm == 0) {
@@ -29,6 +30,7 @@
         }
         printf("Window manager exited with status %d\n", status);
     }
+#endif
 
     while (1) {
         printf("Starting shell...\n");

@@ -134,7 +134,7 @@ limine:
 # Userland
 USER_BUILD_DIR = user/build
 LIBC_A = user/build/libc/libc.a
-USERLAND_FLAGS = $(filter -DDEBUG -DTEST_MODE,$(CFLAGS))
+USERLAND_FLAGS = $(filter -DDEBUG -DTEST_MODE -DHEADLESS,$(CFLAGS))
 
 all: $(KERNEL) userland
 
@@ -186,7 +186,7 @@ run-usb:
 
 .PHONY: run-nox
 run-nox:
-	$(MAKE) image.hdd
+	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DHEADLESS"
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
 .PHONY: run-tap
