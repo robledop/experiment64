@@ -6,43 +6,40 @@ TEST(bio_test)
 {
     printk("BIO Test: Starting...\n");
 
-    // Read a block
-    buffer_head_t *bh = bread(0, 0);
+    // Use a safe sector (not sector 0 which holds the protective MBR / GPT header).
+    constexpr uint32_t test_sector = 1999;
+
+    buffer_head_t *bh = bread(0, test_sector);
     if (!bh)
     {
-        printk("BIO Test: Failed to read block 0\n");
+        printk("BIO Test: Failed to read block %u\n", test_sector);
         return false;
     }
-    printk("BIO Test: Read block 0 successfully\n");
 
-    // Modify the block and write it back
+    // Save original data so we can restore it.
+    uint8_t saved[2] = {bh->data[0], bh->data[1]};
+
     bh->data[0] = 0xAA;
     bh->data[1] = 0x55;
     bwrite(bh);
-    printk("BIO Test: Wrote to block 0\n");
-
-    // Release the buffer before reading it again
     brelse(bh);
 
-    // Read the block again and verify the data is cached
-    buffer_head_t *bh2 = bread(0, 0);
+    // Read the block again and verify the write persisted through the cache.
+    buffer_head_t *bh2 = bread(0, test_sector);
     if (!bh2)
     {
-        printk("BIO Test: Failed to read block 0 again\n");
+        printk("BIO Test: Failed to read block %u again\n", test_sector);
         return false;
     }
 
-    bool success = false;
-    if (bh2->data[0] == 0xAA && bh2->data[1] == 0x55)
-    {
-        printk("BIO Test: Data verification successful (cached)\n");
-        success = true;
-    }
-    else
-    {
+    bool success = (bh2->data[0] == 0xAA && bh2->data[1] == 0x55);
+    if (!success)
         printk("BIO Test: Data verification failed\n");
-    }
 
+    // Restore original data.
+    bh2->data[0] = saved[0];
+    bh2->data[1] = saved[1];
+    bwrite(bh2);
     brelse(bh2);
 
     if (!success)

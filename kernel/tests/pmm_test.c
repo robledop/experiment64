@@ -1,6 +1,7 @@
 #include <tests/test.h>
 #include <arch/x86_64/cpu.h>
 #include <mem/pmm.h>
+#include <mem/vmm.h>
 
 TEST(test_pmm_alloc_free)
 {
@@ -23,20 +24,36 @@ TEST(test_pmm_alloc_free)
 
 TEST(test_pmm_alloc_pages_contiguous)
 {
-    // Request three contiguous pages and verify layout/alignment.
+    // Request three contiguous pages and verify they are actually contiguous.
     void *block = pmm_alloc_pages(3);
     TEST_ASSERT(block != nullptr);
 
     const uintptr_t base = (uintptr_t)block;
-    TEST_ASSERT((base & (PAGE_SIZE - 1)) == 0);     // aligned
-    TEST_ASSERT((uintptr_t)pmm_alloc_page != base); // avoid compiler warnings about unused vars
+    TEST_ASSERT((base & (PAGE_SIZE - 1)) == 0); // aligned
 
-    TEST_ASSERT(((uintptr_t)block + PAGE_SIZE) - base == PAGE_SIZE);
-    TEST_ASSERT(((uintptr_t)block + 2 * PAGE_SIZE) - base == 2 * PAGE_SIZE);
+    // Allocate an individual page and verify it doesn't overlap with our contiguous block.
+    void *single = pmm_alloc_page();
+    TEST_ASSERT(single != nullptr);
+    uintptr_t single_phys = (uintptr_t)single;
+    TEST_ASSERT(single_phys < base || single_phys >= base + 3 * PAGE_SIZE);
+    pmm_free_page(single);
+
+    // Write a unique pattern to each page via HHDM and verify no aliasing.
+    uint8_t *page0 = (uint8_t *)(base + g_hhdm_offset);
+    uint8_t *page1 = (uint8_t *)(base + PAGE_SIZE + g_hhdm_offset);
+    uint8_t *page2 = (uint8_t *)(base + 2 * PAGE_SIZE + g_hhdm_offset);
+
+    page0[0] = 0xAA;
+    page1[0] = 0xBB;
+    page2[0] = 0xCC;
+
+    TEST_ASSERT(page0[0] == 0xAA);
+    TEST_ASSERT(page1[0] == 0xBB);
+    TEST_ASSERT(page2[0] == 0xCC);
 
     pmm_free_pages(block, 3);
 
-    // Allocate again and ensure we still get something valid (not necessarily the same block).
+    // Allocate again and ensure we still get something valid.
     void *block2 = pmm_alloc_pages(3);
     TEST_ASSERT(block2 != nullptr);
     pmm_free_pages(block2, 3);
