@@ -45,29 +45,15 @@
 
 struct stat
 {
-    int dev;
-    int ino;
+    int st_dev;
+    int st_ino;
     mode_t st_mode;
-    int type;
-    int nlink;
-    uint64_t size;
-    int ref;
-    uint32_t i_atime;
-    uint32_t i_ctime;
-    uint32_t i_mtime;
-    uint32_t i_dtime;
-    int i_uid;
-    int i_gid;
-    int i_flags;
+    int st_nlink;
+    uint64_t st_size;
+    uint32_t st_atime;
+    uint32_t st_ctime;
+    uint32_t st_mtime;
+    int st_uid;
+    int st_gid;
     dev_t st_rdev;
 };
-
-#define st_dev dev
-#define st_ino ino
-#define st_nlink nlink
-#define st_size size
-#define st_atime i_atime
-#define st_ctime i_ctime
-#define st_mtime i_mtime
-#define st_uid i_uid
-#define st_gid i_gid

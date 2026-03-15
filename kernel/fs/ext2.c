@@ -700,20 +700,16 @@ void ext2fs_iunlockput(struct ext2_inode *ip)
 
 void ext2_stat_inode(const struct ext2_inode *ip, struct stat *st)
 {
-    st->dev     = clamp_to_int(ip->dev);
-    st->ino     = clamp_to_int(ip->inum);
-    st->type    = ip->type;
-    st->st_mode = ((ip->i_mode & S_IFMT) != 0) ? ip->i_mode : vfs_mode_from_type(ip->type);
-    st->nlink   = ip->nlink;
-    st->size    = ip->size;
-    st->ref     = ip->ref;
-    st->i_atime = ip->i_atime;
-    st->i_ctime = ip->i_ctime;
-    st->i_mtime = ip->i_mtime;
-    st->i_dtime = ip->i_dtime;
-    st->i_uid   = ip->i_uid;
-    st->i_gid   = ip->i_gid;
-    st->i_flags = clamp_to_int(ip->i_flags);
+    st->st_dev   = clamp_to_int(ip->dev);
+    st->st_ino   = clamp_to_int(ip->inum);
+    st->st_mode  = ((ip->i_mode & S_IFMT) != 0) ? ip->i_mode : vfs_mode_from_type(ip->type);
+    st->st_nlink = ip->nlink;
+    st->st_size  = ip->size;
+    st->st_atime = ip->i_atime;
+    st->st_ctime = ip->i_ctime;
+    st->st_mtime = ip->i_mtime;
+    st->st_uid   = ip->i_uid;
+    st->st_gid   = ip->i_gid;
 }
 
 // Inode content

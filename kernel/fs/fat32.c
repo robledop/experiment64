@@ -1084,20 +1084,16 @@ static int fat32_vfs_stat(const vfs_inode_t *node, struct stat *st)
     if (!data)
         return -1;
 
-    st->dev     = 0;
-    st->ino     = (int)node->inode;
-    st->type    = (int)(node->flags & VFS_TYPE_MASK);
-    st->st_mode = vfs_mode_from_type((uint32_t)st->type);
-    st->nlink   = 1;
-    st->size    = node->size;
-    st->ref     = 0;
-    st->i_atime = data->acc_time;
-    st->i_ctime = data->crt_time;
-    st->i_mtime = data->mod_time;
-    st->i_dtime = 0;
-    st->i_uid   = 0;
-    st->i_gid   = 0;
-    st->i_flags = 0;
+    st->st_dev   = 0;
+    st->st_ino   = (int)node->inode;
+    st->st_mode  = vfs_mode_from_type(node->flags & VFS_TYPE_MASK);
+    st->st_nlink = 1;
+    st->st_size  = node->size;
+    st->st_atime = data->acc_time;
+    st->st_ctime = data->crt_time;
+    st->st_mtime = data->mod_time;
+    st->st_uid   = 0;
+    st->st_gid   = 0;
 
     return 0;
 }

@@ -1601,8 +1601,7 @@ TEST(test_syscall_stat_basic)
     stat_t st = {0};
     int rc    = sys_stat("/stat_test.txt", &st);
     TEST_ASSERT(rc == 0);
-    TEST_ASSERT(st.size == strlen(content));
-    TEST_ASSERT(st.type == VFS_FILE);
+    TEST_ASSERT(st.st_size == strlen(content));
     TEST_ASSERT(S_ISREG(st.st_mode));
 
     sys_unlink("/stat_test.txt");
@@ -1614,7 +1613,6 @@ TEST(test_syscall_stat_directory)
     stat_t st = {0};
     int rc    = sys_stat("/", &st);
     TEST_ASSERT(rc == 0);
-    TEST_ASSERT(st.type == VFS_DIRECTORY);
     TEST_ASSERT(S_ISDIR(st.st_mode));
     return true;
 }
@@ -1638,8 +1636,7 @@ TEST(test_syscall_fstat_basic)
     stat_t st = {0};
     int rc    = sys_fstat(fd, &st);
     TEST_ASSERT(rc == 0);
-    TEST_ASSERT(st.size == strlen(content));
-    TEST_ASSERT(st.type == VFS_FILE);
+    TEST_ASSERT(st.st_size == strlen(content));
     TEST_ASSERT(S_ISREG(st.st_mode));
 
     sys_close(fd);
@@ -1665,11 +1662,11 @@ TEST(test_syscall_ftruncate_zero)
 
     stat_t st = {0};
     TEST_ASSERT(sys_fstat(fd, &st) == 0);
-    TEST_ASSERT(st.size == strlen(content));
+    TEST_ASSERT(st.st_size == strlen(content));
 
     TEST_ASSERT(sys_ftruncate(fd, 0) == 0);
     TEST_ASSERT(sys_fstat(fd, &st) == 0);
-    TEST_ASSERT(st.size == 0);
+    TEST_ASSERT(st.st_size == 0);
 
     TEST_ASSERT(sys_lseek(fd, 0, SEEK_SET) == 0);
     char buf[8] = {0};
@@ -1711,7 +1708,7 @@ TEST(test_syscall_ftruncate_nonzero_unsupported)
 
     stat_t st = {0};
     TEST_ASSERT(sys_fstat(fd, &st) == 0);
-    TEST_ASSERT(st.size == strlen(content));
+    TEST_ASSERT(st.st_size == strlen(content));
 
     TEST_ASSERT(sys_close(fd) == 0);
     TEST_ASSERT(sys_unlink("/ftruncate_nonzero.txt") == 0);
@@ -2177,7 +2174,7 @@ TEST(test_syscall_mknod_basic)
 
     stat_t st = {0};
     TEST_ASSERT(sys_stat(path, &st) == 0);
-    TEST_ASSERT(st.type == VFS_FILE);
+    TEST_ASSERT(S_ISREG(st.st_mode));
 
     sys_unlink(path);
     return true;

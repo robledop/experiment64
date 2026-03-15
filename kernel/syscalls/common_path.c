@@ -33,20 +33,16 @@ void fill_stat_from_inode(const vfs_inode_t *inode, struct stat *st)
             return;
     }
 
-    st->dev     = 0;
-    st->ino     = (int)inode->inode;
-    st->type    = (int)(inode->flags & VFS_TYPE_MASK);
-    st->st_mode = vfs_mode_from_type((uint32_t)st->type);
-    st->nlink   = 1;
-    st->size    = inode->size;
-    st->ref     = 0;
-    st->i_atime = 0;
-    st->i_ctime = 0;
-    st->i_mtime = 0;
-    st->i_dtime = 0;
-    st->i_uid   = 0;
-    st->i_gid   = 0;
-    st->i_flags = 0;
+    st->st_dev   = 0;
+    st->st_ino   = (int)inode->inode;
+    st->st_mode  = vfs_mode_from_type(inode->flags & VFS_TYPE_MASK);
+    st->st_nlink = 1;
+    st->st_size  = inode->size;
+    st->st_atime = 0;
+    st->st_ctime = 0;
+    st->st_mtime = 0;
+    st->st_uid   = 0;
+    st->st_gid   = 0;
 }
 
 void set_process_name_from_path(process_t *proc, const char *path)

@@ -139,7 +139,7 @@ static int send_file_response(const int sockfd, const int fd, const char *conten
         sizeof(header),
         OK "Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
         content_type,
-        (long)st.size);
+        (long)st.st_size);
 
     if (header_len <= 0)
         return -1;

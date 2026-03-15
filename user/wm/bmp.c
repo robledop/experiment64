@@ -31,20 +31,20 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
         return -1;
     }
 
-    if (file_stat.size < (sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER))) {
+    if (file_stat.st_size < (sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER))) {
         close(fd);
         return -1;
     }
 
-    uint8_t *buffer = malloc((size_t)file_stat.size);
+    uint8_t *buffer = malloc((size_t)file_stat.st_size);
     if (!buffer) {
         close(fd);
         return -1;
     }
 
-    const ssize_t nread = read(fd, buffer, (size_t)file_stat.size);
+    const ssize_t nread = read(fd, buffer, (size_t)file_stat.st_size);
     close(fd);
-    if (nread != (ssize_t)file_stat.size) {
+    if (nread != (ssize_t)file_stat.st_size) {
         free(buffer);
         return -1;
     }
@@ -84,8 +84,8 @@ int bitmap_load_argb(const char *path, uint32_t **out_pixels, uint32_t *out_widt
     // Bounds check: ensure pixel data fits within the file.
     const uint64_t bytes_per_row = ((((uint64_t)width * 3) + 3) / 4) * 4;
     const uint64_t pixel_bytes   = bytes_per_row * (uint64_t)height;
-    if ((uint64_t)fh->bfOffBits >= (uint64_t)file_stat.size ||
-        (uint64_t)fh->bfOffBits + pixel_bytes > (uint64_t)file_stat.size) {
+    if ((uint64_t)fh->bfOffBits >= (uint64_t)file_stat.st_size ||
+        (uint64_t)fh->bfOffBits + pixel_bytes > (uint64_t)file_stat.st_size) {
         free(buffer);
         return -1;
     }

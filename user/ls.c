@@ -46,25 +46,21 @@ char *bytes_to_human_readable(uint32_t bytes, char *output, uint32_t output_size
 
 static void print_entry(char *name, const struct stat *st)
 {
-    switch (st->type) {
-    case T_DIR:
+    if (S_ISDIR(st->st_mode))
         printf(KWHT "d ");
-        break;
-    case T_DEV:
+    else if (S_ISCHR(st->st_mode))
         printf(KWHT "c ");
-        break;
-    default:
+    else
         printf(KWHT "- ");
-    }
 
-    printf(" %5d ", st->ino);
+    printf(" %5d ", st->st_ino);
 
     char human_readable_size[20];
-    bytes_to_human_readable(st->size, human_readable_size, sizeof(human_readable_size));
+    bytes_to_human_readable(st->st_size, human_readable_size, sizeof(human_readable_size));
     printf(" %10s ", human_readable_size);
 
     struct tm modify_time = {0};
-    unix_timestamp_to_tm(st->i_mtime, &modify_time);
+    unix_timestamp_to_tm(st->st_mtime, &modify_time);
 
     const char *date_time_format = "%Y %B %d %H:%M";
     char modify_time_str[25]     = {0};
@@ -72,16 +68,12 @@ static void print_entry(char *name, const struct stat *st)
     strftime(modify_time_str, sizeof(modify_time_str), date_time_format, &modify_time);
     printf(" %-25s ", modify_time_str);
 
-    switch (st->type) {
-    case T_DIR:
+    if (S_ISDIR(st->st_mode))
         printf(KBBLU " %s\n" KWHT, name);
-        break;
-    case T_DEV:
+    else if (S_ISCHR(st->st_mode))
         printf(KYEL " %s\n" KWHT, name);
-        break;
-    default:
+    else
         printf(KWHT " %s\n", name);
-    }
 }
 
 static int ls_visit(const struct dirent_view *entry, void *arg)
@@ -122,18 +114,13 @@ void ls(char *path)
         return;
     }
 
-    switch (st.type) {
-    case T_FILE:
+    if (S_ISREG(st.st_mode)) {
         print_entry(fmtname(path), &st);
-        break;
-
-    case T_DIR:
-        {
-            struct ls_ctx ctx;
-            if (strlen(path) + 1 + EXT2_DIRENT_NAME_MAX + 1 > sizeof(ctx.path)) {
-                printf("ls: path too long\n");
-                break;
-            }
+    } else if (S_ISDIR(st.st_mode)) {
+        struct ls_ctx ctx;
+        if (strlen(path) + 1 + EXT2_DIRENT_NAME_MAX + 1 > sizeof(ctx.path)) {
+            printf("ls: path too long\n");
+        } else {
             strcpy(ctx.path, path);
             ctx.base_len = (int)strlen(ctx.path);
             if (ctx.base_len == 0 || ctx.path[ctx.base_len - 1] != '/') {
@@ -142,10 +129,9 @@ void ls(char *path)
             }
             if (dirwalk(fd, ls_visit, &ctx) < 0)
                 printf("ls: cannot read directory %s\n", path);
-            break;
         }
-    default:;
-        printf("ls: unknown type %d for %s\n", st.type, path);
+    } else {
+        printf("ls: unknown type for %s\n", path);
     }
     close(fd);
 }

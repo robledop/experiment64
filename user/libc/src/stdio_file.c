@@ -148,7 +148,7 @@ FILE *fopen(const char *path, const char *mode)
 
     struct stat st;
     if (fstat(f->fd, &st) == 0)
-        f->size = (size_t)st.size;
+        f->size = (size_t)st.st_size;
     else
         f->size = 0;
 
@@ -186,7 +186,7 @@ FILE *fdopen(int fd, const char *mode)
     f->open_flags = (f->readable && f->writable) ? O_RDWR : (f->writable ? O_WRONLY : O_RDONLY);
     f->data = nullptr;
     struct stat st;
-    f->size = (fstat(fd, &st) == 0) ? (size_t)st.size : 0;
+    f->size = (fstat(fd, &st) == 0) ? (size_t)st.st_size : 0;
     f->pos = 0;
     return f;
 }
@@ -463,7 +463,7 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
     if (stream->open_flags & O_TRUNC)
         stream->open_flags &= ~O_TRUNC;
     struct stat st;
-    stream->size = (fstat(stream->fd, &st) == 0) ? (size_t)st.size : 0;
+    stream->size = (fstat(stream->fd, &st) == 0) ? (size_t)st.st_size : 0;
     stream->pos = ap ? stream->size : 0;
     if (ap && stream->pos > 0)
         stream->need_seek = true;

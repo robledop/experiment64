@@ -46,12 +46,12 @@ coalescing all backend failures to `-EIO`.
 - `accept()` now uses a POSIX-style `socklen_t *addrlen` value-result argument; nonblocking listeners return
   `-1` with `errno=EAGAIN` when no connection is pending.
 
-## `stat` Compatibility
+## `stat` Fields
 
-- `struct stat` now exposes `st_mode` and POSIX mode/type macros in `<sys/stat.h>` (`S_IF*`, `S_IS*`, permission bits).
-- Kernel metadata paths (`stat`/`fstat`) populate both legacy `type` and POSIX `st_mode`.
-- Legacy fields remain available for existing programs (`size`, `i_mtime`, etc.); libc also provides aliases:
-  `st_dev`, `st_ino`, `st_nlink`, `st_size`, `st_atime`, `st_ctime`, `st_mtime`, `st_uid`, and `st_gid`.
+- `struct stat` uses standard POSIX field names: `st_dev`, `st_ino`, `st_mode`, `st_nlink`, `st_size`,
+  `st_atime`, `st_ctime`, `st_mtime`, `st_uid`, `st_gid`, `st_rdev`.
+- File type is encoded in `st_mode` and tested with `S_ISREG()`, `S_ISDIR()`, `S_ISCHR()`, etc.
+- Mode/type macros are available in both `<sys/stat.h>` (userland) and `<fs/vfs.h>` (kernel).
 
 ## `termios` Compatibility
 

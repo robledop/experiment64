@@ -69,20 +69,16 @@ static inline uint32_t vfs_mode_from_type(uint32_t type)
 
 struct stat
 {
-    int dev;
-    int ino;
+    int st_dev;
+    int st_ino;
     uint32_t st_mode;
-    int type;
-    int nlink;
-    uint64_t size;
-    int ref;
-    uint32_t i_atime;
-    uint32_t i_ctime;
-    uint32_t i_mtime;
-    uint32_t i_dtime;
-    int i_uid;
-    int i_gid;
-    int i_flags;
+    int st_nlink;
+    uint64_t st_size;
+    uint32_t st_atime;
+    uint32_t st_ctime;
+    uint32_t st_mtime;
+    int st_uid;
+    int st_gid;
 };
 typedef struct stat stat_t;
 
