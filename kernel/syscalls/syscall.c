@@ -269,6 +269,9 @@ uint64_t syscall_handler(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, 
     case SYS_SIGPROCMASK:
         ret = sys_sigprocmask((int)arg1, (const sigset_t *)arg2, (sigset_t *)arg3);
         break;
+    case SYS_WAIT4:
+        ret = sys_wait4((int)arg1, (int *)arg2, (int)arg3, (crash_info_t *)arg4);
+        break;
     default:
         printk("Unknown syscall: %lu pid=%d\n", syscall_number,
                current_process ? current_process->pid : -1);

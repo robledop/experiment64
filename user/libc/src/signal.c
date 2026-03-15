@@ -119,8 +119,34 @@ int raise(int sig)
     return kill(getpid(), sig);
 }
 
+static const char *signal_names[] = {
+    [SIGHUP]  = "Hangup",
+    [SIGINT]  = "Interrupt",
+    [SIGQUIT] = "Quit",
+    [SIGILL]  = "Illegal instruction",
+    [SIGTRAP] = "Trace/breakpoint trap",
+    [SIGABRT] = "Aborted",
+    [SIGBUS]  = "Bus error",
+    [SIGFPE]  = "Floating point exception",
+    [SIGKILL] = "Killed",
+    [SIGUSR1] = "User defined signal 1",
+    [SIGSEGV] = "Segmentation fault",
+    [SIGUSR2] = "User defined signal 2",
+    [SIGPIPE] = "Broken pipe",
+    [SIGALRM] = "Alarm clock",
+    [SIGTERM] = "Terminated",
+    [SIGCHLD] = "Child exited",
+    [SIGCONT] = "Continued",
+    [SIGSTOP] = "Stopped (signal)",
+    [SIGTSTP] = "Stopped",
+    [SIGTTIN] = "Stopped (tty input)",
+    [SIGTTOU] = "Stopped (tty output)",
+    [SIGWINCH] = "Window changed",
+};
+
 char *strsignal(int sig)
 {
-    (void)sig;
+    if (sig > 0 && sig < (int)(sizeof(signal_names) / sizeof(signal_names[0])) && signal_names[sig])
+        return (char *)signal_names[sig];
     return "Unknown signal";
 }

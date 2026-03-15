@@ -58,6 +58,7 @@
 #define SYS_POLL 56
 #define SYS_FCNTL 57
 #define SYS_SIGPROCMASK 58
+#define SYS_WAIT4 59
 
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003

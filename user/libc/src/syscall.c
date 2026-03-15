@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -143,6 +144,11 @@ int wait(int *status)
 int waitpid(int pid, int *status, int options)
 {
     return syscall_to_int(syscall3(SYS_WAITPID, pid, (long)status, options));
+}
+
+int wait4(int pid, int *status, int options, crash_info_t *info)
+{
+    return syscall_to_int(syscall4(SYS_WAIT4, pid, (long)status, options, (long)info));
 }
 
 int getpid(void)

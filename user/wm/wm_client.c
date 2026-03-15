@@ -15,7 +15,12 @@
 #include <wm/window.h>
 #include <wm/wm_protocol.h>
 
+#include "crash_dialog.h"
 #include "taskbar.h"
+
+// Defined in main.c
+typedef struct { int pid; int status; crash_info_t info; } crash_entry_t;
+extern const crash_entry_t *crash_log_find(int pid);
 
 client_manager_t *g_mgr;
 static window_t *g_parent;
@@ -30,7 +35,18 @@ static void ensure_client_manager_initialized(void)
 
 static void client_destroy_shm_buffers(client_window_t *cw, uint16_t width, uint16_t height);
 
-static int client_register_connection(client_manager_t *mgr, int cmd_fd, int evt_fd, int client_pid)
+static const char *path_basename(const char *path)
+{
+    const char *last = path;
+    for (const char *p = path; *p; p++) {
+        if (*p == '/')
+            last = p + 1;
+    }
+    return last;
+}
+
+static int client_register_connection(client_manager_t *mgr, int cmd_fd, int evt_fd, int client_pid,
+                                      const char *path)
 {
     if (!mgr || cmd_fd < 0 || evt_fd < 0 || client_pid <= 0)
         return -1;
@@ -41,7 +57,12 @@ static int client_register_connection(client_manager_t *mgr, int cmd_fd, int evt
             return 0;
     }
 
-    arr_push(mgr->connections, ((client_connection_t){.cmd_fd = cmd_fd, .evt_fd = evt_fd, .client_pid = client_pid}));
+    client_connection_t conn = {.cmd_fd = cmd_fd, .evt_fd = evt_fd, .client_pid = client_pid};
+    if (path) {
+        const char *base = path_basename(path);
+        snprintf(conn.name, sizeof(conn.name), "%s", base);
+    }
+    arr_push(mgr->connections, conn);
     return 0;
 }
 
@@ -678,8 +699,30 @@ static void *client_reader_thread(void *arg)
 
 done:
     wm_state_lock();
+
+    // Look up the connection name before destroying it.
+    const char *app_name = nullptr;
+    const client_connection_t *conn = client_find_connection_by_cmd_fd(g_mgr, cmd_fd);
+    char name_buf[64] = {};
+    if (conn && conn->name[0]) {
+        snprintf(name_buf, sizeof(name_buf), "%s", conn->name);
+        app_name = name_buf;
+    }
+
     client_destroy_connection_windows(g_mgr, cmd_fd);
     client_unregister_connection_by_cmd_fd(g_mgr, cmd_fd);
+
+    // Check if the client crashed (signaled termination).
+    const crash_entry_t *entry = crash_log_find(client_pid);
+    if (entry && WIFSIGNALED(entry->status) && g_parent) {
+        printf("wm: client '%s' pid=%d killed by signal %d, showing crash dialog\n",
+               app_name ? app_name : "?", client_pid, WTERMSIG(entry->status));
+        crash_dialog_show(g_parent, app_name, WTERMSIG(entry->status), &entry->info);
+    } else {
+        printf("wm: client pid=%d disconnected (entry=%p status=%d)\n",
+               client_pid, (void *)entry, entry ? entry->status : -999);
+    }
+
     if (g_parent)
         window_paint(g_parent, nullptr, 1);
     wm_state_unlock();
@@ -737,7 +780,7 @@ int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t
     close(cmd_pipe[1]);
     close(evt_pipe[0]);
 
-    if (client_register_connection(g_mgr, cmd_pipe[0], evt_pipe[1], pid) != 0) {
+    if (client_register_connection(g_mgr, cmd_pipe[0], evt_pipe[1], pid, path) != 0) {
         close(cmd_pipe[0]);
         close(evt_pipe[1]);
         kill(pid, SIGTERM);

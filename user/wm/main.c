@@ -30,12 +30,41 @@ static video_context_t *context;
 static client_manager_t client_mgr;
 
 
+#define CRASH_LOG_SIZE 16
+
+typedef struct
+{
+    int pid;
+    int status;
+    crash_info_t info;
+} crash_entry_t;
+
+static crash_entry_t crash_log[CRASH_LOG_SIZE];
+static volatile int crash_log_head;
+
 USED static void sigaction_handler(int signum)
 {
     if (signum == SIGCHLD) {
-        while (waitpid(-1, nullptr, WNOHANG) > 0) {
+        int status;
+        crash_info_t info;
+        int pid;
+        while ((pid = wait4(-1, &status, WNOHANG, &info)) > 0) {
+            int idx = crash_log_head % CRASH_LOG_SIZE;
+            crash_log[idx] = (crash_entry_t){.pid = pid, .status = status, .info = info};
+            crash_log_head++;
         }
     }
+}
+
+const crash_entry_t *crash_log_find(int pid)
+{
+    int head = crash_log_head;
+    for (int i = head - 1; i >= 0 && i >= head - CRASH_LOG_SIZE; i--) {
+        const crash_entry_t *e = &crash_log[i % CRASH_LOG_SIZE];
+        if (e->pid == pid)
+            return e;
+    }
+    return nullptr;
 }
 
 static void wm_configure_sigchld(void)

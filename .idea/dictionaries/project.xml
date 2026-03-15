@@ -147,6 +147,7 @@
       <w>vprintf</w>
       <w>vprintk</w>
       <w>vsnprintf</w>
+      <w>wcoredump</w>
       <w>wexitstatus</w>
       <w>wifexited</w>
       <w>wifsignaled</w>

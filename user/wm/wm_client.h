@@ -25,6 +25,7 @@ typedef struct
     int cmd_fd;
     int evt_fd;
     int client_pid;
+    char name[64];
 } client_connection_t;
 
 typedef struct

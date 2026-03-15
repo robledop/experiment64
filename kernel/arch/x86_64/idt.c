@@ -9,6 +9,8 @@
 #include <kernel.h>
 #include <debug.h>
 #include <lib/util.h>
+#include <syscall_common.h>
+#include <sys/signal.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -81,6 +83,44 @@ char *exception_messages[] = {
     "Security Exception",
     "Reserved"
 };
+
+// Map x86 exception vectors to POSIX signal numbers.
+static constexpr int vector_to_signal[32] = {
+    [0]  = SIGFPE,   // Division by Zero
+    [4]  = SIGFPE,   // Overflow
+    [5]  = SIGSEGV,  // Bound Range Exceeded
+    [6]  = SIGILL,   // Invalid Opcode
+    [7]  = SIGFPE,   // No Coprocessor
+    [8]  = SIGSEGV,  // Double Fault
+    [10] = SIGSEGV,  // Bad TSS
+    [11] = SIGBUS,   // Segment Not Present
+    [12] = SIGSEGV,  // Stack Fault
+    [13] = SIGSEGV,  // General Protection Fault
+    [14] = SIGSEGV,  // Page Fault
+    [16] = SIGFPE,   // x87 FPU Error
+    [17] = SIGBUS,   // Alignment Check
+    [19] = SIGFPE,   // SIMD Floating-Point Exception
+};
+
+// Walk the user-mode frame pointer chain and capture return addresses.
+static void capture_user_backtrace(crash_info_t *info, uint64_t rbp)
+{
+    info->frame_count = 0;
+
+    struct frame { uint64_t rbp; uint64_t rip; };
+
+    for (int i = 0; i < MAX_CRASH_FRAMES && rbp != 0; i++) {
+        if (!user_ptr_read_ok((const void *)rbp, sizeof(struct frame), "backtrace"))
+            break;
+        struct frame f;
+        if (!copy_from_user(&f, (const void *)rbp, sizeof(f)))
+            break;
+        if (f.rip == 0)
+            break;
+        info->frames[info->frame_count++] = f.rip;
+        rbp = f.rbp;
+    }
+}
 
 void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags)
 {
@@ -317,13 +357,23 @@ void interrupt_handler(struct interrupt_frame *frame)
             printk(KWHT "run " KBBLU "addr2line -e <binary> %p" KWHT " to get line numbers\n", snap->rip);
             printk(KWHT "run " KBBLU "objdump -d <binary> | grep %p -A 40 -B 40" KWHT " to see more.\n", snap->rip);
 
+            // Capture crash info before acquiring the lock (needs to read user pages).
+            if (p) {
+                p->crash_info.fault_rip = snap->rip;
+                capture_user_backtrace(&p->crash_info, snap->rbp);
+            }
+
+            int sig = (snap->int_no < ARRAY_SIZE(vector_to_signal) && vector_to_signal[snap->int_no])
+                    ? vector_to_signal[snap->int_no]
+                    : SIGSEGV;
+
             // Acquire scheduler lock before modifying thread/process state to prevent races.
             // Interrupts are already disabled by the interrupt gate.
             spinlock_acquire(&scheduler_lock);
 
             process_t *parent = nullptr;
             if (p)
-                process_mark_exited_locked(p, -1, &parent);
+                process_mark_exited_locked(p, 128 + sig, &parent);
 
             spinlock_release(&scheduler_lock);
 

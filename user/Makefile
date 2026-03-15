@@ -6,7 +6,7 @@ AR = x86_64-elf-ar
 
 BUILD_DIR = build
 
-USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -I../include -ggdb -O3 -Wa,--noexecstack -fno-builtin
+USER_CFLAGS = -nostdlib -static -fPIE -m64 -march=x86-64 -std=c23 -mavx -masm=intel -Ilibc/include -I../include -ggdb -O3 -Wa,--noexecstack -fno-builtin -fno-omit-frame-pointer
 override CFLAGS := $(USER_CFLAGS) $(CFLAGS)
 LDFLAGS = -Wl,-T,user.ld -Wl,--build-id=none
 

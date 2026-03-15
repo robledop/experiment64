@@ -51,6 +51,8 @@ void taskbar_init(int16_t x, int16_t y, uint16_t w, uint16_t h)
 
 void taskbar_button_activate(int index)
 {
+    if (index < 0 || (size_t)index >= arr_len(g_taskbar_buttons))
+        return;
     taskbar_button_t taskbar_button = arr_get(g_taskbar_buttons, index);
     button_t *button                = taskbar_button.button;
     if (!button)

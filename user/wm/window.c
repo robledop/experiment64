@@ -121,8 +121,7 @@ static void window_draw_border(window_t *window)
     const int screen_x = window_screen_x(window);
     const int screen_y = window_screen_y(window);
 
-    if (!window) {
-        panic("window is null");
+    if (!window || !window->parent) {
         return;
     }
     bool is_active = window->parent->active_child == window;

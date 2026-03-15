@@ -7,6 +7,7 @@
 #include <net/socket.h>
 #include <sys/time.h>
 #include <sys/signal.h>
+#include <sys/wait.h>
 #include <sys/poll.h>
 
 struct syscall_regs
@@ -28,6 +29,7 @@ int64_t sys_sbrk(int64_t increment);
 void sys_exit(int code);
 int sys_wait(int* status);
 int sys_waitpid(int pid, int* status, int options);
+int sys_wait4(int pid, int *status, int options, crash_info_t *info);
 int sys_getpid(void);
 int sys_read(int fd, char* buf, size_t count);
 int sys_write(int fd, const char* buf, size_t count);

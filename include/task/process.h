@@ -6,6 +6,7 @@
 #include <lib/path.h>
 #include <mem/vmm.h>
 #include <sys/signal.h>
+#include <sys/wait.h>
 #include <arch/x86_64/cpu.h>
 
 #define KSTACK_SIZE 65536
@@ -22,6 +23,7 @@
 #define VMA_MMAP (1u << 4)
 #define VMA_STACK (1u << 5)
 #define VMA_ANON (1u << 6)
+
 
 typedef enum
 {
@@ -72,6 +74,7 @@ typedef struct Process
     list_item_t list;       // Global process list node
     struct Process *parent; // Parent process
     int exit_code;
+    crash_info_t crash_info;
     bool terminated;
     bool auto_reap;
     bool auto_reap_claimed;
