@@ -32,6 +32,7 @@
       <w>ebadpath</w>
       <w>ebuffull</w>
       <w>efsnotus</w>
+      <w>ehdr</w>
       <w>einformat</w>
       <w>einstkn</w>
       <w>einvarg</w>
@@ -123,13 +124,16 @@
       <w>setfl</w>
       <w>setjmp</w>
       <w>setsid</w>
+      <w>shdrs</w>
       <w>sigprocmask</w>
       <w>sigreturn</w>
       <w>sleeplock</w>
       <w>snprintf</w>
       <w>sscanf</w>
       <w>strnlen</w>
+      <w>strtab</w>
       <w>strtol</w>
+      <w>symtab</w>
       <w>syncronous</w>
       <w>sysno</w>
       <w>toolprefix</w>

@@ -3,8 +3,38 @@
 #include <stdint.h>
 
 #define ELF_MAGIC  0x464C457F
-#define SHT_SYMTAB 2
-#define SHT_STRTAB 3
+
+// Section types
+#define SHT_NULL     0
+#define SHT_PROGBITS 1
+#define SHT_SYMTAB   2
+#define SHT_STRTAB   3
+#define SHT_RELA     4
+#define SHT_HASH     5
+#define SHT_DYNAMIC  6
+#define SHT_NOTE     7
+#define SHT_NOBITS   8
+#define SHT_REL      9
+
+// Section flags
+#define SHF_WRITE     0x1
+#define SHF_ALLOC     0x2
+#define SHF_EXECINSTR 0x4
+
+// Symbol binding (upper nibble of st_info)
+#define STB_LOCAL  0
+#define STB_GLOBAL 1
+#define STB_WEAK   2
+
+// Symbol type (lower nibble of st_info)
+#define STT_NOTYPE  0
+#define STT_OBJECT  1
+#define STT_FUNC    2
+#define STT_SECTION 3
+#define STT_FILE    4
+
+#define ELF64_ST_BIND(i) ((i) >> 4)
+#define ELF64_ST_TYPE(i) ((i) & 0xf)
 
 typedef uint64_t elf64_addr;
 typedef uint64_t elf64_off;
