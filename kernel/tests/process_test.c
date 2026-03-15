@@ -58,6 +58,9 @@ TEST(test_process_creation)
         return false;
     }
 
+    const int pid = proc->pid;
+    const int tid = thread->tid;
+
     for (int i = 0; i < 1000; i++)
     {
         if (process_thread_done)
@@ -68,10 +71,12 @@ TEST(test_process_creation)
     if (!process_thread_done)
     {
         printk("Process test thread did not run\n");
+        process_destroy(proc);
+        return false;
     }
 
     process_destroy(proc);
-    printk("Process and thread created successfully. PID: %d, TID: %d\n", proc->pid, thread->tid);
+    printk("Process and thread created successfully. PID: %d, TID: %d\n", pid, tid);
     return true;
 }
 
@@ -124,6 +129,14 @@ TEST(test_scheduler)
                 break;
             yield();
         }
+
+        if (!scheduler_thread_done)
+        {
+            process_destroy(proc);
+            printk("Scheduler test failed: Thread did not complete.\n");
+            return false;
+        }
+
         process_destroy(proc);
         printk("Scheduler test passed: Thread ran.\n");
         return true;

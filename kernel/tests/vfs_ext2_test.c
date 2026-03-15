@@ -4,6 +4,61 @@
 #include <lib/string.h>
 #include <drivers/terminal.h>
 
+static constexpr char g_ext2_seed_name[] = "test.txt";
+static constexpr char g_ext2_seed_prefix[] = "Hello Ext2";
+
+static bool ext2_write_and_verify_scratch_file(const char *path, const char *payload)
+{
+    char buffer[64] = {0};
+    bool passed = false;
+
+    vfs_unlink((char *)path);
+
+    if (vfs_mknod((char *)path, VFS_FILE, 0) != 0)
+    {
+        printk("VFS: failed to create %s\n", path);
+        return false;
+    }
+
+    vfs_inode_t *file = vfs_resolve_path(path);
+    if (!file)
+    {
+        printk("VFS: failed to resolve %s\n", path);
+        vfs_unlink((char *)path);
+        return false;
+    }
+
+    const size_t len = strlen(payload);
+    if (vfs_write(file, 0, len, (uint8_t *)payload) != len)
+    {
+        printk("VFS: failed to write %s\n", path);
+        goto out;
+    }
+
+    if (vfs_read(file, 0, len, (uint8_t *)buffer) != len)
+    {
+        printk("VFS: failed to read back %s\n", path);
+        goto out;
+    }
+
+    if (strncmp(buffer, payload, len) != 0)
+    {
+        printk("VFS: readback mismatch for %s\n", path);
+        goto out;
+    }
+
+    passed = true;
+
+out:
+    vfs_release(file);
+    if (vfs_unlink((char *)path) != 0)
+    {
+        printk("VFS: failed to remove %s\n", path);
+        passed = false;
+    }
+    return passed;
+}
+
 TEST(test_vfs_ext2_open)
 {
     if (!vfs_root)
@@ -12,14 +67,15 @@ TEST(test_vfs_ext2_open)
         return false;
     }
 
-    vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
+    vfs_inode_t *file = vfs_finddir(vfs_root, g_ext2_seed_name);
     if (!file)
     {
-        printk("VFS: Failed to find test.txt\n");
+        printk("VFS: Failed to find %s\n", g_ext2_seed_name);
         return false;
     }
 
     vfs_open(file);
+    vfs_close(file);
 
     vfs_release(file);
     return true;
@@ -30,21 +86,7 @@ TEST_PRIO(test_vfs_ext2_write, 20)
     if (!vfs_root)
         return false;
 
-    vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
-    if (!file)
-        return false;
-
-    const char *new_data = "WriteTest";
-    uint64_t written = vfs_write(file, 0, strlen(new_data), (uint8_t *)new_data);
-
-    bool passed = (written == strlen(new_data));
-    if (!passed)
-    {
-        printk("VFS: Write failed, expected %d, got %lu\n", strlen(new_data), written);
-    }
-
-    vfs_release(file);
-    return passed;
+    return ext2_write_and_verify_scratch_file("/ext2_write_test.txt", "WriteTest");
 }
 
 TEST_PRIO(test_vfs_ext2_read, 30)
@@ -52,15 +94,15 @@ TEST_PRIO(test_vfs_ext2_read, 30)
     if (!vfs_root)
         return false;
 
-    vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
+    vfs_inode_t *file = vfs_finddir(vfs_root, g_ext2_seed_name);
     if (!file)
         return false;
 
     char buffer[32] = {0};
-    uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
+    const size_t expected_len = strlen(g_ext2_seed_prefix);
 
-    // "WriteTest" overwrote start of file
-    bool passed = (bytes >= 9 && strncmp(buffer, "WriteTest", 9) == 0);
+    bool passed = (bytes >= expected_len && strncmp(buffer, g_ext2_seed_prefix, expected_len) == 0);
     if (!passed)
     {
         printk("VFS: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
@@ -94,10 +136,10 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
         return false;
     }
 
-    vfs_inode_t *file = vfs_finddir(vfs_root, "test.txt");
+    vfs_inode_t *file = vfs_finddir(vfs_root, g_ext2_seed_name);
     if (!file)
     {
-        printk("VFS: Failed to find 'test.txt'\n");
+        printk("VFS: Failed to find '%s'\n", g_ext2_seed_name);
         return false;
     }
 
@@ -106,14 +148,15 @@ TEST_PRIO(test_vfs_ext2_basic, 10)
     char buffer[32] = {0};
     const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
 
-    if (bytes == 0)
+    const size_t expected_len = strlen(g_ext2_seed_prefix);
+    if (bytes < expected_len)
     {
-        printk("VFS: Read returned 0 bytes\n");
+        printk("VFS: Read returned %lu bytes\n", bytes);
         vfs_release(file);
         return false;
     }
 
-    if (strncmp(buffer, "Hello Ext2", 10) != 0 && strncmp(buffer, "WriteTest", 9) != 0)
+    if (strncmp(buffer, g_ext2_seed_prefix, expected_len) != 0)
     {
         printk("VFS: Read wrong data: '%s'\n", buffer);
         vfs_release(file);
@@ -139,6 +182,8 @@ TEST(test_ext2_long_name_and_duplicate_rejection)
     char path[256];
     snprintk(path, sizeof(path), "/ext2_%s", long_component);
 
+    vfs_unlink(path);
+
     int res = vfs_mknod(path, VFS_FILE, 0);
     if (res != 0)
     {
@@ -152,6 +197,7 @@ TEST(test_ext2_long_name_and_duplicate_rejection)
     vfs_inode_t *node = vfs_resolve_path(path);
     TEST_ASSERT(node != nullptr);
     vfs_release(node);
+    TEST_ASSERT(vfs_unlink(path) == 0);
     return true;
 }
 

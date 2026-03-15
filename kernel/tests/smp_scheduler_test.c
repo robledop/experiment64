@@ -19,7 +19,7 @@ static volatile int g_threads_completed = 0;
 static bool smp_wait_for_any_ap_ready(uint32_t cpu_count)
 {
     if (cpu_count <= 1)
-        return true;
+        return false;
 
     for (int i = 0; i < 200000; i++)
     {
@@ -54,9 +54,11 @@ TEST_PRIO(test_smp_aps_execute_threads, 5)
 {
     const uint32_t cpu_count = smp_get_cpu_count();
 
-    // If only BSP present, nothing to prove.
     if (cpu_count <= 1)
-        return true;
+    {
+        printk("SMP sched: expected APs, cpu_count=%u\n", cpu_count);
+        return false;
+    }
 
     if (!smp_wait_for_any_ap_ready(cpu_count))
     {
@@ -226,7 +228,10 @@ TEST_PRIO(test_smp_user_threads_execute_on_any_cpu, 6)
 {
     const uint32_t cpu_count = smp_get_cpu_count();
     if (cpu_count <= 1)
-        return true;
+    {
+        printk("SMP user: expected APs, cpu_count=%u\n", cpu_count);
+        return false;
+    }
 
     if (!smp_wait_for_any_ap_ready(cpu_count))
     {

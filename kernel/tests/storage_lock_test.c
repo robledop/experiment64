@@ -95,12 +95,13 @@ TEST(test_storage_per_device_lock_progress)
         return false;
     }
 
-    // Device 0 must succeed.
-    TEST_ASSERT(g_storage_thread_rc[0] == 0);
-
-    if (g_storage_thread_rc[1] != 0)
+    if (g_storage_thread_rc[0] != 0 || g_storage_thread_rc[1] != 0)
     {
-        printk("storage lock progress: device1 read rc=%d (continuing)\n", g_storage_thread_rc[1]);
+        printk("storage lock progress: read rc0=%d rc1=%d\n",
+               g_storage_thread_rc[0], g_storage_thread_rc[1]);
+        process_destroy(p0);
+        process_destroy(p1);
+        return false;
     }
 
     for (int i = 0; i < 1000; i++)

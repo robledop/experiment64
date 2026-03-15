@@ -39,12 +39,15 @@ TEST(test_ide_read_write)
 
     if (drive == -1)
     {
-        printk("No IDE drive found! Skipping test.\n");
-        return true;
+        printk("No IDE drive found\n");
+        return false;
     }
 
+    uint8_t original_buf[512];
     uint8_t write_buf[512];
     uint8_t read_buf[512];
+    bool restore_needed = false;
+    bool passed = false;
 
     for (int i = 0; i < 512; i++)
     {
@@ -54,12 +57,20 @@ TEST(test_ide_read_write)
     // Use a sector that is likely safe.
     constexpr uint32_t lba = 20000;
 
-    int res = ide_write_sectors(drive, lba, 1, write_buf);
+    int res = ide_read_sectors(drive, lba, 1, original_buf);
+    if (res != 0)
+    {
+        printk("IDE Initial Read Failed\n");
+        return false;
+    }
+
+    res = ide_write_sectors(drive, lba, 1, write_buf);
     if (res != 0)
     {
         printk("IDE Write Failed\n");
         return false;
     }
+    restore_needed = true;
 
     memset(read_buf, 0, 512);
 
@@ -68,15 +79,24 @@ TEST(test_ide_read_write)
     if (res != 0)
     {
         printk("IDE Read Failed\n");
-        return false;
+        goto out;
     }
 
     // Verify
     if (memcmp(write_buf, read_buf, 512) != 0)
     {
         printk("IDE Read/Write Mismatch\n");
-        return false;
+        goto out;
     }
 
-    return true;
+    passed = true;
+
+out:
+    if (restore_needed && ide_write_sectors(drive, lba, 1, original_buf) != 0)
+    {
+        printk("IDE Restore Failed\n");
+        passed = false;
+    }
+
+    return passed;
 }

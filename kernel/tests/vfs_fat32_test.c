@@ -16,6 +16,75 @@ typedef struct
 
 // Tests for FAT32 Mounted Filesystem at /mnt
 
+static constexpr char g_fat32_seed_prefix[] = "Hello Data Partition";
+
+static bool fat32_write_and_verify_scratch_file(vfs_inode_t *mnt, const char *fname, const char *payload)
+{
+    const fat32_inode_data_t *mnt_data = (fat32_inode_data_t *)mnt->device;
+    if (!mnt_data || !mnt_data->fs)
+    {
+        printk("VFS FAT32: mount metadata missing\n");
+        return false;
+    }
+
+    char full_path[64];
+    snprintk(full_path, sizeof(full_path), "/mnt/%s", fname);
+
+    vfs_unlink(full_path);
+
+    int create_res = fat32_create_file(mnt_data->fs, fname);
+    if (create_res != 0)
+    {
+        fat32_file_info_t info;
+        if (fat32_stat(mnt_data->fs, fname, &info) != 0)
+        {
+            printk("VFS FAT32: failed to create %s\n", full_path);
+            return false;
+        }
+    }
+
+    vfs_inode_t *file = vfs_resolve_path(full_path);
+    if (!file)
+    {
+        printk("VFS FAT32: failed to resolve %s\n", full_path);
+        vfs_unlink(full_path);
+        return false;
+    }
+
+    char buffer[64] = {0};
+    const size_t len = strlen(payload);
+    bool passed = false;
+
+    if (vfs_write(file, 0, len, (uint8_t *)payload) != len)
+    {
+        printk("VFS FAT32: write failed for %s\n", full_path);
+        goto out;
+    }
+
+    if (vfs_read(file, 0, len, (uint8_t *)buffer) != len)
+    {
+        printk("VFS FAT32: readback failed for %s\n", full_path);
+        goto out;
+    }
+
+    if (strncmp(buffer, payload, len) != 0)
+    {
+        printk("VFS FAT32: readback mismatch for %s\n", full_path);
+        goto out;
+    }
+
+    passed = true;
+
+out:
+    vfs_release(file);
+    if (vfs_unlink(full_path) != 0)
+    {
+        printk("VFS FAT32: cleanup failed for %s\n", full_path);
+        passed = false;
+    }
+    return passed;
+}
+
 TEST_PRIO(test_vfs_fat32_mount_lookup, 10)
 {
     if (!vfs_root)
@@ -74,7 +143,7 @@ TEST_PRIO(test_vfs_fat32_mount_readdir, 20)
 
     if (!found)
     {
-        printk("VFS: data_test.txt not found in /mnt listing\n");
+        printk("VFS: DATA_T~1.TXT not found in /mnt listing\n");
         return false;
     }
     return true;
@@ -95,11 +164,9 @@ TEST_PRIO(test_vfs_fat32_read, 30)
 
     char buffer[32] = {0};
     const uint64_t bytes = vfs_read(file, 0, 32, (uint8_t *)buffer);
-
-    // Accept either original "Hello Data..." content or an updated "FAT32Write..." prefix
-    const bool passed = (bytes > 0 &&
-                   (strncmp(buffer, "Hello Data", 10) == 0 ||
-                    strncmp(buffer, "FAT32Write", 10) == 0));
+    const size_t expected_len = strlen(g_fat32_seed_prefix);
+    const bool passed = (bytes >= expected_len &&
+                         strncmp(buffer, g_fat32_seed_prefix, expected_len) == 0);
     if (!passed)
     {
         printk("VFS FAT32: Read failed or wrong data. Got '%s', bytes: %lu\n", buffer, bytes);
@@ -268,7 +335,7 @@ TEST_PRIO(test_vfs_fat32_long_chain_rw, 50)
     TEST_ASSERT(readback != nullptr);
     uint64_t read_bytes = vfs_read(file, 0, data_size, readback);
     TEST_ASSERT(read_bytes == data_size);
-    TEST_ASSERT(readback[0] == data[0] && readback[data_size - 1] == data[data_size - 1]);
+    TEST_ASSERT(memcmp(readback, data, data_size) == 0);
 
     kfree(readback);
     fat32_delete_file(fs, fname);
@@ -284,23 +351,7 @@ TEST_PRIO(test_vfs_fat32_write, 40)
     if (!mnt)
         return false;
 
-    vfs_inode_t *file = vfs_finddir(mnt, "DATA_T~1.TXT");
-    if (!file)
-    {
-        vfs_release(mnt);
-        return false;
-    }
-
-    const char *new_data = "FAT32Write";
-    uint64_t written = vfs_write(file, 0, strlen(new_data), (uint8_t *)new_data);
-
-    bool passed = (written == strlen(new_data));
-    if (!passed)
-    {
-        printk("VFS FAT32: Write failed, expected %d, got %lu\n", strlen(new_data), written);
-    }
-
-    vfs_release(file);
+    const bool passed = fat32_write_and_verify_scratch_file(mnt, "WRITE.TST", "FAT32Write");
     vfs_release(mnt);
     return passed;
 }
