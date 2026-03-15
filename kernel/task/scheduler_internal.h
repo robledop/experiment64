@@ -7,6 +7,7 @@
 extern thread_t *scheduler_idle_threads[SCHEDULER_MAX_CPUS];
 extern process_t *scheduler_rr_last_proc[SCHEDULER_MAX_CPUS];
 
+[[gnu::used]]
 static inline void scheduler_thread_list_move_to_tail(thread_t *t)
 {
     if (!t || !t->process)
