@@ -159,3 +159,41 @@ TEST(test_snprintk_zero_pad_flag)
     TEST_ASSERT(strcmp(buf, "0x0000001f 00000023 -0000023 00000011") == 0);
     return true;
 }
+
+TEST(test_memmove_no_overlap)
+{
+    char src[] = "hello";
+    char dst[6];
+    memmove(dst, src, 6);
+    TEST_ASSERT(strcmp(dst, "hello") == 0);
+    return true;
+}
+
+TEST(test_memmove_overlap_forward)
+{
+    // src overlaps dst, src < dst
+    char buf[10] = "abcdefgh";
+    memmove(buf + 2, buf, 6); // "ababcdef"
+    TEST_ASSERT(buf[0] == 'a' && buf[1] == 'b');
+    TEST_ASSERT(buf[2] == 'a' && buf[3] == 'b' && buf[4] == 'c');
+    TEST_ASSERT(buf[5] == 'd' && buf[6] == 'e' && buf[7] == 'f');
+    return true;
+}
+
+TEST(test_memmove_overlap_backward)
+{
+    // dst overlaps src, dst < src
+    char buf[10] = "abcdefgh";
+    memmove(buf, buf + 2, 6); // "cdefef.."
+    TEST_ASSERT(buf[0] == 'c' && buf[1] == 'd' && buf[2] == 'e');
+    TEST_ASSERT(buf[3] == 'f' && buf[4] == 'g' && buf[5] == 'h');
+    return true;
+}
+
+TEST(test_memmove_zero_length)
+{
+    char buf[4] = "abc";
+    memmove(buf, buf + 1, 0);
+    TEST_ASSERT(buf[0] == 'a'); // unchanged
+    return true;
+}

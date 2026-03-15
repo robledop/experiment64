@@ -44,3 +44,39 @@ TEST(test_dma_alloc_pages)
     dma_free_pages(aligned_phys, aligned_bytes);
     return true;
 }
+
+TEST(test_dma_alloc_multipage)
+{
+    // Allocate more than one page to test multi-page path.
+    constexpr size_t bytes = PAGE_SIZE * 3;
+    uintptr_t phys = 0;
+    void *virt = nullptr;
+
+    TEST_ASSERT(dma_alloc_pages(bytes, 0, 0, &phys, &virt));
+    TEST_ASSERT(phys != 0);
+    TEST_ASSERT(virt != nullptr);
+    TEST_ASSERT((phys & (PAGE_SIZE - 1u)) == 0);
+
+    // Verify all pages are zero-filled.
+    const uint8_t *buf = (const uint8_t *)virt;
+    for (size_t i = 0; i < bytes; i += PAGE_SIZE)
+        TEST_ASSERT(buf[i] == 0);
+
+    dma_free_pages(phys, bytes);
+    return true;
+}
+
+TEST(test_dma_alloc_large_alignment)
+{
+    // Test a large alignment requirement (1 MiB).
+    constexpr size_t alignment = 1024 * 1024;
+    constexpr size_t bytes = PAGE_SIZE;
+    uintptr_t phys = 0;
+    void *virt = nullptr;
+
+    TEST_ASSERT(dma_alloc_pages(bytes, alignment, 0, &phys, &virt));
+    TEST_ASSERT((phys & (alignment - 1u)) == 0);
+
+    dma_free_pages(phys, bytes);
+    return true;
+}

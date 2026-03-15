@@ -6,6 +6,7 @@
 #include "net/ipv4.h"
 #include "net/tcp.h"
 #include "net/udp.h"
+#include "net/icmp.h"
 #include "net/socket.h"
 #include <mem/heap.h>
 #include <lib/string.h>
@@ -465,5 +466,63 @@ TEST(test_tcp_receive_basic)
 
     socket_put(child);
     socket_unregister(&sock);
+    return true;
+}
+
+TEST(test_ip_is_zero_true)
+{
+    constexpr uint8_t zero_ip[4] = {0, 0, 0, 0};
+    TEST_ASSERT(ip_is_zero(zero_ip));
+    return true;
+}
+
+TEST(test_ip_is_zero_false)
+{
+    constexpr uint8_t ip[4] = {0, 0, 0, 1};
+    TEST_ASSERT(!ip_is_zero(ip));
+    return true;
+}
+
+TEST(test_icmp_header_size)
+{
+    TEST_ASSERT(sizeof(struct icmp_header) == 8);
+    return true;
+}
+
+TEST(test_icmp_type_constants)
+{
+    TEST_ASSERT(ICMP_REPLY == 0x00);
+    TEST_ASSERT(ICMP_V4_ECHO == 0x08);
+    return true;
+}
+
+TEST(test_tcp_header_size)
+{
+    TEST_ASSERT(sizeof(struct tcp_header) == 20);
+    return true;
+}
+
+TEST(test_tcp_flag_constants)
+{
+    TEST_ASSERT(TCP_FLAG_FIN == 0x01);
+    TEST_ASSERT(TCP_FLAG_SYN == 0x02);
+    TEST_ASSERT(TCP_FLAG_RST == 0x04);
+    TEST_ASSERT(TCP_FLAG_PSH == 0x08);
+    TEST_ASSERT(TCP_FLAG_ACK == 0x10);
+    return true;
+}
+
+TEST(test_checksum_with_initial_sum)
+{
+    // Test the start_sum parameter for pseudo-header checksums.
+    uint8_t data[4] = {0x00, 0x01, 0x00, 0x02};
+    const uint16_t cs1 = checksum(data, sizeof(data), 0);
+
+    // Split computation: pass first half's raw sum as start_sum for second half.
+    // checksum({0x00,0x01}, 2, 0) with complement would give ~0x0100, but
+    // start_sum is added to the running total before complement.
+    // Full sum = 0x0100 + 0x0200 = 0x0300, ~0x0300 = 0xFCFF
+    const uint16_t cs2 = checksum(data + 2, 2, 0x0100);
+    TEST_ASSERT(cs1 == cs2);
     return true;
 }
