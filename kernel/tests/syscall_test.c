@@ -2169,8 +2169,17 @@ TEST(test_syscall_kill_protected_pids)
 
 TEST(test_syscall_mknod_basic)
 {
-    int rc = sys_mknod("/dev/testdev", VFS_CHARDEVICE, 0);
-    (void)rc;
+    const char *path = "/mknod_basic_test.txt";
+    sys_unlink(path);
+
+    int rc = sys_mknod(path, VFS_FILE, 0);
+    TEST_ASSERT(rc == 0);
+
+    stat_t st = {0};
+    TEST_ASSERT(sys_stat(path, &st) == 0);
+    TEST_ASSERT(st.type == VFS_FILE);
+
+    sys_unlink(path);
     return true;
 }
 
