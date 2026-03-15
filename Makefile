@@ -71,7 +71,6 @@ override CFLAGS += \
     -nostdlib \
     -fno-lto \
     -fPIE \
-    -ggdb \
     -mavx \
     -msse2 \
     -mfpmath=sse \

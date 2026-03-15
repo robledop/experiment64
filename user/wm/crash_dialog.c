@@ -1,4 +1,5 @@
 #include "crash_dialog.h"
+#include "symresolve.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -9,7 +10,7 @@
 #include <wm/video_context.h>
 #include <wm/window.h>
 
-#define DIALOG_WIDTH 450
+#define DIALOG_WIDTH 550
 #define DIALOG_PADDING 12
 #define LINE_HEIGHT (VESA_CHAR_HEIGHT + 4)
 
@@ -24,15 +25,23 @@ typedef struct
     char app_name[64];
     int sig;
     crash_info_t info;
+    char *resolved_rip;
+    char *resolved[MAX_CRASH_FRAMES];
 } crash_dialog_t;
 
 static void crash_dialog_close(const window_t *window)
 {
+    crash_dialog_t *dlg = (crash_dialog_t *)window;
+    free(dlg->resolved_rip);
+    for (int i = 0; i < dlg->info.frame_count; i++)
+        free(dlg->resolved[i]);
+
     window_t *parent = window->parent;
     if (parent) {
         window_remove_child(parent, (window_t *)window);
         window_paint(parent, nullptr, 1);
     }
+    free(dlg);
 }
 
 static void crash_dialog_dismiss(button_t *button, [[maybe_unused]] int x, [[maybe_unused]] int y)
@@ -69,7 +78,10 @@ static void crash_dialog_paint(const window_t *window)
 
     // Line 3: fault address
     if (dlg->info.fault_rip) {
-        snprintf(line, sizeof(line), "Fault address: 0x%lx", dlg->info.fault_rip);
+        if (dlg->resolved_rip)
+            snprintf(line, sizeof(line), "Fault: <%s>", dlg->resolved_rip);
+        else
+            snprintf(line, sizeof(line), "Fault address: 0x%lx", dlg->info.fault_rip);
         context_draw_text(window->context, line, text_x, text_y, DIALOG_TEXT_COLOR);
     }
     text_y += LINE_HEIGHT;
@@ -81,17 +93,25 @@ static void crash_dialog_paint(const window_t *window)
         text_y += LINE_HEIGHT;
 
         for (int i = 0; i < dlg->info.frame_count; i++) {
-            snprintf(line, sizeof(line), "  [0x%lx]", dlg->info.frames[i]);
+            if (dlg->resolved[i])
+                snprintf(line, sizeof(line), "  <%s>", dlg->resolved[i]);
+            else
+                snprintf(line, sizeof(line), "  [0x%lx]", dlg->info.frames[i]);
             context_draw_text(window->context, line, text_x, text_y, DIALOG_TEXT_COLOR);
             text_y += LINE_HEIGHT;
         }
     }
 
-    // addr2line hint
-    text_y += LINE_HEIGHT / 2;
-    snprintf(line, sizeof(line), "addr2line -e user/build/%s <addr>",
-             dlg->app_name[0] ? dlg->app_name : "binary");
-    context_draw_text(window->context, line, text_x, text_y, DIALOG_HINT_COLOR);
+    // addr2line hint (only if some frames unresolved)
+    bool any_unresolved = !dlg->resolved_rip;
+    for (int i = 0; !any_unresolved && i < dlg->info.frame_count; i++)
+        any_unresolved = !dlg->resolved[i];
+    if (any_unresolved) {
+        text_y += LINE_HEIGHT / 2;
+        snprintf(line, sizeof(line), "addr2line -e user/build/%s <addr>",
+                 dlg->app_name[0] ? dlg->app_name : "binary");
+        context_draw_text(window->context, line, text_x, text_y, DIALOG_HINT_COLOR);
+    }
 }
 
 void crash_dialog_show(window_t *parent, const char *app_name, int sig, const crash_info_t *info)
@@ -130,6 +150,25 @@ void crash_dialog_show(window_t *parent, const char *app_name, int sig, const cr
         dlg->info = *info;
     else
         memset(&dlg->info, 0, sizeof(dlg->info));
+
+    // Resolve symbols from the crashed binary's ELF
+    dlg->resolved_rip = nullptr;
+    memset(dlg->resolved, 0, sizeof(dlg->resolved));
+
+    char elf_path[128];
+    snprintf(elf_path, sizeof(elf_path), "/bin/%s", dlg->app_name);
+    sym_table_t *syms = sym_load(elf_path);
+    if (syms) {
+        const char *name = sym_resolve(syms, dlg->info.fault_rip);
+        if (name)
+            dlg->resolved_rip = strdup(name);
+        for (int i = 0; i < dlg->info.frame_count; i++) {
+            name = sym_resolve(syms, dlg->info.frames[i]);
+            if (name)
+                dlg->resolved[i] = strdup(name);
+        }
+        sym_free(syms);
+    }
 
     dlg->window.paint_function = crash_dialog_paint;
     dlg->window.close_function = crash_dialog_close;
