@@ -516,7 +516,7 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
 
     character &= 0x7F;
 
-    if (x > clip_right || (x + 8) <= clip_left || y > clip_bottom || (y + 12) <= clip_top) {
+    if (x > clip_right || (x + VESA_CHAR_WIDTH) <= clip_left || y > clip_bottom || (y + VESA_CHAR_HEIGHT) <= clip_top) {
         return;
     }
 
@@ -524,7 +524,7 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
         off_x = clip_left - x;
     }
 
-    if ((x + 8) > clip_right) {
+    if ((x + VESA_CHAR_WIDTH) > clip_right) {
         count_x = clip_right - x + 1;
     }
 
@@ -532,7 +532,7 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
         off_y = clip_top - y;
     }
 
-    if ((y + 12) > clip_bottom) {
+    if ((y + VESA_CHAR_HEIGHT) > clip_bottom) {
         count_y = clip_bottom - y + 1;
     }
 
@@ -540,7 +540,7 @@ static void context_draw_char_clipped(const video_context_t *context, char chara
     const int dst_x      = x + off_x;
 
     for (int font_y = off_y; font_y < count_y; font_y++) {
-        uint8_t row_bits  = reverse_bits8(font8x12[font_y * 128 + character]);
+        uint8_t row_bits  = reverse_bits8(font8x16[font_y * 128 + character]);
         uint32_t row_mask = 0xFFu;
         if (off_x > 0) {
             row_mask &= ~((1u << off_x) - 1u);

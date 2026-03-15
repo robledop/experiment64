@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #define VESA_CHAR_WIDTH 8
-#define VESA_CHAR_HEIGHT 12
-#define VESA_LINE_HEIGHT 14
+#define VESA_CHAR_HEIGHT 16
+#define VESA_LINE_HEIGHT 18
 
 typedef struct video_context
 {
