@@ -8,7 +8,8 @@ https://www.youtube.com/watch?v=d0gS5TXarXc&t=1009s
 
 The signal numbers are defined in `include/sys/signal.h` and
 `user/libc/include/sys/signal.h`. `SIG_MAX` is 32, and the implemented set is
-the traditional POSIX signals from `SIGHUP` through `SIGTTOU`, plus `SIGWINCH`.
+the traditional POSIX signals from `SIGHUP` through `SIGTTOU`, plus `SIGXCPU`,
+`SIGXFSZ`, `SIGVTALRM`, `SIGPROF`, and `SIGWINCH`.
 
 Signals are process-wide, not per-thread, and are represented as a bitset
 (`sigset_t`). Multiple deliveries of the same signal coalesce into a single
@@ -101,7 +102,9 @@ When delivering a signal, the kernel:
 4. Sets `RIP` to the handler and `RDI` to the signal number.
 
 The libc `sigaction()` wrapper always installs a restorer trampoline, so user
-code should not set `sa_restorer` manually.
+code should not set `sa_restorer` manually. If a handler is installed without
+an `sa_restorer` (e.g. bypassing libc), the kernel panics on the interrupt
+delivery path rather than delivering `SIGSEGV`.
 
 ---
 
@@ -110,7 +113,8 @@ code should not set `sa_restorer` manually.
 The restorer trampoline issues `SYS_SIGRETURN` with a pointer to the
 `sigcontext_t` on the user stack. The kernel restores:
 
-- General-purpose registers
+- General-purpose registers (except `R11`, which is overwritten with the saved
+  `RFLAGS` value for use by `sysretq`)
 - `RIP`, `RFLAGS`, and `RSP`
 - The previous signal mask
 - The saved syscall return value (`sigcontext_t.rax`)
@@ -130,6 +134,9 @@ Libc provides:
 - `sigaddset(sigset_t *set, int signum)`, `sigdelset(sigset_t *set, int signum)`
 - `sigismember(const sigset_t *set, int signum)`
 - `kill(int pid, int sig)`
+- `sigprocmask(int how, const sigset_t *set, sigset_t *oldset)`
+- `sigsuspend(const sigset_t *sigmask)` (stub — returns `-1` with `EUNIMP`)
+- `raise(int sig)`
 
 Handlers use the signature:
 
@@ -137,8 +144,8 @@ Handlers use the signature:
 void handler(int sig);
 ```
 
-`kill(pid, 0)` is a liveness check: it returns 0 if the PID exists, otherwise
--1.
+Note: `kill(pid, 0)` as a liveness check is **not implemented**. The kernel
+rejects `sig <= 0`, so `kill(pid, 0)` always returns `-1`.
 
 ---
 

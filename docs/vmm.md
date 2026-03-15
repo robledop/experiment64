@@ -24,6 +24,7 @@ pointer for page table access.
 
 ### `vmm_map_page(pml4, virt, phys, flags)`
 Walks (or creates) PML4 -> PDPT -> PD -> PT and inserts a mapping.
+`pml4` must be a **physical address** (HHDM offset is added internally).
 
 Important details:
 - Intermediate tables are allocated with `pmm_alloc_page()`.
@@ -31,7 +32,7 @@ Important details:
 - Performs `invlpg` for the mapped virtual address.
 
 ### `vmm_unmap_page(pml4, virt)`
-Clears the PTE for `virt` and executes `invlpg`.
+Clears the PTE for `virt` and executes `invlpg`. `pml4` is a physical address.
 It does **not** free page tables.
 
 ### `vmm_new_pml4()`
@@ -43,11 +44,20 @@ Creates a deep copy of the **user half** (entries 0-255) of `src` and reuses the
 kernel half copied by `vmm_new_pml4()`.
 
 ### `vmm_destroy_pml4(pml4)`
-Frees the user half (entries 0-255) and the PML4 itself. The kernel half is
-shared and is not freed.
+Recursively frees the user half (entries 0-255): intermediate page tables **and**
+the mapped physical (leaf) pages are freed via `free_page_table_level`. The
+PML4 itself is freed. The kernel half is shared and is not freed.
 
 ### `vmm_switch_pml4(pml4)`
 Writes CR3 to switch address spaces.
+
+### `vmm_virt_to_phys(pml4, virt)`
+Walks the page tables for the given virtual address and returns the physical
+address (including page offset). Returns 0 if the mapping is not present.
+
+### `vmm_finalize()`
+Allocates a fresh kernel PML4 via `vmm_new_pml4()`, switches to it, replacing
+the bootloader-provided page tables. Panics on failure.
 
 ---
 

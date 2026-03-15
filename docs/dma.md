@@ -15,10 +15,11 @@ Returns a physical base and an HHDM virtual base via output pointers.
 The allocation is zeroed.
 
 `alignment` is in bytes. A value of 0 uses `PAGE_SIZE`.
-`boundary` is in bytes. A value of 0 disables boundary checks.
-Both values must be power-of-two and at least `PAGE_SIZE`.
-If `bytes` exceeds `boundary`, the allocation fails.
+`alignment` must be power-of-two and at least `PAGE_SIZE`.
+`boundary` is in bytes. A value of 0 disables boundary checks and bypasses
+the power-of-two/`PAGE_SIZE` requirement; non-zero `boundary` must be
+power-of-two, at least `PAGE_SIZE`, and `bytes` must not exceed it.
 
 ### `dma_free_pages(addr, bytes)`
 Frees the contiguous range backing the allocation.
-Accepts either a physical base or an HHDM-mapped address.
+Accepts a physical base address (no HHDM translation is performed).

@@ -51,7 +51,7 @@ object and persist until it is unlinked and all references are closed.
 ## Kernel internals
 
 - Registry: `kernel/ipc/shm.c`, header `include/ipc/shm.h`.
-- Syscalls: `kernel/syscalls/sys_shm.c`.
+- Syscalls: `kernel/syscalls/sys_shm_open.c`, `kernel/syscalls/sys_shm_unlink.c`.
 - Each shm object holds an array of physical page addresses. `mmap` maps these
   into the caller's address space page-by-page.
 - The inode returned by `shm_open` uses `shm_inode_ops`; `sys_mmap` checks

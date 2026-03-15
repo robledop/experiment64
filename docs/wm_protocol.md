@@ -51,14 +51,15 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 
 ### WM -> Client (events via fd 3)
 
-| Type                      | Struct                      | Description                                                  |
-|---------------------------|-----------------------------|--------------------------------------------------------------|
-| `WM_EVENT_WINDOW_CREATED` | `wm_event_window_created_t` | Window created; contains both shm names and initial front id |
-| `WM_EVENT_MOUSE`          | `wm_event_mouse_t`          | Mouse click in the window's client area                      |
-| `WM_EVENT_KEY`            | `wm_event_key_t`            | Key press/release for the focused client                     |
-| `WM_EVENT_WINDOW_RESIZED` | `wm_event_window_resized_t` | Client area resized                                          |
-| `WM_EVENT_WINDOW_CLOSED`  | `wm_event_window_closed_t`  | Window was closed by the WM                                  |
-| `WM_EVENT_INVALIDATED`    | `wm_event_invalidated_t`    | Internal present acknowledgment with the new front-buffer id |
+| Type                             | Struct                          | Description                                                                                                                                   |
+|----------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `WM_EVENT_WINDOW_CREATED`        | `wm_event_window_created_t`     | Window created; contains both shm names and initial front id (consumed internally by `wm_create_window()`, not returned from `wm_next_event`) |
+| `WM_EVENT_WINDOW_CHILD_INSERTED` | *(type byte only)*              | Acknowledgment that a child window was reparented                                                                                             |
+| `WM_EVENT_MOUSE`                 | `wm_event_mouse_t`              | Mouse click in the window's client area                                                                                                       |
+| `WM_EVENT_KEY`                   | `wm_event_key_t`                | Key press/release for the focused client                                                                                                      |
+| `WM_EVENT_WINDOW_RESIZED`        | `wm_event_window_resized_msg_t` | Client area resized (wire struct includes `front_buffer` and `shm_names`; libc extracts the smaller `wm_event_window_resized_t` for callers)  |
+| `WM_EVENT_WINDOW_CLOSED`         | `wm_event_window_closed_t`      | Window was closed by the WM                                                                                                                   |
+| `WM_EVENT_INVALIDATED`           | `wm_event_invalidated_t`        | Internal present acknowledgment with the new front-buffer id                                                                                  |
 
 ### Keyboard event encoding
 
@@ -75,7 +76,7 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 ### Present synchronization
 
 - `WM_MSG_INVALIDATE` is acknowledged by WM with `WM_EVENT_INVALIDATED` after compositing.
-- The libc WM client layer waits for this acknowledgment in `wm_invalidated*` before
+- The libc WM client layer waits for this acknowledgment in `wm_invalidate_region()` before
   switching the client-visible draw buffer.
 - `WM_EVENT_INVALIDATED` is handled internally by libc and is not returned from
   `wm_next_event`.
@@ -130,7 +131,6 @@ of `wmclient` for building widgets directly while rendering to the window's back
 
 ## Limits
 
-- `WM_MAX_CLIENTS`: 8 simultaneous client connections.
-- `WM_MAX_CLIENT_WINDOWS`: 64 simultaneously tracked client-owned windows.
+- Client connections and windows use dynamic arrays with no fixed upper limit.
 - `WM_TITLE_MAX`: 64-byte window title.
 - `WM_SHM_NAME_MAX`: 64-byte shared memory name.

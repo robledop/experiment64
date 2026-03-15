@@ -24,5 +24,5 @@ Pinned upstream commit: `fc601639494e089702a1ada082eb51aaafc03722`.
 - Inside WM: Doom redirects `stdout`/`stderr` to `/dev/null` at startup to
   avoid terminal log output while the WM client is running.
 - WM key events are translated to Doom keys in a dedicated event thread, and
-  WM resize events are consumed via `wm_next_event`, which remaps both client
-  buffers before the resize event is delivered.
+  WM resize events update the local framebuffer pointer and dimensions from the
+  existing `DoomWindow` struct fields (no buffer remapping is done in the handler).

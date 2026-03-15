@@ -24,17 +24,19 @@ returns `-ENOTTY` (libc wrapper: `-1` with `errno=ENOTTY`).
 - `TIOCGPGRP`: writes an `int` foreground PID to the user pointer (works on both master and slave).
 - `TIOCSPGRP`: reads an `int` foreground PID from the user pointer (slave side only).
 - `FIONBIO`: reads an `int`; non-zero enables non-blocking reads on that endpoint.
+- `TIOCHUP`: revokes (hangs up) the PTY. The argument is ignored.
 
 ## /dev/fb0
 
 - `FB_IOCTL_GET_WIDTH`: writes a `uint32_t` width.
 - `FB_IOCTL_GET_HEIGHT`: writes a `uint32_t` height.
-- `FB_IOCTL_GET_PITCH`: writes a `uint32_t` pitch.
 - `FB_IOCTL_GET_FBADDR`: writes a `uint64_t` framebuffer address.
+- `FB_IOCTL_GET_PITCH`: writes a `uint32_t` pitch.
 
 ## /dev/keyboard
 
 - `KDFLUSH`: flushes keyboard buffers. The argument is ignored.
+- `TIOCHUP`: revokes (hangs up) a PTY. The argument is ignored.
 
 ## /dev/eth0
 

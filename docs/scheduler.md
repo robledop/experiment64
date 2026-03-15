@@ -16,7 +16,8 @@ returns to the scheduler thread whenever a reschedule is needed.
 Scheduler globals:
 
 ```c
-static thread_t *idle_threads[MAX_CPUS];
+thread_t *scheduler_idle_threads[SCHEDULER_MAX_CPUS];
+process_t *scheduler_rr_last_proc[SCHEDULER_MAX_CPUS]; // per-CPU round-robin state
 spinlock_t scheduler_lock;
 volatile uint64_t scheduler_ticks;
 ```
@@ -67,6 +68,8 @@ ret
 
 New threads start at `thread_trampoline`, which enables interrupts, calls the
 thread entrypoint, and falls back to `sys_exit(0)` if the entry returns.
+Scheduler threads bypass `thread_trampoline` — their `ctx->rip` is set to
+`scheduler_loop` directly.
 
 ---
 
@@ -83,14 +86,16 @@ switches into the per-CPU scheduler thread.
 - Scans the global process list in round-robin order to avoid starvation.
 - Skips threads already active on another CPU.
 - Schedules user-mode and kernel threads on any CPU.
-- If no runnable threads exist, switches to the per-CPU idle thread, which halts in a loop.
+- If no runnable threads exist and the idle thread is available, switches to
+  the per-CPU idle thread. If no idle thread exists, executes inline
+  `sti; hlt; cli` and retries.
 
 When a runnable thread is found, the scheduler:
 
 1. Switches to the target process's `pml4`.
 2. Programs the syscall stack with `syscall_set_stack(next->kstack_top)`.
 3. Restores FS base (TLS pointer) and FPU state, then sets `THREAD_RUNNING`.
-4. Releases `scheduler_lock` and `switch_to(schedt, next)`.
+4. Releases `scheduler_lock`, then calls `switch_to(schedt, next)`.
 
 When the thread yields or is preempted, control returns to the scheduler thread,
 which restores the kernel `pml4` and loops again.
@@ -99,11 +104,13 @@ which restores the kernel `pml4` and loops again.
 
 ## Timer Tick and Time Slicing
 
-The LAPIC timer ISR calls `scheduler_tick()`:
+The timer ISR (registered at `IRQ_BASE + 0`) calls `scheduler_tick()`:
 
 - Increments `scheduler_ticks`
+- Scans all threads across all processes to validate state consistency
 - Decrements `ticks_remaining` for the current thread
-- Returns `need_resched` when a time slice expires
+- On expiry: moves the thread to the tail via `scheduler_thread_list_move_to_tail()`,
+  sets `THREAD_READY`, and returns `need_resched`
 
 If `need_resched` is true, the ISR calls `schedule()` after EOI.
 
@@ -114,7 +121,8 @@ If `need_resched` is true, the ISR calls `schedule()` after EOI.
 `thread_sleep(chan, lock)`:
 
 1. Marks the current thread `THREAD_BLOCKED` and sets `chan`.
-2. Releases locks, calls `schedule()`, then reacquires locks.
+2. Releases the passed-in lock (unless it is `scheduler_lock`, which is handled
+   specially), calls `schedule()`, then reacquires locks.
 
 `thread_wakeup(chan)` scans all threads and marks matches as `THREAD_READY`. It
 does not force an immediate reschedule.
@@ -156,7 +164,8 @@ in a loop.
 ## User Thread Syscalls (WIP)
 
 `SYS_THREAD_CREATE` spawns a user-mode thread in the current process. The caller
-provides a user entry address and an argument passed in `RDI`. The kernel
+provides a user entry address (`void (*entry)(void *)`) and an argument pointer
+passed in `RDI`. The kernel
 allocates a fixed-size user stack (currently 4 pages plus a 1-page guard, same
 size as `spawn` uses) and uses an `iretq` trampoline to enter user mode.
 

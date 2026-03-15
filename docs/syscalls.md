@@ -31,7 +31,7 @@ Syscall groups with differentiated status returns:
 - File descriptor syscalls (`SYS_DUP`, `SYS_DUP2`, `SYS_FCNTL`)
 - PTY syscall (`SYS_OPENPTY`)
 - `SYS_IOCTL` now returns `-EBADF` for bad fds, `-EFAULT` for invalid pointers, and `-ENOTTY` for unsupported
-  requests/devices.
+  requests/devices. `KDFLUSH` and `TIOCHUP` bypass the `-ENOTTY` check (they take no argument).
 
 For path/metadata operations, syscall wrappers return VFS/backend status codes directly when available rather than
 coalescing all backend failures to `-EIO`.
@@ -43,19 +43,19 @@ coalescing all backend failures to `-EIO`.
   failures to `-1` (or `NULL`/`MAP_FAILED`) and set `errno` to the positive status code.
 - Internal/low-level APIs used by the threading layer (`thread_*`, `futex_*`, internal `sys_readdir`) still expose
   raw status returns.
-- `accept()` now uses a POSIX-style `socklen_t *addrlen` value-result argument, and nonblocking listeners surface
-  `EAGAIN` when no connection is pending.
+- `accept()` now uses a POSIX-style `socklen_t *addrlen` value-result argument; nonblocking listeners return
+  `-1` with `errno=EAGAIN` when no connection is pending.
 
 ## `stat` Compatibility
 
 - `struct stat` now exposes `st_mode` and POSIX mode/type macros in `<sys/stat.h>` (`S_IF*`, `S_IS*`, permission bits).
 - Kernel metadata paths (`stat`/`fstat`) populate both legacy `type` and POSIX `st_mode`.
-- Legacy fields remain available for existing programs (`size`, `i_mtime`, etc.); libc also provides aliases like
-  `st_size`, `st_mtime`, `st_uid`, and `st_gid`.
+- Legacy fields remain available for existing programs (`size`, `i_mtime`, etc.); libc also provides aliases:
+  `st_dev`, `st_ino`, `st_nlink`, `st_size`, `st_atime`, `st_ctime`, `st_mtime`, `st_uid`, and `st_gid`.
 
 ## `termios` Compatibility
 
 - `<termios.h>` now exposes `TCSANOW`, `TCSADRAIN`, and `TCSAFLUSH`.
 - `tcsetattr()` accepts those three action values and returns `-1` with `errno=EINVAL` for invalid actions.
-- `tcsetattr()` maps actions to Linux-style `ioctl` requests (`TCSETS`, `TCSETSW`, `TCSETSF`).
+- `tcsetattr()` maps actions to Linux-style `ioctl` requests (`TCSETS` (alias for `TIOCSETA`), `TCSETSW`, `TCSETSF`).
 - libc provides `cfmakeraw(struct termios *)` and additional POSIX-style termios constants to ease third-party ports.

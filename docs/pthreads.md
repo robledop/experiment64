@@ -9,7 +9,7 @@ Implemented:
 - `pthread_cond_*`
 - `pthread_once`
 - `pthread_barrier_*`
-- `sem_init`, `sem_wait`, `sem_post`, `sem_destroy`
+- `sem_init` (non-standard 2-arg: `sem_init(sem_t *s, int value)`, no `pshared` parameter), `sem_wait`, `sem_post`, `sem_destroy`
 
 Notes:
 

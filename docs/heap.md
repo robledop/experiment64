@@ -3,7 +3,7 @@
 
 https://en.wikipedia.org/wiki/Slab_allocation \
 https://people.eecs.berkeley.edu/~kubitron/courses/cs194-24-S14/hand-outs/bonwick_slab.pdf \
-https://hammertux.github.io/slab-allocator 
+https://hammertux.github.io/slab-allocator
 
 The kernel heap provides dynamic allocations via `kmalloc`/`kfree`. It is a
 hybrid allocator and panics on out-of-memory (except for size 0).
@@ -57,8 +57,9 @@ pointer.
 
 ### Slab tracking
 
-Slab backing pages are recorded in `slab_pages[]`. The PMM consults this to
-avoid allocating or freeing slab-backed pages.
+Slab backing pages are recorded in `slab_bitmap` (a `uint8_t *` bitmap).
+`heap_is_slab_page()` consults this bitmap to detect accidental PMM frees of
+slab-backed pages.
 
 ### Slab release
 

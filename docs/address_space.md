@@ -23,8 +23,9 @@
 - **Kernel stacks**: per-thread `KSTACK_SIZE` (64 KiB) with
   `KSTACK_SYSCALL_HEADROOM` (512 B) reserved at the top for syscall entry
   pushes; `tss_set_stack()` programs the stack on context switch.
-- **Bootstrap stack**: a 4 KiB static stack (`bootstrap_stack`) is used on the
-  BSP until per-thread stacks are set.
+- **Bootstrap stack**: a 4 KiB static stack (`bootstrap_stack`) is used as the
+  BSP's initial syscall entry `kernel_rsp` (TSS RSP0) until a per-thread stack
+  is configured.
 
 ---
 

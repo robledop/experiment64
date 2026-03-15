@@ -2,9 +2,8 @@
 
 ## Cache flush
 
-The kernel can flush device write-back caches via `storage_flush()`. Boot log writes call this to persist
-`/var/log/boot`
-before power-off.
+The kernel can flush device write-back caches via `storage_flush()`. Boot log writes call this at boot time after
+flushing `/var/log/boot` to persist the data to disk.
 
 ## Device mapping
 
@@ -17,7 +16,7 @@ before power-off.
 The boot disk is selected by scanning all available storage devices for GPT partitions. The first device with both an
 ESP and a Linux Filesystem partition is treated as the boot device. If none is found, the first device with an ESP is
 chosen, then the first device with a Linux Filesystem partition, otherwise the first detected device is used as a
-fallback. Root, `/mnt`, and `/boot` are mounted from the boot device.
+fallback. Root is mounted from the boot device; `/mnt` and `/boot` are mounted only if a FAT32 data partition and an ESP are found, respectively.
 
 To boot the USB path in QEMU, run `make run-usb` (the USB device uses the same image as `image.hdd`).
 

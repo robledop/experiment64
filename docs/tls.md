@@ -41,8 +41,9 @@ if the CPU lacks support.
 
 ### Per-thread FS base
 
-`thread_t` contains a `uint64_t fs_base` field. The scheduler saves and
-restores it on context switch using `rdfsbase`/`wrfsbase`.
+`thread_t` contains a `uint64_t fs_base` field. On context switch,
+`schedule()` saves it with `rdfsbase` before `switch_to`, and
+`scheduler_loop()` restores it with `wrfsbase` after `switch_to`.
 
 ### Syscall: `arch_prctl` (`SYS_ARCH_PRCTL`, 50)
 
@@ -51,7 +52,7 @@ int arch_prctl(int code, uint64_t addr);
 ```
 
 - `ARCH_SET_FS` (0x1002): set the calling thread's FS base.
-- `ARCH_GET_FS` (0x1003): write the current FS base to `*addr`.
+- `ARCH_GET_FS` (0x1003): write the kernel-cached `fs_base` (from `thread_t`) to `*addr` (not a live `rdfsbase`).
 
 Userspace can also use `WRFSBASE` directly since FSGSBASE is enabled.
 
@@ -106,7 +107,8 @@ The compiler generates `fs:[offset]` accesses using the Local Exec TLS model
 ## Reference files
 
 - Kernel: `include/arch/x86_64/cpu.h`, `kernel/arch/x86_64/cpu.c`
-- Scheduler: `kernel/task/scheduler.c`
+- Thread struct: `include/task/process.h` (`fs_base` field in `thread_t`)
+- Scheduler: `kernel/task/scheduler.c` (save/restore of `fs_base`)
 - Syscall: `kernel/syscalls/sys_arch_prctl.c`
 - Libc: `user/libc/src/tls.c`, `user/libc/include/tls.h`
 - Linker script: `user/user.ld`
