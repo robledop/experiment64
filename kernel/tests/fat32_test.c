@@ -25,6 +25,11 @@ TEST(test_fat32_list)
     if (!fs_initialized)
         return false;
     fat32_list_dir(&test_fs, "/");
+
+    // Verify at least TEST.TXT is visible (seeded by the Makefile).
+    fat32_file_info_t info;
+    TEST_ASSERT(fat32_stat(&test_fs, "TEST.TXT", &info) == 0);
+    TEST_ASSERT(info.size > 0);
     return true;
 }
 
