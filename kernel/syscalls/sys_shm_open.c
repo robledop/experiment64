@@ -20,12 +20,11 @@ int sys_shm_open(const char *name, int flags, size_t size)
 {
     if (!name)
         return -EINVAL;
-    if (!user_ptr_read_ok(name, 1, "sys_shm_open name"))
-        return -EFAULT;
 
     char kname[SHM_NAME_MAX];
-    if (!copy_from_user_str(kname, name, SHM_NAME_MAX))
-        return -EFAULT;
+    int status = copy_from_user_str_checked(kname, name, SHM_NAME_MAX, "sys_shm_open name", -EFAULT);
+    if (status != 0)
+        return status;
     if (kname[0] == '\0')
         return -EINVAL;
 

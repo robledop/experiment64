@@ -6,11 +6,10 @@ int sys_chdir(const char *path)
 {
     if (!path)
         return -EINVAL;
-    if (!user_ptr_read_ok(path, 1, "sys_chdir path"))
-        return -EFAULT;
     char abs_path[PATH_MAX];
-    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -EBADPATH;
+    int status = resolve_user_path_checked(path, abs_path, sizeof(abs_path), "sys_chdir path");
+    if (status != 0)
+        return status;
 
     vfs_inode_t *node = vfs_resolve_path(abs_path);
     if (!node)

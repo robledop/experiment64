@@ -2,6 +2,7 @@
 #include <lib/string.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
+#include <status.h>
 #include <syscall_common.h>
 
 static inline bool addr_is_canonical(uintptr_t addr)
@@ -26,7 +27,7 @@ static bool user_page_access_ok(const uint64_t *pml4, uintptr_t addr, bool write
     if (!pml4)
         return false;
 
-    const uint64_t mask       = 0x000FFFFFFFFFF000;
+    constexpr uint64_t mask       = PTE_ADDR_MASK;
     const uint64_t *pml4_virt = (const uint64_t *)((uint64_t)pml4 + g_hhdm_offset);
 
     const size_t pml4_idx = (addr >> 39) & 0x1FF;
@@ -120,37 +121,29 @@ static bool user_ptr_access_ok(const void *ptr, size_t size, bool write, const c
     return true;
 }
 
-bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
-{
-    return user_ptr_access_ok(dst, size, true, op);
-}
-
-bool user_ptr_read_ok(const void *src, size_t size, const char *op)
-{
-    return user_ptr_access_ok(src, size, false, op);
-}
-
-bool copy_to_user(void *dst, const void *src, size_t size)
+static bool copy_to_user_impl(void *dst, const void *src, size_t size, const char *op)
 {
     if (!dst || !src)
         return false;
-    if (!user_ptr_write_ok(dst, size, "copy_to_user"))
+    if (!user_ptr_write_ok(dst, size, op))
         return false;
+
     memcpy(dst, src, size);
     return true;
 }
 
-bool copy_from_user(void *dst, const void *src, size_t size)
+static bool copy_from_user_impl(void *dst, const void *src, size_t size, const char *op)
 {
     if (!dst || !src)
         return false;
-    if (!user_ptr_read_ok(src, size, "copy_from_user"))
+    if (!user_ptr_read_ok(src, size, op))
         return false;
+
     memcpy(dst, src, size);
     return true;
 }
 
-bool copy_from_user_str(char *dst, const char *src, size_t max_len)
+static bool copy_from_user_str_impl(char *dst, const char *src, size_t max_len, const char *op)
 {
     if (!dst || !src || max_len == 0)
         return false;
@@ -162,7 +155,7 @@ bool copy_from_user_str(char *dst, const char *src, size_t max_len)
         size_t chunk   = PAGE_SIZE - offset;
         if (chunk > max_len - copied)
             chunk = max_len - copied;
-        if (!user_ptr_access_ok((const void *)addr, chunk, false, "copy_from_user_str"))
+        if (!user_ptr_access_ok((const void *)addr, chunk, false, op))
             return false;
 
         for (size_t i = 0; i < chunk; i++) {
@@ -176,6 +169,56 @@ bool copy_from_user_str(char *dst, const char *src, size_t max_len)
 
     dst[max_len - 1] = '\0';
     return false;
+}
+
+bool user_ptr_write_ok(const void *dst, size_t size, const char *op)
+{
+    return user_ptr_access_ok(dst, size, true, op);
+}
+
+bool user_ptr_read_ok(const void *src, size_t size, const char *op)
+{
+    return user_ptr_access_ok(src, size, false, op);
+}
+
+int require_user_ptr_write(void *dst, size_t size, const char *op, int err)
+{
+    return user_ptr_write_ok(dst, size, op) ? ALL_OK : err;
+}
+
+int require_user_ptr_read(const void *src, size_t size, const char *op, int err)
+{
+    return user_ptr_read_ok(src, size, op) ? ALL_OK : err;
+}
+
+bool copy_to_user(void *dst, const void *src, size_t size)
+{
+    return copy_to_user_impl(dst, src, size, "copy_to_user");
+}
+
+bool copy_from_user(void *dst, const void *src, size_t size)
+{
+    return copy_from_user_impl(dst, src, size, "copy_from_user");
+}
+
+bool copy_from_user_str(char *dst, const char *src, size_t max_len)
+{
+    return copy_from_user_str_impl(dst, src, max_len, "copy_from_user_str");
+}
+
+int copy_to_user_checked(void *dst, const void *src, size_t size, const char *op, int err)
+{
+    return copy_to_user_impl(dst, src, size, op) ? ALL_OK : err;
+}
+
+int copy_from_user_checked(void *dst, const void *src, size_t size, const char *op, int err)
+{
+    return copy_from_user_impl(dst, src, size, op) ? ALL_OK : err;
+}
+
+int copy_from_user_str_checked(char *dst, const char *src, size_t max_len, const char *op, int err)
+{
+    return copy_from_user_str_impl(dst, src, max_len, op) ? ALL_OK : err;
 }
 
 bool map_user_anonymous_range(process_t *proc, pml4_t pml4, uint64_t start, uint64_t length, uint32_t vma_flags)

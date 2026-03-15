@@ -8,12 +8,11 @@ int sys_open(const char* path, int flags)
 {
     if (!path)
         return -EINVAL;
-    if (!user_ptr_read_ok(path, 1, "sys_open path"))
-        return -EFAULT;
     const bool want_write = (flags & O_WRONLY) || (flags & O_RDWR);
     char abs_path[PATH_MAX];
-    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -EBADPATH;
+    int status = resolve_user_path_checked(path, abs_path, sizeof(abs_path), "sys_open path");
+    if (status != 0)
+        return status;
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode && (flags & O_CREATE))
     {

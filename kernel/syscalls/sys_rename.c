@@ -6,17 +6,15 @@ int sys_rename(const char *oldpath, const char *newpath)
 {
     if (!oldpath || !newpath)
         return -EINVAL;
-    if (!user_ptr_read_ok(oldpath, 1, "sys_rename oldpath"))
-        return -EFAULT;
-    if (!user_ptr_read_ok(newpath, 1, "sys_rename newpath"))
-        return -EFAULT;
 
     char abs_old[PATH_MAX];
     char abs_new[PATH_MAX];
-    if (resolve_user_path(oldpath, abs_old, sizeof(abs_old)) != 0)
-        return -EBADPATH;
-    if (resolve_user_path(newpath, abs_new, sizeof(abs_new)) != 0)
-        return -EBADPATH;
+    int status = resolve_user_path_checked(oldpath, abs_old, sizeof(abs_old), "sys_rename oldpath");
+    if (status != 0)
+        return status;
+    status = resolve_user_path_checked(newpath, abs_new, sizeof(abs_new), "sys_rename newpath");
+    if (status != 0)
+        return status;
 
     if (strcmp(abs_old, "/") == 0 || strcmp(abs_new, "/") == 0)
         return -EPERM;

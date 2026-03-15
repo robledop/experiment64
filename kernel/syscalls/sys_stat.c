@@ -6,14 +6,14 @@ int sys_stat(const char* path, struct stat* st)
 {
     if (!path || !st)
         return -EINVAL;
-    if (!user_ptr_read_ok(path, 1, "sys_stat path"))
-        return -EFAULT;
-    if (!user_ptr_write_ok(st, sizeof(*st), "sys_stat"))
-        return -EFAULT;
+    int status = require_user_ptr_write(st, sizeof(*st), "sys_stat", -EFAULT);
+    if (status != 0)
+        return status;
 
     char abs_path[PATH_MAX];
-    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -EBADPATH;
+    status = resolve_user_path_checked(path, abs_path, sizeof(abs_path), "sys_stat path");
+    if (status != 0)
+        return status;
 
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
     if (!inode)

@@ -6,12 +6,11 @@ int sys_unlink(const char* path)
 {
     if (!path)
         return -EINVAL;
-    if (!user_ptr_read_ok(path, 1, "sys_unlink path"))
-        return -EFAULT;
 
     char abs_path[PATH_MAX];
-    if (resolve_user_path(path, abs_path, sizeof(abs_path)) != 0)
-        return -EBADPATH;
+    int status = resolve_user_path_checked(path, abs_path, sizeof(abs_path), "sys_unlink path");
+    if (status != 0)
+        return status;
 
     if (strcmp(abs_path, "/") == 0)
         return -EPERM;

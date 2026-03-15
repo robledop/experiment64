@@ -79,3 +79,12 @@ int resolve_user_path(const char *path, char *resolved, size_t size)
     path_build_absolute(base, input_buf, resolved, size);
     return 0;
 }
+
+int resolve_user_path_checked(const char *path, char *resolved, size_t size, const char *op)
+{
+    int status = require_user_ptr_read(path, 1, op, -EFAULT);
+    if (status != 0)
+        return status;
+
+    return resolve_user_path(path, resolved, size) == 0 ? ALL_OK : -EBADPATH;
+}

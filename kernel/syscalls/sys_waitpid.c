@@ -11,8 +11,11 @@ int sys_waitpid(int pid, int *status, int options)
         return -1;
     if (pid < -1 || pid == 0)
         return -1;
-    if (status && !user_ptr_write_ok(status, sizeof(*status), "sys_waitpid status"))
-        return -1;
+    if (status) {
+        int user_status = require_user_ptr_write(status, sizeof(*status), "sys_waitpid status", -1);
+        if (user_status != 0)
+            return user_status;
+    }
 
     while (1) {
         uint64_t rflags;
@@ -45,9 +48,10 @@ int sys_waitpid(int pid, int *status, int options)
             if (found) {
                 int code = found->exit_code;
                 if (status) {
-                    if (!copy_to_user(status, &code, sizeof(int))) {
+                    int user_status = copy_to_user_checked(status, &code, sizeof(code), "sys_waitpid status", -1);
+                    if (user_status != 0) {
                         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-                        return -1;
+                        return user_status;
                     }
                 }
                 const int found_pid = found->pid;
@@ -96,9 +100,10 @@ int sys_waitpid(int pid, int *status, int options)
             if (process_can_reap_locked(found)) {
                 int code = found->exit_code;
                 if (status) {
-                    if (!copy_to_user(status, &code, sizeof(int))) {
+                    int user_status = copy_to_user_checked(status, &code, sizeof(code), "sys_waitpid status", -1);
+                    if (user_status != 0) {
                         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-                        return -1;
+                        return user_status;
                     }
                 }
                 SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);

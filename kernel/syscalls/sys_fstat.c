@@ -7,8 +7,9 @@ int sys_fstat(int fd, struct stat *st)
         return -EBADF;
     if (!st)
         return -EINVAL;
-    if (!user_ptr_write_ok(st, sizeof(*st), "sys_fstat"))
-        return -EFAULT;
+    int status = require_user_ptr_write(st, sizeof(*st), "sys_fstat", -EFAULT);
+    if (status != 0)
+        return status;
 
     file_descriptor_t *desc = fd_get(fd);
     if (!desc)

@@ -9,8 +9,11 @@ int sys_thread_join(int tid, int* status)
 
     if (tid <= 0)
         return -ESRCH;
-    if (status && !user_ptr_write_ok(status, sizeof(*status), "sys_thread_join status"))
-        return -EFAULT;
+    if (status) {
+        int user_status = require_user_ptr_write(status, sizeof(*status), "sys_thread_join status", -EFAULT);
+        if (user_status != 0)
+            return user_status;
+    }
 
     for (;;)
     {
@@ -64,10 +67,12 @@ int sys_thread_join(int tid, int* status)
 
         if (status)
         {
-            if (!copy_to_user(status, &exit_code, sizeof(exit_code)))
+            int user_status = copy_to_user_checked(status, &exit_code, sizeof(exit_code), "sys_thread_join status",
+                                                   -EFAULT);
+            if (user_status != 0)
             {
                 free_thread_resources(target);
-                return -EFAULT;
+                return user_status;
             }
         }
 
