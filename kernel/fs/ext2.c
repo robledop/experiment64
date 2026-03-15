@@ -220,6 +220,48 @@ static int find_and_set_free_bit(uint8_t *sector_data, uint32_t start_bit, uint3
     return -1;
 }
 
+static int ext2_claim_free_bitmap_bit(uint32_t dev, uint32_t bitmap_block, uint32_t max_bits, bool fail_on_read,
+                                      const char *read_error, buffer_head_t **bp_out)
+{
+    constexpr uint32_t sectors_per_block = EXT2_BSIZE / 512;
+    const uint32_t first_sector          = BLOCK_TO_SECTOR(bitmap_block) + ext2_part_offset(dev);
+
+    *bp_out = nullptr;
+    for (uint32_t sec = 0; sec < sectors_per_block; sec++) {
+        buffer_head_t *bp = bread(dev, first_sector + sec);
+        if (!bp) {
+            if (!fail_on_read)
+                continue;
+            if (read_error)
+                printk("%s\n", read_error);
+            return -2;
+        }
+
+        const uint32_t start_bit = sec * 512 * 8;
+        int fbit                 = find_and_set_free_bit(bp->data, start_bit, max_bits);
+        if (fbit >= 0) {
+            *bp_out = bp;
+            return fbit;
+        }
+        brelse(bp);
+    }
+
+    return -1;
+}
+
+static int ext2_open_bitmap_bit_sector(uint32_t dev, uint32_t bitmap_block, uint32_t bit_index, buffer_head_t **bp_out,
+                                       uint32_t *byte_index_out, u8 *mask_out)
+{
+    constexpr uint32_t bits_per_sector = 512 * 8;
+    const uint32_t sector_in_block     = bit_index / bits_per_sector;
+    const uint32_t bit_in_sector       = bit_index % bits_per_sector;
+
+    *byte_index_out = bit_in_sector / 8;
+    *mask_out       = (u8)(1U << (bit_in_sector % 8));
+    *bp_out         = bread(dev, BLOCK_TO_SECTOR(bitmap_block) + ext2_part_offset(dev) + sector_in_block);
+    return (*bp_out != nullptr) ? 0 : -1;
+}
+
 static inline void ext2_read_group_desc(uint32_t dev, uint32_t gno, struct ext2_group_desc *out)
 {
     const uint32_t desc_blockno = ext2_part_offset(dev) + BLOCK_TO_SECTOR(2);
@@ -272,32 +314,22 @@ static uint32_t ext2fs_balloc(uint32_t dev, uint32_t inum)
         struct ext2_group_desc bgdesc;
         ext2_read_group_desc(dev, gno, &bgdesc);
 
-        const uint32_t bitmap_first_sector = BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev);
+        buffer_head_t *bp = nullptr;
+        int fbit = ext2_claim_free_bitmap_bit(dev, bgdesc.bg_block_bitmap, sb->s_blocks_per_group, false, nullptr, &bp);
+        if (fbit < 0)
+            continue;
 
-        // Search through all sectors of the bitmap block
-        for (uint32_t sec = 0; sec < sectors_per_block; sec++) {
-            buffer_head_t *bp = bread(dev, bitmap_first_sector + sec);
-            if (!bp) {
-                continue;
-            }
+        bwrite(bp);
+        brelse(bp);
 
-            const uint32_t start_bit = sec * 512 * 8; // First bit in this sector
-            int fbit                 = find_and_set_free_bit(bp->data, start_bit, sb->s_blocks_per_group);
-            if (fbit >= 0) {
-                bwrite(bp);
-                brelse(bp);
+        const uint32_t group_first_block = sb->s_first_data_block + gno * sb->s_blocks_per_group;
+        const uint32_t rel_block         = group_first_block + (uint32_t)fbit;
 
-                const uint32_t group_first_block = sb->s_first_data_block + gno * sb->s_blocks_per_group;
-                const uint32_t rel_block         = group_first_block + (uint32_t)fbit;
-
-                const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + ext2_part_offset(dev);
-                for (uint32_t i = 0; i < sectors_per_block; i++) {
-                    ext2fs_bzero(dev, start_sector + i);
-                }
-                return rel_block;
-            }
-            brelse(bp);
+        const uint32_t start_sector = BLOCK_TO_SECTOR(rel_block) + ext2_part_offset(dev);
+        for (uint32_t i = 0; i < sectors_per_block; i++) {
+            ext2fs_bzero(dev, start_sector + i);
         }
+        return rel_block;
     }
 
     printk("PANIC: ");
@@ -322,19 +354,13 @@ static void ext2fs_bfree(uint32_t dev, uint32_t b)
     struct ext2_group_desc bgdesc;
     ext2_read_group_desc(dev, gno, &bgdesc);
 
-    // Calculate which sector of the bitmap contains this bit
-    constexpr uint32_t bits_per_sector = 512 * 8;
-    const uint32_t sector_in_block     = offset / bits_per_sector;
-    const uint32_t bit_in_sector       = offset % bits_per_sector;
-    const uint32_t byte_index          = bit_in_sector / 8;
-
-    buffer_head_t *bp = bread(dev, BLOCK_TO_SECTOR(bgdesc.bg_block_bitmap) + ext2_part_offset(dev) + sector_in_block);
-    if (!bp) {
+    buffer_head_t *bp = nullptr;
+    uint32_t byte_index;
+    u8 mask;
+    if (ext2_open_bitmap_bit_sector(dev, bgdesc.bg_block_bitmap, offset, &bp, &byte_index, &mask) != 0) {
         printk("ext2fs_bfree: bread failed\n");
         return;
     }
-
-    const u8 mask = (u8)(1U << (bit_in_sector % 8));
 
     if ((bp->data[byte_index] & mask) == 0) {
         printk("PANIC: ");
@@ -383,6 +409,21 @@ static void ext2_inode_loc(uint32_t dev, uint32_t inum, uint32_t *sector, uint32
     *byte_offset             = block_off % 512;
 }
 
+static int ext2_open_inode_slot(uint32_t dev, uint32_t inum, buffer_head_t **bp_out, u8 **slot_out)
+{
+    uint32_t sector;
+    uint32_t byte_offset;
+    ext2_inode_loc(dev, inum, &sector, &byte_offset);
+
+    buffer_head_t *bp = bread(dev, sector);
+    if (!bp)
+        return -1;
+
+    *bp_out   = bp;
+    *slot_out = bp->data + byte_offset;
+    return 0;
+}
+
 struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
 {
     struct ext2_super_block *sb = ext2_get_sb(dev);
@@ -401,27 +442,17 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
     for (uint32_t i = 0; i <= bgcount; i++) {
         memcpy(&bgdesc, group_desc_buf->data + i * sizeof(bgdesc), sizeof(bgdesc));
 
-        // Search inode bitmap (may span multiple sectors)
-        const uint32_t ibitmap_first_sector  = BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + ext2_part_offset(dev);
-        constexpr uint32_t sectors_per_block = EXT2_BSIZE / 512;
-        int fbit                             = -1;
-        buffer_head_t *ibitmap_buff          = nullptr;
-
-        for (uint32_t sec = 0; sec < sectors_per_block && fbit < 0; sec++) {
-            ibitmap_buff = bread(dev, ibitmap_first_sector + sec);
-            if (!ibitmap_buff) {
-                printk("ext2fs_ialloc: bread failed for inode bitmap\n");
-                brelse(group_desc_buf);
-                return nullptr;
-            }
-            const uint32_t start_bit = sec * 512 * 8;
-            fbit                     = find_and_set_free_bit(ibitmap_buff->data, start_bit, sb->s_inodes_per_group);
-            if (fbit < 0) {
-                brelse(ibitmap_buff);
-                ibitmap_buff = nullptr;
-            }
+        buffer_head_t *ibitmap_buff = nullptr;
+        int fbit = ext2_claim_free_bitmap_bit(dev,
+                                              bgdesc.bg_inode_bitmap,
+                                              sb->s_inodes_per_group,
+                                              true,
+                                              "ext2fs_ialloc: bread failed for inode bitmap",
+                                              &ibitmap_buff);
+        if (fbit == -2) {
+            brelse(group_desc_buf);
+            return nullptr;
         }
-
         if (fbit < 0) {
             continue;
         }
@@ -435,23 +466,21 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         }
 
         const uint32_t inodes_per_block = EXT2_BSIZE / sb->s_inode_size;
-
-        const uint32_t bno =
+        const uint32_t inode_block =
             BLOCK_TO_SECTOR(bgdesc.bg_inode_table + (uint32_t)fbit / inodes_per_block) + ext2_part_offset(dev);
         const uint32_t iindex = (uint32_t)fbit % inodes_per_block;
 
-        const uint32_t block_offset       = iindex * sb->s_inode_size;
-        const uint32_t sector_offset      = block_offset / 512;
-        const uint32_t sector_byte_offset = block_offset % 512;
+        const uint32_t block_offset  = iindex * sb->s_inode_size;
+        const uint32_t sector_offset = block_offset / 512;
 
-        buffer_head_t *dinode_buff = bread(dev, bno + sector_offset);
+        buffer_head_t *dinode_buff = bread(dev, inode_block + sector_offset);
         if (!dinode_buff) {
             printk("ext2fs_ialloc: bread failed for inode block\n");
             brelse(ibitmap_buff);
             brelse(group_desc_buf);
             return nullptr;
         }
-        u8 *slot = dinode_buff->data + sector_byte_offset;
+        u8 *slot = dinode_buff->data + (block_offset % 512);
 
         memset(slot, 0, sb->s_inode_size);
         struct ext2_disk_inode *din = (struct ext2_disk_inode *)slot;
@@ -469,7 +498,7 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
         brelse(dinode_buff);
         brelse(ibitmap_buff);
 
-        const uint32_t inum   = i * sb->s_inodes_per_group + (uint32_t)fbit + 1;
+        const uint32_t inum = i * sb->s_inodes_per_group + (uint32_t)fbit + 1;
         struct ext2_inode *ip = iget(dev, inum);
         ip->type              = type;
         ip->i_mode            = mode;
@@ -484,23 +513,21 @@ struct ext2_inode *ext2fs_ialloc(uint32_t dev, short type)
 
 void ext2fs_iupdate(const struct ext2_inode *ip)
 {
-    uint32_t sector, sector_byte_offset;
-    ext2_inode_loc(ip->dev, ip->inum, &sector, &sector_byte_offset);
-
-    buffer_head_t *bp1 = bread(ip->dev, sector);
-    if (!bp1) {
-        printk("ext2fs_iupdate: bread failed\n");
-        return;
-    }
     struct ext2_super_block *sb = ext2_get_sb(ip->dev);
     if (sb->s_inode_size > EXT2_MAX_INODE_SIZE) {
         printk("PANIC: ");
         printk("ext2fs_iupdate: inode too large");
-        brelse(bp1);
         return;
     }
 
-    struct ext2_disk_inode *din = (struct ext2_disk_inode *)(bp1->data + sector_byte_offset);
+    buffer_head_t *bp1 = nullptr;
+    u8 *slot           = nullptr;
+    if (ext2_open_inode_slot(ip->dev, ip->inum, &bp1, &slot) != 0) {
+        printk("ext2fs_iupdate: bread failed\n");
+        return;
+    }
+
+    struct ext2_disk_inode *din = (struct ext2_disk_inode *)slot;
 
     uint16_t mode = ip->i_mode;
     if ((mode & S_IFMT) == 0)
@@ -541,22 +568,21 @@ int ext2fs_ilock(struct ext2_inode *ip)
     auto const ad = (struct ext2fs_addrs *)ip->addrs;
 
     if (ip->valid == 0) {
-        uint32_t sector, sector_byte_offset;
-        ext2_inode_loc(ip->dev, ip->inum, &sector, &sector_byte_offset);
-
-        buffer_head_t *bp1 = bread(ip->dev, sector);
-        if (!bp1) {
-            sleeplock_release(&ip->lock);
-            return -1;
-        }
         struct ext2_super_block *sb = ext2_get_sb(ip->dev);
         if (sb->s_inode_size > EXT2_MAX_INODE_SIZE) {
-            brelse(bp1);
             sleeplock_release(&ip->lock);
             return -1;
         }
+
+        buffer_head_t *bp1 = nullptr;
+        u8 *slot           = nullptr;
+        if (ext2_open_inode_slot(ip->dev, ip->inum, &bp1, &slot) != 0) {
+            sleeplock_release(&ip->lock);
+            return -1;
+        }
+
         u8 raw[EXT2_MAX_INODE_SIZE];
-        memcpy(raw, bp1->data + sector_byte_offset, sb->s_inode_size);
+        memcpy(raw, slot, sb->s_inode_size);
         brelse(bp1);
 
         const struct ext2_disk_inode *din = (struct ext2_disk_inode *)raw;
@@ -610,34 +636,18 @@ static void ext2_free_inode(const struct ext2_inode *ip)
 {
     struct ext2_super_block *sb = ext2_get_sb(ip->dev);
     struct ext2_group_desc bgdesc;
-    const uint32_t desc_blockno = ext2_part_offset(ip->dev) + BLOCK_TO_SECTOR(2);
-    // block group descriptor table starts at block 2
-
-    const int gno      = GET_GROUP_NO(ip->inum, *sb);
-    buffer_head_t *bp1 = bread(ip->dev, desc_blockno);
-    if (!bp1) {
-        printk("ext2_free_inode: bread failed for group descriptor\n");
-        return;
-    }
-    memcpy(&bgdesc, bp1->data + gno * sizeof(bgdesc), sizeof(bgdesc));
-    brelse(bp1);
+    const int gno = GET_GROUP_NO(ip->inum, *sb);
+    ext2_read_group_desc(ip->dev, gno, &bgdesc);
 
     const uint32_t index = (ip->inum - 1) % sb->s_inodes_per_group;
 
-    // Calculate which sector of the bitmap contains this bit
-    constexpr uint32_t bits_per_sector = 512 * 8;
-    const uint32_t sector_in_block     = index / bits_per_sector;
-    const uint32_t bit_in_sector       = index % bits_per_sector;
-    const uint32_t byte_index          = bit_in_sector / 8;
-
-    buffer_head_t *bp2 =
-        bread(ip->dev, BLOCK_TO_SECTOR(bgdesc.bg_inode_bitmap) + ext2_part_offset(ip->dev) + sector_in_block);
-    if (!bp2) {
+    buffer_head_t *bp2 = nullptr;
+    uint32_t byte_index;
+    u8 mask;
+    if (ext2_open_bitmap_bit_sector(ip->dev, bgdesc.bg_inode_bitmap, index, &bp2, &byte_index, &mask) != 0) {
         printk("ext2_free_inode: bread failed\n");
         return;
     }
-
-    const u8 mask = (u8)(1U << (bit_in_sector % 8));
 
     if ((bp2->data[byte_index] & mask) == 0) {
         printk("PANIC: ");
