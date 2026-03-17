@@ -30,13 +30,51 @@ static int copy_in_args(const char* const* argv, char args[EXEC_MAX_ARGS][EXEC_M
     return count;
 }
 
+/**
+ * @brief Push an auxiliary vector entry onto the stack.
+ *
+ * Writes a (type, value) pair at the current stack pointer and decrements it.
+ *
+ * @param sp   Pointer to the current stack pointer (updated in place).
+ * @param type Auxiliary vector entry type (AT_*).
+ * @param val  Auxiliary vector entry value.
+ */
+static void push_auxv(uint64_t* sp, uint64_t type, uint64_t val)
+{
+    *sp -= sizeof(uint64_t);
+    *(uint64_t*)(*sp) = val;
+    *sp -= sizeof(uint64_t);
+    *(uint64_t*)(*sp) = type;
+}
+
+/**
+ * @brief Set up the initial user-mode stack with argv, envp, and auxiliary vector.
+ *
+ * Constructs the SysV x86_64 ABI initial stack layout:
+ *   [high] argument strings
+ *          auxiliary vector (AT_NULL terminated)
+ *          envp[] = { NULL }
+ *          argv[0..argc-1], NULL
+ *          argc
+ *   [low = initial RSP]
+ *
+ * @param stack_top  Top of the allocated user stack.
+ * @param args       Array of argument strings.
+ * @param argc       Number of arguments.
+ * @param elf_info   ELF load result for auxiliary vector entries (may be NULL
+ *                   for legacy callers, in which case no auxv is pushed).
+ * @param out_rsp    Output: the final stack pointer value.
+ */
 // ReSharper disable once CppDFAConstantParameter
 static void setup_user_stack(uint64_t stack_top,
-                             const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc, uint64_t* out_rsp)
+                             const char args[EXEC_MAX_ARGS][EXEC_MAX_ARG_LEN], int argc,
+                             const elf_load_result_t* elf_info,
+                             uint64_t* out_rsp)
 {
     uint64_t sp = stack_top;
     uint64_t arg_ptrs[EXEC_MAX_ARGS];
 
+    /* Push argument strings (high addresses) */
     for (int i = argc - 1; i >= 0; i--)
     {
         size_t len = strlen(args[i]) + 1;
@@ -48,18 +86,34 @@ static void setup_user_stack(uint64_t stack_top,
     // Align stack to 16 bytes
     sp &= ~0xFul;
 
-    // argv terminator
+    /* Auxiliary vector (pushed bottom-up, so AT_NULL goes first) */
+    if (elf_info)
+    {
+        push_auxv(&sp, AT_NULL, 0);
+        push_auxv(&sp, AT_PAGESZ, PAGE_SIZE);
+        push_auxv(&sp, AT_BASE, elf_info->interp_base);
+        push_auxv(&sp, AT_ENTRY, elf_info->entry);
+        push_auxv(&sp, AT_PHNUM, elf_info->phnum);
+        push_auxv(&sp, AT_PHENT, elf_info->phent);
+        push_auxv(&sp, AT_PHDR, elf_info->phdr_vaddr);
+    }
+
+    /* envp[] = { NULL } */
     sp -= sizeof(uint64_t);
     *(uint64_t*)sp = 0;
 
-    // argv pointers
+    /* argv terminator */
+    sp -= sizeof(uint64_t);
+    *(uint64_t*)sp = 0;
+
+    /* argv pointers */
     for (int i = argc - 1; i >= 0; i--)
     {
         sp -= sizeof(uint64_t);
         *(uint64_t*)sp = arg_ptrs[i];
     }
 
-    // argc
+    /* argc */
     sp -= sizeof(uint64_t);
     *(uint64_t*)sp = (uint64_t)argc;
 
@@ -175,9 +229,8 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
         return -1;
     }
 
-    uint64_t entry_point;
-    uint64_t max_vaddr;
-    if (!elf_load(abs_path, &entry_point, &max_vaddr, new_pml4))
+    elf_load_result_t elf_result;
+    if (!elf_load_ex(abs_path, &elf_result, new_pml4))
     {
         TEST_SYSCALL_LOG("sys_execve: pid=%d elf_load failed path=%s\n",
                          current_process ? current_process->pid : -1,
@@ -226,12 +279,16 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
     uint64_t user_rsp = stack_top;
     current_process->pml4 = new_pml4;
     vmm_switch_pml4(new_pml4);
-    setup_user_stack(stack_top, args, argc, &user_rsp);
+    setup_user_stack(stack_top, args, argc, &elf_result, &user_rsp);
 
-    current_process->heap_end = max_vaddr;
+    current_process->heap_end = elf_result.max_vaddr;
     set_process_name_from_path(current_process, abs_path);
     signal_reset_exec(current_process);
-    regs->rcx = entry_point;
+
+    /* If dynamic: enter the interpreter instead of the program directly */
+    uint64_t entry = elf_result.interp_entry ? elf_result.interp_entry : elf_result.entry;
+    regs->rcx = entry;
+
     get_cpu()->user_rsp = user_rsp;
     if (current_thread)
     {
@@ -250,7 +307,7 @@ int sys_execve(const char* path, const char* const argv[], [[maybe_unused]] cons
 
     TEST_SYSCALL_LOG("sys_execve: pid=%d entry=%lx rsp=%lx\n",
                      current_process ? current_process->pid : -1,
-                     (unsigned long)entry_point,
+                     (unsigned long)entry,
                      (unsigned long)user_rsp);
     return 0;
 }
