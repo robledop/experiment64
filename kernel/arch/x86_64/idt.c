@@ -1,16 +1,16 @@
-#include <arch/x86_64/idt.h>
-#include <limine.h>
-#include <drivers/terminal.h>
-#include <drivers/keyboard.h>
 #include <arch/x86_64/apic.h>
+#include <arch/x86_64/idt.h>
+#include <debug.h>
 #include <drivers/ide.h>
+#include <drivers/keyboard.h>
+#include <drivers/terminal.h>
+#include <kernel.h>
+#include <lib/util.h>
+#include <limine.h>
+#include <sys/signal.h>
+#include <syscall_common.h>
 #include <task/process.h>
 #include <task/signal.h>
-#include <kernel.h>
-#include <debug.h>
-#include <lib/util.h>
-#include <syscall_common.h>
-#include <sys/signal.h>
 
 #define IDT_FLAG_PRESENT 0x80
 #define IDT_FLAG_RING0 0x00
@@ -26,8 +26,7 @@
 
 extern volatile struct limine_framebuffer_request framebuffer_request;
 
-struct idt_entry
-{
+struct idt_entry {
     uint16_t offset_low;
     uint16_t selector;
     uint8_t ist;
@@ -37,8 +36,7 @@ struct idt_entry
     uint32_t zero;
 } __attribute__((packed));
 
-struct idt_ptr
-{
+struct idt_ptr {
     uint16_t limit;
     uint64_t base;
 } __attribute__((packed));
@@ -49,57 +47,55 @@ static isr_handler_t isr_handlers[256];
 
 extern void *isr_stub_table[];
 
-char *exception_messages[] = {
-    "Division By Zero",
-    "Debug",
-    "Non Maskable Interrupt",
-    "Breakpoint",
-    "Into Detected Overflow",
-    "Out of Bounds",
-    "Invalid Opcode",
-    "No Coprocessor",
-    "Double Fault",
-    "Coprocessor Segment Overrun",
-    "Bad TSS",
-    "Segment Not Present",
-    "Stack Fault",
-    "General Protection Fault",
-    "Page Fault",
-    "Unknown Interrupt",
-    "x87 FPU Floating-Point Error",
-    "Alignment Check",
-    "Machine Check",
-    "SIMD Floating-Point Exception",
-    "Virtualization Exception",
-    "Control Protection Exception",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Security Exception",
-    "Reserved"
-};
+char *exception_messages[] = {"Division By Zero",
+                              "Debug",
+                              "Non Maskable Interrupt",
+                              "Breakpoint",
+                              "Into Detected Overflow",
+                              "Out of Bounds",
+                              "Invalid Opcode",
+                              "No Coprocessor",
+                              "Double Fault",
+                              "Coprocessor Segment Overrun",
+                              "Bad TSS",
+                              "Segment Not Present",
+                              "Stack Fault",
+                              "General Protection Fault",
+                              "Page Fault",
+                              "Unknown Interrupt",
+                              "x87 FPU Floating-Point Error",
+                              "Alignment Check",
+                              "Machine Check",
+                              "SIMD Floating-Point Exception",
+                              "Virtualization Exception",
+                              "Control Protection Exception",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Reserved",
+                              "Security Exception",
+                              "Reserved"};
 
 // Map x86 exception vectors to POSIX signal numbers.
 static constexpr int vector_to_signal[32] = {
-    [0]  = SIGFPE,   // Division by Zero
-    [4]  = SIGFPE,   // Overflow
-    [5]  = SIGSEGV,  // Bound Range Exceeded
-    [6]  = SIGILL,   // Invalid Opcode
-    [7]  = SIGFPE,   // No Coprocessor
-    [8]  = SIGSEGV,  // Double Fault
-    [10] = SIGSEGV,  // Bad TSS
-    [11] = SIGBUS,   // Segment Not Present
-    [12] = SIGSEGV,  // Stack Fault
-    [13] = SIGSEGV,  // General Protection Fault
-    [14] = SIGSEGV,  // Page Fault
-    [16] = SIGFPE,   // x87 FPU Error
-    [17] = SIGBUS,   // Alignment Check
-    [19] = SIGFPE,   // SIMD Floating-Point Exception
+    [0]  = SIGFPE,  // Division by Zero
+    [4]  = SIGFPE,  // Overflow
+    [5]  = SIGSEGV, // Bound Range Exceeded
+    [6]  = SIGILL,  // Invalid Opcode
+    [7]  = SIGFPE,  // No Coprocessor
+    [8]  = SIGSEGV, // Double Fault
+    [10] = SIGSEGV, // Bad TSS
+    [11] = SIGBUS,  // Segment Not Present
+    [12] = SIGSEGV, // Stack Fault
+    [13] = SIGSEGV, // General Protection Fault
+    [14] = SIGSEGV, // Page Fault
+    [16] = SIGFPE,  // x87 FPU Error
+    [17] = SIGBUS,  // Alignment Check
+    [19] = SIGFPE,  // SIMD Floating-Point Exception
 };
 
 // Walk the user-mode frame pointer chain and capture return addresses.
@@ -107,7 +103,10 @@ static void capture_user_backtrace(crash_info_t *info, uint64_t rbp)
 {
     info->frame_count = 0;
 
-    struct frame { uint64_t rbp; uint64_t rip; };
+    struct frame {
+        uint64_t rbp;
+        uint64_t rip;
+    };
 
     for (int i = 0; i < MAX_CRASH_FRAMES && rbp != 0; i++) {
         if (!user_ptr_read_ok((const void *)rbp, sizeof(struct frame), "backtrace"))
@@ -118,7 +117,7 @@ static void capture_user_backtrace(crash_info_t *info, uint64_t rbp)
         if (f.rip == 0)
             break;
         info->frames[info->frame_count++] = f.rip;
-        rbp = f.rbp;
+        rbp                               = f.rbp;
     }
 }
 
@@ -205,35 +204,33 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
            curr_rsp);
 
 
-    if (frame->int_no != snapshot->int_no || frame->err_code != snapshot->err_code ||
-        frame->rip != snapshot->rip || frame->cs != snapshot->cs || frame->rflags != snapshot->rflags ||
-        frame->rsp != snapshot->rsp || frame->ss != snapshot->ss) {
-        printk(
-            KBYEL "frame changed in handler" KBWHT " int" KRESET "=%lu " KBWHT "err" KRESET "=0x%lx " KBWHT "rip" KRESET
-            "=0x%lx " KBWHT "cs" KRESET "=0x%lx " KBWHT "rflags" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT
-            "ss" KRESET "=0x%lx\n",
-            (unsigned long)frame->int_no,
-            frame->err_code,
-            frame->rip,
-            frame->cs,
-            frame->rflags,
-            frame->rsp,
-            frame->ss);
+    if (frame->int_no != snapshot->int_no || frame->err_code != snapshot->err_code || frame->rip != snapshot->rip ||
+        frame->cs != snapshot->cs || frame->rflags != snapshot->rflags || frame->rsp != snapshot->rsp ||
+        frame->ss != snapshot->ss) {
+        printk(KBYEL "frame changed in handler" KBWHT " int" KRESET "=%lu " KBWHT "err" KRESET "=0x%lx " KBWHT
+                     "rip" KRESET "=0x%lx " KBWHT "cs" KRESET "=0x%lx " KBWHT "rflags" KRESET "=0x%lx " KBWHT
+                     "rsp" KRESET "=0x%lx " KBWHT "ss" KRESET "=0x%lx\n",
+               (unsigned long)frame->int_no,
+               frame->err_code,
+               frame->rip,
+               frame->cs,
+               frame->rflags,
+               frame->rsp,
+               frame->ss);
     }
     if (!cpu) {
         printk("cpu=null\n");
         return;
     }
 
-    printk(
-        KBWHT"cpu" KRESET "=%p " KBWHT "idx" KRESET "=%d " KBWHT "kernel_rsp" KRESET "=0x%lx " KBWHT "user_rsp" KRESET
-        "=0x%lx " KBWHT "tss.rsp0" KRESET "=0x%lx " KBWHT "active_thread" KRESET "=%p\n",
-        cpu,
-        cpu->cpu_index,
-        cpu->kernel_rsp,
-        cpu->user_rsp,
-        cpu->tss.rsp0,
-        cpu->active_thread);
+    printk(KBWHT "cpu" KRESET "=%p " KBWHT "idx" KRESET "=%d " KBWHT "kernel_rsp" KRESET "=0x%lx " KBWHT
+                 "user_rsp" KRESET "=0x%lx " KBWHT "tss.rsp0" KRESET "=0x%lx " KBWHT "active_thread" KRESET "=%p\n",
+           cpu,
+           cpu->cpu_index,
+           cpu->kernel_rsp,
+           cpu->user_rsp,
+           cpu->tss.rsp0,
+           cpu->active_thread);
 
     thread_t *t            = cpu->active_thread;
     const uintptr_t t_addr = (uintptr_t)t;
@@ -244,29 +241,26 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
         if (p && (((uintptr_t)p) % __alignof__(process_t)) == 0)
             pid = p->pid;
 
-        printk(
-            KBWHT "tid" KRESET "=%d " KBWHT "state" KRESET "=%u " KBWHT "is_user" KRESET "=%d " KBWHT "is_idle" KRESET
-            "=%d " KBWHT "kstack_top" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT "saved_user_rsp" KRESET
-            "=0x%lx " KBWHT "pid" KRESET "=%d " KBWHT "process" KRESET "=%p\n",
-            t->tid,
-            (unsigned)t->state,
-            t->is_user,
-            t->is_idle,
-            t->kstack_top,
-            t->rsp,
-            t->saved_user_rsp,
-            pid,
-            p);
+        printk(KBWHT "tid" KRESET "=%d " KBWHT "state" KRESET "=%u " KBWHT "is_user" KRESET "=%d " KBWHT
+                     "is_idle" KRESET "=%d " KBWHT "kstack_top" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT
+                     "saved_user_rsp" KRESET "=0x%lx " KBWHT "pid" KRESET "=%d " KBWHT "process" KRESET "=%p\n",
+               t->tid,
+               (unsigned)t->state,
+               t->is_user,
+               t->is_idle,
+               t->kstack_top,
+               t->rsp,
+               t->saved_user_rsp,
+               pid,
+               p);
 
         if (t->kstack_top != 0) {
             const uintptr_t kbase = t->kstack_top - KSTACK_SIZE;
             const uintptr_t ktop  = t->kstack_top;
             const uintptr_t faddr = (uintptr_t)frame;
             const bool in_kstack  = (faddr >= kbase && faddr < ktop);
-            printk(KBWHT "kstack" KRESET "=[0x%lx-0x%lx) " KBWHT"frame_in_kstack" KRESET"=%d\n",
-                   kbase,
-                   ktop,
-                   in_kstack);
+            printk(
+                KBWHT "kstack" KRESET "=[0x%lx-0x%lx) " KBWHT "frame_in_kstack" KRESET "=%d\n", kbase, ktop, in_kstack);
         }
     } else {
         printk(KYEL "active_thread invalid or misaligned (ptr=%p)\n" KRESET, t);
@@ -281,19 +275,17 @@ static void dump_panic_context(const struct interrupt_frame *frame, const struct
                current_process->name,
                snapshot->rip);
     } else {
-        printk(KRESET "run " KBBLU "addr2line -e build/kernel.elf %p" KRESET " to get line numbers\n",
-               snapshot->rip);
+        printk(KRESET "run " KBBLU "addr2line -e build/kernel.elf %p" KRESET " to get line numbers\n", snapshot->rip);
         printk(KRESET "run " KBBLU "objdump -d build/kernel.elf | grep %p -A 40 -B 40" KRESET " to see more.\n",
                snapshot->rip);
     }
 
-    printk(
-        KBWHT "frame cs" KRESET "=0x%lx " KBWHT "ss" KRESET "=0x%lx " KBWHT "rsp" KRESET"=0x%lx " KBWHT "rflags" KRESET
-        "=0x%lx\n",
-        snapshot->cs,
-        snapshot->ss,
-        snapshot->rsp,
-        snapshot->rflags);
+    printk(KBWHT "frame cs" KRESET "=0x%lx " KBWHT "ss" KRESET "=0x%lx " KBWHT "rsp" KRESET "=0x%lx " KBWHT
+                 "rflags" KRESET "=0x%lx\n",
+           snapshot->cs,
+           snapshot->ss,
+           snapshot->rsp,
+           snapshot->rflags);
 }
 
 void interrupt_handler(struct interrupt_frame *frame)
@@ -305,12 +297,8 @@ void interrupt_handler(struct interrupt_frame *frame)
         struct interrupt_frame snapshot    = *frame;
         const struct interrupt_frame *snap = &snapshot;
 
-        char *message = frame->int_no >= ARRAY_SIZE(exception_messages)
-            ? "Unknown"
-            : exception_messages[snap->int_no];
-        printk(KRED "PANIC: EXCEPTION OCCURRED! " KYEL "%s" KRESET " (Vector %d)\n",
-               message,
-               (int)snap->int_no);
+        char *message = frame->int_no >= ARRAY_SIZE(exception_messages) ? "Unknown" : exception_messages[snap->int_no];
+        printk(KRED "PANIC: EXCEPTION OCCURRED! " KYEL "%s" KRESET " (Vector %d)\n", message, (int)snap->int_no);
 
         if (snap->int_no == 14) {
             uint64_t cr2;
@@ -326,16 +314,8 @@ void interrupt_handler(struct interrupt_frame *frame)
             uint64_t cr3;
             __asm__ volatile("mov %0, cr3" : "=r"(cr3));
             printk("Process: pid=%d cr3=0x%lx\n", current_process ? current_process->pid : -1, cr3);
-            printk("Regs: rax=0x%lx rbx=0x%lx rcx=0x%lx rdx=0x%lx\n",
-                   snap->rax,
-                   snap->rbx,
-                   snap->rcx,
-                   snap->rdx);
-            printk("Regs: rsi=0x%lx rdi=0x%lx rbp=0x%lx rsp=0x%lx\n",
-                   snap->rsi,
-                   snap->rdi,
-                   snap->rbp,
-                   snap->rsp);
+            printk("Regs: rax=0x%lx rbx=0x%lx rcx=0x%lx rdx=0x%lx\n", snap->rax, snap->rbx, snap->rcx, snap->rdx);
+            printk("Regs: rsi=0x%lx rdi=0x%lx rbp=0x%lx rsp=0x%lx\n", snap->rsi, snap->rdi, snap->rbp, snap->rsp);
 #endif
         }
 
@@ -364,8 +344,8 @@ void interrupt_handler(struct interrupt_frame *frame)
             }
 
             int sig = (snap->int_no < ARRAY_SIZE(vector_to_signal) && vector_to_signal[snap->int_no])
-                    ? vector_to_signal[snap->int_no]
-                    : SIGSEGV;
+                ? vector_to_signal[snap->int_no]
+                : SIGSEGV;
 
             // Acquire scheduler lock before modifying thread/process state to prevent races.
             // Interrupts are already disabled by the interrupt gate.
