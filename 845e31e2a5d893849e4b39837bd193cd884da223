@@ -1,0 +1,198 @@
+{
+    "version": "0.1.0",
+    "id": "386d16b5-7fed-4a4f-b739-05ddb6321f54",
+    "timestamp": "2026-03-20T01:49:46.005265843Z",
+    "vcs": {
+        "type": "git",
+        "revision": "845e31e2a5d893849e4b39837bd193cd884da223",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/task/init.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f5dddc76bf643ba2d0466db2f8b3bc6aca3ed48",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.80"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 33,
+                            "end_line": 33
+                        },
+                        {
+                            "start_line": 35,
+                            "end_line": 36
+                        },
+                        {
+                            "start_line": 39,
+                            "end_line": 39
+                        },
+                        {
+                            "start_line": 79,
+                            "end_line": 81
+                        },
+                        {
+                            "start_line": 83,
+                            "end_line": 97
+                        },
+                        {
+                            "start_line": 99,
+                            "end_line": 101
+                        },
+                        {
+                            "start_line": 103,
+                            "end_line": 104
+                        },
+                        {
+                            "start_line": 125,
+                            "end_line": 125
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/elf_dynlink_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f5dddc76bf643ba2d0466db2f8b3bc6aca3ed48",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.80"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 17,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 50,
+                            "end_line": 50
+                        },
+                        {
+                            "start_line": 74,
+                            "end_line": 74
+                        },
+                        {
+                            "start_line": 102,
+                            "end_line": 102
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/Makefile",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f5dddc76bf643ba2d0466db2f8b3bc6aca3ed48",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.80"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 2,
+                            "end_line": 2
+                        },
+                        {
+                            "start_line": 10,
+                            "end_line": 12
+                        },
+                        {
+                            "start_line": 15,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 53,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 63,
+                            "end_line": 64
+                        },
+                        {
+                            "start_line": 67,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 70,
+                            "end_line": 70
+                        },
+                        {
+                            "start_line": 72,
+                            "end_line": 74
+                        },
+                        {
+                            "start_line": 77,
+                            "end_line": 80
+                        },
+                        {
+                            "start_line": 83,
+                            "end_line": 88
+                        },
+                        {
+                            "start_line": 161,
+                            "end_line": 161
+                        },
+                        {
+                            "start_line": 163,
+                            "end_line": 163
+                        },
+                        {
+                            "start_line": 166,
+                            "end_line": 169
+                        },
+                        {
+                            "start_line": 171,
+                            "end_line": 172
+                        },
+                        {
+                            "start_line": 175,
+                            "end_line": 175
+                        },
+                        {
+                            "start_line": 182,
+                            "end_line": 183
+                        },
+                        {
+                            "start_line": 185,
+                            "end_line": 185
+                        },
+                        {
+                            "start_line": 195,
+                            "end_line": 195
+                        },
+                        {
+                            "start_line": 203,
+                            "end_line": 203
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CODEX_CLI:blob:3a621167265e6de618f19abd2215c0431f7eea99",
+                    "contributor": {
+                        "type": "ai"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 66,
+                            "end_line": 66
+                        },
+                        {
+                            "start_line": 69,
+                            "end_line": 69
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
