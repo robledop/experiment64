@@ -1,10 +1,8 @@
 #include <wm/textbox.h>
 #include <wm/window.h>
-#include <wm/desktop.h>
 #include <stdint.h>
-
-#include "stdlib.h"
-#include "string.h"
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * @brief Create a textbox widget at the specified location.

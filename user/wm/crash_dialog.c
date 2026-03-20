@@ -1,5 +1,5 @@
 #include "crash_dialog.h"
-#include "symresolve.h"
+#include <symresolve.h>
 
 #include <signal.h>
 #include <stdio.h>

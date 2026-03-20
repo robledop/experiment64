@@ -60,6 +60,7 @@
       <w>hcsparams</w>
       <w>hhdm</w>
       <w>hstrerror</w>
+      <w>idtr</w>
       <w>ifree</w>
       <w>iget</w>
       <w>ilock</w>
@@ -89,10 +90,12 @@
       <w>newfd</w>
       <w>newpath</w>
       <w>newptr</w>
+      <w>nobits</w>
       <w>nocldwait</w>
       <w>nodecoration</w>
       <w>nolintbegin</w>
       <w>nolintend</w>
+      <w>notype</w>
       <w>objdir</w>
       <w>oldact</w>
       <w>oldfd</w>
@@ -106,10 +109,13 @@
       <w>pdpt</w>
       <w>pdpte</w>
       <w>perror</w>
+      <w>phdr</w>
+      <w>phdrs</w>
       <w>pipefd</w>
       <w>poff</w>
       <w>printk</w>
       <w>prio</w>
+      <w>progbits</w>
       <w>putpixel</w>
       <w>qemugdb</w>
       <w>rdfsbase</w>
@@ -125,6 +131,9 @@
       <w>setjmp</w>
       <w>setsid</w>
       <w>shdrs</w>
+      <w>shflags</w>
+      <w>shstrtab</w>
+      <w>sigactions</w>
       <w>sigprocmask</w>
       <w>sigreturn</w>
       <w>sleeplock</w>

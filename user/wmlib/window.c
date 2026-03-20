@@ -8,7 +8,14 @@
 #include <wm/rect.h>
 #include <wm/video_context.h>
 #include <wm/window.h>
-#include "taskbar.h"
+
+/** @brief Global callback invoked when a window is raised (set by the WM server). */
+static WindowRaiseNotifyHandler g_raise_notify = nullptr;
+
+void window_set_raise_notify(WindowRaiseNotifyHandler handler)
+{
+    g_raise_notify = handler;
+}
 
 static constexpr int WIN_RESIZE_HANDLE_SIZE          = 14;
 static constexpr uint64_t WIN_DRAG_FRAME_INTERVAL_MS = 16;
@@ -496,8 +503,8 @@ void window_raise(window_t *window, uint8_t do_draw)
         return;
     }
 
-    int window_index = taskbar_find_window(window);
-    taskbar_button_activate(window_index);
+    if (g_raise_notify)
+        g_raise_notify(window);
 
     window_t *parent = window->parent;
 

@@ -82,3 +82,17 @@ void window_insert_child(window_t *window, window_t *child);
 void window_remove_child(window_t *parent, window_t *child);
 void window_invalidate(window_t *window, int top, int left, int bottom, int right);
 void window_set_title(window_t *window, const char *new_title);
+
+/**
+ * @brief Callback type invoked when a window is raised.
+ *
+ * The WM server registers this to update its taskbar. Client applications
+ * can leave it unset. Called with the window being raised.
+ */
+typedef void (*WindowRaiseNotifyHandler)(window_t *window);
+
+/**
+ * @brief Register a callback to be notified when any window is raised.
+ * @param handler Callback function, or nullptr to clear.
+ */
+void window_set_raise_notify(WindowRaiseNotifyHandler handler);

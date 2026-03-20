@@ -120,6 +120,21 @@ fi
 if [ -f assets/httpd.c ]; then
     cp -v assets/httpd.c build/rootfs_ext2/var/httpd.c
 fi
+# Install shared libraries to /lib
+mkdir -p build/rootfs_ext2/lib
+if [ -f "$USER_BUILD_DIR/libc/libc.so" ]; then
+    cp -v "$USER_BUILD_DIR/libc/libc.so" build/rootfs_ext2/lib/libc.so
+fi
+if [ -f "$USER_BUILD_DIR/rtld/ld.so" ]; then
+    cp -v "$USER_BUILD_DIR/rtld/ld.so" build/rootfs_ext2/lib/ld.so
+fi
+if [ -f "$USER_BUILD_DIR/wmlib/libwm.so" ]; then
+    cp -v "$USER_BUILD_DIR/wmlib/libwm.so" build/rootfs_ext2/lib/libwm.so
+fi
+if [ -f "$USER_BUILD_DIR/elflib/libelf.so" ]; then
+    cp -v "$USER_BUILD_DIR/elflib/libelf.so" build/rootfs_ext2/lib/libelf.so
+fi
+
 for bin in "$USER_BUILD_DIR"/*; do
     if [ ! -f "$bin" ]; then
         continue

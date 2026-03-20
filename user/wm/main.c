@@ -29,6 +29,13 @@ static int keyboardfd;
 static video_context_t *context;
 static client_manager_t client_mgr;
 
+/** @brief Callback invoked by window_raise() to update the taskbar. */
+static void wm_raise_notify(window_t *window)
+{
+    int idx = taskbar_find_window(window);
+    taskbar_button_activate(idx);
+}
+
 
 #define CRASH_LOG_SIZE 16
 
@@ -267,6 +274,9 @@ int main(void)
     terminal_button->onmousedown = terminal_button_handler;
     window_set_title((window_t *)terminal_button, "Terminal");
     window_insert_child((window_t *)desktop, (window_t *)terminal_button);
+
+    /* Register raise callback so the taskbar updates when windows are raised */
+    window_set_raise_notify(wm_raise_notify);
 
     taskbar_init(0, (int16_t)(desktop->window.height - TASKBAR_HEIGHT), desktop->window.width, TASKBAR_HEIGHT);
     window_set_title(taskbar_get(), "Taskbar");
