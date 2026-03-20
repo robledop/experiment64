@@ -28,14 +28,15 @@ static file_descriptor_t *alloc_console_fd(vfs_inode_t *inode, int flags)
 
 void init_process_entry(void)
 {
-    uint64_t entry_point;
-    uint64_t max_vaddr = 0;
     uint64_t cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(cr3));
-    if (!elf_load("/bin/init", &entry_point, &max_vaddr, (pml4_t)cr3)) {
+    pml4_t pml4 = (pml4_t)cr3;
+
+    elf_load_result_t elf_result;
+    if (!elf_load_ex("/bin/init", &elf_result, pml4)) {
         panic("Failed to load /bin/init");
     }
-    current_process->heap_end = max_vaddr;
+    current_process->heap_end = elf_result.max_vaddr;
 
     vfs_inode_t *console = vfs_resolve_path("/dev/console");
     if (console) {
@@ -67,9 +68,6 @@ void init_process_entry(void)
     uint64_t stack_size = 4 * 4096;
     uint64_t stack_base = stack_top - stack_size;
 
-    // Map stack
-    pml4_t pml4 = (pml4_t)cr3;
-
     for (uint64_t addr = stack_base; addr < stack_top; addr += 4096) {
         void *phys = pmm_alloc_page();
         if (!phys) {
@@ -78,11 +76,32 @@ void init_process_entry(void)
         vmm_map_page(pml4, addr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
     }
 
-    // Set up an empty argc/argv for _start.
-    uint64_t user_rsp   = stack_top - 16;
-    uint64_t *stack_ptr = (uint64_t *)user_rsp;
-    stack_ptr[0]        = 0; // argc
-    stack_ptr[1]        = 0; // argv terminator
+    // Build the initial stack with auxiliary vector (required by ld.so).
+    // Since init's PML4 is the current one, we can write directly.
+    uint64_t sp = stack_top & ~0xFul;
+
+    // Auxiliary vector (pushed bottom-up, AT_NULL first)
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = 0;                        // AT_NULL value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_NULL;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = PAGE_SIZE;                // AT_PAGESZ value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_PAGESZ;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = elf_result.interp_base;   // AT_BASE value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_BASE;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = elf_result.entry;         // AT_ENTRY value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_ENTRY;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = elf_result.phnum;         // AT_PHNUM value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_PHNUM;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = elf_result.phent;         // AT_PHENT value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_PHENT;
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = elf_result.phdr_vaddr;    // AT_PHDR value
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = AT_PHDR;
+
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = 0;   // envp terminator
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = 0;   // argv terminator
+    sp -= sizeof(uint64_t); *(uint64_t *)sp = 0;   // argc = 0
+
+    // If dynamic: enter the interpreter instead of the program directly
+    uint64_t entry_point = elf_result.interp_entry ? elf_result.interp_entry : elf_result.entry;
 
     // Jump to user mode
     uint64_t user_cs = 0x20 | 3;
@@ -103,7 +122,7 @@ void init_process_entry(void)
         "push %5\n"// RIP
         "iretq\n"
         :
-        : "r"(user_ss), "r"(user_ss), "r"(user_rsp), "r"(rflags), "r"(user_cs), "r"(entry_point)
+        : "r"(user_ss), "r"(user_ss), "r"(sp), "r"(rflags), "r"(user_cs), "r"(entry_point)
         : "memory");
 }
 

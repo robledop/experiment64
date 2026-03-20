@@ -14,7 +14,7 @@ TEST(test_elf_load_ex_dynamic_binary)
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/hello_dyn", &result, pml4));
+    TEST_ASSERT(elf_load_ex("/bin/echo", &result, pml4));
 
     /* Must have detected the interpreter */
     TEST_ASSERT(result.interp[0] != '\0');
@@ -47,7 +47,7 @@ TEST(test_elf_load_ex_static_binary)
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/echo", &result, pml4));
+    TEST_ASSERT(elf_load_ex("/bin/cat", &result, pml4));
 
     /* Static binary must have no interpreter */
     TEST_ASSERT(result.interp[0] == '\0');
@@ -71,7 +71,7 @@ TEST(test_elf_load_ex_phdr_fields)
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/hello_dyn", &result, pml4));
+    TEST_ASSERT(elf_load_ex("/bin/echo", &result, pml4));
 
     /* phent must match the standard size */
     TEST_ASSERT(result.phent == sizeof(Elf64_Phdr));
@@ -99,7 +99,7 @@ TEST(test_elf_load_legacy_with_dynamic)
     TEST_ASSERT(pml4 != nullptr);
 
     uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(elf_load("/bin/hello_dyn", &entry, &max_vaddr, pml4));
+    TEST_ASSERT(elf_load("/bin/echo", &entry, &max_vaddr, pml4));
     TEST_ASSERT(entry != 0);
     TEST_ASSERT(max_vaddr > 0);
 
