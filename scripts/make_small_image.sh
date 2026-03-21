@@ -58,6 +58,21 @@ cp -v "$KERNEL" "$ESP_DIR/boot/"
 cp -v limine.conf limine/limine-bios.sys "$ESP_DIR/boot/limine/"
 cp -v limine/BOOTX64.EFI limine/BOOTIA32.EFI "$ESP_DIR/EFI/BOOT/"
 
+# Install shared libraries to /lib
+mkdir -p "$ROOT_DIR/lib"
+if [ -f "$USER_BUILD_DIR/libc/libc.so" ]; then
+    cp -v "$USER_BUILD_DIR/libc/libc.so" "$ROOT_DIR/lib/libc.so"
+fi
+if [ -f "$USER_BUILD_DIR/rtld/ld.so" ]; then
+    cp -v "$USER_BUILD_DIR/rtld/ld.so" "$ROOT_DIR/lib/ld.so"
+fi
+if [ -f "$USER_BUILD_DIR/wmlib/libwm.so" ]; then
+    cp -v "$USER_BUILD_DIR/wmlib/libwm.so" "$ROOT_DIR/lib/libwm.so"
+fi
+if [ -f "$USER_BUILD_DIR/elflib/libelf.so" ]; then
+    cp -v "$USER_BUILD_DIR/elflib/libelf.so" "$ROOT_DIR/lib/libelf.so"
+fi
+
 for bin in "$USER_BUILD_DIR"/*; do
     if [ ! -f "$bin" ]; then
         continue
