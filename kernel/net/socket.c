@@ -415,6 +415,7 @@ int socket_deliver_udp(const uint8_t dest_ip[static 4], uint16_t dest_port,
 int socket_deliver_icmp(const uint8_t dest_ip[static 4], const uint8_t src_ip[static 4],
                         const uint8_t* payload, size_t payload_len)
 {
+    bool delivered = false;
 
     uint64_t rflags;
     SPIN_LOCK_INT_SAVE(socket_lock, rflags);
@@ -434,10 +435,9 @@ int socket_deliver_icmp(const uint8_t dest_ip[static 4], const uint8_t src_ip[st
         socket_addr_t from = {};
         memcpy(from.ip, src_ip, sizeof(from.ip));
         from.port = 0;
-        int res = socket_enqueue_rx(s, payload, payload_len, &from);
-        SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
-        return res;
+        if (socket_enqueue_rx(s, payload, payload_len, &from) == 0)
+            delivered = true;
     }
     SPIN_UNLOCK_INT_RESTORE(socket_lock, rflags);
-    return -1;
+    return delivered ? 0 : -1;
 }

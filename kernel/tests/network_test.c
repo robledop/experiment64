@@ -526,3 +526,59 @@ TEST(test_checksum_with_initial_sum)
     TEST_ASSERT(cs1 == cs2);
     return true;
 }
+
+TEST(test_icmp_deliver_to_multiple_sockets)
+{
+    // Two ICMP raw sockets should both receive the same ICMP reply.
+    socket_t sock1 = {};
+    sock1.domain = AF_INET;
+    sock1.type = SOCK_RAW;
+    sock1.protocol = IPPROTO_ICMP;
+    sock1.state = SOCKET_STATE_BOUND;
+    socket_register(&sock1);
+
+    socket_t sock2 = {};
+    sock2.domain = AF_INET;
+    sock2.type = SOCK_RAW;
+    sock2.protocol = IPPROTO_ICMP;
+    sock2.state = SOCKET_STATE_BOUND;
+    socket_register(&sock2);
+
+    // Build a minimal ICMP echo reply payload
+    struct icmp_header icmp = {};
+    icmp.type = ICMP_REPLY;
+    icmp.code = 0;
+    icmp.id = htons(1234);
+    icmp.sequence = htons(1);
+    icmp.checksum = 0;
+
+    constexpr uint8_t dest_ip[4] = {10, 0, 2, 15};
+    constexpr uint8_t src_ip[4] = {8, 8, 8, 8};
+
+    const int res = socket_deliver_icmp(dest_ip, src_ip,
+                                        (const uint8_t*)&icmp, sizeof(icmp));
+    TEST_ASSERT(res == 0);
+
+    // Both sockets must have received the packet
+    socket_rx_packet_t* pkt1 = socket_rx_pop(&sock1, false);
+    TEST_ASSERT(pkt1 != nullptr);
+    TEST_ASSERT(pkt1->len == sizeof(icmp));
+    const struct icmp_header* r1 = (const struct icmp_header*)pkt1->data;
+    TEST_ASSERT(r1->type == ICMP_REPLY);
+    TEST_ASSERT(ntohs(r1->id) == 1234);
+    kfree(pkt1->data);
+    kfree(pkt1);
+
+    socket_rx_packet_t* pkt2 = socket_rx_pop(&sock2, false);
+    TEST_ASSERT(pkt2 != nullptr);
+    TEST_ASSERT(pkt2->len == sizeof(icmp));
+    const struct icmp_header* r2 = (const struct icmp_header*)pkt2->data;
+    TEST_ASSERT(r2->type == ICMP_REPLY);
+    TEST_ASSERT(ntohs(r2->id) == 1234);
+    kfree(pkt2->data);
+    kfree(pkt2);
+
+    socket_unregister(&sock2);
+    socket_unregister(&sock1);
+    return true;
+}
