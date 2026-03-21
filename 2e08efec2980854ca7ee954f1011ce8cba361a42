@@ -1,0 +1,72 @@
+{
+    "version": "0.1.0",
+    "id": "9ead0174-9f61-4e8b-b897-f484f767f241",
+    "timestamp": "2026-03-21T16:07:56.095597674Z",
+    "vcs": {
+        "type": "git",
+        "revision": "2e08efec2980854ca7ee954f1011ce8cba361a42",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/net/socket.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:4a220dd5ff4922904b278deee73ea5db7b1f89be",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 418,
+                            "end_line": 418
+                        },
+                        {
+                            "start_line": 438,
+                            "end_line": 439
+                        },
+                        {
+                            "start_line": 442,
+                            "end_line": 442
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/network_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:4a220dd5ff4922904b278deee73ea5db7b1f89be",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 530,
+                            "end_line": 530
+                        },
+                        {
+                            "start_line": 532,
+                            "end_line": 545
+                        },
+                        {
+                            "start_line": 547,
+                            "end_line": 560
+                        },
+                        {
+                            "start_line": 562,
+                            "end_line": 583
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
