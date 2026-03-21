@@ -5,6 +5,7 @@
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <status.h>
+#include <sys/fcntl.h>
 
 // Shared memory implementation using a simple global table. This is not the most efficient design, but it is simple and
 // works for a small number of shared memory objects.
@@ -77,6 +78,41 @@ shm_entry_t *shm_create(const char *name, size_t size)
     entry->marked_for_unlink = false;
 
     shm_table[shm_count++] = entry;
+    return entry;
+}
+
+/**
+ * Atomically look up (or create) an SHM entry and acquire a reference.
+ * Holds shm_lock across lookup+ref so a concurrent shm_destroy cannot
+ * free the entry between the two operations.
+ * @return The entry with refcount incremented, or nullptr on failure.
+ */
+shm_entry_t *shm_open_or_create(const char *name, int flags, size_t size)
+{
+    bool create = (flags & O_CREATE) != 0;
+
+    spinlock_acquire(&shm_lock);
+    shm_entry_t *entry = shm_lookup(name);
+
+    if (!entry && !create) {
+        spinlock_release(&shm_lock);
+        return nullptr;
+    }
+
+    if (!entry) {
+        if (size == 0) {
+            spinlock_release(&shm_lock);
+            return nullptr;
+        }
+        entry = shm_create(name, size);
+        if (!entry) {
+            spinlock_release(&shm_lock);
+            return nullptr;
+        }
+    }
+
+    __atomic_add_fetch(&entry->refcount, 1, __ATOMIC_RELAXED);
+    spinlock_release(&shm_lock);
     return entry;
 }
 

@@ -21,6 +21,7 @@ typedef struct shm_entry
 void shm_init(void);
 shm_entry_t *shm_lookup(const char *name);
 shm_entry_t *shm_create(const char *name, size_t size);
+shm_entry_t *shm_open_or_create(const char *name, int flags, size_t size);
 void shm_ref(shm_entry_t *entry);
 void shm_unref(shm_entry_t *entry);
 int shm_do_unlink(const char *name);

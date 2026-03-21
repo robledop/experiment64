@@ -28,27 +28,15 @@ int sys_shm_open(const char *name, int flags, size_t size)
     if (kname[0] == '\0')
         return -EINVAL;
 
-    bool create = (flags & O_CREATE) != 0;
-
-    shm_entry_t *entry = shm_lookup(kname);
-
-    if (entry && create)
-        return -EINSTKN;
-
-    if (!entry && !create)
-        return -ENOENT;
-
-    if (!entry) {
-        if (size == 0)
-            return -EINVAL;
-        entry = shm_create(kname, size);
-        if (!entry)
-            return -ENOMEM;
-    }
+    shm_entry_t *entry = shm_open_or_create(kname, flags, size);
+    if (!entry)
+        return (flags & O_CREATE) ? -ENOMEM : -ENOENT;
 
     vfs_inode_t *inode = kmalloc(sizeof(vfs_inode_t));
-    if (!inode)
+    if (!inode) {
+        shm_unref(entry);
         return -ENOMEM;
+    }
 
     memset(inode, 0, sizeof(vfs_inode_t));
     inode->flags  = VFS_CHARDEVICE;
@@ -59,17 +47,18 @@ int sys_shm_open(const char *name, int flags, size_t size)
 
     file_descriptor_t *desc = fd_alloc(inode, O_RDWR);
     if (!desc) {
+        shm_unref(entry);
         kfree(inode);
         return -ENOMEM;
     }
 
     int fd = fd_assign(desc, 0);
     if (fd < 0) {
+        shm_unref(entry);
         kfree(inode);
         kfree(desc);
         return -ENOMEM;
     }
 
-    shm_ref(entry);
     return fd;
 }
