@@ -1,0 +1,74 @@
+{
+    "version": "0.1.0",
+    "id": "3efccc9a-b719-4b86-9edf-59a7a6f1f74e",
+    "timestamp": "2026-03-21T14:58:24.437893446Z",
+    "vcs": {
+        "type": "git",
+        "revision": "4d0df6c88055755135bd78af5bbe5ba89ea1e3f0",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/wm/main.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 297,
+                            "end_line": 297
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wm/wm_client.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 835,
+                            "end_line": 838
+                        },
+                        {
+                            "start_line": 840,
+                            "end_line": 849
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wm/wm_client.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 40,
+                            "end_line": 40
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
