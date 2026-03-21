@@ -18,7 +18,7 @@ static uint64_t *get_next_level(uint64_t *current_level, size_t index, bool allo
 {
     if (current_level[index] & PTE_PRESENT)
     {
-        uint64_t phys = current_level[index] & 0x000FFFFFFFFFF000;
+        uint64_t phys = current_level[index] & PTE_ADDR_MASK;
         return (uint64_t *)(phys + g_hhdm_offset);
     }
 
@@ -121,7 +121,7 @@ pml4_t vmm_new_pml4(void)
 
     uint64_t current_cr3;
     __asm__ volatile("mov %0, cr3" : "=r"(current_cr3));
-    uint64_t current_pml4_phys = current_cr3 & 0x000FFFFFFFFFF000;
+    uint64_t current_pml4_phys = current_cr3 & PTE_ADDR_MASK;
     uint64_t *current_pml4_virt = (uint64_t *)(current_pml4_phys + g_hhdm_offset);
 
     // Copy higher half (entries 256-511)
@@ -159,7 +159,7 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
                 if (!new_phys)
                     continue;
 
-                void *src_phys = (void *)(src_table[i] & 0x000FFFFFFFFFF000);
+                void *src_phys = (void *)(src_table[i] & PTE_ADDR_MASK);
 
                 memcpy((void *)((uint64_t)new_phys + g_hhdm_offset),
                        (void *)((uint64_t)src_phys + g_hhdm_offset),
@@ -180,7 +180,7 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
 
                 dest_table[i] = (uint64_t)new_table_phys | (src_table[i] & 0xFFF);
 
-                uint64_t src_next_phys = src_table[i] & 0x000FFFFFFFFFF000;
+                uint64_t src_next_phys = src_table[i] & PTE_ADDR_MASK;
                 uint64_t *src_next_virt = (uint64_t *)(src_next_phys + g_hhdm_offset);
 
                 copy_page_table_level(new_table_virt, src_next_virt, level - 1);
@@ -212,7 +212,7 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
 
             dest_virt[i] = (uint64_t)new_pdpt_phys | (src_virt[i] & 0xFFF);
 
-            uint64_t src_pdpt_phys = src_virt[i] & 0x000FFFFFFFFFF000;
+            uint64_t src_pdpt_phys = src_virt[i] & PTE_ADDR_MASK;
             uint64_t *src_pdpt_virt = (uint64_t *)(src_pdpt_phys + g_hhdm_offset);
 
             copy_page_table_level(new_pdpt_virt, src_pdpt_virt, 3);
@@ -261,7 +261,7 @@ void vmm_destroy_pml4(pml4_t pml4)
     {
         if (pml4_virt[i] & PTE_PRESENT)
         {
-            uint64_t phys = pml4_virt[i] & 0x000FFFFFFFFFF000;
+            uint64_t phys = pml4_virt[i] & PTE_ADDR_MASK;
             uint64_t *pdpt = (uint64_t *)(phys + g_hhdm_offset);
             free_page_table_level(pdpt, 3); // PDPT is level 3
             pmm_free_page((void *)phys); // Free the PDPT itself
@@ -296,7 +296,7 @@ uint64_t vmm_virt_to_phys(pml4_t pml4, uint64_t virt)
     if (!(pt_virt[pt_idx] & PTE_PRESENT))
         return 0;
 
-    return (pt_virt[pt_idx] & 0x000FFFFFFFFFF000) + (virt & 0xFFF);
+    return (pt_virt[pt_idx] & PTE_ADDR_MASK) + (virt & 0xFFF);
 }
 
 void vmm_finalize(void)
