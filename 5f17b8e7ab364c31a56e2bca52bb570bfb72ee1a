@@ -1,0 +1,46 @@
+{
+    "version": "0.1.0",
+    "id": "b98e4d63-2a0b-496d-b940-a8cb2db96a75",
+    "timestamp": "2026-03-21T14:56:45.148168297Z",
+    "vcs": {
+        "type": "git",
+        "revision": "5f17b8e7ab364c31a56e2bca52bb570bfb72ee1a",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/syscalls/sys_shm_open.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 31,
+                            "end_line": 33
+                        },
+                        {
+                            "start_line": 36,
+                            "end_line": 37
+                        },
+                        {
+                            "start_line": 50,
+                            "end_line": 50
+                        },
+                        {
+                            "start_line": 57,
+                            "end_line": 57
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
