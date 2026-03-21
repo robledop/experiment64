@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <wm/video_context.h>
 #include <wm/window.h>
@@ -698,6 +699,16 @@ static void *client_reader_thread(void *arg)
     }
 
 done:
+    ;
+    // Reap the child directly to get its exit status and crash info.
+    // With FDs closed at termination time, pipe EOF may arrive before the
+    // SIGCHLD handler has a chance to call wait4, so we can't rely solely
+    // on the crash_log.  Blocking wait4 also reclaims process memory,
+    // preventing zombie accumulation.
+    int exit_status = 0;
+    crash_info_t crash_ci = {};
+    int reap_ret = wait4(client_pid, &exit_status, 0, &crash_ci);
+
     wm_state_lock();
 
     // Look up the connection name before destroying it.
@@ -712,15 +723,32 @@ done:
     client_destroy_connection_windows(g_mgr, cmd_fd);
     client_unregister_connection_by_cmd_fd(g_mgr, cmd_fd);
 
-    // Check if the client crashed (signaled termination).
-    const crash_entry_t *entry = crash_log_find(client_pid);
-    if (entry && WIFSIGNALED(entry->status) && g_parent) {
+    // Determine crash status from wait4 result, or fall back to
+    // the crash_log if the SIGCHLD handler already reaped this child.
+    bool crashed = false;
+    int signal_num = 0;
+    const crash_info_t *ci_ptr = nullptr;
+
+    if (reap_ret == client_pid && WIFSIGNALED(exit_status)) {
+        crashed    = true;
+        signal_num = WTERMSIG(exit_status);
+        ci_ptr     = &crash_ci;
+    } else if (reap_ret <= 0) {
+        const crash_entry_t *entry = crash_log_find(client_pid);
+        if (entry && WIFSIGNALED(entry->status)) {
+            crashed    = true;
+            signal_num = WTERMSIG(entry->status);
+            ci_ptr     = &entry->info;
+        }
+    }
+
+    if (crashed && g_parent) {
         printf("wm: client '%s' pid=%d killed by signal %d, showing crash dialog\n",
-               app_name ? app_name : "?", client_pid, WTERMSIG(entry->status));
-        crash_dialog_show(g_parent, app_name, WTERMSIG(entry->status), &entry->info);
+               app_name ? app_name : "?", client_pid, signal_num);
+        crash_dialog_show(g_parent, app_name, signal_num, ci_ptr);
     } else {
-        printf("wm: client pid=%d disconnected (entry=%p status=%d)\n",
-               client_pid, (void *)entry, entry ? entry->status : -999);
+        printf("wm: client pid=%d disconnected (status=%d)\n",
+               client_pid, reap_ret > 0 ? exit_status : -999);
     }
 
     if (g_parent)
