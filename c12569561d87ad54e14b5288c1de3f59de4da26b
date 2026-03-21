@@ -1,0 +1,66 @@
+{
+    "version": "0.1.0",
+    "id": "9d266fec-836c-4e75-b7d7-af83d9f13a4b",
+    "timestamp": "2026-03-21T15:57:14.879838189Z",
+    "vcs": {
+        "type": "git",
+        "revision": "c12569561d87ad54e14b5288c1de3f59de4da26b",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/wm/wm_client.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 703,
+                            "end_line": 710
+                        },
+                        {
+                            "start_line": 726,
+                            "end_line": 730
+                        },
+                        {
+                            "start_line": 732,
+                            "end_line": 741
+                        },
+                        {
+                            "start_line": 745,
+                            "end_line": 745
+                        },
+                        {
+                            "start_line": 747,
+                            "end_line": 748
+                        },
+                        {
+                            "start_line": 750,
+                            "end_line": 751
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CODEX_CLI:blob:de8308d6b5c3e91241cc4498870abfeafb33f915",
+                    "contributor": {
+                        "type": "ai"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 13,
+                            "end_line": 13
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
