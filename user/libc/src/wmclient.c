@@ -118,6 +118,31 @@ static int wm_map_named_buffer(const char *shm_name, size_t size, uint32_t **out
     return 0;
 }
 
+/**
+ * @brief Release previously retired window buffers.
+ *
+ * Called under g_state_lock.  Unmaps and closes any buffers that were
+ * deferred from a prior resize so that a concurrent render could
+ * finish safely.
+ */
+static void wm_release_retired_buffers_locked(wm_window_t *win)
+{
+    if (win->retired_width == 0 && win->retired_height == 0)
+        return;
+
+    const size_t buf_size = (size_t)win->retired_width * (size_t)win->retired_height * 4;
+    for (int i = 0; i < 2; i++) {
+        if (win->retired_buffers[i] && buf_size)
+            munmap(win->retired_buffers[i], buf_size);
+        if (win->retired_shm_fds[i] >= 0)
+            close(win->retired_shm_fds[i]);
+        win->retired_buffers[i]  = nullptr;
+        win->retired_shm_fds[i]  = -1;
+    }
+    win->retired_width  = 0;
+    win->retired_height = 0;
+}
+
 static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[2][WM_SHM_NAME_MAX], uint8_t front_buffer,
                                    uint16_t width, uint16_t height)
 {
@@ -143,7 +168,19 @@ static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[2][WM_
         }
     }
 
-    wm_unmap_window_buffers(win);
+    /* Release any previously retired buffers before retiring new ones. */
+    wm_release_retired_buffers_locked(win);
+
+    /* Retire the current buffers instead of unmapping them immediately.
+     * A concurrent render thread may still be writing to the old buffer;
+     * the client must call wm_release_retired_buffers() once it has
+     * rebuilt its rendering context after the resize event. */
+    for (int i = 0; i < 2; i++) {
+        win->retired_buffers[i]  = win->buffers[i];
+        win->retired_shm_fds[i]  = win->shm_fds[i];
+    }
+    win->retired_width  = win->width;
+    win->retired_height = win->height;
 
     win->buffers[0]   = new_buffers[0];
     win->buffers[1]   = new_buffers[1];
@@ -475,10 +512,12 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
         return nullptr;
 
     memset(win, 0, sizeof(*win));
-    win->window_id  = resp.window_id;
-    win->shm_fds[0] = -1;
-    win->shm_fds[1] = -1;
-    win->flags      = flags;
+    win->window_id          = resp.window_id;
+    win->shm_fds[0]         = -1;
+    win->shm_fds[1]         = -1;
+    win->retired_shm_fds[0] = -1;
+    win->retired_shm_fds[1] = -1;
+    win->flags              = flags;
 
     pthread_mutex_lock(&g_state_lock);
 
@@ -587,6 +626,7 @@ void wm_destroy_window(wm_window_t *win)
 
     pthread_mutex_lock(&g_state_lock);
     wm_unregister_window_locked(win->window_id);
+    wm_release_retired_buffers_locked(win);
     pthread_mutex_unlock(&g_state_lock);
 
     wm_unmap_window_buffers(win);
@@ -652,5 +692,15 @@ void wm_shutdown_events(void)
     pthread_mutex_lock(&g_state_lock);
     g_reader_dead = 1;
     pthread_cond_broadcast(&g_state_cv);
+    pthread_mutex_unlock(&g_state_lock);
+}
+
+void wm_release_retired_buffers(wm_window_t *win)
+{
+    if (!win)
+        return;
+
+    pthread_mutex_lock(&g_state_lock);
+    wm_release_retired_buffers_locked(win);
     pthread_mutex_unlock(&g_state_lock);
 }

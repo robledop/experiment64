@@ -707,6 +707,13 @@ static void terminal_render_locked(terminal_state_t *term)
     if (!term->win)
         return;
 
+    /* Skip rendering when a resize is in flight: the WM event reader
+     * has already remapped the window buffers (potentially smaller)
+     * but this thread's context still carries the old dimensions.
+     * The main event loop will rebuild the context and re-render. */
+    if (term->context->width != term->win->width || term->context->height != term->win->height)
+        return;
+
     term->context->buffer = term->win->buffer;
 
     const uint32_t default_bg = ansi_palette[term->default_bg & 0x0Fu];
@@ -1112,6 +1119,7 @@ int main(void)
                 const uint16_t new_rows = terminal_rows_from_height(term.win->height);
                 terminal_resize_grid_locked(new_cols, new_rows);
                 terminal_set_pty_winsize(term.master_fd, term.rows, term.cols, term.win->width, term.win->height);
+                wm_release_retired_buffers(term.win);
                 terminal_render_locked(&term);
             }
 

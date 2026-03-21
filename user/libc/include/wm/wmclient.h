@@ -17,6 +17,10 @@ typedef struct
     int shm_fds[2];
     uint32_t presents_requested;
     uint32_t presents_completed;
+    uint32_t *retired_buffers[2];
+    int retired_shm_fds[2];
+    uint16_t retired_width;
+    uint16_t retired_height;
     char title[WM_TITLE_MAX];
 } wm_window_t;
 
@@ -28,3 +32,4 @@ void wm_invalidate_all(wm_window_t *win);
 void wm_destroy_window(wm_window_t *win);
 int wm_next_event(void *event_buf, uint8_t *out_type);
 void wm_shutdown_events(void);
+void wm_release_retired_buffers(wm_window_t *win);
