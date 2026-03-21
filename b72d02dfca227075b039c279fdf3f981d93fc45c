@@ -1,0 +1,188 @@
+{
+    "version": "0.1.0",
+    "id": "2ff159db-6a7e-4c14-bbd0-0e1d60539c79",
+    "timestamp": "2026-03-21T15:56:37.695285477Z",
+    "vcs": {
+        "type": "git",
+        "revision": "b72d02dfca227075b039c279fdf3f981d93fc45c",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/task/process.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 163,
+                            "end_line": 163
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/arch/x86_64/idt.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 365,
+                            "end_line": 367
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_exit.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 68,
+                            "end_line": 72
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_thread_exit.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 49,
+                            "end_line": 52
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/task/process.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 228,
+                            "end_line": 229
+                        },
+                        {
+                            "start_line": 231,
+                            "end_line": 235
+                        },
+                        {
+                            "start_line": 237,
+                            "end_line": 238
+                        },
+                        {
+                            "start_line": 240,
+                            "end_line": 240
+                        },
+                        {
+                            "start_line": 242,
+                            "end_line": 243
+                        },
+                        {
+                            "start_line": 246,
+                            "end_line": 250
+                        },
+                        {
+                            "start_line": 252,
+                            "end_line": 252
+                        },
+                        {
+                            "start_line": 254,
+                            "end_line": 256
+                        },
+                        {
+                            "start_line": 291,
+                            "end_line": 292
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CODEX_CLI:blob:9fdad795366f5c4b15aed5b5c603a831bc1cb489",
+                    "contributor": {
+                        "type": "ai"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 245,
+                            "end_line": 245
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/task/signal.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c4fb5714cef6b8a2c77d939ea032e2a745a7b5c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 232,
+                            "end_line": 234
+                        },
+                        {
+                            "start_line": 294,
+                            "end_line": 294
+                        },
+                        {
+                            "start_line": 309,
+                            "end_line": 309
+                        },
+                        {
+                            "start_line": 357,
+                            "end_line": 357
+                        },
+                        {
+                            "start_line": 423,
+                            "end_line": 423
+                        },
+                        {
+                            "start_line": 484,
+                            "end_line": 484
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
