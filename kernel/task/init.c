@@ -20,9 +20,9 @@ static file_descriptor_t *alloc_console_fd(vfs_inode_t *inode, int flags)
     desc->offset = 0;
     desc->flags  = flags;
     desc->ref    = 1;
-    if (inode->ref == 0)
+    if (__atomic_load_n(&inode->ref, __ATOMIC_RELAXED) == 0)
         vfs_open(inode);
-    inode->ref++;
+    __atomic_add_fetch(&inode->ref, 1, __ATOMIC_RELAXED);
     return desc;
 }
 

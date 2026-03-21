@@ -18,7 +18,7 @@ static vfs_inode_t *process_clone_fd_inode(vfs_inode_t *inode)
         return nullptr;
 
     if (inode->flags & VFS_PIPE) {
-        inode->ref++;
+        __atomic_add_fetch(&inode->ref, 1, __ATOMIC_RELAXED);
         return inode;
     }
 

@@ -21,11 +21,17 @@ void vfs_release(vfs_inode_t *node)
     if (!node || node == vfs_root)
         return;
 
-    if (node->ref > 1) {
-        node->ref--;
+    uint32_t old = __atomic_load_n(&node->ref, __ATOMIC_RELAXED);
+    if (old == 0) {
+        vfs_put_inode(node);
         return;
     }
 
+    uint32_t after = __atomic_sub_fetch(&node->ref, 1, __ATOMIC_RELEASE);
+    if (after != 0)
+        return;
+
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
     vfs_put_inode(node);
 }
 

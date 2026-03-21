@@ -28,9 +28,9 @@ int sys_open(const char* path, int flags)
         return -EISDIR;
     }
 
-    // Initialize ref count for dup() support
-    if (inode->ref == 0)
-        inode->ref = 1;
+    // Initialize ref count for dup() support (atomic CAS for SMP safety)
+    uint32_t expected_ref = 0;
+    __atomic_compare_exchange_n(&inode->ref, &expected_ref, 1, false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
 
     if ((flags & O_TRUNC) && (inode->flags & VFS_FILE))
     {
