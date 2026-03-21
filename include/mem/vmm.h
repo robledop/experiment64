@@ -8,6 +8,7 @@
 #define PTE_PWT (1ull << 3)      // Page Write-Through
 #define PTE_PCD (1ull << 4)      // Page Cache Disable
 #define PTE_HUGE (1ull << 7)     // Huge Page (1GB in PDPT, 2MB in PD)
+#define PTE_SHARED (1ull << 9)   // Software: shared page, do not free on destroy
 #define PTE_NX (1ull << 63)      // No Execute
 #define PTE_ADDR_MASK 0x000FFFFFFFFFF000ull // Physical address mask (strips flags)
 

@@ -225,7 +225,7 @@ static void free_page_table_level(const uint64_t *table, int level)
     {
         if (table[i] & PTE_PRESENT)
         {
-            uint64_t phys = table[i] & 0x000FFFFFFFFFF000;
+            uint64_t phys = table[i] & PTE_ADDR_MASK;
             if (level > 1)
             {
                 const uint64_t *next_table = (const uint64_t *)(phys + g_hhdm_offset);
@@ -234,8 +234,10 @@ static void free_page_table_level(const uint64_t *table, int level)
             }
             else
             {
-                // Level 1 (PT), this points to a physical page. Free it.
-                pmm_free_page((void *)phys);
+                // Level 1 (PT): skip shared/MMIO pages — they are owned by
+                // the shm subsystem or the hardware, not this process.
+                if (!(table[i] & PTE_SHARED))
+                    pmm_free_page((void *)phys);
             }
         }
     }

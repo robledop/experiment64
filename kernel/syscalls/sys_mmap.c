@@ -81,7 +81,7 @@ static void *mmap_shm(shm_entry_t *shm, uint64_t base, size_t length, size_t off
         vmm_map_page(current_process->pml4,
                      base + i * PAGE_SIZE,
                      shm->phys_pages[start_page + i],
-                     PTE_PRESENT | PTE_USER | PTE_WRITABLE);
+                     PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_SHARED);
     }
 
     if (!vm_area_add(current_process, base, base + total_len, vma_flags)) {
@@ -137,7 +137,7 @@ static void *mmap_framebuffer(uint64_t base, size_t length, size_t offset, file_
     uint64_t phys         = phys_base;
     uint64_t bytes_mapped = 0;
     while (bytes_mapped < total_len) {
-        vmm_map_page(current_process->pml4, virt, phys, PTE_PRESENT | PTE_USER | PTE_WRITABLE);
+        vmm_map_page(current_process->pml4, virt, phys, PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_SHARED);
         virt += PAGE_SIZE;
         phys += PAGE_SIZE;
         bytes_mapped += PAGE_SIZE;

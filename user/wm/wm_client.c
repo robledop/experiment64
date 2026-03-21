@@ -773,7 +773,13 @@ int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t
         if (cmd_pipe[1] != WM_CMD_FD)
             close(cmd_pipe[1]);
 
-        exec(path);
+        /* Close all inherited WM fds (device handles, other clients' pipes)
+         * to prevent fd pollution and stale inode refs during mass cleanup.
+         * Keep only stdin/stdout/stderr (0-2) and WM protocol fds (3-4). */
+        for (int i = WM_CMD_FD + 1; i < 128; i++)
+            close(i);
+
+        exec(path); // NOSONAR: OS syscall, not shell exec
         exit(1);
     }
 

@@ -217,17 +217,8 @@ static bool slab_guard_valid(slab_header_t *slab)
 static bool slab_validate(const slab_header_t *slab, const int index)
 {
     if (slab->magic != HEAP_MAGIC || slab->guard_magic != HEAP_MAGIC || !slab->is_slab) {
-        boot_message(
-            ERROR,
-            "heap: slab header corrupt cache=%d slab=%p magic=%lx guard=%lx is_slab=%u free_list=%p obj=%zu free_count=%zu",
-            index,
-            slab,
-            slab->magic,
-            slab->guard_magic,
-            slab->is_slab,
-            slab->free_list,
-            slab->obj_size,
-            slab->free_count);
+        panic("heap: slab header corrupt cache=%d slab=%p magic=%lx guard=%lx is_slab=%u obj=%zu",
+              index, slab, slab->magic, slab->guard_magic, slab->is_slab, slab->obj_size);
         return false;
     }
 
@@ -474,12 +465,9 @@ void kfree(void *ptr)
     auto header         = (slab_header_t *)page_start;
 
     if (header->magic != HEAP_MAGIC || header->guard_magic != HEAP_MAGIC) {
-        printk("kfree: Invalid pointer (magic/guard mismatch) %p magic=%lx guard=%lx\n",
-               ptr,
-               header->magic,
-               header->guard_magic);
         SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-        return;
+        panic("kfree: slab header corrupt at %p (magic=%lx guard=%lx expected=%lx)",
+              ptr, header->magic, header->guard_magic, (uint64_t)HEAP_MAGIC);
     }
 
     if (header->is_slab) {
