@@ -1,0 +1,156 @@
+{
+    "version": "0.1.0",
+    "id": "936dd7cd-3039-4bcd-963b-728f9285896e",
+    "timestamp": "2026-03-21T17:24:34.050286346Z",
+    "vcs": {
+        "type": "git",
+        "revision": "ee1be9c83715f83963627857c59c718c9d0135c9",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "docs/ioctl.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:c50bd05756aca32ea68501f495a8d35b6946af3f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 38,
+                            "end_line": 38
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/keyboard.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:c50bd05756aca32ea68501f495a8d35b6946af3f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 45,
+                            "end_line": 49
+                        },
+                        {
+                            "start_line": 88,
+                            "end_line": 89
+                        },
+                        {
+                            "start_line": 91,
+                            "end_line": 92
+                        },
+                        {
+                            "start_line": 94,
+                            "end_line": 98
+                        },
+                        {
+                            "start_line": 102,
+                            "end_line": 103
+                        },
+                        {
+                            "start_line": 105,
+                            "end_line": 109
+                        },
+                        {
+                            "start_line": 111,
+                            "end_line": 114
+                        },
+                        {
+                            "start_line": 315,
+                            "end_line": 319
+                        },
+                        {
+                            "start_line": 419,
+                            "end_line": 419
+                        },
+                        {
+                            "start_line": 425,
+                            "end_line": 426
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/mouse.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:c50bd05756aca32ea68501f495a8d35b6946af3f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 120,
+                            "end_line": 121
+                        },
+                        {
+                            "start_line": 123,
+                            "end_line": 123
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/keyboard_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:c50bd05756aca32ea68501f495a8d35b6946af3f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 44,
+                            "end_line": 45
+                        },
+                        {
+                            "start_line": 47,
+                            "end_line": 48
+                        },
+                        {
+                            "start_line": 50,
+                            "end_line": 50
+                        },
+                        {
+                            "start_line": 52,
+                            "end_line": 52
+                        },
+                        {
+                            "start_line": 54,
+                            "end_line": 56
+                        },
+                        {
+                            "start_line": 58,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 62,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 65,
+                            "end_line": 69
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
