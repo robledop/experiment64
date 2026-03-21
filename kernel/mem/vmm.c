@@ -147,6 +147,14 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
 
             if (level == 1) // PT level
             {
+                // Shared/MMIO pages (framebuffer, shm) must reference the
+                // same physical page in the child — allocating a copy would
+                // leak because free_page_table_level skips PTE_SHARED pages.
+                if (src_table[i] & PTE_SHARED) {
+                    dest_table[i] = src_table[i];
+                    continue;
+                }
+
                 void *new_phys = pmm_alloc_page();
                 if (!new_phys)
                     continue;
