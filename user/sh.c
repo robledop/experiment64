@@ -65,6 +65,8 @@ struct backcmd
 static char command_history[COMMAND_HISTORY_SIZE][COMMAND_HISTORY_ENTRY_SIZE];
 static int history_count = 0;
 
+static volatile sig_atomic_t g_winch_pending = 0;
+
 static void shell_sigint_handler(const int sig)
 {
     (void)sig;
@@ -74,6 +76,12 @@ static void shell_sigchld_handler([[maybe_unused]] const int sig)
 {
     // printf("Child process exited.\n");
     // wait(nullptr);
+}
+
+static void shell_sigwinch_handler(const int sig)
+{
+    (void)sig;
+    g_winch_pending = 1;
 }
 
 int fork1(void); // Fork but panics on failure.
@@ -210,6 +218,16 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
     int i                     = 0;
     for (; i < max - 1; i++) {
         const int key = read_key();
+
+        if (g_winch_pending && output_while_typing) {
+            g_winch_pending = 0;
+            char cwd[256];
+            getcwd(cwd, sizeof(cwd));
+            printf("\r\x1b[2K%s" KGRN "> " KWHT, cwd);
+            for (int j = 0; j < i; j++)
+                putchar(out[j]);
+        }
+
         if (key == 0) {
             continue;
         }
@@ -322,9 +340,13 @@ int main(void)
     // Set an empty signal handler for SIGINT so that CTRL+C doesn't interrupt the shell itself
     signal(SIGINT, shell_sigint_handler);
     signal(SIGCHLD, shell_sigchld_handler);
+    signal(SIGWINCH, shell_sigwinch_handler);
 
     // Read and run input commands.
     while (true) {
+        // Set shell as PTY foreground process so we receive SIGWINCH.
+        int self_pid = getpid();
+        ioctl(STDIN_FILENO, TIOCSPGRP, &self_pid);
         char cwd[256];
         getcwd(cwd, sizeof(cwd));
         printf("%s" KGRN "> " KWHT, cwd);
@@ -383,7 +405,7 @@ int main(void)
         int fg = pid;
         ioctl(STDIN_FILENO, TIOCSPGRP, &fg);
         wait(nullptr);
-        fg = 0;
+        fg = getpid();
         ioctl(STDIN_FILENO, TIOCSPGRP, &fg);
     }
 }
