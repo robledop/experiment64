@@ -1,16 +1,16 @@
-#include <task/process.h>
-#include <task/signal.h>
-#include <mem/heap.h>
-#include <lib/string.h>
+#include <debug.h>
 #include <drivers/terminal.h>
+#include <lib/string.h>
+#include <mem/heap.h>
 #include <mem/vmm.h>
 #include <syscall_common.h>
-#include <debug.h>
+#include <task/process.h>
+#include <task/signal.h>
 
 list_item_t process_list __attribute__((aligned(16))) = LIST_HEAD_INIT(process_list);
 process_t *kernel_process                             = nullptr;
 process_t *init_process                               = nullptr;
-int next_pid                                           = 1;
+int next_pid                                          = 1;
 
 static vfs_inode_t *process_clone_fd_inode(vfs_inode_t *inode)
 {
@@ -88,7 +88,8 @@ vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t f
 
     spinlock_acquire(&proc->vm_lock);
     vm_area_t *existing;
-    list_foreach_entry(existing, &proc->vm_areas, list) {
+    list_foreach_entry(existing, &proc->vm_areas, list)
+    {
         if (!(end <= existing->start || start >= existing->end)) {
             spinlock_release(&proc->vm_lock);
             return nullptr; // overlap
@@ -127,7 +128,8 @@ void vm_area_clone(process_t *dest, process_t *src)
 
     spinlock_acquire(&src->vm_lock);
     vm_area_t *area;
-    list_foreach_entry(area, &src->vm_areas, list) {
+    list_foreach_entry(area, &src->vm_areas, list)
+    {
         vm_area_add(dest, area->start, area->end, area->flags);
     }
     spinlock_release(&src->vm_lock);
@@ -144,7 +146,8 @@ void vm_area_clear(process_t *proc)
 
     spinlock_acquire(&proc->vm_lock);
     vm_area_t *area, *tmp;
-    list_foreach_entry_safe(area, tmp, &proc->vm_areas, list) {
+    list_foreach_entry_safe(area, tmp, &proc->vm_areas, list)
+    {
         list_del(&area->list);
         kfree(area);
     }
@@ -202,7 +205,7 @@ void process_copy_fds(process_t *dest, process_t *src)
 
     for (int i = 0; i < MAX_FDS; i++) {
         file_descriptor_t *old_desc = fds[i];
-        dest->fd_table[i] = process_clone_fd(old_desc);
+        dest->fd_table[i]           = process_clone_fd(old_desc);
         if (old_desc)
             fd_put(old_desc);
     }
@@ -212,7 +215,8 @@ static void process_collect_threads_locked(const process_t *proc, list_item_t *f
 {
     spinlock_assert_held(&scheduler_lock);
     thread_t *t, *next_t;
-    list_foreach_entry_safe(t, next_t, &proc->threads, list) {
+    list_foreach_entry_safe(t, next_t, &proc->threads, list)
+    {
         if (!t)
             panic("%s: thread is null", __func__);
 
@@ -246,8 +250,8 @@ void process_close_fds(process_t *proc)
     uint64_t fd_flags;
     SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
     for (int i = 0; i < MAX_FDS; i++) {
-        fds[i]             = proc->fd_table[i];
-        proc->fd_table[i]  = nullptr;
+        fds[i]            = proc->fd_table[i];
+        proc->fd_table[i] = nullptr;
     }
     SPIN_UNLOCK_INT_RESTORE(proc->fd_lock, fd_flags);
 
@@ -278,7 +282,8 @@ static void process_destroy_now(process_t *proc)
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     thread_t *t, *next_t;
-    list_foreach_entry_safe(t, next_t, &free_list, list) {
+    list_foreach_entry_safe(t, next_t, &free_list, list)
+    {
         if (!t)
             panic("%s: thread is null", __func__);
 
@@ -313,7 +318,8 @@ void process_destroy(process_t *proc)
         SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
 
         thread_t *t;
-        list_foreach_entry(t, &proc->threads, list) {
+        list_foreach_entry(t, &proc->threads, list)
+        {
             thread_state_store(t, THREAD_TERMINATED);
         }
 
@@ -348,13 +354,15 @@ void process_mark_exited_locked(process_t *proc, int exit_code, process_t **pare
     signal_send_sigchld(proc);
 
     thread_t *t;
-    list_foreach_entry(t, &proc->threads, list) {
+    list_foreach_entry(t, &proc->threads, list)
+    {
         thread_state_store(t, THREAD_TERMINATED);
     }
 
     process_t *new_parent = init_process ? init_process : kernel_process;
     process_t *child;
-    list_foreach_entry(child, &process_list, list) {
+    list_foreach_entry(child, &process_list, list)
+    {
         if (child && child->parent == proc) {
             child->parent = new_parent;
             if (child->terminated)
@@ -388,9 +396,11 @@ void process_dump(void)
     SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
     printk("\n%-5s %-5s %-5s %-6s %s\n", "PID", "TID", "CPU", "STATE", "NAME");
     process_t *p;
-    list_foreach_entry(p, &process_list, list) {
+    list_foreach_entry(p, &process_list, list)
+    {
         thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
+        list_foreach_entry(t, &p->threads, list)
+        {
             uint32_t raw_state    = thread_state_load_raw(t);
             const char *state_str = "BAD";
 
@@ -398,12 +408,7 @@ void process_dump(void)
                 state_str = thread_state_str((thread_state_t)raw_state);
             }
 
-            printk("%-5d %-5d %-5d %-6s %s\n",
-                   p->pid,
-                   t->tid,
-                   t->last_cpu,
-                   state_str,
-                   p->name);
+            printk("%-5d %-5d %-5d %-6s %s\n", p->pid, t->tid, t->last_cpu, state_str, p->name);
         }
     }
     SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);

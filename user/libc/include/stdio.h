@@ -16,6 +16,11 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#define BUFSIZ 1024
+#define _IONBF 0 // Not line buffered
+#define _IOLBF 1 // Line buffered
+#define _IOFBF 2 // Fully buffered
+
 typedef struct FILE
 {
     int fd;
@@ -28,6 +33,11 @@ typedef struct FILE
     size_t pos;
     int open_flags;
     char path[128];
+    char *wbuf;
+    size_t wbuf_size;
+    size_t wbuf_pos;
+    int buf_mode;
+    char wbuf_static[BUFSIZ];
 } FILE;
 
 extern FILE __stdin_file_obj;  // NOLINT(misc-non-copyable-objects)
@@ -76,6 +86,8 @@ long ftell(FILE *stream);
 off_t ftello(FILE *stream);
 FILE *freopen(const char *path, const char *mode, FILE *stream);
 int fflush(FILE *stream);
+int setvbuf(FILE *stream, char *buf, int mode, size_t size);
+void setbuf(FILE *stream, char *buf);
 int ferror(FILE *stream);
 int ferror_unlocked(FILE *stream);
 int remove(const char *path);

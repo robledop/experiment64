@@ -8,9 +8,7 @@
 
 int putchar(int c)
 {
-    char ch = (char)c;
-    write(1, &ch, 1);
-    return c;
+    return fputc(c, stdout);
 }
 
 int getchar(void)
@@ -497,22 +495,15 @@ int dprintf(int fd, const char *format, ...)
 
 int vprintf(const char *format, va_list args)
 {
-    struct out_ctx ctx = {
-        .buf = nullptr,
-        .size = 0,
-        .pos = 0,
-        .count = 0,
-        .is_buffer = false,
-    };
-    vformat(&ctx, format, args);
-    return ctx.count;
+    return vfprintf(stdout, format, args);
 }
 
 int puts(const char *s)
 {
-    while (*s)
-        putchar(*s++);
-    putchar('\n');
+    if (fputs_unlocked(s, stdout) == EOF)
+        return EOF;
+    if (fputc('\n', stdout) == EOF)
+        return EOF;
     return 0;
 }
 

@@ -12,6 +12,7 @@
 #include <util.h>
 #include <termios.h>
 #include <errno.h>
+#include <stdio.h>
 
 #undef exit
 
@@ -96,6 +97,9 @@ ssize_t write(int fd, const void *buf, size_t count)
 
 ssize_t read(int fd, void *buf, size_t count)
 {
+    // Stream tying: flush stdout before reading stdin (matches glibc behavior)
+    if (fd == 0 && __stdout_file->wbuf_pos > 0)
+        fflush(__stdout_file);
     return syscall_to_ssize(syscall3(SYS_READ, fd, (long)buf, (long)count));
 }
 
@@ -120,6 +124,7 @@ int execve(const char *path, char *const argv[], char *const envp[])
 void __exit_with_handlers(int status)
 {
     __libc_run_atexit();
+    fflush(nullptr);
     __exit_impl(status);
 
     __builtin_unreachable();

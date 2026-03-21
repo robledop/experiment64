@@ -21,6 +21,7 @@
       <w>cfmakeraw</w>
       <w>chardevice</w>
       <w>cilas</w>
+      <w>clearerr</w>
       <w>connfd</w>
       <w>dboff</w>
       <w>dcbaa</w>
@@ -28,7 +29,9 @@
       <w>devfs</w>
       <w>distclean</w>
       <w>doomgeneric</w>
+      <w>dprintf</w>
       <w>dtime</w>
+      <w>dupfd</w>
       <w>ebadpath</w>
       <w>ebuffull</w>
       <w>efsnotus</w>
@@ -44,12 +47,25 @@
       <w>execve</w>
       <w>fbline</w>
       <w>fchdir</w>
+      <w>fclose</w>
+      <w>fdopen</w>
+      <w>fflush</w>
       <w>ffreestanding</w>
+      <w>fgetc</w>
+      <w>fgets</w>
       <w>fileno</w>
       <w>finddir</w>
       <w>fmtname</w>
+      <w>fopen</w>
+      <w>fprintf</w>
+      <w>fputc</w>
+      <w>freopen</w>
+      <w>fseek</w>
+      <w>fseeko</w>
       <w>fsgsbase</w>
       <w>fsize</w>
+      <w>ftello</w>
+      <w>getc</w>
       <w>getfd</w>
       <w>getfl</w>
       <w>gethostbyname</w>
@@ -66,6 +82,9 @@
       <w>ilock</w>
       <w>insl</w>
       <w>iobase</w>
+      <w>iofbf</w>
+      <w>iolbf</w>
+      <w>ionbf</w>
       <w>iupdate</w>
       <w>iwad</w>
       <w>iwads</w>
@@ -77,6 +96,7 @@
       <w>lctrl</w>
       <w>libwm</w>
       <w>limine</w>
+      <w>lineptr</w>
       <w>makeflags</w>
       <w>masix</w>
       <w>microframes</w>
@@ -90,7 +110,9 @@
       <w>ndev</w>
       <w>newfd</w>
       <w>newpath</w>
+      <w>newpos</w>
       <w>newptr</w>
+      <w>nmemb</w>
       <w>nobits</w>
       <w>nocldwait</w>
       <w>nodecoration</w>
@@ -117,6 +139,7 @@
       <w>printk</w>
       <w>prio</w>
       <w>progbits</w>
+      <w>putc</w>
       <w>putpixel</w>
       <w>qemugdb</w>
       <w>rdfsbase</w>
@@ -127,10 +150,12 @@
       <w>rflags</w>
       <w>rsvd</w>
       <w>rtsoff</w>
+      <w>setbuf</w>
       <w>setfd</w>
       <w>setfl</w>
       <w>setjmp</w>
       <w>setsid</w>
+      <w>setvbuf</w>
       <w>shdrs</w>
       <w>shflags</w>
       <w>shstrtab</w>
@@ -153,14 +178,17 @@
       <w>unreapable</w>
       <w>usbboot</w>
       <w>usercopy</w>
+      <w>vasprintf</w>
       <w>vcbprintf</w>
       <w>vfork</w>
       <w>vformat</w>
+      <w>vfprintf</w>
       <w>virt</w>
       <w>vpath</w>
       <w>vprintf</w>
       <w>vprintk</w>
       <w>vsnprintf</w>
+      <w>wbuf</w>
       <w>wcoredump</w>
       <w>wexitstatus</w>
       <w>wifexited</w>

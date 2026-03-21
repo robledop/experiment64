@@ -1,15 +1,15 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
-static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *out_append, bool *out_trunc, bool *out_create)
+static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *out_append, bool *out_trunc,
+                       bool *out_create)
 {
     bool r = false, w = false, a = false, plus = false;
-    for (const char *p = mode; *p; p++)
-    {
+    for (const char *p = mode; *p; p++) {
         if (*p == 'r')
             r = true;
         if (*p == 'w')
@@ -21,9 +21,9 @@ static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *
     }
     bool readable = r || (!w && !a) || plus;
     bool writable = w || a || plus;
-    *out_read = readable;
-    *out_write = writable;
-    *out_append = a;
+    *out_read     = readable;
+    *out_write    = writable;
+    *out_append   = a;
     if (out_trunc)
         *out_trunc = w;
     if (out_create)
@@ -31,16 +31,146 @@ static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *
 }
 
 // NOLINTBEGIN(misc-non-copyable-objects): Intentional FILE objects for standard streams
-FILE __stdin_file_obj = {.fd = 0, .readable = true, .writable = false, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_RDONLY, .path = ""};
-FILE __stdout_file_obj = {.fd = 1, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
-FILE __stderr_file_obj = {.fd = 2, .readable = false, .writable = true, .append = false, .need_seek = false, .size = 0, .pos = 0, .open_flags = O_WRONLY, .path = ""};
+FILE __stdin_file_obj = {
+    .fd         = 0,
+    .readable   = true,
+    .writable   = false,
+    .append     = false,
+    .need_seek  = false,
+    .size       = 0,
+    .pos        = 0,
+    .open_flags = O_RDONLY,
+    .path       = "",
+    .wbuf       = nullptr,
+    .wbuf_size  = 0,
+    .wbuf_pos   = 0,
+    .buf_mode   = _IONBF,
+};
+FILE __stdout_file_obj = {
+    .fd         = 1,
+    .readable   = false,
+    .writable   = true,
+    .append     = false,
+    .need_seek  = false,
+    .size       = 0,
+    .pos        = 0,
+    .open_flags = O_WRONLY,
+    .path       = "",
+    .wbuf       = __stdout_file_obj.wbuf_static,
+    .wbuf_size  = BUFSIZ,
+    .wbuf_pos   = 0,
+    .buf_mode   = _IOLBF,
+};
+FILE __stderr_file_obj = {
+    .fd         = 2,
+    .readable   = false,
+    .writable   = true,
+    .append     = false,
+    .need_seek  = false,
+    .size       = 0,
+    .pos        = 0,
+    .open_flags = O_WRONLY,
+    .path       = "",
+    .wbuf       = nullptr,
+    .wbuf_size  = 0,
+    .wbuf_pos   = 0,
+    .buf_mode   = _IONBF,
+};
 // NOLINTEND(misc-non-copyable-objects)
-FILE *__stdin_file = &__stdin_file_obj;
+FILE *__stdin_file  = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
 
 #undef stdout
 FILE *const stdout = &__stdout_file_obj;
+
+/// @brief Flush the write buffer of a FILE stream to its fd.
+/// @return 0 on success, EOF on error.
+static int __flush_wbuf(FILE *f)
+{
+    if (!f || !f->wbuf || f->wbuf_pos == 0)
+        return 0;
+
+    const char *p    = f->wbuf;
+    size_t remaining = f->wbuf_pos;
+    while (remaining > 0) {
+        ssize_t w = write(f->fd, p, remaining);
+        if (w <= 0)
+            return EOF;
+        p += w;
+        remaining -= (size_t)w;
+    }
+    f->wbuf_pos = 0;
+    return 0;
+}
+
+/// @brief Write bytes through the FILE's write buffer.
+/// @return Number of bytes consumed from src.
+static size_t __buffered_write(FILE *f, const char *src, size_t len)
+{
+    if (!f || !f->writable || len == 0)
+        return 0;
+
+    // Unbuffered: write directly
+    if (f->buf_mode == _IONBF || !f->wbuf) {
+        ssize_t w = write(f->fd, src, len);
+        if (w <= 0)
+            return 0;
+        f->pos += (size_t)w;
+        if (f->pos > f->size)
+            f->size = f->pos;
+        return (size_t)w;
+    }
+
+    size_t written = 0;
+    while (written < len) {
+        size_t avail = f->wbuf_size - f->wbuf_pos;
+        size_t chunk = len - written;
+        if (chunk > avail)
+            chunk = avail;
+
+        memcpy(f->wbuf + f->wbuf_pos, src + written, chunk);
+        f->wbuf_pos += chunk;
+        written += chunk;
+        f->pos += chunk;
+        if (f->pos > f->size)
+            f->size = f->pos;
+
+        // Buffer full: flush
+        if (f->wbuf_pos >= f->wbuf_size) {
+            if (__flush_wbuf(f) != 0)
+                break;
+        }
+    }
+
+    // Line-buffered: flush if we wrote any newlines
+    if (f->buf_mode == _IOLBF) {
+        for (size_t i = len; i > 0; i--) {
+            if (src[i - 1] == '\n') {
+                __flush_wbuf(f);
+                break;
+            }
+        }
+    }
+
+    return written;
+}
+
+/// @brief Initialize write buffering fields on a FILE.
+static void __init_wbuf(FILE *f)
+{
+    if (f->writable) {
+        f->wbuf      = f->wbuf_static;
+        f->wbuf_size = BUFSIZ;
+        f->wbuf_pos  = 0;
+        f->buf_mode  = isatty(f->fd) ? _IOLBF : _IOFBF;
+    } else {
+        f->wbuf      = nullptr;
+        f->wbuf_size = 0;
+        f->wbuf_pos  = 0;
+        f->buf_mode  = _IONBF;
+    }
+}
 
 static int seek_to_position(FILE *f, size_t target, bool for_write)
 {
@@ -50,15 +180,13 @@ static int seek_to_position(FILE *f, size_t target, bool for_write)
         return f->fd >= 0 ? 0 : -1;
 
     // Reopen file if fd is closed
-    if (f->fd < 0)
-    {
+    if (f->fd < 0) {
         int flags = f->open_flags;
         if (for_write && f->append)
             flags |= O_APPEND;
 
         int fd = open(f->path, flags);
-        if (fd < 0)
-        {
+        if (fd < 0) {
             f->fd = -1;
             return -1;
         }
@@ -67,7 +195,7 @@ static int seek_to_position(FILE *f, size_t target, bool for_write)
 
     // Use lseek for positioning
     size_t seek_target = (for_write && f->append) ? f->size : target;
-    long result = lseek(f->fd, (long)seek_target, SEEK_SET);
+    long result        = lseek(f->fd, (long)seek_target, SEEK_SET);
     if (result < 0)
         return -1;
 
@@ -80,16 +208,14 @@ static int ensure_position(FILE *f, size_t target, bool for_write)
     if (!f)
         return -1;
 
-    if (f->data)
-    {
-        f->pos = target;
+    if (f->data) {
+        f->pos       = target;
         f->need_seek = false;
         return 0;
     }
 
-    if (f->path[0] == '\0')
-    {
-        f->pos = target;
+    if (f->path[0] == '\0') {
+        f->pos       = target;
         f->need_seek = false;
         return 0;
     }
@@ -98,9 +224,8 @@ static int ensure_position(FILE *f, size_t target, bool for_write)
         return 0;
 
     int res = seek_to_position(f, target, for_write);
-    if (res == 0)
-    {
-        f->pos = target;
+    if (res == 0) {
+        f->pos       = target;
         f->need_seek = false;
     }
     return res;
@@ -120,9 +245,9 @@ FILE *fopen(const char *path, const char *mode)
     memset(f, 0, sizeof(FILE));
     strncpy(f->path, path, sizeof(f->path) - 1);
 
-    f->readable = rd || (!wr && !ap);
-    f->writable = wr;
-    f->append = ap;
+    f->readable  = rd || (!wr && !ap);
+    f->writable  = wr;
+    f->append    = ap;
     f->need_seek = false;
     if (f->readable && f->writable)
         f->open_flags = O_RDWR;
@@ -134,12 +259,11 @@ FILE *fopen(const char *path, const char *mode)
         f->open_flags |= O_CREATE;
     if (trunc && !ap)
         f->open_flags |= O_TRUNC;
-    f->pos = 0;
-    f->fd = (f->open_flags & O_CREAT) ? open(path, f->open_flags, 0644) : open(path, f->open_flags);
+    f->pos  = 0;
+    f->fd   = (f->open_flags & O_CREAT) ? open(path, f->open_flags, 0644) : open(path, f->open_flags);
     f->data = nullptr;
 
-    if (f->fd < 0)
-    {
+    if (f->fd < 0) {
         free(f);
         return nullptr;
     }
@@ -152,16 +276,13 @@ FILE *fopen(const char *path, const char *mode)
     else
         f->size = 0;
 
-    // We use lseek() for seeking, so no need to buffer the entire file
+    __init_wbuf(f);
 
-    if (ap)
-    {
+    if (ap) {
         f->pos = f->size;
         if (f->pos > 0)
             f->need_seek = true;
-    }
-    else
-    {
+    } else {
         f->pos = 0;
     }
     return f;
@@ -177,17 +298,18 @@ FILE *fdopen(int fd, const char *mode)
     if (!f)
         return nullptr;
     memset(f, 0, sizeof(FILE));
-    f->fd = fd;
-    f->path[0] = '\0';
-    f->readable = rd || (!wr && !ap);
-    f->writable = wr;
-    f->append = ap;
-    f->need_seek = false;
+    f->fd         = fd;
+    f->path[0]    = '\0';
+    f->readable   = rd || (!wr && !ap);
+    f->writable   = wr;
+    f->append     = ap;
+    f->need_seek  = false;
     f->open_flags = (f->readable && f->writable) ? O_RDWR : (f->writable ? O_WRONLY : O_RDONLY);
-    f->data = nullptr;
+    f->data       = nullptr;
     struct stat st;
     f->size = (fstat(fd, &st) == 0) ? (size_t)st.st_size : 0;
-    f->pos = 0;
+    f->pos  = 0;
+    __init_wbuf(f);
     return f;
 }
 
@@ -195,12 +317,15 @@ int fclose(FILE *stream)
 {
     if (!stream)
         return -1;
+    __flush_wbuf(stream);
     if (stream == __stdin_file || stream == __stdout_file || stream == __stderr_file)
         return 0;
     if (stream->fd >= 0)
         close(stream->fd);
     if (stream->data)
         free(stream->data);
+    if (stream->wbuf && stream->wbuf != stream->wbuf_static)
+        free(stream->wbuf);
     free(stream);
     return 0;
 }
@@ -213,8 +338,11 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
     if (bytes == 0)
         return 0;
 
-    if (stream->data)
-    {
+    // Flush pending writes before reading (POSIX mixed r/w requirement)
+    if (stream->wbuf_pos > 0)
+        __flush_wbuf(stream);
+
+    if (stream->data) {
         if (stream->pos >= stream->size)
             return 0;
         if (bytes > stream->size - stream->pos)
@@ -224,8 +352,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
         return bytes / size;
     }
 
-    if (stream->path[0] == '\0' && stream->fd >= 0)
-    {
+    if (stream->path[0] == '\0' && stream->fd >= 0) {
         ssize_t direct = read(stream->fd, ptr, bytes);
         if (direct <= 0)
             return 0;
@@ -251,28 +378,15 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     if (bytes == 0)
         return 0;
 
-    if (stream->path[0] == '\0' && stream->fd >= 0)
-    {
-        ssize_t direct = write(stream->fd, ptr, bytes);
-        if (direct <= 0)
+    // For file-backed streams with paths, ensure fd is positioned correctly
+    if (stream->path[0] != '\0' && stream->data == nullptr) {
+        size_t target = stream->append ? stream->size : stream->pos;
+        if (ensure_position(stream, target, true) != 0)
             return 0;
-        stream->pos += (size_t)direct;
-        if (stream->pos > stream->size)
-            stream->size = stream->pos;
-        return (size_t)direct / size;
     }
 
-    size_t target = stream->append ? stream->size : stream->pos;
-    if (ensure_position(stream, target, true) != 0)
-        return 0;
-
-    ssize_t w = write(stream->fd, ptr, bytes);
-    if (w <= 0)
-        return 0;
-    stream->pos = target + (size_t)w;
-    if (stream->pos > stream->size)
-        stream->size = stream->pos;
-    return (size_t)w / size;
+    size_t w = __buffered_write(stream, (const char *)ptr, bytes);
+    return w / size;
 }
 
 int getc_unlocked(FILE *stream)
@@ -333,10 +447,9 @@ char *fgets_unlocked(char *s, int n, FILE *stream)
 {
     if (!s || n <= 0 || !stream)
         return nullptr;
-    int c;
     char *p = s;
     while (n > 1) {
-        c = fgetc(stream);
+        int c = fgetc(stream);
         if (c == EOF)
             break;
         *p++ = (char)c;
@@ -353,14 +466,14 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream)
     if (!lineptr || !n || !stream)
         return -1;
     size_t alloc = *n;
-    char *buf = *lineptr;
+    char *buf    = *lineptr;
     if (!buf || alloc < 2) {
         alloc = 128;
-        buf = malloc(alloc);
+        buf   = malloc(alloc);
         if (!buf)
             return -1;
         *lineptr = buf;
-        *n = alloc;
+        *n       = alloc;
     }
     size_t i = 0;
     int c;
@@ -371,14 +484,14 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream)
             if (!newbuf) {
                 if (i > 0) {
                     buf[i] = '\0';
-                    *n = alloc / 2;
+                    *n     = alloc / 2;
                     return (ssize_t)i;
                 }
                 return -1;
             }
-            buf = newbuf;
+            buf      = newbuf;
             *lineptr = buf;
-            *n = alloc;
+            *n       = alloc;
         }
         buf[i++] = (char)c;
         if (c == '\n')
@@ -394,9 +507,9 @@ int fseek(FILE *stream, long offset, int whence)
 {
     if (!stream)
         return -1;
+    __flush_wbuf(stream);
     size_t newpos = 0;
-    switch (whence)
-    {
+    switch (whence) {
     case SEEK_SET:
         newpos = (offset < 0) ? 0 : (size_t)offset;
         break;
@@ -409,7 +522,7 @@ int fseek(FILE *stream, long offset, int whence)
     default:
         return -1;
     }
-    stream->pos = newpos;
+    stream->pos       = newpos;
     stream->need_seek = (stream->data == nullptr && stream->path[0] != '\0');
     return 0;
 }
@@ -437,6 +550,7 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
 {
     if (!path || !mode || !stream)
         return nullptr;
+    __flush_wbuf(stream);
     if (stream->fd >= 0 && stream != __stdin_file && stream != __stdout_file && stream != __stderr_file)
         close(stream->fd);
     stream->fd = -1;
@@ -446,10 +560,10 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
     }
     bool rd = false, wr = false, ap = false, trunc = false, create = false;
     parse_mode(mode, &rd, &wr, &ap, &trunc, &create);
-    stream->readable = rd || (!wr && !ap);
-    stream->writable = wr;
-    stream->append = ap;
-    stream->need_seek = false;
+    stream->readable   = rd || (!wr && !ap);
+    stream->writable   = wr;
+    stream->append     = ap;
+    stream->need_seek  = false;
     stream->open_flags = (stream->readable && stream->writable) ? O_RDWR : (stream->writable ? O_WRONLY : O_RDONLY);
     if (create)
         stream->open_flags |= O_CREATE;
@@ -464,9 +578,10 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
         stream->open_flags &= ~O_TRUNC;
     struct stat st;
     stream->size = (fstat(stream->fd, &st) == 0) ? (size_t)st.st_size : 0;
-    stream->pos = ap ? stream->size : 0;
+    stream->pos  = ap ? stream->size : 0;
     if (ap && stream->pos > 0)
         stream->need_seek = true;
+    __init_wbuf(stream);
     return stream;
 }
 
@@ -482,9 +597,43 @@ int ferror_unlocked(FILE *stream)
     return 0;
 }
 
-int fflush([[maybe_unused]] FILE *stream)
+int fflush(FILE *stream)
 {
+    if (!stream) {
+        // POSIX: fflush(NULL) flushes all open output streams
+        int r = 0;
+        if (__flush_wbuf(__stdout_file) != 0)
+            r = EOF;
+        if (__flush_wbuf(__stderr_file) != 0)
+            r = EOF;
+        return r;
+    }
+    return __flush_wbuf(stream);
+}
+
+int setvbuf(FILE *stream, char *buf, int mode, size_t size)
+{
+    if (!stream || (mode != _IONBF && mode != _IOLBF && mode != _IOFBF))
+        return -1;
+    __flush_wbuf(stream);
+    stream->buf_mode = mode;
+    if (mode == _IONBF) {
+        stream->wbuf      = nullptr;
+        stream->wbuf_size = 0;
+    } else if (buf) {
+        stream->wbuf      = buf;
+        stream->wbuf_size = size;
+    } else {
+        stream->wbuf      = stream->wbuf_static;
+        stream->wbuf_size = (size <= BUFSIZ) ? size : BUFSIZ;
+    }
+    stream->wbuf_pos = 0;
     return 0;
+}
+
+void setbuf(FILE *stream, char *buf)
+{
+    setvbuf(stream, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
 }
 
 int vfprintf(FILE *stream, const char *format, va_list args)
