@@ -1,0 +1,90 @@
+{
+    "version": "0.1.0",
+    "id": "df2a2bc1-0837-4760-9867-419063c33f65",
+    "timestamp": "2026-03-21T14:58:12.482788453Z",
+    "vcs": {
+        "type": "git",
+        "revision": "413c2fe53970340dfa83a0d0faf745373b6616b8",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/ipc/shm.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 24,
+                            "end_line": 24
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/ipc/shm.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 8,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 84,
+                            "end_line": 88
+                        },
+                        {
+                            "start_line": 90,
+                            "end_line": 116
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_shm_open.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2de821bf78f4b3a416c663cc28fcc5a4d0fea99a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 31,
+                            "end_line": 33
+                        },
+                        {
+                            "start_line": 36,
+                            "end_line": 37
+                        },
+                        {
+                            "start_line": 50,
+                            "end_line": 50
+                        },
+                        {
+                            "start_line": 57,
+                            "end_line": 57
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
