@@ -1,0 +1,100 @@
+{
+    "version": "0.1.0",
+    "id": "80b8bcd8-6776-478f-8753-819299202ebe",
+    "timestamp": "2026-03-21T13:46:06.461836633Z",
+    "vcs": {
+        "type": "git",
+        "revision": "24997cb70298416c2d2fd040e32973ff64e3d16b",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/fs/vfs.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9b239e1de0c94a6158de778a61bd38e46a1e2e2e",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 24,
+                            "end_line": 26
+                        },
+                        {
+                            "start_line": 30,
+                            "end_line": 32
+                        },
+                        {
+                            "start_line": 34,
+                            "end_line": 34
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_open.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9b239e1de0c94a6158de778a61bd38e46a1e2e2e",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 31,
+                            "end_line": 33
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/task/init.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9b239e1de0c94a6158de778a61bd38e46a1e2e2e",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 23,
+                            "end_line": 23
+                        },
+                        {
+                            "start_line": 25,
+                            "end_line": 25
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/task/process.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9b239e1de0c94a6158de778a61bd38e46a1e2e2e",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 21,
+                            "end_line": 21
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
