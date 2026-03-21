@@ -105,15 +105,7 @@ static void keyboard_deliver_sigint(void)
     int target_pid = keyboard_foreground_pid;
     if (target_pid > 0) {
         signal_send_pid(target_pid, SIGINT);
-        return;
     }
-
-    thread_t *t     = current_thread;
-    process_t *proc = current_process;
-    if (!proc || !t || !t->is_user)
-        return;
-
-    signal_send_pid(proc->pid, SIGINT);
 }
 
 static void keyboard_enqueue_raw(uint8_t scancode)
