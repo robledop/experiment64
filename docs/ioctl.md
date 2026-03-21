@@ -35,7 +35,7 @@ returns `-ENOTTY` (libc wrapper: `-1` with `errno=ENOTTY`).
 
 ## /dev/keyboard
 
-- `KDFLUSH`: flushes keyboard buffers. The argument is ignored.
+- `KDFLUSH`: flushes keyboard buffers, clears modifier state, and re-enables PS/2 scanning. The argument is ignored.
 - `TIOCHUP`: revokes (hangs up) a PTY. The argument is ignored.
 
 ## /dev/eth0

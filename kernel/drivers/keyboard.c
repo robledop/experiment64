@@ -42,6 +42,11 @@ char keyboard_scancode_to_char_shifted(uint8_t scancode)
 }
 
 #define KEYBOARD_DATA_PORT 0x60
+#define KEYBOARD_STATUS_PORT 0x64
+#define KEYBOARD_STATUS_OUTPUT_FULL 0x01
+#define KEYBOARD_STATUS_AUX_DATA 0x20
+#define KEYBOARD_STATUS_INPUT_FULL 0x02
+#define KEYBOARD_CMD_ENABLE_SCANNING 0xF4
 
 #define SCANCODE_LSHIFT_PRESS 0x2A
 #define SCANCODE_RSHIFT_PRESS 0x36
@@ -79,6 +84,35 @@ static bool alt_pressed                     = false;
 static bool caps_lock                       = false;
 static bool extended_scancode               = false;
 static volatile int keyboard_foreground_pid = 0;
+
+/**
+ * @brief Wait for the PS/2 controller input buffer to be empty.
+ *
+ * Spins until bit 1 of the status register clears, indicating the controller
+ * is ready to accept a command byte on port 0x60.
+ */
+static void keyboard_wait_input(void)
+{
+    for (int i = 0; i < 1000000; i++) {
+        if (!(inb(KEYBOARD_STATUS_PORT) & KEYBOARD_STATUS_INPUT_FULL))
+            return;
+    }
+}
+
+/**
+ * @brief Re-enable PS/2 keyboard scanning.
+ *
+ * Sends the 0xF4 "Enable Scanning" command to the keyboard. This is needed
+ * to recover from situations where the keyboard stops generating IRQs (e.g.
+ * QEMU fullscreen transitions can reset the emulated PS/2 controller).
+ * The keyboard ACKs with 0xFA which reaches the raw buffer as a harmless
+ * release event for an unpressed key.
+ */
+static void keyboard_enable_scanning(void)
+{
+    keyboard_wait_input();
+    outb(KEYBOARD_DATA_PORT, KEYBOARD_CMD_ENABLE_SCANNING);
+}
 
 void keyboard_clear_modifiers(void)
 {
@@ -278,6 +312,12 @@ static void keyboard_process_scancode(uint8_t scancode)
 
 void keyboard_handler_main(void)
 {
+    uint8_t status = inb(KEYBOARD_STATUS_PORT);
+    if (!(status & KEYBOARD_STATUS_OUTPUT_FULL))
+        return;
+    if (status & KEYBOARD_STATUS_AUX_DATA)
+        return; // Data belongs to the PS/2 mouse, not the keyboard
+
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     keyboard_process_scancode(scancode);
 }
@@ -376,12 +416,14 @@ static uint64_t keyboard_dev_read([[maybe_unused]] const vfs_inode_t *node, uint
 
 static int keyboard_dev_ioctl([[maybe_unused]] vfs_inode_t *node, int request, [[maybe_unused]] void *arg)
 {
-    if (request == 0x4B00) // KDFLUSH - flush both buffers
+    if (request == 0x4B00) // KDFLUSH - flush buffers, reset modifiers, re-enable scanning
     {
         write_ptr     = 0;
         read_ptr      = 0;
         raw_write_ptr = 0;
         raw_read_ptr  = 0;
+        keyboard_clear_modifiers();
+        keyboard_enable_scanning();
         return 0;
     }
     return 0;

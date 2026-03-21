@@ -41,6 +41,34 @@ TEST(test_keyboard_basic_and_modifiers)
     return true;
 }
 
+/**
+ * @brief Verify that resetting keyboard state clears stuck modifiers.
+ *
+ * Injects modifier key-down events without matching releases, then
+ * confirms that a full state reset restores normal character generation.
+ */
+TEST(test_keyboard_reset_clears_stuck_modifiers)
+{
+    keyboard_reset_state_for_test();
+
+    // Simulate QEMU fullscreen toggle: Ctrl down, Alt down, no releases
+    keyboard_inject_scancode(SC_CTRL_PRESS);
+    keyboard_inject_scancode(0x38); // Alt press
+
+    // With stuck Ctrl, 'a' becomes control code 0x01 instead of 'a'
+    keyboard_inject_scancode(SC_A);
+    TEST_ASSERT(keyboard_get_char() == 0x01);
+
+    // A full state reset must clear stuck modifiers
+    keyboard_reset_state_for_test();
+
+    // After reset, 'a' must produce a normal 'a'
+    keyboard_inject_scancode(SC_A);
+    TEST_ASSERT(keyboard_get_char() == 'a');
+
+    return true;
+}
+
 TEST(test_keyboard_buffer_wraparound)
 {
     keyboard_reset_state_for_test();

@@ -238,6 +238,7 @@ int main(void)
         printf("wm: cannot open /dev/keyboard\n");
         exit(1);
     }
+    ioctl(keyboardfd, KDFLUSH, nullptr);
 
     client_manager_init(&client_mgr);
 

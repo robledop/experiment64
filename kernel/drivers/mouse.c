@@ -117,12 +117,10 @@ static void mouse_handler(struct interrupt_frame *frame)
 
     uint8_t status = inb(MOUSE_STATUS);
     while (status & MOUSE_B_BIT) {
-        const int8_t byte = (int8_t)inb(MOUSE_PORT);
+        if ((status & MOUSE_F_BIT) == 0)
+            break; // Keyboard data in the buffer — leave it for the keyboard ISR
 
-        if ((status & MOUSE_F_BIT) == 0) {
-            status = inb(MOUSE_STATUS);
-            continue;
-        }
+        const int8_t byte = (int8_t)inb(MOUSE_PORT);
 
         switch (mouse_device.cycle) {
         case 0:
