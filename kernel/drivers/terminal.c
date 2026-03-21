@@ -8,6 +8,7 @@
 #include <io/storage.h>
 #include <mem/heap.h>
 #include <task/process.h>
+#include <task/spinlock.h>
 #include <stdarg.h>
 #include <limits.h>
 
@@ -18,6 +19,7 @@ static int dirty_y_max                        = 0;
 static int terminal_x                         = 0;
 static int terminal_y                         = 0;
 static uint32_t terminal_color                = 0xFFAAAAAA;
+static spinlock_t terminal_lock               = {0};
 static uint32_t terminal_bg_color             = 0x00000000;
 static bool terminal_cursor_visible           = true;
 static bool cursor_drawn                      = false;
@@ -647,6 +649,8 @@ void terminal_putc(char c)
 
 void terminal_write(const char *data, size_t size)
 {
+    spinlock_acquire(&terminal_lock);
+
     bool prev_batch = cursor_batch;
     cursor_batch    = true;
 
@@ -665,10 +669,14 @@ void terminal_write(const char *data, size_t size)
             cursor_drawn = false;
     }
     terminal_flush();
+
+    spinlock_release(&terminal_lock);
 }
 
 void terminal_write_string(const char *data)
 {
+    spinlock_acquire(&terminal_lock);
+
     bool prev_batch = cursor_batch;
     cursor_batch    = true;
 
@@ -687,6 +695,8 @@ void terminal_write_string(const char *data)
             cursor_drawn = false;
     }
     terminal_flush();
+
+    spinlock_release(&terminal_lock);
 }
 
 static void terminal_putc_callback(char c, void *arg)
@@ -751,6 +761,8 @@ void vprintk(const char *format, va_list args)
     }
 #endif
 
+    spinlock_acquire(&terminal_lock);
+
     // Batch all output to avoid per-character flush
     bool prev_batch = cursor_batch;
     cursor_batch    = true;
@@ -766,6 +778,8 @@ void vprintk(const char *format, va_list args)
     if (cursor_overlay_enabled && terminal_cursor_visible && !cursor_drawn)
         cursor_save_and_draw();
     terminal_flush();
+
+    spinlock_release(&terminal_lock);
 }
 
 void printk(const char *format, ...)
