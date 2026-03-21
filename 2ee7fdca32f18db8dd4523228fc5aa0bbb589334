@@ -1,0 +1,122 @@
+{
+    "version": "0.1.0",
+    "id": "352c2501-1a52-471e-b9d5-0a7211f06f97",
+    "timestamp": "2026-03-21T14:29:29.655788773Z",
+    "vcs": {
+        "type": "git",
+        "revision": "2ee7fdca32f18db8dd4523228fc5aa0bbb589334",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/mem/vmm.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:22456887477fc17e5c145b8e4aaa37e6c6981d7a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 11,
+                            "end_line": 11
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/mem/heap.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:22456887477fc17e5c145b8e4aaa37e6c6981d7a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 220,
+                            "end_line": 221
+                        },
+                        {
+                            "start_line": 469,
+                            "end_line": 470
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/mem/vmm.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:22456887477fc17e5c145b8e4aaa37e6c6981d7a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 228,
+                            "end_line": 228
+                        },
+                        {
+                            "start_line": 237,
+                            "end_line": 240
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_mmap.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:22456887477fc17e5c145b8e4aaa37e6c6981d7a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 84,
+                            "end_line": 84
+                        },
+                        {
+                            "start_line": 140,
+                            "end_line": 140
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wm/wm_client.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:22456887477fc17e5c145b8e4aaa37e6c6981d7a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 776,
+                            "end_line": 780
+                        },
+                        {
+                            "start_line": 782,
+                            "end_line": 782
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
