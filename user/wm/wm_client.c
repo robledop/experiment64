@@ -832,6 +832,24 @@ void client_manager_init(client_manager_t *mgr)
     g_mgr               = mgr;
 }
 
+void client_manager_cleanup(client_manager_t *mgr)
+{
+    if (!mgr)
+        return;
+
+    /* Destroy SHM buffers and window resources for every remaining client
+     * window so that shm_unlink is called before the WM process exits.
+     * Without this, SHM entries and their physical pages leak permanently
+     * when WM exits without closing client windows. */
+    while (mgr->windows && arr_len(mgr->windows) > 0) {
+        client_window_t *cw = arr_get(mgr->windows, 0);
+        if (!cw)
+            break;
+        client_remove_window_at(mgr, 0);
+        client_destroy_window_resources(cw);
+    }
+}
+
 client_window_t *find_client_by_window_id(uint32_t window_id)
 {
     ensure_client_manager_initialized();

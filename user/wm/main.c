@@ -294,6 +294,8 @@ int main(void)
     pthread_join(mouse_thread, nullptr);
     pthread_join(keyboard_thread, nullptr);
 
+    client_manager_cleanup(&client_mgr);
+
     int no_fg = 0;
     ioctl(STDIN_FILENO, TIOCSPGRP, &no_fg);
     ioctl(keyboardfd, KDFLUSH, nullptr);

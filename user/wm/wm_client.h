@@ -37,6 +37,7 @@ typedef struct
 } client_manager_t;
 
 void client_manager_init(client_manager_t *mgr);
+void client_manager_cleanup(client_manager_t *mgr);
 int client_launch(window_t *parent, const char *path, int16_t default_x, int16_t default_y);
 void client_window_paint_handler(const window_t *window);
 void client_window_mousedown_handler(window_t *window, int16_t x, int16_t y);
