@@ -396,10 +396,29 @@ static void terminal_process_ansi(char cmd)
                     ansi_bold = true;
                 } else if (p == 22) {
                     ansi_bold = false;
+                } else if (p == 7) {
+                    // Reverse video: swap foreground and background
+                    uint32_t tmp      = terminal_color;
+                    terminal_color    = terminal_bg_color;
+                    terminal_bg_color = tmp;
+                } else if (p == 27) {
+                    // Remove reverse video (reset to defaults)
+                    terminal_color    = ansi_bold ? ansi_colors_bright[7] : ansi_colors_normal[7];
+                    terminal_bg_color = ansi_colors_normal[0];
                 } else if (p >= 30 && p <= 37) {
                     terminal_color = ansi_bold ? ansi_colors_bright[p - 30] : ansi_colors_normal[p - 30];
+                } else if (p == 39) {
+                    // Reset foreground to default
+                    terminal_color = ansi_bold ? ansi_colors_bright[7] : ansi_colors_normal[7];
                 } else if (p >= 40 && p <= 47) {
-                    terminal_bg_color = ansi_colors_normal[p - 40]; // Background usually doesn't get bold
+                    terminal_bg_color = ansi_colors_normal[p - 40];
+                } else if (p == 49) {
+                    // Reset background to default
+                    terminal_bg_color = ansi_colors_normal[0];
+                } else if (p >= 90 && p <= 97) {
+                    terminal_color = ansi_colors_bright[p - 90];
+                } else if (p >= 100 && p <= 107) {
+                    terminal_bg_color = ansi_colors_bright[p - 100];
                 }
             }
         }
