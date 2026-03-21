@@ -65,6 +65,12 @@ void sys_exit(int code)
     if (parent)
         thread_wakeup(parent);
 
+    // Close FDs eagerly so that pipe readers (e.g. the window manager) see
+    // EOF immediately rather than waiting for the full process reap, which
+    // is deferred until all threads are off CPUs.
+    if (proc)
+        process_close_fds(proc);
+
     // schedule() will switch to another thread; interrupts will be re-enabled
     // when the new thread runs. This thread's stack is safe because no IPI
     // can arrive to trigger reaping while we're still using it.

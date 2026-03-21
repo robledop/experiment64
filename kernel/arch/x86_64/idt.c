@@ -362,6 +362,10 @@ void interrupt_handler(struct interrupt_frame *frame)
                 thread_wakeup(parent);
             }
 
+            // Close FDs eagerly so that pipe readers (e.g. the window manager)
+            // see EOF immediately rather than waiting for the full process reap.
+            process_close_fds(p);
+
             // schedule() will switch to another thread; interrupts will be re-enabled
             // when the new thread runs.
             cpu_interrupt_exit();

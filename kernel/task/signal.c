@@ -229,6 +229,10 @@ int signal_send_pid(int pid, int sig)
         thread_wakeup(parent);
     }
 
+    // Close FDs eagerly so pipe readers see EOF without waiting for reap.
+    if (target->terminated)
+        process_close_fds(target);
+
     if (killed_self) {
         schedule();
         if (flags & RFLAGS_IF) {
@@ -287,6 +291,7 @@ bool signal_deliver_after_syscall(struct syscall_regs *regs, const uint64_t *ret
         if (parent) {
             thread_wakeup(parent);
         }
+        process_close_fds(proc);
         schedule();
         if (flags & RFLAGS_IF) {
             __asm__ volatile ("sti");
@@ -301,6 +306,7 @@ bool signal_deliver_after_syscall(struct syscall_regs *regs, const uint64_t *ret
         if (parent) {
             thread_wakeup(parent);
         }
+        process_close_fds(proc);
         schedule();
         if (flags & RFLAGS_IF) {
             __asm__ volatile ("sti");
@@ -348,6 +354,7 @@ bool signal_deliver_after_syscall(struct syscall_regs *regs, const uint64_t *ret
         if (parent) {
             thread_wakeup(parent);
         }
+        process_close_fds(proc);
         schedule();
         if (flags2 & RFLAGS_IF) {
             __asm__ volatile ("sti");
@@ -413,6 +420,7 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         if (parent) {
             thread_wakeup(parent);
         }
+        process_close_fds(proc);
         if (cpu_in_interrupt()) {
             cpu_interrupt_exit();
             schedule();
@@ -473,6 +481,7 @@ bool signal_deliver_after_interrupt(struct interrupt_frame *frame)
         SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags2);
         if (parent)
             thread_wakeup(parent);
+        process_close_fds(proc);
         if (cpu_in_interrupt()) {
             cpu_interrupt_exit();
             schedule();

@@ -225,6 +225,38 @@ static void process_collect_threads_locked(const process_t *proc, list_item_t *f
     }
 }
 
+/**
+ * @brief Close all file descriptors for a process.
+ *
+ * Atomically removes every FD from the process's table and releases
+ * the references.  Safe to call more than once (idempotent) and safe
+ * to call while other threads of the same process still hold their
+ * own fd_get() references — those refs keep the underlying inode
+ * alive until the thread calls fd_put().
+ *
+ * Called eagerly at termination time so that pipe readers see EOF
+ * without waiting for the (potentially delayed) full process reap.
+ */
+void process_close_fds(process_t *proc)
+{
+    if (!proc)
+        return;
+
+    file_descriptor_t *fds[MAX_FDS] = {nullptr};
+    uint64_t fd_flags;
+    SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
+    for (int i = 0; i < MAX_FDS; i++) {
+        fds[i]             = proc->fd_table[i];
+        proc->fd_table[i]  = nullptr;
+    }
+    SPIN_UNLOCK_INT_RESTORE(proc->fd_lock, fd_flags);
+
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (fds[i])
+            fd_put(fds[i]);
+    }
+}
+
 static void process_destroy_now(process_t *proc)
 {
     list_item_t free_list = LIST_HEAD_INIT(free_list);
@@ -256,19 +288,8 @@ static void process_destroy_now(process_t *proc)
         kfree(t);
     }
 
-    file_descriptor_t *fds[MAX_FDS] = {nullptr};
-    uint64_t fd_flags;
-    SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
-    for (int i = 0; i < MAX_FDS; i++) {
-        fds[i] = proc->fd_table[i];
-        proc->fd_table[i] = nullptr;
-    }
-    SPIN_UNLOCK_INT_RESTORE(proc->fd_lock, fd_flags);
-
-    for (int i = 0; i < MAX_FDS; i++) {
-        if (fds[i])
-            fd_put(fds[i]);
-    }
+    // Close any FDs not already closed by process_close_fds().
+    process_close_fds(proc);
 
     vm_area_clear(proc);
 

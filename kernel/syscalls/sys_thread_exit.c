@@ -46,5 +46,10 @@ void sys_thread_exit(int code)
     if (parent)
         thread_wakeup(parent);
 
+    // Close FDs eagerly when the last thread exits so that pipe readers
+    // see EOF without waiting for the full process reap.
+    if (last_thread)
+        process_close_fds(proc);
+
     schedule();
 }

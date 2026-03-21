@@ -160,6 +160,7 @@ process_t *process_create(const char *name);
 void process_destroy(process_t *process);
 void process_reap(process_t *process);
 bool process_can_reap_locked(process_t *proc);
+void process_close_fds(process_t *proc);
 void process_copy_fds(process_t *dest, process_t *src);
 void vm_area_init(process_t *proc);
 vm_area_t *vm_area_add(process_t *proc, uint64_t start, uint64_t end, uint32_t flags);
