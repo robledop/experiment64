@@ -21,7 +21,7 @@ static inline sigset_t signal_bit(const int sig)
 
 static bool signal_default_ignore(const int sig)
 {
-    return sig == SIGCHLD || sig == SIGCONT;
+    return sig == SIGCHLD || sig == SIGCONT || sig == SIGWINCH;
 }
 
 static bool signal_uncatchable(const int sig)

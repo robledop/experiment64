@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <status.h>
 #include <ctype.h>
@@ -2191,6 +2192,7 @@ int main(int argc, char **argv)
     editorSelectSyntaxHighlight(argv[1]);
     editorOpen(argv[1]);
     enableRawMode(STDIN_FILENO);
+    signal(SIGWINCH, handleSigWinCh);
     editorSetStatusMessage(
         "HELP: Esc = normal | hjkl w b gg G | i/I/a/A/o/O | x c C d dd D u Ctrl+R | :w :q :wq");
     while (1) {
