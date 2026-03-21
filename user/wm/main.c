@@ -147,7 +147,6 @@ static void *wm_process_mouse_events([[maybe_unused]] void *arg)
         }
     }
 
-    close(mousefd);
     pthread_exit(nullptr);
 }
 
@@ -180,7 +179,6 @@ static void *wm_process_keyboard_events([[maybe_unused]] void *arg)
         wm_state_unlock();
     }
 
-    close(keyboardfd);
     pthread_exit(nullptr);
 }
 
@@ -292,5 +290,10 @@ int main(void)
 
     pthread_join(mouse_thread, nullptr);
     pthread_join(keyboard_thread, nullptr);
+
+    ioctl(keyboardfd, KDFLUSH, nullptr);
+    close(keyboardfd);
+    close(mousefd);
+
     return 0;
 }
