@@ -77,6 +77,8 @@ typedef struct {
 
     uint16_t rows;
     uint16_t cols;
+    uint16_t alloc_rows;
+    uint16_t alloc_cols;
     uint16_t cursor_row;
     uint16_t cursor_col;
     uint16_t saved_row;
@@ -111,7 +113,7 @@ static void sigint_handler(const int sig)
 
 static size_t terminal_cell_index(uint16_t row, uint16_t col)
 {
-    return (size_t)row * (size_t)term.cols + (size_t)col;
+    return (size_t)row * (size_t)term.alloc_cols + (size_t)col;
 }
 
 static uint8_t terminal_effective_fg()
@@ -166,7 +168,7 @@ static void terminal_clear_locked()
     term.csi_buf[0]   = '\0';
     terminal_reset_attributes();
 
-    const size_t total = (size_t)term.rows * (size_t)term.cols;
+    const size_t total = (size_t)term.alloc_rows * (size_t)term.alloc_cols;
     for (size_t i = 0; i < total; i++) {
         term.cells[i] = ' ';
         term.fg[i]    = term.default_fg;
@@ -207,11 +209,13 @@ static int terminal_allocate_grid(uint16_t cols, uint16_t rows)
     free(term.fg);
     free(term.bg);
 
-    term.cells = cells;
-    term.fg    = fg;
-    term.bg    = bg;
-    term.cols  = cols;
-    term.rows  = rows;
+    term.cells      = cells;
+    term.fg         = fg;
+    term.bg         = bg;
+    term.cols       = cols;
+    term.rows       = rows;
+    term.alloc_cols = cols;
+    term.alloc_rows = rows;
 
     terminal_clear_locked();
     return 0;
@@ -225,43 +229,57 @@ static int terminal_resize_grid_locked(uint16_t new_cols, uint16_t new_rows)
     if (new_cols == term.cols && new_rows == term.rows)
         return 0;
 
-    const size_t new_total = (size_t)new_cols * (size_t)new_rows;
-    char *new_cells        = malloc(new_total);
-    uint8_t *new_fg        = malloc(new_total);
-    uint8_t *new_bg        = malloc(new_total);
-    if (!new_cells || !new_fg || !new_bg) {
-        free(new_cells);
-        free(new_fg);
-        free(new_bg);
-        return -1;
+    /* If the new dimensions fit within the current allocation, just
+     * update the visible size — content beyond the visible area is
+     * preserved so that growing back restores it. */
+    if (new_cols <= term.alloc_cols && new_rows <= term.alloc_rows) {
+        term.cols = new_cols;
+        term.rows = new_rows;
+    } else {
+        /* At least one dimension exceeds the allocation — grow. */
+        const uint16_t target_cols = new_cols > term.alloc_cols ? new_cols : term.alloc_cols;
+        const uint16_t target_rows = new_rows > term.alloc_rows ? new_rows : term.alloc_rows;
+        const size_t new_total     = (size_t)target_cols * (size_t)target_rows;
+
+        char *new_cells    = malloc(new_total);
+        uint8_t *new_fg    = malloc(new_total);
+        uint8_t *new_bg    = malloc(new_total);
+        if (!new_cells || !new_fg || !new_bg) {
+            free(new_cells);
+            free(new_fg);
+            free(new_bg);
+            return -1;
+        }
+
+        for (size_t i = 0; i < new_total; i++) {
+            new_cells[i] = ' ';
+            new_fg[i]    = term.default_fg;
+            new_bg[i]    = term.default_bg;
+        }
+
+        const uint16_t copy_cols = target_cols < term.alloc_cols ? target_cols : term.alloc_cols;
+        const uint16_t copy_rows = target_rows < term.alloc_rows ? target_rows : term.alloc_rows;
+
+        for (uint16_t row = 0; row < copy_rows; row++) {
+            const size_t old_off = (size_t)row * (size_t)term.alloc_cols;
+            const size_t new_off = (size_t)row * (size_t)target_cols;
+            memcpy(new_cells + new_off, term.cells + old_off, copy_cols);
+            memcpy(new_fg + new_off, term.fg + old_off, copy_cols);
+            memcpy(new_bg + new_off, term.bg + old_off, copy_cols);
+        }
+
+        free(term.cells);
+        free(term.fg);
+        free(term.bg);
+
+        term.cells      = new_cells;
+        term.fg         = new_fg;
+        term.bg         = new_bg;
+        term.cols       = new_cols;
+        term.rows       = new_rows;
+        term.alloc_cols = target_cols;
+        term.alloc_rows = target_rows;
     }
-
-    for (size_t i = 0; i < new_total; i++) {
-        new_cells[i] = ' ';
-        new_fg[i]    = term.default_fg;
-        new_bg[i]    = term.default_bg;
-    }
-
-    const uint16_t copy_cols = new_cols < term.cols ? new_cols : term.cols;
-    const uint16_t copy_rows = new_rows < term.rows ? new_rows : term.rows;
-
-    for (uint16_t row = 0; row < copy_rows; row++) {
-        const size_t old_off = (size_t)row * (size_t)term.cols;
-        const size_t new_off = (size_t)row * (size_t)new_cols;
-        memcpy(new_cells + new_off, term.cells + old_off, copy_cols);
-        memcpy(new_fg + new_off, term.fg + old_off, copy_cols);
-        memcpy(new_bg + new_off, term.bg + old_off, copy_cols);
-    }
-
-    free(term.cells);
-    free(term.fg);
-    free(term.bg);
-
-    term.cells = new_cells;
-    term.fg    = new_fg;
-    term.bg    = new_bg;
-    term.cols  = new_cols;
-    term.rows  = new_rows;
 
     if (term.cursor_row >= term.rows)
         term.cursor_row = term.rows - 1;
@@ -271,6 +289,7 @@ static int terminal_resize_grid_locked(uint16_t new_cols, uint16_t new_rows)
         term.saved_row = term.rows - 1;
     if (term.saved_col >= term.cols)
         term.saved_col = term.cols - 1;
+    term.wrap_pending = false;
 
     return 0;
 }
@@ -280,14 +299,14 @@ static void terminal_scroll_up_locked()
     if (term.rows <= 1)
         return;
 
-    const size_t row_size  = term.cols;
-    const size_t move_size = (size_t)(term.rows - 1) * row_size;
+    const size_t stride    = term.alloc_cols;
+    const size_t move_size = (size_t)(term.rows - 1) * stride;
 
-    memmove(term.cells, term.cells + row_size, move_size);
-    memmove(term.fg, term.fg + row_size, move_size);
-    memmove(term.bg, term.bg + row_size, move_size);
-    const size_t start = (size_t)(term.rows - 1) * row_size;
-    terminal_fill_cells_locked(start, start + row_size);
+    memmove(term.cells, term.cells + stride, move_size);
+    memmove(term.fg, term.fg + stride, move_size);
+    memmove(term.bg, term.bg + stride, move_size);
+    const size_t start = (size_t)(term.rows - 1) * stride;
+    terminal_fill_cells_locked(start, start + stride);
 }
 
 static void terminal_newline_locked()
@@ -317,10 +336,10 @@ static void terminal_put_char_locked(char ch)
 
 static void terminal_erase_line_locked(int mode)
 {
-    const size_t row_start = (size_t)term.cursor_row * term.cols;
+    const size_t row_start = (size_t)term.cursor_row * term.alloc_cols;
 
     if (mode == 2) {
-        terminal_fill_cells_locked(row_start, row_start + term.cols);
+        terminal_fill_cells_locked(row_start, row_start + term.alloc_cols);
         return;
     }
 
@@ -329,13 +348,13 @@ static void terminal_erase_line_locked(int mode)
         return;
     }
 
-    terminal_fill_cells_locked(row_start + term.cursor_col, row_start + term.cols);
+    terminal_fill_cells_locked(row_start + term.cursor_col, row_start + term.alloc_cols);
 }
 
 static void terminal_erase_display_locked(int mode)
 {
     const size_t cursor = terminal_cell_index(term.cursor_row, term.cursor_col);
-    const size_t total  = (size_t)term.rows * (size_t)term.cols;
+    const size_t total  = (size_t)term.rows * (size_t)term.alloc_cols;
 
     if (mode == 2) {
         terminal_fill_cells_locked(0, total);
