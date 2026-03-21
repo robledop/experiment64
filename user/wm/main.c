@@ -193,6 +193,9 @@ int main(void)
     wm_configure_sigchld();
     signal(SIGINT, SIG_IGN);
 
+    int wm_pid = getpid();
+    ioctl(STDIN_FILENO, TIOCSPGRP, &wm_pid);
+
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
         printf("wm: unable to open /dev/fb0\n");
@@ -291,6 +294,8 @@ int main(void)
     pthread_join(mouse_thread, nullptr);
     pthread_join(keyboard_thread, nullptr);
 
+    int no_fg = 0;
+    ioctl(STDIN_FILENO, TIOCSPGRP, &no_fg);
     ioctl(keyboardfd, KDFLUSH, nullptr);
     close(keyboardfd);
     close(mousefd);
