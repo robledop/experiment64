@@ -1,0 +1,111 @@
+{
+    "version": "0.1.0",
+    "id": "b8072ae5-722d-49b0-bf6d-dcdcf22a1253",
+    "timestamp": "2026-03-21T18:33:04.007573128Z",
+    "vcs": {
+        "type": "git",
+        "revision": "4fda53cc58ba22843068cf115af6c1af9991a802",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/term.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:7f0d4f5b2d45e5f48c25805f1fc65c1e02efa397",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.63"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 292,
+                            "end_line": 292
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f5338a7cd21019f16b1df2b2f03f05d7f23fc5b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 80,
+                            "end_line": 81
+                        },
+                        {
+                            "start_line": 116,
+                            "end_line": 116
+                        },
+                        {
+                            "start_line": 171,
+                            "end_line": 171
+                        },
+                        {
+                            "start_line": 212,
+                            "end_line": 218
+                        },
+                        {
+                            "start_line": 232,
+                            "end_line": 242
+                        },
+                        {
+                            "start_line": 244,
+                            "end_line": 252
+                        },
+                        {
+                            "start_line": 254,
+                            "end_line": 258
+                        },
+                        {
+                            "start_line": 260,
+                            "end_line": 261
+                        },
+                        {
+                            "start_line": 263,
+                            "end_line": 269
+                        },
+                        {
+                            "start_line": 271,
+                            "end_line": 273
+                        },
+                        {
+                            "start_line": 275,
+                            "end_line": 281
+                        },
+                        {
+                            "start_line": 302,
+                            "end_line": 303
+                        },
+                        {
+                            "start_line": 305,
+                            "end_line": 309
+                        },
+                        {
+                            "start_line": 339,
+                            "end_line": 339
+                        },
+                        {
+                            "start_line": 342,
+                            "end_line": 342
+                        },
+                        {
+                            "start_line": 351,
+                            "end_line": 351
+                        },
+                        {
+                            "start_line": 357,
+                            "end_line": 357
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
