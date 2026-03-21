@@ -398,9 +398,15 @@ static int pty_inode_ioctl(vfs_inode_t *node, int request, void *arg)
             return -1;
         struct winsize ws = {0};
         copy_from_user(&ws, arg, sizeof(ws));
+        int winch_pid = 0;
         spinlock_acquire(&pty->lock);
-        pty->winsz = ws;
+        const bool changed = ws.ws_row != pty->winsz.ws_row || ws.ws_col != pty->winsz.ws_col;
+        pty->winsz         = ws;
+        if (changed && pty->fg_pid > 0)
+            winch_pid = pty->fg_pid;
         spinlock_release(&pty->lock);
+        if (winch_pid > 0)
+            signal_send_pid(winch_pid, SIGWINCH);
         return 0;
     }
     case TIOCGETA:
