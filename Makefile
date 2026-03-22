@@ -184,7 +184,7 @@ run-usb:
 	$(QEMU_BASE) $(QEMU_DRIVES_USBBOOT) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 
 .PHONY: run-nox
-run-nox:
+run-nox: clean
 	$(MAKE) image.hdd CFLAGS="$(CFLAGS) -DHEADLESS"
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) $(QEMU_NETWORK) -nographic -cpu host -enable-kvm
 
