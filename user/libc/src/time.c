@@ -13,6 +13,7 @@ static const char *month_names[] = {"January", "February", "March", "April", "Ma
                                     "July", "August", "September", "October", "November", "December"};
 static const char *month_names_short[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+static const char *day_names_short[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 void unix_timestamp_to_tm(uint32_t timestamp, struct tm *out)
 {
@@ -198,6 +199,74 @@ size_t e64_strftime(const char *format, const struct tm *tm, char *out, size_t m
 
     *p = '\0';
     return (size_t)(p - out);
+}
+
+/// @brief Convert a broken-down time to a fixed-format string (reentrant).
+/// @param tm Pointer to the broken-down time.
+/// @param buf Caller-supplied buffer (at least 26 bytes).
+/// @return Pointer to buf, or NULL on error.
+char *asctime_r(const struct tm *tm, char *buf)
+{
+    if (!tm || !buf)
+        return nullptr;
+
+    const char *wday = day_names_short[tm->tm_wday % 7];
+    const char *mon = month_names_short[tm->tm_mon % 12];
+
+    // "Wed Jun 30 21:49:08 1993\n\0" — exactly 26 bytes
+    char *p = buf;
+    size_t remaining = 26;
+
+    append_str(&p, &remaining, wday);
+    append_str(&p, &remaining, " ");
+    append_str(&p, &remaining, mon);
+    append_str(&p, &remaining, " ");
+    append_int_padded(&p, &remaining, tm->tm_mday, 2);
+    append_str(&p, &remaining, " ");
+    append_int_padded(&p, &remaining, tm->tm_hour, 2);
+    append_str(&p, &remaining, ":");
+    append_int_padded(&p, &remaining, tm->tm_min, 2);
+    append_str(&p, &remaining, ":");
+    append_int_padded(&p, &remaining, tm->tm_sec, 2);
+    append_str(&p, &remaining, " ");
+    append_int_padded(&p, &remaining, tm->tm_year + 1900, 4);
+    append_str(&p, &remaining, "\n");
+    *p = '\0';
+
+    return buf;
+}
+
+static char asctime_buf[26];
+
+/// @brief Convert a broken-down time to a fixed-format string.
+/// @param tm Pointer to the broken-down time.
+/// @return Pointer to a static buffer containing the formatted string.
+char *asctime(const struct tm *tm)
+{
+    return asctime_r(tm, asctime_buf);
+}
+
+/// @brief Convert a time_t to a human-readable string (reentrant).
+/// @param clock Pointer to the time value.
+/// @param buf Caller-supplied buffer (at least 26 bytes).
+/// @return Pointer to buf, or NULL on error.
+char *ctime_r(const time_t *clock, char *buf)
+{
+    if (!clock || !buf)
+        return nullptr;
+    struct tm tm;
+    localtime_r(clock, &tm);
+    return asctime_r(&tm, buf);
+}
+
+static char ctime_buf[26];
+
+/// @brief Convert a time_t to a human-readable string.
+/// @param clock Pointer to the time value.
+/// @return Pointer to a static buffer containing the formatted string.
+char *ctime(const time_t *clock)
+{
+    return ctime_r(clock, ctime_buf);
 }
 
 time_t time(long long int *time)
