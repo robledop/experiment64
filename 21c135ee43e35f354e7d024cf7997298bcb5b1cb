@@ -1,0 +1,72 @@
+{
+    "version": "0.1.0",
+    "id": "285f643d-8e52-4f4b-83f6-4832a8f82860",
+    "timestamp": "2026-03-22T01:16:34.526795616Z",
+    "vcs": {
+        "type": "git",
+        "revision": "21c135ee43e35f354e7d024cf7997298bcb5b1cb",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/libc/include/time.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:84cb70a86bb62815fc457a21356f6bc0877f2958",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 25,
+                            "end_line": 28
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/time.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:84cb70a86bb62815fc457a21356f6bc0877f2958",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.81"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 16,
+                            "end_line": 16
+                        },
+                        {
+                            "start_line": 204,
+                            "end_line": 214
+                        },
+                        {
+                            "start_line": 216,
+                            "end_line": 239
+                        },
+                        {
+                            "start_line": 241,
+                            "end_line": 246
+                        },
+                        {
+                            "start_line": 249,
+                            "end_line": 262
+                        },
+                        {
+                            "start_line": 264,
+                            "end_line": 269
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
