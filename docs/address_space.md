@@ -33,16 +33,18 @@
 
 - **Program base**: user binaries are linked at `0x0000000000400000`.
 - **ELF segments**: `elf_load()` maps `PT_LOAD` segments at their `p_vaddr`.
-- **Heap (`sbrk`)**: initial `heap_end` is the max loaded vaddr; grows upward
-  and is page-mapped on demand.
+- **Heap (`sbrk`)**: initial `heap_end` is the max loaded vaddr; grows upward.
+  Pages are eagerly allocated, mapped, and zeroed when `increment > 0`.
 - **`mmap` base**: default search starts at `0x0000004000000000` and grows up.
   Mappings are kept below `0x00007FFFFFFFF000`. Shared file-backed mappings
   are supported for `/dev/fb0` and shared memory objects (`shm_open`).
 - **Stacks**:
   - `execve`/`spawn`: top is `0x00007FFFFFFFF000`, 4 pages of stack plus a
     1-page guard below.
-  - `sys_thread_create`: same size; stacks are placed by scanning downward
-    from `0x00007FFFFFFFF000` (or below the current user RSP) and never below
+  - `sys_thread_create`: same size; the search hint is computed as
+    `min(THREAD_STACK_TOP_HINT, rsp_hint - THREAD_STACK_TOTAL_SIZE)` where
+    `rsp_hint` is the current user RSP aligned down to a page. Stacks are
+    placed by scanning downward from that hint and never below
     `0x0000000000400000`.
   - `init` process: 4 pages without a guard page.
 - **Guard pages**: tracked in VMAs but left unmapped.
@@ -53,7 +55,11 @@
 
 - `vmm_new_pml4()` allocates a new PML4 and copies the kernel half
   (entries 256-511) from the current CR3.
-- `vmm_copy_pml4()` deep-copies the user half for `fork`.
+- `vmm_copy_pml4()` deep-copies the user half for `fork`. Pages marked
+  `PTE_SHARED` (e.g., framebuffer and shared memory mappings) are shared by
+  reference rather than deep-copied in the child. Correspondingly,
+  `vmm_destroy_pml4()` skips `PTE_SHARED` leaf pages so they are not freed
+  when the process exits.
 - `vmm_switch_pml4()` switches CR3 to change address spaces.
 
 ---

@@ -8,14 +8,15 @@ virtual addresses.
 
 ## API
 
-### `dma_alloc_pages(bytes, alignment, boundary)`
+### `dma_alloc_pages(bytes, alignment, boundary, phys_out, virt_out)`
 Allocates enough contiguous pages to cover `bytes` with the requested
 alignment and boundary constraints.
-Returns a physical base and an HHDM virtual base via output pointers.
-The allocation is zeroed.
+Returns `true` on success and `false` on failure (invalid arguments or OOM).
+On success, `phys_out` and `virt_out` receive the physical base and
+HHDM virtual base respectively. The allocation is zeroed.
 
-`alignment` is in bytes. A value of 0 uses `PAGE_SIZE`.
-`alignment` must be power-of-two and at least `PAGE_SIZE`.
+`alignment` is in bytes. A value of 0 or any value below `PAGE_SIZE` is
+silently clamped to `PAGE_SIZE`. `alignment` must be a power of two.
 `boundary` is in bytes. A value of 0 disables boundary checks and bypasses
 the power-of-two/`PAGE_SIZE` requirement; non-zero `boundary` must be
 power-of-two, at least `PAGE_SIZE`, and `bytes` must not exceed it.

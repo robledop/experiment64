@@ -6,10 +6,12 @@ https://www.youtube.com/watch?v=d0gS5TXarXc&t=1009s
 
 ## Supported signal set
 
-The signal numbers are defined in `include/sys/signal.h` and
-`user/libc/include/sys/signal.h`. `SIG_MAX` is 32, and the implemented set is
-the traditional POSIX signals from `SIGHUP` through `SIGTTOU`, plus `SIGXCPU`,
-`SIGXFSZ`, `SIGVTALRM`, `SIGPROF`, and `SIGWINCH`.
+The core signal numbers (`SIGHUP` through `SIGTTOU` and `SIGWINCH`) are
+defined in the kernel header `include/sys/signal.h`. The userland copy
+`user/libc/include/sys/signal.h` re-declares those and additionally defines
+`SIGXCPU`, `SIGXFSZ`, `SIGVTALRM`, and `SIGPROF` (these extra numbers are
+only available to user-space code). `SIG_MAX` is 32, and the implemented set is
+the traditional POSIX signals from `SIGHUP` through `SIGTTOU`, plus `SIGWINCH`.
 
 Signals are process-wide, not per-thread, and are represented as a bitset
 (`sigset_t`). Multiple deliveries of the same signal coalesce into a single
@@ -19,7 +21,7 @@ pending bit.
 
 ## Default actions
 
-- `SIGCHLD` and `SIGCONT` are ignored by default.
+- `SIGCHLD`, `SIGCONT`, and `SIGWINCH` are ignored by default.
 - `SIGKILL` and `SIGSTOP` are uncatchable and currently terminate the target
   process (there is no stop/continue state yet).
 - All other signals terminate the process by default.
@@ -41,7 +43,7 @@ Signals are delivered only when returning to user mode:
 Signals are not delivered while running in kernel mode, and they are not
 delivered during exception handling. Signals are sourced from `kill`, the
 console keyboard (Ctrl+C queues `SIGINT` for the console foreground PID set
-via `TIOCSPGRP`, or the current user process when no foreground is set), and
+via `TIOCSPGRP`; if no foreground PID is set, no signal is sent), and
 child termination (`SIGCHLD` is generated when a child exits or is terminated
 by a signal). `SIGPIPE` is not generated yet.
 
@@ -103,8 +105,9 @@ When delivering a signal, the kernel:
 
 The libc `sigaction()` wrapper always installs a restorer trampoline, so user
 code should not set `sa_restorer` manually. If a handler is installed without
-an `sa_restorer` (e.g. bypassing libc), the kernel panics on the interrupt
-delivery path rather than delivering `SIGSEGV`.
+an `sa_restorer` (e.g. bypassing libc), behavior differs by delivery path:
+on the syscall return path, the process is terminated with `SIGSEGV`; on the
+interrupt return path, the kernel panics.
 
 ---
 

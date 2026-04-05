@@ -36,7 +36,7 @@ APIC is essential for **multi-core systems (SMP)** because it can route interrup
 static uint64_t lapic_base = 0;      // Memory-mapped address of Local APIC
 static uint64_t ioapic_base = 0;     // Memory-mapped address of I/O APIC
 static uint32_t lapic_timer_ticks;   // Calibrated timer value
-static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remapping)
+static struct madt_iso isos[MAX_ISOS]; // Interrupt Source Overrides (MAX_ISOS = 16)
 ```
 
 ## Main Functions
@@ -64,7 +64,9 @@ static struct madt_iso isos[];       // Interrupt Source Overrides (IRQ remappin
 - Looks up any IRQ->GSI remapping
 - Configures the IOAPIC redirection table entry
 - Handles polarity (active high/low) and trigger mode (edge/level)
-- Currently targets LAPIC ID 0 (hardcoded destination)
+- Currently hardcodes destination to LAPIC ID 0
+
+**Note on IOAPIC destination:** `apic_init()` routes the keyboard interrupt to the *current BSP's LAPIC ID* (read dynamically via `apic_lapic_read(LAPIC_ID) >> 24`), which is correct. However, `apic_enable_irq()` hardcodes the destination to LAPIC ID 0 (`(uint64_t)0 << 56`). This works when the BSP happens to have LAPIC ID 0 but would be incorrect on systems where the BSP has a different ID.
 
 ### `apic_send_ipi()` / `apic_send_ipi_all_excluding_self()`
 - Sends a fixed IPI to a specific LAPIC ID or to all CPUs except the caller

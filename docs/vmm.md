@@ -41,12 +41,16 @@ current CR3. The user half is empty.
 
 ### `vmm_copy_pml4(src)`
 Creates a deep copy of the **user half** (entries 0-255) of `src` and reuses the
-kernel half copied by `vmm_new_pml4()`.
+kernel half copied by `vmm_new_pml4()`. Leaf pages marked `PTE_SHARED`
+(framebuffer, shared memory) are shared by reference in the child rather than
+deep-copied, since `free_page_table_level` skips them on destruction.
 
 ### `vmm_destroy_pml4(pml4)`
 Recursively frees the user half (entries 0-255): intermediate page tables **and**
-the mapped physical (leaf) pages are freed via `free_page_table_level`. The
-PML4 itself is freed. The kernel half is shared and is not freed.
+the mapped physical (leaf) pages are freed via `free_page_table_level`. Leaf
+pages marked `PTE_SHARED` are skipped -- they are owned by the shared memory
+subsystem or hardware, not the process. The PML4 itself is freed. The kernel
+half is shared and is not freed.
 
 ### `vmm_switch_pml4(pml4)`
 Writes CR3 to switch address spaces.
@@ -90,6 +94,8 @@ Anonymous mappings are tagged with `VMA_ANON` so `sys_munmap` can free the
 backing pages before unmapping. `PROT_NONE` anonymous mappings reserve address
 space without backing pages, which is useful for guard pages.
 
-`sys_munmap` accepts stack VMAs (`VMA_STACK`) as well, which is how user thread
-stacks are released on `SYS_THREAD_EXIT`. It can also unmap subranges of a VMA,
-splitting or trimming the VMA as needed.
+`sys_munmap` only operates on VMAs that carry the `VMA_MMAP` or `VMA_STACK`
+flag; other VMAs are silently skipped. Stack VMAs (`VMA_STACK`) are how user
+thread stacks are released on `SYS_THREAD_EXIT`. Backing physical pages are
+only freed when the VMA also has the `VMA_ANON` flag. `sys_munmap` can also
+unmap subranges of a VMA, splitting or trimming the VMA as needed.

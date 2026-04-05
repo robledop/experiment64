@@ -19,8 +19,13 @@ The IDT (Interrupt Descriptor Table) tells the CPU where to jump when an interru
 | 0      | Divide Error             | No             |
 | 6      | Invalid Opcode           | No             |
 | 8      | Double Fault             | Yes            |
+| 10     | Bad TSS                  | Yes            |
+| 11     | Segment Not Present      | Yes            |
+| 12     | Stack Fault              | Yes            |
 | 13     | General Protection Fault | Yes            |
 | 14     | Page Fault               | Yes            |
+| 17     | Alignment Check          | Yes            |
+| 30     | Security Exception       | Yes            |
 
 ### Hardware IRQs (Remapped to 32+)
 
@@ -241,43 +246,73 @@ Called by the assembly stub with a pointer to the interrupt frame:
 
 ```c
 void interrupt_handler(struct interrupt_frame* frame) {
+    cpu_interrupt_enter();  // Track interrupt nesting depth
+
+    // 1. Dispatch to a registered handler (device ISRs, IPIs, etc.)
     if (isr_handlers[frame->int_no]) {
         isr_handlers[frame->int_no](frame);
-        return;
     }
+    // 2. Unhandled exception (vector 0-31)
+    else if (frame->int_no < 32) {
+        struct interrupt_frame snapshot = *frame;  // Snapshot in case frame is clobbered
 
-    if (frame->int_no < 32) {
-        // User-mode page faults are treated as process errors, not kernel panics.
-        if (frame->int_no == 14 && (frame->cs & 0x3)) {
-            process_t *p = current_process;
-            thread_t *t = current_thread;
-            if (p) {
-                p->exit_code = -1;
-                p->terminated = true;
-                if (p->parent)
-                    thread_wakeup(p->parent);
-            }
-            if (t)
-                t->state = THREAD_TERMINATED;
-            schedule();
+        // Print exception name and vector
+        printk("PANIC: EXCEPTION! %s (Vector %d)\n", exception_messages[snapshot.int_no], ...);
+
+        // Extra info for page faults
+        if (snapshot.int_no == 14)
+            printk("CR2: 0x%lx\n", read_cr2());
+
+        // User-mode fault: kill the process instead of panicking the kernel.
+        if ((snapshot.cs & 0x3) != 0) {
+            // Capture crash info (fault RIP, user backtrace) before locking
+            if (p) capture_user_backtrace(&p->crash_info, snapshot.rbp);
+
+            // Map the vector to a POSIX signal via vector_to_signal[]
+            int sig = vector_to_signal[snapshot.int_no] ?: SIGSEGV;
+
+            // Mark the process exited under scheduler_lock
+            spinlock_acquire(&scheduler_lock);
+            process_mark_exited_locked(p, 128 + sig, &parent);
+            spinlock_release(&scheduler_lock);
+
+            // Wake parent outside the lock
+            if (parent) thread_wakeup(parent);
+
+            // Close FDs eagerly (so pipe readers see EOF immediately)
+            process_close_fds(p);
+
+            cpu_interrupt_exit();
+            schedule();  // Switch away; never returns to faulting context
             return;
         }
 
-        // Kernel-mode exception: print debug and halt.
-        printk("EXCEPTION %d at RIP 0x%lx\n", frame->int_no, frame->rip);
-        if (frame->int_no == 14) {
-            uint64_t cr2;
-            asm volatile("mov %0, cr2" : "=r"(cr2));
-            printk("CR2: 0x%lx\n", cr2);
-        }
+        // Kernel-mode exception: dump context and halt.
+        dump_panic_context(frame, &snapshot);
         stack_trace();
-        hcf();
+        hcf();  // In TEST_MODE, calls shutdown() instead
     }
-    // Vectors 32+ without handlers are silently ignored.
+    // 3. Unhandled vector >= 32 with no registered handler: send EOI
+    else {
+        apic_send_eoi();
+    }
+
+    // 4. Deliver pending signals when returning from a hardware/software interrupt
+    if (frame->int_no >= 32)
+        signal_deliver_after_interrupt(frame);
+
+    cpu_interrupt_exit();  // Decrement interrupt nesting depth
 }
 ```
 
-**Note:** In `TEST_MODE`, the kernel may call `shutdown()` after emitting debug output.
+**Key differences from a naive implementation:**
+- `cpu_interrupt_enter()`/`cpu_interrupt_exit()` bracket the entire handler to track interrupt nesting depth (used by locking code to detect interrupt context).
+- A **frame snapshot** is taken before any state modification, so diagnostic output reflects the original fault even if the live frame is later clobbered.
+- User-mode faults use `vector_to_signal[]` to map the exception vector to the correct POSIX signal (e.g., vector 14 -> `SIGSEGV`, vector 0 -> `SIGFPE`).
+- `process_mark_exited_locked()` is called under `scheduler_lock` to safely mark the process; the parent is woken **outside** the lock to avoid recursive spinlock deadlock.
+- `process_close_fds()` closes file descriptors eagerly so pipe readers (e.g., the window manager) see EOF without waiting for full process reap.
+- `signal_deliver_after_interrupt()` runs for all vectors >= 32, delivering any pending signals before returning to user mode.
+- In `TEST_MODE`, the kernel calls `shutdown()` after diagnostic output.
 
 ---
 
@@ -303,12 +338,15 @@ The IDT itself is shared across all CPUs, but each CPU must load the IDTR.
 static void timer_isr(struct interrupt_frame* frame) {
     bool need_resched = scheduler_tick();  // Update scheduler state
     apic_send_eoi();                       // Acknowledge interrupt
-    if (need_resched)
+    if (need_resched) {
+        cpu_interrupt_exit();              // Leave interrupt context before scheduling
         schedule();                        // Context switch if needed
+        cpu_interrupt_enter();             // Re-enter interrupt context on return
+    }
 }
 ```
 
-**Note:** `schedule()` is called *after* EOI to avoid timer starvation.
+**Note:** `schedule()` is called *after* EOI to avoid timer starvation. The `cpu_interrupt_exit()`/`cpu_interrupt_enter()` pair is needed because `schedule()` performs a context switch, and the target thread must not appear to be running in interrupt context. The outer `interrupt_handler()` already calls `cpu_interrupt_enter()` on entry and `cpu_interrupt_exit()` on exit, so these calls temporarily drop the nesting depth.
 
 ### Keyboard ISR (Vector 33)
 
@@ -333,7 +371,9 @@ static void ide_primary_isr(struct interrupt_frame* frame) {
 ```c
 static void reschedule_ipi_handler(struct interrupt_frame* frame) {
     apic_send_eoi();
-    schedule();  // Prompt the scheduler to look for runnable work
+    cpu_interrupt_exit();  // Leave interrupt context before scheduling
+    schedule();            // Prompt the scheduler to look for runnable work
+    cpu_interrupt_enter(); // Re-enter interrupt context on return
 }
 ```
 

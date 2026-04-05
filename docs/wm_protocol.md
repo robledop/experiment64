@@ -51,15 +51,15 @@ Definitions are in `user/libc/include/wm/wm_protocol.h`.
 
 ### WM -> Client (events via fd 3)
 
-| Type                             | Struct                          | Description                                                                                                                                   |
-|----------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `WM_EVENT_WINDOW_CREATED`        | `wm_event_window_created_t`     | Window created; contains both shm names and initial front id (consumed internally by `wm_create_window()`, not returned from `wm_next_event`) |
-| `WM_EVENT_WINDOW_CHILD_INSERTED` | *(type byte only)*              | Acknowledgment that a child window was reparented                                                                                             |
-| `WM_EVENT_MOUSE`                 | `wm_event_mouse_t`              | Mouse click in the window's client area                                                                                                       |
-| `WM_EVENT_KEY`                   | `wm_event_key_t`                | Key press/release for the focused client                                                                                                      |
-| `WM_EVENT_WINDOW_RESIZED`        | `wm_event_window_resized_msg_t` | Client area resized (wire struct includes `front_buffer` and `shm_names`; libc extracts the smaller `wm_event_window_resized_t` for callers)  |
-| `WM_EVENT_WINDOW_CLOSED`         | `wm_event_window_closed_t`      | Window was closed by the WM                                                                                                                   |
-| `WM_EVENT_INVALIDATED`           | `wm_event_invalidated_t`        | Internal present acknowledgment with the new front-buffer id                                                                                  |
+| Type                             | Struct                          | Description                                                                                                                                                               |
+|----------------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `WM_EVENT_WINDOW_CREATED`        | `wm_event_window_created_t`     | Window created; contains both shm names and initial front id (consumed internally by `wm_create_window()`, not returned from `wm_next_event`)                             |
+| `WM_EVENT_WINDOW_CHILD_INSERTED` | *(type byte only)*              | Acknowledgment that a child window was reparented (**Note:** defined in the enum but never sent by the WM server; the insert-child handler reparents the window silently) |
+| `WM_EVENT_MOUSE`                 | `wm_event_mouse_t`              | Mouse click in the window's client area                                                                                                                                   |
+| `WM_EVENT_KEY`                   | `wm_event_key_t`                | Key press/release for the focused client                                                                                                                                  |
+| `WM_EVENT_WINDOW_RESIZED`        | `wm_event_window_resized_msg_t` | Client area resized (wire struct includes `front_buffer` and `shm_names`; libc extracts the smaller `wm_event_window_resized_t` for callers)                              |
+| `WM_EVENT_WINDOW_CLOSED`         | `wm_event_window_closed_t`      | Window was closed by the WM                                                                                                                                               |
+| `WM_EVENT_INVALIDATED`           | `wm_event_invalidated_t`        | Internal present acknowledgment with the new front-buffer id                                                                                                              |
 
 ### Keyboard event encoding
 
@@ -106,6 +106,7 @@ void wm_invalidate_all(wm_window_t *win);
 void wm_destroy_window(wm_window_t *win);
 int wm_next_event(void *event_buf, uint8_t *out_type);
 void wm_shutdown_events(void);
+void wm_release_retired_buffers(wm_window_t *win);
 ```
 
 `user/libc/include/wm/imui.h` provides a lightweight immediate-mode layer on top
@@ -115,9 +116,9 @@ of `wmclient` for building widgets directly while rendering to the window's back
 
 ## Demo clients
 
-- `user/wmclient_demo.c` creates a window, draws four colored rectangles, and
-  paints a red dot wherever the user clicks. It also reacts to key press events
-  by drawing colored blocks derived from the keycode.
+- `user/wmclient_demo.c` creates a window and uses `wm/imui.h` to draw four
+  colored rectangles and a "Crash" button. Mouse and key events trigger a
+  full-frame redraw through the immediate-mode UI layer.
 - `user/calculator.c` is a standalone calculator client executable launched by
   the WM desktop button (`/bin/calculator`) and uses `wm/imui.h` for
   immediate-mode button widgets.

@@ -83,19 +83,25 @@ switches into the per-CPU scheduler thread.
 
 `scheduler_loop()` runs on the scheduler thread stack:
 
+- At the top of each iteration, claims one auto-reap process (if any) via
+  `scheduler_claim_auto_reap_locked()` and reaps it outside the lock before
+  restarting the loop. It also collects detached terminated threads into a
+  free list via `scheduler_collect_detached_terminated_threads()` for
+  deferred release after the lock is dropped.
 - Scans the global process list in round-robin order to avoid starvation.
 - Skips threads already active on another CPU.
 - Schedules user-mode and kernel threads on any CPU.
-- If no runnable threads exist and the idle thread is available, switches to
-  the per-CPU idle thread. If no idle thread exists, executes inline
-  `sti; hlt; cli` and retries.
+- If no runnable threads exist, falls back to the per-CPU idle thread (or
+  `scheduler_idle_threads[0]` when the per-CPU slot is empty). If all idle
+  threads are null, executes inline `sti; hlt; cli` and retries.
 
 When a runnable thread is found, the scheduler:
 
 1. Switches to the target process's `pml4`.
 2. Programs the syscall stack with `syscall_set_stack(next->kstack_top)`.
 3. Restores FS base (TLS pointer) and FPU state, then sets `THREAD_RUNNING`.
-4. Releases `scheduler_lock`, then calls `switch_to(schedt, next)`.
+4. Releases `scheduler_lock`, frees any collected detached-terminated threads
+   via `scheduler_release_thread_list()`, then calls `switch_to(schedt, next)`.
 
 When the thread yields or is preempted, control returns to the scheduler thread,
 which restores the kernel `pml4` and loops again.

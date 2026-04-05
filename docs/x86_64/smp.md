@@ -30,6 +30,7 @@ typedef struct cpu {
     int cpu_index;                  // Index into cpus[] (0 = BSP)
     struct gdt_desc gdt[7];         // Per-CPU GDT
     struct tss_entry tss;           // Per-CPU TSS
+    uint32_t interrupt_depth;       // Interrupt nesting depth (0 = not in interrupt)
 } cpu_t;
 ```
 
@@ -89,6 +90,7 @@ void smp_init_cpu0(void)
     bsp_lapic_id = smp_response->bsp_lapic_id;
     cpu_count = (uint32_t)(smp_response->cpu_count > MAX_CPUS ? MAX_CPUS : smp_response->cpu_count);
 
+    bool bsp_found = false;
     for (uint64_t i = 0; i < smp_response->cpu_count; i++) {
         if (i >= MAX_CPUS)
             break;
@@ -105,9 +107,13 @@ void smp_init_cpu0(void)
             
             wrmsr(MSR_GS_BASE, (uint64_t)&cpus[i]);
             wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)&cpus[i]);
+            bsp_found = true;
             break;
         }
     }
+
+    if (!bsp_found)
+        hcf();  // BSP entry not found in MADT — unrecoverable
     
     __atomic_fetch_add(&cpus_started, 1, __ATOMIC_SEQ_CST);
 }
@@ -176,6 +182,7 @@ static void ap_main(struct limine_smp_info* info)
 {
     // Enable SSE/AVX
     enable_simd();
+    enable_fsgsbase();  // Enable RDFSBASE/WRFSBASE instructions
     
     // Get our cpu_t pointer from bootloader
     cpu_t* cpu = (cpu_t*)info->extra_argument;
@@ -289,14 +296,15 @@ Boot
 
 ## What Each AP Must Initialize
 
-| Component           | Why                                  |
-|---------------------|--------------------------------------|
-| `enable_simd()`     | CPU-local CR0/CR4/XCR0 registers     |
-| GS MSRs             | CPU-local per-CPU data pointer       |
-| `gdt_init()`        | CPU-local GDT/TSS for this core      |
-| `idt_reload()`      | Load shared IDT into this CPU's IDTR |
-| `apic_local_init()` | Enable this CPU's Local APIC         |
-| `syscall_init()`    | CPU-local STAR/LSTAR/SFMASK MSRs     |
+| Component             | Why                                      |
+|-----------------------|------------------------------------------|
+| `enable_simd()`       | CPU-local CR0/CR4/XCR0 registers         |
+| `enable_fsgsbase()`   | CPU-local CR4 bit for RDFSBASE/WRFSBASE  |
+| GS MSRs               | CPU-local per-CPU data pointer           |
+| `gdt_init()`          | CPU-local GDT/TSS for this core          |
+| `idt_reload()`        | Load shared IDT into this CPU's IDTR     |
+| `apic_local_init()`   | Enable this CPU's Local APIC             |
+| `syscall_init()`      | CPU-local STAR/LSTAR/SFMASK MSRs         |
 
 The IDT itself is shared (same interrupt handlers for all CPUs), but each CPU must load the IDTR register.
 
@@ -318,7 +326,7 @@ APs enter the scheduler by waiting for `ap_scheduler_ready` and then calling
 
 ### Per-CPU Idle Threads
 
-Each CPU has its own idle thread stored in `idle_threads[cpu_index]`. Unlike regular threads, idle threads are **not added to the process thread list**. They serve as a safe fallback (for example, when the active thread is destroyed), while the scheduler loop itself idles with `hlt` if no runnable threads exist.
+Each CPU has its own idle thread stored in `scheduler_idle_threads[cpu_index]`. Unlike regular threads, idle threads are **not added to the process thread list**. They serve as a safe fallback (for example, when the active thread is destroyed), while the scheduler loop itself idles with `hlt` if no runnable threads exist.
 
 ```c
 // Idle threads are created separately and not added to any list
@@ -349,7 +357,7 @@ If no runnable thread is found, the scheduler switches to the per-CPU idle threa
 const bool allow_user = true;
 thread_t *next = find_any_runnable_thread_rr(cpu, allow_user);
 if (!next) {
-    next = idle_threads[cpu->cpu_index];
+    next = scheduler_idle_threads[cpu->cpu_index];
 }
 switch_to(schedt, next);
 ```
@@ -373,7 +381,9 @@ A reschedule IPI handler is registered to wake idle CPUs:
 ```c
 static void reschedule_ipi_handler(struct interrupt_frame* frame) {
     apic_send_eoi();
-    schedule();  // Check for runnable threads
+    cpu_interrupt_exit();  // Leave interrupt context before scheduling
+    schedule();            // Check for runnable threads
+    cpu_interrupt_enter(); // Re-enter interrupt context on return
 }
 ```
 

@@ -33,6 +33,8 @@ Two mechanisms exist for saving FPU/SIMD state:
 
 `XSAVE` is preferred on modern CPUs as it's extensible and can be optimized with `XSAVEOPT`.
 
+**Note:** `FPU_STATE_SIZE` is defined as 1024 bytes (`#define FPU_STATE_SIZE 1024`). During XSAVE area size detection, if CPUID reports a required size larger than 1024 bytes (or 0), the kernel caps it at `FPU_STATE_SIZE`. This means AVX-512 extended state (which requires more than 1024 bytes) is not fully supported.
+
 ---
 
 ## Global State Variables
@@ -120,13 +122,16 @@ Read/write Model-Specific Registers.
 
 Common MSRs used:
 
-| MSR          | Name             | Purpose                   |
-|--------------|------------------|---------------------------|
-| `0xC0000101` | `GS_BASE`        | Per-CPU data pointer      |
-| `0xC0000102` | `KERNEL_GS_BASE` | Swapped on syscall entry  |
-| `0xC0000080` | `EFER`           | Extended Feature Enable   |
-| `0xC0000081` | `STAR`           | Syscall segment selectors |
-| `0xC0000082` | `LSTAR`          | Syscall entry point       |
+| MSR          | Name             | Purpose                                |
+|--------------|------------------|----------------------------------------|
+| `0xC0000080` | `EFER`           | Extended Feature Enable                |
+| `0xC0000081` | `STAR`           | Syscall segment selectors              |
+| `0xC0000082` | `LSTAR`          | Syscall entry point                    |
+| `0xC0000083` | `CSTAR`          | Compatibility mode syscall target      |
+| `0xC0000084` | `SFMASK`         | Syscall RFLAGS mask                    |
+| `0xC0000100` | `FS_BASE`        | FS segment base address                |
+| `0xC0000101` | `GS_BASE`        | Per-CPU data pointer                   |
+| `0xC0000102` | `KERNEL_GS_BASE` | Swapped on syscall entry via `swapgs`  |
 
 ---
 
@@ -155,8 +160,10 @@ Permanently halts the CPU (used for unrecoverable errors).
 
 ```c
 void hcf(void) {
-    cli();           // Disable interrupts
-    for (;;) hlt();  // Halt forever
+    __asm__ volatile("cli");     // Disable interrupts
+    for (;;) {
+        __asm__("hlt");          // Halt forever
+    }
 }
 ```
 
@@ -170,6 +177,32 @@ thread-local storage access. Panics if the CPU does not support FSGSBASE.
 
 ### `cpu_is_hypervisor()` — Detect Virtualization
 Checks if running inside a VM (CPUID.1:ECX bit 31).
+
+---
+
+### `cpu_interrupt_enter()` / `cpu_interrupt_exit()` / `cpu_in_interrupt()` — Interrupt Depth Tracking
+
+These functions manage the per-CPU `interrupt_depth` counter in `cpu_t`:
+
+```c
+void cpu_interrupt_enter(void) {
+    cpu_t *cpu = get_cpu();
+    if (cpu) cpu->interrupt_depth++;
+}
+
+void cpu_interrupt_exit(void) {
+    cpu_t *cpu = get_cpu();
+    if (!cpu) return;
+    if (cpu->interrupt_depth > 0) cpu->interrupt_depth--;
+}
+
+bool cpu_in_interrupt(void) {
+    cpu_t *cpu = get_cpu();
+    return cpu && cpu->interrupt_depth != 0;
+}
+```
+
+`interrupt_handler()` calls `cpu_interrupt_enter()` on entry and `cpu_interrupt_exit()` on exit. ISR handlers that call `schedule()` (timer, reschedule IPI) temporarily call `cpu_interrupt_exit()`/`cpu_interrupt_enter()` around the `schedule()` call so the scheduler does not think it is running in interrupt context.
 
 ---
 

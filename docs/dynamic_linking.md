@@ -123,21 +123,29 @@ Important consequences:
 - The main executable still uses the fixed base from `user_dyn.ld`:
   `0x400000`.
 
-Current dynamic outputs include:
+The Makefile's default rule dynamically links all userland programs except
+three static exceptions:
 
-- `/bin/hello_dyn`
-- `/bin/cat`
-- `/bin/calculator`
-- `/bin/term`
-- `/bin/addr2line`
-- `/bin/objdump`
-- `/bin/ldd`
-- `/bin/wm`
-- `/tests/dynlink_test`
+- `cat` -- statically linked as an intentional example
+- `tls_test` -- statically linked because it uses `thread_local` in the
+  executable and the runtime linker lacks per-module TLS
+- `user_prog` -- assembly program, statically linked
+
+Programs that need additional shared libraries have explicit rules:
+
+- GUI programs (`calculator`, `term`, `wmclient_demo`) link `libc.so` + `libwm.so`
+- ELF tools (`addr2line`, `objdump`, `ldd`) link `libc.so` + `libelf.so`
+- The window manager (`wm/main`) links `libc.so` + `libwm.so` + `libelf.so`
+
+Everything else uses the default rule, which links against `libc.so` only.
+
+Dynamic outputs also include:
+
 - `/lib/ld.so`
 - `/lib/libc.so`
 - `/lib/libwm.so`
 - `/lib/libelf.so`
+- `/tests/dynlink_test`
 
 `scripts/make_image.sh` copies those shared objects into the rootfs under
 `/lib`, and user binaries into `/bin` and `/tests`.
@@ -150,6 +158,7 @@ Current dynamic outputs include:
 linking:
 
 - `PT_INTERP`
+- `PT_LOAD` (text, rodata, data)
 - `PT_DYNAMIC`
 - `PT_TLS`
 - dynamic sections such as:
@@ -902,18 +911,18 @@ full general-purpose dynamic TLS.
 
 For more on the TLS side alone, see `docs/tls.md`.
 
-## Example: `/bin/hello_dyn`
+## Example: `/bin/echo`
 
-For a minimal example, `/bin/hello_dyn` just calls `printf()`.
+For a minimal example, `/bin/echo` just calls `printf()`.
 
 What happens when it starts:
 
-1. The kernel maps `/bin/hello_dyn` at the fixed executable addresses from
+1. The kernel maps `/bin/echo` at the fixed executable addresses from
    `user_dyn.ld`
 2. The kernel sees `PT_INTERP` and loads `/lib/ld.so` at `0x7000000000 + p_vaddr`
 3. The kernel builds auxv with:
    - `AT_BASE = 0x7000000000`
-   - `AT_ENTRY = hello_dyn e_entry`
+   - `AT_ENTRY = echo e_entry`
    - `AT_PHDR`, `AT_PHENT`, `AT_PHNUM`
 4. The kernel sets RIP to `ld.so`'s entry
 5. `ld.so` relocates itself

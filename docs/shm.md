@@ -14,9 +14,10 @@ int shm_open(const char *name, int flags, size_t size);
 Creates or opens a named shared memory object and returns a file descriptor.
 
 - `name`: identifier (max 63 characters).
-- `flags`: `O_CREAT` to create a new object (fails with `-EINSTKN` if the
-  name already exists). Omit that flag to open an existing one (fails with
-  `-ENOENT` if not found).
+- `flags`: `O_CREAT` to create or open. If the name already exists the
+  existing entry is opened and its refcount incremented; if no object with
+  that name exists a new one is created. Omit `O_CREAT` to open an existing
+  object only (fails with `-ENOENT` if not found).
 - `size`: byte size of the region (only meaningful when creating; must be
   non-zero).
 

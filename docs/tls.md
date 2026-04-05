@@ -43,7 +43,7 @@ if the CPU lacks support.
 
 `thread_t` contains a `uint64_t fs_base` field. On context switch,
 `schedule()` saves it with `rdfsbase` before `switch_to`, and
-`scheduler_loop()` restores it with `wrfsbase` after `switch_to`.
+`scheduler_loop()` restores it with `wrfsbase` before `switch_to`.
 
 ### Syscall: `arch_prctl` (`SYS_ARCH_PRCTL`, 50)
 

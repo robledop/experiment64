@@ -23,6 +23,9 @@ All heap operations are protected by a global spinlock with IRQ save/restore.
    `phys + hhdm_offset`.
 2. Enables CR0.WP so read-only kernel pages fault on write.
 3. Initializes the slab cache lists and the heap lock.
+4. Allocates and zeroes the `slab_bitmap` via `pmm_alloc_pages`. The bitmap
+   covers all physical pages up to `pmm_get_highest_addr()` and is used by
+   `heap_is_slab_page()` to detect accidental PMM frees of slab-backed pages.
 
 ---
 
@@ -96,8 +99,9 @@ Validates the header magic and frees the object. For slabs, it re-poisons the
 payload and may release the page back to the PMM.
 
 ### `krealloc(ptr, new_size)`
-If growing beyond the current bucket, allocates a new block, copies the old
-bucket size, then frees the old block. Shrinks are no-ops.
+If growing beyond the current allocation, allocates a new block, copies
+`obj_size` bytes (the tracked allocation size stored in the header), then frees
+the old block. Shrinks are no-ops.
 
 ### Debug helpers
 

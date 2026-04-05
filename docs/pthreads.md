@@ -4,9 +4,9 @@ The libc provides a small pthread subset built on user threads and futexes.
 
 Implemented:
 
-- `pthread_create`, `pthread_exit`, `pthread_join`, `pthread_detach`, `pthread_self`
-- `pthread_mutex_*` (normal mutexes only)
-- `pthread_cond_*`
+- `pthread_create`, `pthread_exit`, `pthread_join`, `pthread_detach`, `pthread_self`, `pthread_equal`
+- `pthread_mutex_*` (normal mutexes only, includes `pthread_mutex_trylock`)
+- `pthread_cond_*` (includes `pthread_cond_broadcast`)
 - `pthread_once`
 - `pthread_barrier_*`
 - `sem_init` (non-standard 2-arg: `sem_init(sem_t *s, int value)`, no `pshared` parameter), `sem_wait`, `sem_post`, `sem_destroy`
