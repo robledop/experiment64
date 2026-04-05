@@ -4,7 +4,9 @@
       <w>Iinclude</w>
       <w>Ithird</w>
       <w>Iuser</w>
+      <w>Shdr</w>
       <w>Wextra</w>
+      <w>addralign</w>
       <w>ahci</w>
       <w>asfiles</w>
       <w>asflags</w>
@@ -40,9 +42,11 @@
       <w>ebuffull</w>
       <w>efsnotus</w>
       <w>ehdr</w>
+      <w>ehsize</w>
       <w>einformat</w>
       <w>einstkn</w>
       <w>einvarg</w>
+      <w>entsize</w>
       <w>envp</w>
       <w>erdonly</w>
       <w>erdp</w>
@@ -58,6 +62,7 @@
       <w>fgetc</w>
       <w>fgets</w>
       <w>fileno</w>
+      <w>filesz</w>
       <w>finddir</w>
       <w>fmtname</w>
       <w>fopen</w>
@@ -92,6 +97,7 @@
       <w>iupdate</w>
       <w>iwad</w>
       <w>iwads</w>
+      <w>jmprel</w>
       <w>keyboardfd</w>
       <w>keyqueue</w>
       <w>kfree</w>
@@ -103,6 +109,7 @@
       <w>lineptr</w>
       <w>makeflags</w>
       <w>masix</w>
+      <w>memsz</w>
       <w>microframes</w>
       <w>mknod</w>
       <w>mmap</w>
@@ -131,6 +138,7 @@
       <w>onpaint</w>
       <w>ostep</w>
       <w>outsl</w>
+      <w>paddr</w>
       <w>pathbuf</w>
       <w>pathlib</w>
       <w>pdpt</w>
@@ -138,7 +146,14 @@
       <w>perror</w>
       <w>phdr</w>
       <w>phdrs</w>
+      <w>phent</w>
+      <w>phentsize</w>
+      <w>phnum</w>
+      <w>phoff</w>
       <w>pipefd</w>
+      <w>pltgot</w>
+      <w>pltrel</w>
+      <w>pltrelsz</w>
       <w>poff</w>
       <w>printk</w>
       <w>prio</w>
@@ -149,6 +164,8 @@
       <w>rdfsbase</w>
       <w>rdmsr</w>
       <w>readi</w>
+      <w>relaent</w>
+      <w>relasz</w>
       <w>resched</w>
       <w>returncode</w>
       <w>rflags</w>
@@ -161,7 +178,12 @@
       <w>setsid</w>
       <w>setvbuf</w>
       <w>shdrs</w>
+      <w>shentsize</w>
       <w>shflags</w>
+      <w>shndx</w>
+      <w>shnum</w>
+      <w>shoff</w>
+      <w>shstrndx</w>
       <w>shstrtab</w>
       <w>sigactions</w>
       <w>sigprocmask</w>
@@ -171,8 +193,10 @@
       <w>sscanf</w>
       <w>strftime</w>
       <w>strnlen</w>
+      <w>strsz</w>
       <w>strtab</w>
       <w>strtol</w>
+      <w>sxword</w>
       <w>symtab</w>
       <w>syncronous</w>
       <w>sysno</w>
@@ -207,6 +231,7 @@
       <w>wtermsig</w>
       <w>xhci</w>
       <w>xsetbv</w>
+      <w>xword</w>
     </words>
   </dictionary>
 </component>

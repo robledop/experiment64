@@ -18,7 +18,7 @@
 // before either prints their "after" message. Test by adding sleep(1)
 // calls in various locations.
 
-barrier_t barrier;
+pthread_barrier_t barrier;
 pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *child_1([[maybe_unused]] void *arg)

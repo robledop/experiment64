@@ -47,8 +47,6 @@ typedef struct {
     sem_t turnstile2; // initially 1 (open)
 } pthread_barrier_t;
 
-typedef pthread_barrier_t barrier_t;
-
 #define PTHREAD_MUTEX_INITIALIZER {0, 0, 0}
 #define PTHREAD_COND_INITIALIZER {0, 0}
 #define PTHREAD_ONCE_INIT {0}

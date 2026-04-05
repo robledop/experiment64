@@ -7,7 +7,7 @@
 #define SHT_STRTAB 3
 #define ELF_MAGIC 0x464C457F
 
-#define PT_nullptr 0
+#define PT_NULL 0
 #define PT_LOAD 1
 #define PT_DYNAMIC 2
 #define PT_INTERP 3

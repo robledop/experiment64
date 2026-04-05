@@ -109,7 +109,7 @@ TEST(test_sys_tls_basic)
     return true;
 }
 
-TEST(test_sys_stat_mode_compat)
+TEST(test_sys_stat_and_termios)
 {
     int pid = sys_spawn("/tests/stat_mode_test");
     TEST_ASSERT(pid > 1);
