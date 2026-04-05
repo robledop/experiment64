@@ -1,0 +1,267 @@
+{
+    "version": "0.1.0",
+    "id": "580c36af-9afe-46aa-9e02-e464eec0727f",
+    "timestamp": "2026-04-05T13:22:08.413340479Z",
+    "vcs": {
+        "type": "git",
+        "revision": "5f95b49172e5dfd6014398d0597ab03104876ca6",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "docs/dynamic_linking.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 319,
+                            "end_line": 319
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/shm.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:719aa46ac1fa5a3a5a11778d75091113bc3535d0",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 17,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 39,
+                            "end_line": 39
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "include/lib/elf.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 177,
+                            "end_line": 177
+                        },
+                        {
+                            "start_line": 193,
+                            "end_line": 193
+                        },
+                        {
+                            "start_line": 204,
+                            "end_line": 204
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/lib/elf.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 148,
+                            "end_line": 149
+                        },
+                        {
+                            "start_line": 159,
+                            "end_line": 159
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_execve.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9c1c6af0d1705ad329a0bc4405b5e046abc52f45",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.76"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 7,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 131,
+                            "end_line": 132
+                        },
+                        {
+                            "start_line": 151,
+                            "end_line": 152
+                        },
+                        {
+                            "start_line": 225,
+                            "end_line": 228
+                        },
+                        {
+                            "start_line": 230,
+                            "end_line": 230
+                        },
+                        {
+                            "start_line": 256,
+                            "end_line": 256
+                        },
+                        {
+                            "start_line": 267,
+                            "end_line": 267
+                        },
+                        {
+                            "start_line": 271,
+                            "end_line": 272
+                        },
+                        {
+                            "start_line": 274,
+                            "end_line": 275
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 63,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 66,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 84,
+                            "end_line": 90
+                        },
+                        {
+                            "start_line": 216,
+                            "end_line": 216
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_spawn.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 147,
+                            "end_line": 147
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/task/init.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 36,
+                            "end_line": 36
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/elf_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 12,
+                            "end_line": 13
+                        },
+                        {
+                            "start_line": 31,
+                            "end_line": 32
+                        },
+                        {
+                            "start_line": 49,
+                            "end_line": 50
+                        },
+                        {
+                            "start_line": 62,
+                            "end_line": 65
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/exec_twice_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:694c7245b3a8632c905101ec099b407342b2246d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 20,
+                            "end_line": 21
+                        },
+                        {
+                            "start_line": 30,
+                            "end_line": 30
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
