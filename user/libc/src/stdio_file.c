@@ -256,7 +256,7 @@ FILE *fopen(const char *path, const char *mode)
     else
         f->open_flags = O_RDONLY;
     if (create)
-        f->open_flags |= O_CREATE;
+        f->open_flags |= O_CREAT;
     if (trunc && !ap)
         f->open_flags |= O_TRUNC;
     f->pos  = 0;
@@ -566,7 +566,7 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
     stream->need_seek  = false;
     stream->open_flags = (stream->readable && stream->writable) ? O_RDWR : (stream->writable ? O_WRONLY : O_RDONLY);
     if (create)
-        stream->open_flags |= O_CREATE;
+        stream->open_flags |= O_CREAT;
     if (trunc && !ap)
         stream->open_flags |= O_TRUNC;
     strncpy(stream->path, path, sizeof(stream->path) - 1);

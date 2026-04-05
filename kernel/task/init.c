@@ -33,7 +33,7 @@ void init_process_entry(void)
     pml4_t pml4 = (pml4_t)cr3;
 
     elf_load_result_t elf_result;
-    if (!elf_load_ex("/bin/init", &elf_result, pml4)) {
+    if (!elf_load("/bin/init", &elf_result, pml4)) {
         panic("Failed to load /bin/init");
     }
     current_process->heap_end = elf_result.max_vaddr;

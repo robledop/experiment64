@@ -174,7 +174,7 @@ typedef struct
 /**
  * @brief Result of loading an ELF executable, including dynamic linking metadata.
  *
- * Populated by elf_load_ex(). For statically linked binaries, interp_base and
+ * Populated by elf_load(). For statically linked binaries, interp_base and
  * interp_entry are zero and interp is empty.
  */
 typedef struct
@@ -190,18 +190,7 @@ typedef struct
 } elf_load_result_t;
 
 /**
- * @brief Load an ELF executable into an address space (legacy interface).
- *
- * @param path        Absolute path to the ELF binary.
- * @param entry_point Output: the program entry point.
- * @param max_vaddr   Output: highest virtual address mapped.
- * @param pml4        Page table root to map segments into.
- * @return true on success, false on failure.
- */
-bool elf_load(const char* path, uint64_t* entry_point, uint64_t* max_vaddr, pml4_t pml4);
-
-/**
- * @brief Load an ELF executable with full dynamic linking support.
+ * @brief Load an ELF executable into an address space.
  *
  * Loads all PT_LOAD segments into the given address space. If a PT_INTERP
  * segment is present, also loads the dynamic linker at a high bias address
@@ -212,4 +201,4 @@ bool elf_load(const char* path, uint64_t* entry_point, uint64_t* max_vaddr, pml4
  * @param pml4   Page table root to map segments into.
  * @return true on success, false on failure.
  */
-bool elf_load_ex(const char* path, elf_load_result_t* result, pml4_t pml4);
+bool elf_load(const char* path, elf_load_result_t* result, pml4_t pml4);

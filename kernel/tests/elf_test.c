@@ -9,8 +9,8 @@ TEST(test_elf_load_nonexistent_file)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(!elf_load("/nonexistent_elf_xyz", &entry, &max_vaddr, pml4));
+    elf_load_result_t result;
+    TEST_ASSERT(!elf_load("/nonexistent_elf_xyz", &result, pml4));
 
     vmm_destroy_pml4(pml4);
     return true;
@@ -28,8 +28,8 @@ TEST(test_elf_load_bad_magic)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(!elf_load(path, &entry, &max_vaddr, pml4));
+    elf_load_result_t result;
+    TEST_ASSERT(!elf_load(path, &result, pml4));
 
     vmm_destroy_pml4(pml4);
     return true;
@@ -46,8 +46,8 @@ TEST(test_elf_load_truncated_header)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(!elf_load(path, &entry, &max_vaddr, pml4));
+    elf_load_result_t result;
+    TEST_ASSERT(!elf_load(path, &result, pml4));
 
     vmm_destroy_pml4(pml4);
     return true;
@@ -59,10 +59,10 @@ TEST(test_elf_load_valid_binary)
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
-    uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(elf_load("/bin/init", &entry, &max_vaddr, pml4));
-    TEST_ASSERT(entry != 0);
-    TEST_ASSERT(max_vaddr > entry);
+    elf_load_result_t result;
+    TEST_ASSERT(elf_load("/bin/init", &result, pml4));
+    TEST_ASSERT(result.entry != 0);
+    TEST_ASSERT(result.max_vaddr > result.entry);
 
     vmm_destroy_pml4(pml4);
     return true;

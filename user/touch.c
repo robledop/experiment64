@@ -24,14 +24,14 @@ int main(const int argc, char** argv)
 
     if (starts_with("/", dir))
     {
-        res = open(dir, O_CREATE, 0644);
+        res = open(dir, O_CREAT, 0644);
     }
     else
     {
         strncpy(full_path, current_directory, MAX_FILE_PATH);
         strcat(full_path, "/");
         strcat(full_path, dir);
-        res = open(full_path, O_CREATE, 0644);
+        res = open(full_path, O_CREAT, 0644);
     }
 
     if (res < 0)

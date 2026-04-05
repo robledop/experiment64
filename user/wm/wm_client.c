@@ -292,7 +292,7 @@ static int client_map_shm_buffer(const char *name, size_t size, uint32_t **out_b
     if (!name || !out_buffer || size == 0)
         return -1;
 
-    int shm_fd = shm_open(name, O_CREATE, size);
+    int shm_fd = shm_open(name, O_CREAT, size);
     if (shm_fd < 0)
         return -1;
 

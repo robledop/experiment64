@@ -17,10 +17,8 @@ TEST(test_exec_twice_elf_load)
         pml4_t pml4 = vmm_new_pml4();
         TEST_ASSERT(pml4 != nullptr);
 
-        uint64_t entry = 0;
-        uint64_t max_vaddr = 0;
-
-        bool ok = elf_load(path, &entry, &max_vaddr, pml4);
+        elf_load_result_t result;
+        bool ok = elf_load(path, &result, pml4);
 
         vmm_destroy_pml4(pml4);
 
@@ -29,7 +27,7 @@ TEST(test_exec_twice_elf_load)
             printk("elf_load failed for %s on iteration %d\n", path, i);
             return false;
         }
-        TEST_ASSERT(entry != 0);
+        TEST_ASSERT(result.entry != 0);
     }
 
     return true;

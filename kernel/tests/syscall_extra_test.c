@@ -109,17 +109,6 @@ TEST(test_sys_tls_basic)
     return true;
 }
 
-TEST(test_sys_open_compat)
-{
-    int pid = sys_spawn("/tests/open_compat_test");
-    TEST_ASSERT(pid > 1);
-    int status = -1;
-    int waited = sys_wait(&status);
-    TEST_ASSERT(waited == pid);
-    TEST_ASSERT(status == 0);
-    return true;
-}
-
 TEST(test_sys_stat_mode_compat)
 {
     int pid = sys_spawn("/tests/stat_mode_test");

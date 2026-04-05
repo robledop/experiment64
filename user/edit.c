@@ -1264,7 +1264,7 @@ int editorSave(void)
     }
 
     unlink(E.filename);
-    fd = open(E.filename, O_CREATE | O_WRONLY);
+    fd = open(E.filename, O_CREAT | O_WRONLY);
     if (fd < 0) {
         errno = -EIO;
         goto writeerr;

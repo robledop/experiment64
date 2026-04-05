@@ -6,15 +6,15 @@
 #include <task/process.h>
 
 /**
- * @brief Verify elf_load_ex detects PT_INTERP in a dynamically linked binary.
+ * @brief Verify elf_load detects PT_INTERP in a dynamically linked binary.
  */
-TEST(test_elf_load_ex_dynamic_binary)
+TEST(test_elf_load_dynamic_binary)
 {
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/echo", &result, pml4));
+    TEST_ASSERT(elf_load("/bin/echo", &result, pml4));
 
     /* Must have detected the interpreter */
     TEST_ASSERT(result.interp[0] != '\0');
@@ -39,15 +39,15 @@ TEST(test_elf_load_ex_dynamic_binary)
 }
 
 /**
- * @brief Verify elf_load_ex returns zero interp fields for a static binary.
+ * @brief Verify elf_load returns zero interp fields for a static binary.
  */
-TEST(test_elf_load_ex_static_binary)
+TEST(test_elf_load_static_binary)
 {
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/cat", &result, pml4));
+    TEST_ASSERT(elf_load("/bin/cat", &result, pml4));
 
     /* Static binary must have no interpreter */
     TEST_ASSERT(result.interp[0] == '\0');
@@ -63,15 +63,15 @@ TEST(test_elf_load_ex_static_binary)
 }
 
 /**
- * @brief Verify elf_load_ex populates phdr fields consistently.
+ * @brief Verify elf_load populates phdr fields consistently.
  */
-TEST(test_elf_load_ex_phdr_fields)
+TEST(test_elf_load_phdr_fields)
 {
     pml4_t pml4 = vmm_new_pml4();
     TEST_ASSERT(pml4 != nullptr);
 
     elf_load_result_t result;
-    TEST_ASSERT(elf_load_ex("/bin/echo", &result, pml4));
+    TEST_ASSERT(elf_load("/bin/echo", &result, pml4));
 
     /* phent must match the standard size */
     TEST_ASSERT(result.phent == sizeof(Elf64_Phdr));
@@ -82,26 +82,6 @@ TEST(test_elf_load_ex_phdr_fields)
 
     /* phdr_vaddr must point to readable mapped memory */
     TEST_ASSERT(result.phdr_vaddr != 0);
-
-    vmm_destroy_pml4(pml4);
-    return true;
-}
-
-/**
- * @brief Verify legacy elf_load still works with dynamic binaries.
- *
- * The old interface should load the executable's PT_LOAD segments
- * but ignore PT_INTERP (since it has no way to report it).
- */
-TEST(test_elf_load_legacy_with_dynamic)
-{
-    pml4_t pml4 = vmm_new_pml4();
-    TEST_ASSERT(pml4 != nullptr);
-
-    uint64_t entry = 0, max_vaddr = 0;
-    TEST_ASSERT(elf_load("/bin/echo", &entry, &max_vaddr, pml4));
-    TEST_ASSERT(entry != 0);
-    TEST_ASSERT(max_vaddr > 0);
 
     vmm_destroy_pml4(pml4);
     return true;

@@ -144,7 +144,7 @@ int sys_spawn(const char* path)
     }
 
     elf_load_result_t elf_result;
-    if (!elf_load_ex(abs_path, &elf_result, new_pml4))
+    if (!elf_load(abs_path, &elf_result, new_pml4))
     {
         TEST_SYSCALL_LOG("sys_spawn: pid=%d elf_load failed path=%s\n", current_process ? current_process->pid : -1,
                          abs_path);

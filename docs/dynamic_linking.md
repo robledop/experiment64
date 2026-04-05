@@ -67,7 +67,7 @@ At a high level, a dynamic program starts like this:
 
 ```text
 execve/spawn
-  -> kernel elf_load_ex()
+  -> kernel elf_load()
      -> map executable PT_LOAD segments
      -> read PT_INTERP
      -> load /lib/ld.so at a fixed high base
@@ -198,10 +198,10 @@ The runtime linker entry point given to userspace is:
 interp_entry = INTERP_LOAD_BASE + e_entry
 ```
 
-## Kernel loader: `elf_load_ex()`
+## Kernel loader: `elf_load()`
 
 The kernel-side entry point for dynamic-capable loading is
-`kernel/lib/elf.c:elf_load_ex()`.
+`kernel/lib/elf.c:elf_load()`.
 
 It does four jobs:
 
@@ -242,7 +242,7 @@ That structure carries:
 
 ### Step 2: scan for `PT_INTERP` and `PT_PHDR`
 
-Before mapping segments, `elf_load_ex()` scans the executable program headers:
+Before mapping segments, `elf_load()` scans the executable program headers:
 
 - `PT_INTERP`
   - reads the interpreter path, usually `/lib/ld.so`
@@ -314,15 +314,9 @@ segments and computes:
 
 The actual relocation work is left to `ld.so`.
 
-### Legacy interface
-
-The older `elf_load()` API still exists. It now just calls `elf_load_ex()` and
-returns only the executable entry point and `max_vaddr`. Static callers keep
-working.
-
 ## Process handoff: `execve()` and `spawn()`
 
-Both program launch paths now use `elf_load_ex()`:
+Both program launch paths use `elf_load()`:
 
 - `kernel/syscalls/sys_execve.c`
 - `kernel/syscalls/sys_spawn.c`
@@ -951,7 +945,6 @@ It prints the interpreter path and the libraries the file expects to load from
 - dynamic binary detection
 - static binary behavior with the new loader
 - `AT_PHDR` data population
-- legacy `elf_load()` compatibility
 - end-to-end spawn of `/tests/dynlink_test`
 
 ### User dynamic-link test

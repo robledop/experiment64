@@ -192,7 +192,7 @@ static uint8_t sbrk_stub_bytes[] = {
 static uint8_t file_io_stub_bytes[] = {
     0xB8, 0x0A, 0x00, 0x00, 0x00,             // mov eax, SYS_OPEN
     0x48, 0xC7, 0xC7, 0x00, 0x01, 0x40, 0x00, // mov rdi, 0x400100 (path)
-    0xBE, 0x01, 0x06, 0x00, 0x00,             // mov esi, O_WRONLY | O_CREATE | O_TRUNC (0x601)
+    0xBE, 0x01, 0x06, 0x00, 0x00,             // mov esi, O_WRONLY | O_CREAT | O_TRUNC (0x601)
     0x0F, 0x05,                               // syscall
     0x83, 0xF8, 0x00,                         // cmp eax, 0
     0x7C, 0x36,                               // jl error_open
@@ -770,7 +770,7 @@ TEST(test_syscall_open_flags)
     char buf[16]     = {0};
 
     // Create and write.
-    int fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    int fd = sys_open(path, O_CREAT | O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_write(fd, "abc", 3) == 3);
     TEST_ASSERT(sys_close(fd) == 0);
@@ -792,7 +792,7 @@ TEST(test_syscall_open_flags)
     TEST_ASSERT(sys_close(fd) == 0);
 
     // Append and verify.
-    fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    fd = sys_open(path, O_CREAT | O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
     TEST_ASSERT(sys_write(fd, "one", 3) == 3);
     TEST_ASSERT(sys_close(fd) == 0);
@@ -879,7 +879,7 @@ TEST(test_syscall_open_create_fat32)
 {
     const char *path = "/mnt/SYS_TOUCH.TST";
 
-    int fd = sys_open(path, O_CREATE | O_WRONLY | O_TRUNC);
+    int fd = sys_open(path, O_CREAT | O_WRONLY | O_TRUNC);
     TEST_ASSERT(fd >= 0);
 
     const char *payload = "sys_touch_payload";
@@ -1409,7 +1409,7 @@ TEST(test_syscall_pipe_null_arg)
 TEST(test_syscall_lseek_basic)
 {
     // Create a test file
-    int fd = sys_open("/lseek_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/lseek_test.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     // Write some data
@@ -1458,7 +1458,7 @@ TEST(test_syscall_lseek_invalid)
     TEST_ASSERT(sys_lseek(999, 0, SEEK_SET) == -EBADF);
 
     // Invalid whence
-    int fd = sys_open("/lseek_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/lseek_invalid.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     TEST_ASSERT(sys_lseek(fd, 0, 99) == -EINVAL);
 
@@ -1487,7 +1487,7 @@ TEST(test_syscall_lseek_pipe_fails)
 TEST(test_syscall_dup_basic)
 {
     // Create a test file
-    int fd1 = sys_open("/dup_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd1 = sys_open("/dup_test.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd1 >= 3);
 
     // Write some data
@@ -1529,7 +1529,7 @@ TEST(test_syscall_dup_invalid)
     TEST_ASSERT(sys_dup(-1) == -EBADF);
     TEST_ASSERT(sys_dup(999) == -EBADF);
 
-    int fd = sys_open("/dup_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/dup_invalid.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     TEST_ASSERT(sys_close(fd) == 0);
     TEST_ASSERT(sys_dup(fd) == -EBADF);
@@ -1541,7 +1541,7 @@ TEST(test_syscall_dup_invalid)
 TEST(test_syscall_dup_ref_counting)
 {
     // Test that closing one dup'd fd doesn't affect the other
-    int fd1 = sys_open("/dup_ref.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd1 = sys_open("/dup_ref.txt", O_CREAT | O_RDWR | O_TRUNC);
     if (fd1 < 3)
         return false;
 
@@ -1589,7 +1589,7 @@ TEST(test_syscall_dup_ref_counting)
 TEST(test_syscall_stat_basic)
 {
     // Create a test file with known content
-    int fd = sys_open("/stat_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/stat_test.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     const char *content = "Hello, stat!";
@@ -1627,7 +1627,7 @@ TEST(test_syscall_stat_nonexistent)
 
 TEST(test_syscall_fstat_basic)
 {
-    int fd = sys_open("/fstat_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/fstat_test.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     const char *content = "fstat test data";
@@ -1654,7 +1654,7 @@ TEST(test_syscall_fstat_invalid_fd)
 
 TEST(test_syscall_ftruncate_zero)
 {
-    int fd = sys_open("/ftruncate_zero.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/ftruncate_zero.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     const char *content = "truncate me";
@@ -1682,7 +1682,7 @@ TEST(test_syscall_ftruncate_invalid)
     TEST_ASSERT(sys_ftruncate(-1, 0) == -EBADF);
     TEST_ASSERT(sys_ftruncate(999, 0) == -EBADF);
 
-    int fd = sys_open("/ftruncate_invalid.txt", O_CREATE | O_RDONLY);
+    int fd = sys_open("/ftruncate_invalid.txt", O_CREAT | O_RDONLY);
     TEST_ASSERT(fd >= 3);
     TEST_ASSERT(sys_ftruncate(fd, 0) == -EBADF);
     TEST_ASSERT(sys_ftruncate(fd, -1) == -EINVAL);
@@ -1699,7 +1699,7 @@ TEST(test_syscall_ftruncate_invalid)
 
 TEST(test_syscall_ftruncate_nonzero_unsupported)
 {
-    int fd = sys_open("/ftruncate_nonzero.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/ftruncate_nonzero.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     const char *content = "1234567890";
@@ -1717,7 +1717,7 @@ TEST(test_syscall_ftruncate_nonzero_unsupported)
 
 TEST(test_syscall_fcntl_get_setfl)
 {
-    int fd = sys_open("/fcntl_flags.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/fcntl_flags.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     int flags = sys_fcntl(fd, F_GETFL, 0);
@@ -1748,7 +1748,7 @@ TEST(test_syscall_fcntl_invalid)
     TEST_ASSERT(sys_fcntl(-1, F_GETFL, 0) == -EBADF);
     TEST_ASSERT(sys_fcntl(999, F_GETFL, 0) == -EBADF);
 
-    int fd = sys_open("/fcntl_invalid.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/fcntl_invalid.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
 
     TEST_ASSERT(sys_fcntl(fd, 999, 0) == -EINVAL);
@@ -1816,7 +1816,7 @@ TEST(test_syscall_poll_invalid_fd)
 TEST(test_syscall_link_basic)
 {
     // Create a file
-    int fd = sys_open("/link_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/link_src.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     sys_write(fd, "link test", 9);
     sys_close(fd);
@@ -1845,7 +1845,7 @@ TEST(test_syscall_link_fat32_not_supported)
     sys_unlink("/mnt/LINKSRC.TXT");
     sys_unlink("/mnt/LINKDST.TXT");
 
-    int fd = sys_open("/mnt/LINKSRC.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/mnt/LINKSRC.TXT", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     sys_close(fd);
 
@@ -1861,7 +1861,7 @@ TEST(test_syscall_link_cross_filesystem_not_supported)
     sys_unlink("/mnt/LINKXFS.TXT");
     sys_unlink("/link_from_mnt.txt");
 
-    int fd = sys_open("/mnt/LINKXFS.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/mnt/LINKXFS.TXT", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     sys_close(fd);
 
@@ -1881,13 +1881,13 @@ TEST(test_syscall_rename_basic)
     sys_unlink("/rename_src.txt");
     sys_unlink("/rename_dst.txt");
 
-    int fd = sys_open("/rename_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/rename_src.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     const char *content = "rename test";
     sys_write(fd, content, strlen(content));
     sys_close(fd);
 
-    int fd2 = sys_open("/rename_dst.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd2 = sys_open("/rename_dst.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd2 >= 3);
     sys_write(fd2, "old", 3);
     sys_close(fd2);
@@ -1914,7 +1914,7 @@ TEST(test_syscall_rename_cross_filesystem_not_supported)
     sys_unlink("/rename_xfs_src.txt");
     sys_unlink("/mnt/RENXFS.TXT");
 
-    int fd = sys_open("/rename_xfs_src.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/rename_xfs_src.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     sys_write(fd, "xfs", 3);
     sys_close(fd);
@@ -1935,13 +1935,13 @@ TEST(test_syscall_rename_fat32)
     sys_unlink("/mnt/REN_SRC.TXT");
     sys_unlink("/mnt/REN_DST.TXT");
 
-    int fd = sys_open("/mnt/REN_SRC.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/mnt/REN_SRC.TXT", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     const char *content = "fat32 rename";
     sys_write(fd, content, strlen(content));
     sys_close(fd);
 
-    int fd2 = sys_open("/mnt/REN_DST.TXT", O_CREATE | O_RDWR | O_TRUNC);
+    int fd2 = sys_open("/mnt/REN_DST.TXT", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd2 >= 3);
     sys_write(fd2, "old", 3);
     sys_close(fd2);
@@ -1966,7 +1966,7 @@ TEST(test_syscall_rename_fat32)
 TEST(test_syscall_unlink_basic)
 {
     // Create a file
-    int fd = sys_open("/unlink_test.txt", O_CREATE | O_RDWR | O_TRUNC);
+    int fd = sys_open("/unlink_test.txt", O_CREAT | O_RDWR | O_TRUNC);
     TEST_ASSERT(fd >= 3);
     sys_close(fd);
 

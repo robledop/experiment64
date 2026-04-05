@@ -14,7 +14,7 @@ int sys_open(const char* path, int flags)
     if (status != 0)
         return status;
     vfs_inode_t* inode = vfs_resolve_path(abs_path);
-    if (!inode && (flags & O_CREATE))
+    if (!inode && (flags & O_CREAT))
     {
         if (vfs_mknod(abs_path, VFS_FILE, 0) == 0)
             inode = vfs_resolve_path(abs_path);

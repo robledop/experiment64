@@ -14,7 +14,7 @@ int shm_open(const char *name, int flags, size_t size);
 Creates or opens a named shared memory object and returns a file descriptor.
 
 - `name`: identifier (max 63 characters).
-- `flags`: `O_CREATE` (or POSIX alias `O_CREAT`) to create a new object (fails with `-EINSTKN` if the
+- `flags`: `O_CREAT` to create a new object (fails with `-EINSTKN` if the
   name already exists). Omit that flag to open an existing one (fails with
   `-ENOENT` if not found).
 - `size`: byte size of the region (only meaningful when creating; must be
@@ -36,7 +36,7 @@ deferred until the last fd is closed.
 ## mmap integration
 
 ```c
-int fd = shm_open("my_region", O_CREATE, 4096);
+int fd = shm_open("my_region", O_CREAT, 4096);
 void *ptr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 ```
 

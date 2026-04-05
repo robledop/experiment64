@@ -145,8 +145,8 @@ static bool elf_load_segment(vfs_inode_t *node, const Elf64_Phdr *ph,
  * 4. If PT_INTERP is present, loads the interpreter (ld.so) at a high
  *    bias address and records its entry point
  *
- * For statically linked binaries, this behaves identically to elf_load()
- * but populates the richer result structure.
+ * For statically linked binaries, interp_base and interp_entry in @p result
+ * are zero.
  *
  * @param path   Absolute filesystem path to the ELF binary.
  * @param result Output structure filled with load metadata. On success,
@@ -156,7 +156,7 @@ static bool elf_load_segment(vfs_inode_t *node, const Elf64_Phdr *ph,
  * @param pml4   Page table root for the target address space.
  * @return true on success, false on failure.
  */
-bool elf_load_ex(const char *path, elf_load_result_t *result, pml4_t pml4)
+bool elf_load(const char *path, elf_load_result_t *result, pml4_t pml4)
 {
     memset(result, 0, sizeof(*result));
 
@@ -316,14 +316,3 @@ bool elf_load_ex(const char *path, elf_load_result_t *result, pml4_t pml4)
     return true;
 }
 
-bool elf_load(const char *path, uint64_t *entry_point, uint64_t *max_vaddr, pml4_t pml4)
-{
-    elf_load_result_t result;
-    if (!elf_load_ex(path, &result, pml4))
-        return false;
-
-    *entry_point = result.entry;
-    if (max_vaddr)
-        *max_vaddr = result.max_vaddr;
-    return true;
-}

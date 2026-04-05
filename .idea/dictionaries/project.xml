@@ -5,16 +5,20 @@
       <w>Ithird</w>
       <w>Iuser</w>
       <w>Wextra</w>
+      <w>ahci</w>
       <w>asfiles</w>
       <w>asflags</w>
       <w>atof</w>
       <w>atoi</w>
+      <w>auxv</w>
       <w>bfree</w>
       <w>bgcolor</w>
       <w>blockdevice</w>
+      <w>brelse</w>
       <w>bsize</w>
       <w>bufsiz</w>
       <w>bufsz</w>
+      <w>bwrite</w>
       <w>bzero</w>
       <w>caplength</w>
       <w>cfiles</w>
@@ -165,6 +169,7 @@
       <w>sleeplock</w>
       <w>snprintf</w>
       <w>sscanf</w>
+      <w>strftime</w>
       <w>strnlen</w>
       <w>strtab</w>
       <w>strtol</w>

@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ── elf_file_t implementation ─────────────────────────────────────────── */
-
 struct elf_file
 {
     FILE *fp;
@@ -151,7 +149,6 @@ FILE *elf_file_fp(elf_file_t *ef)
     return ef ? ef->fp : nullptr;
 }
 
-/* ── Symbol table implementation ───────────────────────────────────────── */
 
 struct sym_table
 {

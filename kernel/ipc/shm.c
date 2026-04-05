@@ -89,7 +89,7 @@ shm_entry_t *shm_create(const char *name, size_t size)
  */
 shm_entry_t *shm_open_or_create(const char *name, int flags, size_t size)
 {
-    bool create = (flags & O_CREATE) != 0;
+    bool create = (flags & O_CREAT) != 0;
 
     spinlock_acquire(&shm_lock);
     shm_entry_t *entry = shm_lookup(name);
