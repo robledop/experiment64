@@ -1,0 +1,70 @@
+{
+    "version": "0.1.0",
+    "id": "ff04dfcb-be46-4619-b0cc-b616c409785e",
+    "timestamp": "2026-04-05T13:32:39.821257984Z",
+    "vcs": {
+        "type": "git",
+        "revision": "33c70df52115aafd7a375ba7fc47db7dc3b5c33c",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/lib/elf.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:ca50d3d3c02ff644e3f59beee8cf0432525fb8c4",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 10,
+                            "end_line": 10
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/syscall_extra_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:ca50d3d3c02ff644e3f59beee8cf0432525fb8c4",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 112,
+                            "end_line": 112
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/ostep/pthread_barrier.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:ca50d3d3c02ff644e3f59beee8cf0432525fb8c4",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.91"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 21,
+                            "end_line": 21
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
