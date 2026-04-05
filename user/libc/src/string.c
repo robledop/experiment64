@@ -1,7 +1,7 @@
-#include <string.h>
 #include <ctype.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 static void *memcpy_impl(void *restrict dst, const void *restrict src, size_t n);
 
@@ -16,8 +16,7 @@ size_t strlen(const char *s)
 size_t strnlen(const char *s, size_t maxlen)
 {
     size_t n = 0;
-    while (n < maxlen && s[n] != '\0')
-    {
+    while (n < maxlen && s[n] != '\0') {
         n++;
     }
     return n;
@@ -25,8 +24,7 @@ size_t strnlen(const char *s, size_t maxlen)
 
 int strcmp(const char *s1, const char *s2)
 {
-    while (*s1 && (*s1 == *s2))
-    {
+    while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
     }
@@ -35,8 +33,7 @@ int strcmp(const char *s1, const char *s2)
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
-    while (n > 0 && *s1 && (*s1 == *s2))
-    {
+    while (n > 0 && *s1 && (*s1 == *s2)) {
         s1++;
         s2++;
         n--;
@@ -58,13 +55,11 @@ char *strncpy(char *dst, const char *src, size_t n)
 {
     size_t i = 0;
 
-    for (; i < n && src[i] != '\0'; i++)
-    {
+    for (; i < n && src[i] != '\0'; i++) {
         dst[i] = src[i];
     }
 
-    for (; i < n; i++)
-    {
+    for (; i < n; i++) {
         dst[i] = '\0';
     }
 
@@ -73,7 +68,7 @@ char *strncpy(char *dst, const char *src, size_t n)
 
 void *memset(void *s, int c, size_t n)
 {
-    unsigned char *p = s;
+    unsigned char *p   = s;
     unsigned char byte = (unsigned char)c;
 
     // Build 64-bit pattern
@@ -83,25 +78,15 @@ void *memset(void *s, int c, size_t n)
     val |= val << 32;
 
     // Use rep stosq for 8-byte aligned bulk fills
-    if (((uintptr_t)p & 7) == 0 && n >= 8)
-    {
+    if (((uintptr_t)p & 7) == 0 && n >= 8) {
         size_t qwords = n / 8;
-        __asm__ volatile(
-            "rep stosq"
-            : "+D"(p), "+c"(qwords)
-            : "a"(val)
-            : "memory");
+        __asm__ volatile("rep stosq" : "+D"(p), "+c"(qwords) : "a"(val) : "memory");
         n &= 7; // remaining bytes
     }
 
     // Handle remaining bytes with rep stosb
-    if (n > 0)
-    {
-        __asm__ volatile(
-            "rep stosb"
-            : "+D"(p), "+c"(n)
-            : "a"(byte)
-            : "memory");
+    if (n > 0) {
+        __asm__ volatile("rep stosb" : "+D"(p), "+c"(n) : "a"(byte) : "memory");
     }
 
     return s;
@@ -110,10 +95,11 @@ void *memset(void *s, int c, size_t n)
 static void memcpy_avx_aligned(unsigned char **d, const unsigned char **s, size_t *n)
 {
     while (*n >= 32) {
-        __asm__ volatile(
-            "vmovdqa ymm0, [%1]\n\t"
-            "vmovdqa [%0], ymm0\n\t"
-            : : "r"(*d), "r"(*s) : "ymm0", "memory");
+        __asm__ volatile("vmovdqa ymm0, [%1]\n\t"
+                         "vmovdqa [%0], ymm0\n\t"
+                         :
+                         : "r"(*d), "r"(*s)
+                         : "ymm0", "memory");
         *d += 32;
         *s += 32;
         *n -= 32;
@@ -123,10 +109,11 @@ static void memcpy_avx_aligned(unsigned char **d, const unsigned char **s, size_
 static void memcpy_avx_unaligned(unsigned char **d, const unsigned char **s, size_t *n)
 {
     while (*n >= 32) {
-        __asm__ volatile(
-            "vmovdqu ymm0, [%1]\n\t"
-            "vmovdqa [%0], ymm0\n\t"
-            : : "r"(*d), "r"(*s) : "ymm0", "memory");
+        __asm__ volatile("vmovdqu ymm0, [%1]\n\t"
+                         "vmovdqa [%0], ymm0\n\t"
+                         :
+                         : "r"(*d), "r"(*s)
+                         : "ymm0", "memory");
         *d += 32;
         *s += 32;
         *n -= 32;
@@ -135,7 +122,7 @@ static void memcpy_avx_unaligned(unsigned char **d, const unsigned char **s, siz
 
 static void *memcpy_impl(void *restrict dst, const void *restrict src, size_t n)
 {
-    unsigned char *d = dst;
+    unsigned char *d       = dst;
     const unsigned char *s = src;
 
     while (n && ((uintptr_t)d & 31)) {
@@ -162,7 +149,7 @@ void *memcpy(void *dest, const void *src, size_t n)
 
 void *mempcpy(void *dest, const void *src, size_t n)
 {
-    unsigned char *d = (unsigned char *)dest;
+    unsigned char *d       = (unsigned char *)dest;
     const unsigned char *s = (const unsigned char *)src;
     while (n--)
         *d++ = *s++;
@@ -172,10 +159,8 @@ void *mempcpy(void *dest, const void *src, size_t n)
 int memcmp(const void *s1, const void *s2, size_t n)
 {
     const unsigned char *p1 = s1, *p2 = s2;
-    while (n--)
-    {
-        if (*p1 != *p2)
-        {
+    while (n--) {
+        if (*p1 != *p2) {
             return *p1 - *p2;
         }
         p1++;
@@ -186,14 +171,13 @@ int memcmp(const void *s1, const void *s2, size_t n)
 
 void *memmove(void *dest, const void *src, size_t n)
 {
-    char *d = (char *)dest;
+    char *d       = (char *)dest;
     const char *s = (const char *)src;
     if (d == s || n == 0)
         return dest;
 
     // Safe to use AVX forward copy: no overlap, or dest is before src
-    if (d < s || (uintptr_t)d >= (uintptr_t)s + n)
-    {
+    if (d < s || (uintptr_t)d >= (uintptr_t)s + n) {
         return memcpy_impl(dest, src, n);
     }
 
@@ -201,12 +185,10 @@ void *memmove(void *dest, const void *src, size_t n)
     d += n;
     s += n;
     // Use 64-bit when aligned
-    if (((uintptr_t)d & 7) == 0 && ((uintptr_t)s & 7) == 0)
-    {
-        uint64_t *d64 = (uint64_t *)d;
+    if (((uintptr_t)d & 7) == 0 && ((uintptr_t)s & 7) == 0) {
+        uint64_t *d64       = (uint64_t *)d;
         const uint64_t *s64 = (const uint64_t *)s;
-        while (n >= 8)
-        {
+        while (n >= 8) {
             *--d64 = *--s64;
             n -= 8;
         }
@@ -220,10 +202,8 @@ void *memmove(void *dest, const void *src, size_t n)
 
 char *strchr(const char *s, int c)
 {
-    while (*s != (char)c)
-    {
-        if (!*s++)
-        {
+    while (*s != (char)c) {
+        if (!*s++) {
             return nullptr;
         }
     }
@@ -285,8 +265,7 @@ char *strtok(char *str, const char *delim)
         return nullptr;
 
     // Skip leading delimiters
-    while (*next_token)
-    {
+    while (*next_token) {
         if (strchr(delim, *next_token) == nullptr)
             break;
         next_token++;
@@ -296,10 +275,8 @@ char *strtok(char *str, const char *delim)
         return nullptr;
 
     char *start = next_token;
-    while (*next_token)
-    {
-        if (strchr(delim, *next_token))
-        {
+    while (*next_token) {
+        if (strchr(delim, *next_token)) {
             *next_token = '\0';
             next_token++;
             return start;
@@ -316,14 +293,12 @@ bool starts_with(const char *pre, const char *str)
 
 char *strcat(char dest[static 1], const char src[static 1])
 {
-    char *d = dest;
+    char *d       = dest;
     const char *s = src;
-    while (*d != '\0')
-    {
+    while (*d != '\0') {
         d++;
     }
-    while (*s != '\0')
-    {
+    while (*s != '\0') {
         *d++ = *s++;
     }
     *d = '\0';
@@ -332,15 +307,13 @@ char *strcat(char dest[static 1], const char src[static 1])
 
 char *strncat(char dest[static 1], const char src[static 1], size_t n)
 {
-    char *d = dest;
+    char *d       = dest;
     const char *s = src;
     size_t copied = 0;
-    while (*d != '\0')
-    {
+    while (*d != '\0') {
         d++;
     }
-    while (copied < n && *s != '\0')
-    {
+    while (copied < n && *s != '\0') {
         *d++ = *s++;
         copied++;
     }
@@ -350,8 +323,7 @@ char *strncat(char dest[static 1], const char src[static 1], size_t n)
 
 int strcasecmp(const char *s1, const char *s2)
 {
-    while (*s1 && *s2)
-    {
+    while (*s1 && *s2) {
         int c1 = tolower((unsigned char)*s1);
         int c2 = tolower((unsigned char)*s2);
         if (c1 != c2)
@@ -364,8 +336,7 @@ int strcasecmp(const char *s1, const char *s2)
 
 int strncasecmp(const char *s1, const char *s2, size_t n)
 {
-    while (n > 0 && *s1 && *s2)
-    {
+    while (n > 0 && *s1 && *s2) {
         int c1 = tolower((unsigned char)*s1);
         int c2 = tolower((unsigned char)*s2);
         if (c1 != c2)
@@ -384,7 +355,7 @@ char *strdup(const char *s)
     if (!s)
         return nullptr;
     size_t len = strlen(s) + 1;
-    char *p = malloc(len);
+    char *p    = malloc(len);
     if (!p)
         return nullptr;
     memcpy(p, s, len);
@@ -396,7 +367,7 @@ char *strndup(const char *s, size_t n)
     if (!s)
         return nullptr;
     size_t len = strnlen(s, n);
-    char *p = malloc(len + 1);
+    char *p    = malloc(len + 1);
     if (!p)
         return nullptr;
     memcpy(p, s, len);
@@ -407,7 +378,7 @@ char *strndup(const char *s, size_t n)
 void *memchr(const void *s, int c, size_t n)
 {
     const unsigned char *p = s;
-    unsigned char ch = (unsigned char)c;
+    unsigned char ch       = (unsigned char)c;
     for (; n; n--, p++)
         if (*p == ch)
             return (void *)p;
@@ -417,7 +388,7 @@ void *memchr(const void *s, int c, size_t n)
 void *memrchr(const void *s, int c, size_t n)
 {
     const unsigned char *p = (const unsigned char *)s + n;
-    unsigned char ch = (unsigned char)c;
+    unsigned char ch       = (unsigned char)c;
     while (n--)
         if (*--p == ch)
             return (void *)p;
@@ -434,8 +405,7 @@ char *strchrnul(const char *s, int c)
 char *strrchr(const char *s, int c)
 {
     const char *last = nullptr;
-    while (*s)
-    {
+    while (*s) {
         if (*s == (char)c)
             last = s;
         s++;
@@ -449,12 +419,10 @@ char *strstr(const char *haystack, const char *needle)
 {
     if (!*needle)
         return (char *)haystack;
-    for (const char *h = haystack; *h; h++)
-    {
+    for (const char *h = haystack; *h; h++) {
         const char *p = h;
         const char *n = needle;
-        while (*p && *n && *p == *n)
-        {
+        while (*p && *n && *p == *n) {
             p++;
             n++;
         }
@@ -468,26 +436,23 @@ void reverse(char *s)
 {
     int i, j;
 
-    for (i = 0, j = (int)strlen(s) - 1; i < j; i++, j--)
-    {
+    for (i = 0, j = (int)strlen(s) - 1; i < j; i++, j--) {
         const char c = s[i];
-        s[i] = s[j];
-        s[j] = c;
+        s[i]         = s[j];
+        s[j]         = c;
     }
 }
 
 bool ends_with(const char *str, const char *suffix)
 {
-    if (!str || !suffix)
-    {
+    if (!str || !suffix) {
         return false;
     }
 
-    const size_t str_len = strlen(str);
+    const size_t str_len    = strlen(str);
     const size_t suffix_len = strlen(suffix);
 
-    if (suffix_len > str_len)
-    {
+    if (suffix_len > str_len) {
         return false;
     }
 
@@ -499,8 +464,10 @@ size_t strspn(const char *s, const char *accept)
     size_t n = 0;
     while (s[n]) {
         const char *a = accept;
-        while (*a && *a != s[n]) a++;
-        if (!*a) break;
+        while (*a && *a != s[n])
+            a++;
+        if (!*a)
+            break;
         n++;
     }
     return n;
@@ -511,8 +478,10 @@ size_t strcspn(const char *s, const char *reject)
     size_t n = 0;
     while (s[n]) {
         const char *r = reject;
-        while (*r && *r != s[n]) r++;
-        if (*r) break;
+        while (*r && *r != s[n])
+            r++;
+        if (*r)
+            break;
         n++;
     }
     return n;

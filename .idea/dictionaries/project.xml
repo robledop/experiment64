@@ -109,6 +109,7 @@
       <w>lineptr</w>
       <w>makeflags</w>
       <w>masix</w>
+      <w>memcpy</w>
       <w>memsz</w>
       <w>microframes</w>
       <w>mknod</w>
@@ -192,6 +193,7 @@
       <w>snprintf</w>
       <w>sscanf</w>
       <w>strftime</w>
+      <w>strncmp</w>
       <w>strnlen</w>
       <w>strsz</w>
       <w>strtab</w>

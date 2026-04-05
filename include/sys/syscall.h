@@ -33,7 +33,6 @@ int sys_wait4(int pid, int *status, int options, crash_info_t *info);
 int sys_getpid(void);
 int sys_read(int fd, char* buf, size_t count);
 int sys_write(int fd, const char* buf, size_t count);
-int sys_exec(const char* path, struct syscall_regs* regs);
 int sys_execve(const char* path, const char* const argv[], const char* const envp[], struct syscall_regs* regs);
 int sys_spawn(const char* path);
 int sys_fork(struct syscall_regs* regs);

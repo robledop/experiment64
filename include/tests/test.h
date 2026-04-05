@@ -33,8 +33,6 @@ struct test_case
 #define TEST(name) TEST_PRIO(name, 100)
 
 void run_tests(void);
-void heap_test(void);
-bool bio_test(void);
 extern volatile const char *g_current_test_name;
 extern volatile bool g_test_failed;
 extern volatile uint64_t g_current_test_start_ns;
