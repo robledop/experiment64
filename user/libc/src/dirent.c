@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Internal syscall wrapper; not part of the public libc API.
 extern int sys_readdir(int fd, void *dent);
@@ -38,5 +39,27 @@ int closedir(DIR *dirp)
         return -1;
     close(dirp->fd);
     free(dirp);
+    return 0;
+}
+
+int dirwalk(int fd, int (*fn)(const struct dirent_view *entry, void *arg), void *arg)
+{
+    if (!fn)
+        return -1;
+
+    DIR dir = {.fd = fd};
+    struct dirent *ent = &dir.cur_entry;
+
+    while (sys_readdir(dir.fd, ent) == 1)
+    {
+        struct dirent_view view = {
+            .name = ent->d_name,
+            .name_len = strlen(ent->d_name),
+            .inode = ent->d_ino,
+        };
+        int res = fn(&view, arg);
+        if (res < 0)
+            return -1;
+    }
     return 0;
 }

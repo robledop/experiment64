@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <termcolors.h>
-#include <dirwalk.h>
+#include <dirent.h>
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
