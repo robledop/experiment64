@@ -1,0 +1,114 @@
+{
+    "version": "0.1.0",
+    "id": "122d991d-e0f2-4be5-a318-33302568bd76",
+    "timestamp": "2026-04-18T20:50:05.471291105Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a8266e8182ac119da7fff8d033f411fd060c5919",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/fs/vfs.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 4
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 12
+                        },
+                        {
+                            "start_line": 14,
+                            "end_line": 14
+                        },
+                        {
+                            "start_line": 17,
+                            "end_line": 20
+                        },
+                        {
+                            "start_line": 22,
+                            "end_line": 24
+                        },
+                        {
+                            "start_line": 26,
+                            "end_line": 26
+                        },
+                        {
+                            "start_line": 36,
+                            "end_line": 37
+                        },
+                        {
+                            "start_line": 39,
+                            "end_line": 41
+                        },
+                        {
+                            "start_line": 119,
+                            "end_line": 120
+                        },
+                        {
+                            "start_line": 122,
+                            "end_line": 126
+                        },
+                        {
+                            "start_line": 128,
+                            "end_line": 242
+                        },
+                        {
+                            "start_line": 245,
+                            "end_line": 246
+                        },
+                        {
+                            "start_line": 248,
+                            "end_line": 251
+                        },
+                        {
+                            "start_line": 253,
+                            "end_line": 574
+                        },
+                        {
+                            "start_line": 577,
+                            "end_line": 578
+                        },
+                        {
+                            "start_line": 580,
+                            "end_line": 587
+                        },
+                        {
+                            "start_line": 589,
+                            "end_line": 767
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CODEX_CLI:blob:2b4d1ec30c6950d0da3d0d8aaa672816dd5539a8",
+                    "contributor": {
+                        "type": "ai"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 27,
+                            "end_line": 27
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
