@@ -10,34 +10,30 @@ int sys_thread_detach(int tid)
     if (tid <= 0)
         return -ESRCH;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    thread_t *target    = nullptr;
+    bool needs_free     = false;
+    WITH_LOCK(scheduler_lock) {
+        target = find_thread_by_tid(current_process, tid);
+        if (!target || !target->is_user)
+            return -ESRCH;
 
-    thread_t* target = find_thread_by_tid(current_process, tid);
-    if (!target || !target->is_user)
-    {
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return -ESRCH;
+        if (target->detached)
+            return -EINVAL;
+
+        if (target->state == THREAD_TERMINATED && !thread_active_on_any_cpu(target)) {
+            list_del(&target->list);
+            target->process = nullptr;
+            needs_free      = true;
+            break;
+        }
+
+        target->detached = true;
     }
 
-    if (target->detached)
-    {
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return -EINVAL;
-    }
-
-    if (target->state == THREAD_TERMINATED && !thread_active_on_any_cpu(target))
-    {
-        list_del(&target->list);
-        target->process = nullptr;
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-
+    if (needs_free) {
         free_thread_resources(target);
         return 0;
     }
-
-    target->detached = true;
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     thread_wakeup(target);
     return 0;

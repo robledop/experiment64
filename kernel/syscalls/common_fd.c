@@ -47,12 +47,12 @@ file_descriptor_t *fd_get(int fd)
     if (fd < 0 || fd >= MAX_FDS)
         return nullptr;
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
-    file_descriptor_t *desc = current_process->fd_table[fd];
-    if (desc)
-        __atomic_add_fetch(&desc->ref, 1, __ATOMIC_RELAXED);
-    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
+    file_descriptor_t *desc = nullptr;
+    WITH_LOCK(current_process->fd_lock) {
+        desc = current_process->fd_table[fd];
+        if (desc)
+            __atomic_add_fetch(&desc->ref, 1, __ATOMIC_RELAXED);
+    }
     return desc;
 }
 
@@ -77,16 +77,15 @@ int fd_assign(file_descriptor_t *desc, int start_fd)
     if (start_fd < 0)
         start_fd = 0;
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
     int fd = -1;
-    for (int i = start_fd; i < MAX_FDS; i++) {
-        if (current_process->fd_table[i] == nullptr) {
-            current_process->fd_table[i] = desc;
-            fd                           = i;
-            break;
+    WITH_LOCK(current_process->fd_lock) {
+        for (int i = start_fd; i < MAX_FDS; i++) {
+            if (current_process->fd_table[i] == nullptr) {
+                current_process->fd_table[i] = desc;
+                fd                           = i;
+                break;
+            }
         }
     }
-    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
     return fd;
 }

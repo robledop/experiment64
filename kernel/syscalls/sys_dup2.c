@@ -23,11 +23,10 @@ int sys_dup2(int oldfd, int newfd)
 
     sys_close(newfd);
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
-    current_process->fd_table[newfd] = old_desc;
-    __atomic_add_fetch(&old_desc->ref, 1, __ATOMIC_RELAXED);
-    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
+    WITH_LOCK(current_process->fd_lock) {
+        current_process->fd_table[newfd] = old_desc;
+        __atomic_add_fetch(&old_desc->ref, 1, __ATOMIC_RELAXED);
+    }
 
     fd_put(old_desc);
     return newfd;

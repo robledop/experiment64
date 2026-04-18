@@ -29,31 +29,28 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
     constexpr sigset_t valid_mask = (SIG_MAX >= 64) ? ~((sigset_t)0) : (((sigset_t)1 << SIG_MAX) - 1);
     constexpr sigset_t unmaskable = ((sigset_t)1 << (SIGKILL - 1)) | ((sigset_t)1 << (SIGSTOP - 1));
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, flags);
-    old_value = current_process->sig_mask;
+    WITH_LOCK(scheduler_lock) {
+        old_value = current_process->sig_mask;
 
-    if (set) {
-        switch (how) {
-        case SIG_BLOCK:
-            current_process->sig_mask |= set_value;
-            break;
-        case SIG_UNBLOCK:
-            current_process->sig_mask &= ~set_value;
-            break;
-        case SIG_SETMASK:
-            current_process->sig_mask = set_value;
-            break;
-        default:
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
-            return -1;
+        if (set) {
+            switch (how) {
+            case SIG_BLOCK:
+                current_process->sig_mask |= set_value;
+                break;
+            case SIG_UNBLOCK:
+                current_process->sig_mask &= ~set_value;
+                break;
+            case SIG_SETMASK:
+                current_process->sig_mask = set_value;
+                break;
+            default:
+                return -1;
+            }
+
+            current_process->sig_mask &= valid_mask;
+            current_process->sig_mask &= ~unmaskable;
         }
-
-        current_process->sig_mask &= valid_mask;
-        current_process->sig_mask &= ~unmaskable;
     }
-
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
 
     if (oldset) {
         int status = copy_to_user_checked(oldset, &old_value, sizeof(old_value), "sys_sigprocmask oldset", -1);

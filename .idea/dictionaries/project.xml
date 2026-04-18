@@ -12,6 +12,7 @@
       <w>asflags</w>
       <w>atof</w>
       <w>atoi</w>
+      <w>autolock</w>
       <w>auxv</w>
       <w>bfree</w>
       <w>bgcolor</w>
@@ -191,6 +192,7 @@
       <w>sigreturn</w>
       <w>sleeplock</w>
       <w>snprintf</w>
+      <w>spinlocks</w>
       <w>sscanf</w>
       <w>strftime</w>
       <w>strncmp</w>

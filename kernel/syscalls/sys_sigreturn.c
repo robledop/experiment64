@@ -15,11 +15,10 @@ uint64_t sys_sigreturn(const sigcontext_t* user_ctx, struct syscall_regs* regs)
 
     constexpr sigset_t valid_mask = (SIG_MAX >= 64) ? ~((sigset_t)0) : (((sigset_t)1 << SIG_MAX) - 1);
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, flags);
-    current_process->sig_mask = ctx.sigmask & valid_mask;
-    current_process->sig_inflight = 0;
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
+    WITH_LOCK(scheduler_lock) {
+        current_process->sig_mask = ctx.sigmask & valid_mask;
+        current_process->sig_inflight = 0;
+    }
 
     regs->r15 = ctx.r15;
     regs->r14 = ctx.r14;
