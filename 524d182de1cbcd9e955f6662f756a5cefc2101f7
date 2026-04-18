@@ -1,0 +1,106 @@
+{
+    "version": "0.1.0",
+    "id": "8dd47539-d608-4e6b-bd2a-51466c07030e",
+    "timestamp": "2026-04-18T20:50:32.801580352Z",
+    "vcs": {
+        "type": "git",
+        "revision": "524d182de1cbcd9e955f6662f756a5cefc2101f7",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/libc/include/dirent.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 3,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 20,
+                            "end_line": 21
+                        },
+                        {
+                            "start_line": 23,
+                            "end_line": 24
+                        },
+                        {
+                            "start_line": 26,
+                            "end_line": 26
+                        },
+                        {
+                            "start_line": 28,
+                            "end_line": 30
+                        },
+                        {
+                            "start_line": 37,
+                            "end_line": 38
+                        },
+                        {
+                            "start_line": 40,
+                            "end_line": 43
+                        },
+                        {
+                            "start_line": 45,
+                            "end_line": 45
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/include/stdio.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 8,
+                            "end_line": 8
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/dirent.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 5,
+                            "end_line": 5
+                        },
+                        {
+                            "start_line": 45,
+                            "end_line": 64
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
