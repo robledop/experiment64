@@ -150,10 +150,10 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
             return;
 
         const int backlog = (listener->backlog > 0) ? listener->backlog : 1;
-        uint64_t rflags;
-        SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
-        const bool backlog_full = listener->accept_queue_len >= (size_t)backlog;
-        SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
+        bool backlog_full = false;
+        WITH_LOCK(listener->accept_lock) {
+            backlog_full = listener->accept_queue_len >= (size_t)backlog;
+        }
         if (backlog_full)
         {
             socket_put(listener);
@@ -206,15 +206,14 @@ void NONNULL tcp_receive(uint8_t* packet, const uint16_t len, const size_t ip_le
             {
                 const int backlog = (listener->backlog > 0) ? listener->backlog : 1;
                 bool queued = false;
-                uint64_t rflags;
-                SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
-                if (listener->accept_queue_len < (size_t)backlog)
-                {
-                    list_add_tail(&sock->accept_list, &listener->accept_queue);
-                    listener->accept_queue_len++;
-                    queued = true;
+                WITH_LOCK(listener->accept_lock) {
+                    if (listener->accept_queue_len < (size_t)backlog)
+                    {
+                        list_add_tail(&sock->accept_list, &listener->accept_queue);
+                        listener->accept_queue_len++;
+                        queued = true;
+                    }
                 }
-                SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
                 if (queued)
                     thread_wakeup(listener);
                 else

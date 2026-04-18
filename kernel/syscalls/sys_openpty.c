@@ -54,24 +54,23 @@ int sys_openpty(int fds[2])
 
     int master_fd = -1;
     int slave_fd = -1;
-    uint64_t flags = 0;
-    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
-    for (int i = 3; i < MAX_FDS; i++) {
-        if (current_process->fd_table[i] != nullptr)
-            continue;
-        if (master_fd < 0) {
-            master_fd = i;
-            continue;
+    WITH_LOCK(current_process->fd_lock) {
+        for (int i = 3; i < MAX_FDS; i++) {
+            if (current_process->fd_table[i] != nullptr)
+                continue;
+            if (master_fd < 0) {
+                master_fd = i;
+                continue;
+            }
+            slave_fd = i;
+            break;
         }
-        slave_fd = i;
-        break;
-    }
 
-    if (master_fd >= 0 && slave_fd >= 0) {
-        current_process->fd_table[master_fd] = master_desc;
-        current_process->fd_table[slave_fd] = slave_desc;
+        if (master_fd >= 0 && slave_fd >= 0) {
+            current_process->fd_table[master_fd] = master_desc;
+            current_process->fd_table[slave_fd] = slave_desc;
+        }
     }
-    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
 
     if (master_fd < 0 || slave_fd < 0) {
         fd_put(master_desc);

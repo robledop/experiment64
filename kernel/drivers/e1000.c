@@ -484,26 +484,21 @@ int e1000_send_packet(const void *data, const uint16_t len)
         return -1;
     }
 
-    uint64_t flags = 0;
-    SPIN_LOCK_INT_SAVE(e1000_tx_lock, flags);
+    WITH_LOCK(e1000_tx_lock) {
+        const uint16_t slot = tx_cur;
+        if ((tx_descs[slot]->status & TSTA_DD) == 0)
+            return -1;
 
-    const uint16_t slot = tx_cur;
-    if ((tx_descs[slot]->status & TSTA_DD) == 0) {
-        SPIN_UNLOCK_INT_RESTORE(e1000_tx_lock, flags);
-        return -1;
+        memcpy(tx_buffers[slot], data, len);
+
+        tx_descs[slot]->length = len;
+        tx_descs[slot]->cmd    = CMD_EOP | CMD_IFCS | CMD_RS;
+        tx_descs[slot]->status = 0;
+
+        tx_cur = (tx_cur + 1) % E1000_TX_RING_SIZE;
+        __asm__ volatile("" ::: "memory");
+        e1000_write_command(REG_TXDESCTAIL, tx_cur);
     }
-
-    memcpy(tx_buffers[slot], data, len);
-
-    tx_descs[slot]->length = len;
-    tx_descs[slot]->cmd    = CMD_EOP | CMD_IFCS | CMD_RS;
-    tx_descs[slot]->status = 0;
-
-    tx_cur = (tx_cur + 1) % E1000_TX_RING_SIZE;
-    __asm__ volatile("" ::: "memory");
-    e1000_write_command(REG_TXDESCTAIL, tx_cur);
-
-    SPIN_UNLOCK_INT_RESTORE(e1000_tx_lock, flags);
 
     return 0;
 }

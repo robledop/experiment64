@@ -31,21 +31,20 @@ int sys_pipe(int pipefd[2])
     }
     int read_fd        = -1;
     int write_fd       = -1;
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(current_process->fd_lock, flags);
-    for (int i = 3; i < MAX_FDS && (read_fd == -1 || write_fd == -1); i++) {
-        if (current_process->fd_table[i] == nullptr) {
-            if (read_fd == -1)
-                read_fd = i;
-            else
-                write_fd = i;
+    WITH_LOCK(current_process->fd_lock) {
+        for (int i = 3; i < MAX_FDS && (read_fd == -1 || write_fd == -1); i++) {
+            if (current_process->fd_table[i] == nullptr) {
+                if (read_fd == -1)
+                    read_fd = i;
+                else
+                    write_fd = i;
+            }
+        }
+        if (read_fd != -1 && write_fd != -1) {
+            current_process->fd_table[read_fd]  = read_desc;
+            current_process->fd_table[write_fd] = write_desc;
         }
     }
-    if (read_fd != -1 && write_fd != -1) {
-        current_process->fd_table[read_fd]  = read_desc;
-        current_process->fd_table[write_fd] = write_desc;
-    }
-    SPIN_UNLOCK_INT_RESTORE(current_process->fd_lock, flags);
     if (read_fd == -1 || write_fd == -1) {
         kfree(write_desc);
         kfree(read_desc);

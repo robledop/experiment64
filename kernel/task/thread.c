@@ -50,12 +50,11 @@ thread_t *thread_create(process_t *process, void (*entry)(void), bool is_user)
     thread->context = ctx;
     thread->rsp     = (uint64_t)ctx;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    list_add_tail(&thread->list, &process->threads);
-    if (!is_user)
-        thread_state_store(thread, THREAD_READY);
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        list_add_tail(&thread->list, &process->threads);
+        if (!is_user)
+            thread_state_store(thread, THREAD_READY);
+    }
 
     return thread;
 }
@@ -64,10 +63,9 @@ void thread_make_ready(thread_t *thread)
 {
     if (!thread)
         return;
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    thread_state_store(thread, THREAD_READY);
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        thread_state_store(thread, THREAD_READY);
+    }
 }
 
 thread_t *get_current_thread(void)
@@ -155,10 +153,9 @@ void thread_wakeup_locked(void *chan)
 
 void thread_wakeup(void *chan)
 {
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    thread_wakeup_locked(chan);
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        thread_wakeup_locked(chan);
+    }
 }
 
 int thread_wakeup_n(void *chan, process_t *scope, int max_count)
@@ -166,63 +163,63 @@ int thread_wakeup_n(void *chan, process_t *scope, int max_count)
     if (max_count <= 0)
         return 0;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-
     int woken = 0;
-    if (scope) {
-        thread_t *t;
-        list_foreach_entry(t, &scope->threads, list) {
-            uint32_t raw_state = thread_state_load_raw(t);
-            if (!thread_state_valid_raw(raw_state)) {
-                boot_message(ERROR,
-                             "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
-                             scope->pid,
-                             t->tid,
-                             raw_state);
-                thread_state_store(t, THREAD_TERMINATED);
-                continue;
-            }
+    WITH_LOCK(scheduler_lock) {
+        if (scope) {
+            thread_t *t;
+            list_foreach_entry(t, &scope->threads, list) {
+                uint32_t raw_state = thread_state_load_raw(t);
+                if (!thread_state_valid_raw(raw_state)) {
+                    boot_message(ERROR,
+                                 "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
+                                 scope->pid,
+                                 t->tid,
+                                 raw_state);
+                    thread_state_store(t, THREAD_TERMINATED);
+                    continue;
+                }
 
-            if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan) {
-                thread_state_store(t, THREAD_READY);
-                t->chan = nullptr;
-                woken++;
-                if (woken >= max_count)
-                    break;
+                if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan) {
+                    thread_state_store(t, THREAD_READY);
+                    t->chan = nullptr;
+                    woken++;
+                    if (woken >= max_count)
+                        break;
+                }
             }
+            break; // exit WITH_LOCK
         }
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return woken;
-    }
 
-    process_t *p;
-    list_foreach_entry(p, &process_list, list) {
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list) {
-            uint32_t raw_state = thread_state_load_raw(t);
-            if (!thread_state_valid_raw(raw_state)) {
-                boot_message(ERROR,
-                             "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
-                             p->pid,
-                             t->tid,
-                             raw_state);
-                thread_state_store(t, THREAD_TERMINATED);
-                continue;
-            }
+        process_t *p;
+        bool done = false;
+        list_foreach_entry(p, &process_list, list) {
+            thread_t *t;
+            list_foreach_entry(t, &p->threads, list) {
+                uint32_t raw_state = thread_state_load_raw(t);
+                if (!thread_state_valid_raw(raw_state)) {
+                    boot_message(ERROR,
+                                 "thread_wakeup_n: invalid thread state pid=%d tid=%d state=%u",
+                                 p->pid,
+                                 t->tid,
+                                 raw_state);
+                    thread_state_store(t, THREAD_TERMINATED);
+                    continue;
+                }
 
-            if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan) {
-                thread_state_store(t, THREAD_READY);
-                t->chan = nullptr;
-                woken++;
-                if (woken >= max_count)
-                    goto out;
+                if ((thread_state_t)raw_state == THREAD_BLOCKED && t->chan == chan) {
+                    thread_state_store(t, THREAD_READY);
+                    t->chan = nullptr;
+                    woken++;
+                    if (woken >= max_count) {
+                        done = true;
+                        break;
+                    }
+                }
             }
+            if (done)
+                break;
         }
     }
-
-out:
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
     return woken;
 }
 

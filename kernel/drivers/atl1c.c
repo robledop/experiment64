@@ -1184,36 +1184,33 @@ int atl1c_send_packet(const void *data, const uint16_t len)
     //     tx_debug_left--;
     // }
 
-    uint64_t flags = 0;
-    SPIN_LOCK_INT_SAVE(atl1c_tx_lock, flags);
-
-    const uint16_t tx_cons = (uint16_t)(atl1c_read32(REG_TPD_PRI0_CIDX) & 0xFFFFu);
-    const uint16_t next    = (uint16_t)((tpd_cur + 1) % ATL1C_TX_RING_SIZE);
-    if (next == tx_cons) {
-        if (tx_fail_debug_left > 0) {
-            boot_message(WARNING,
-                         "[ATL1C] tx fail: ring full pidx=%u cidx=%u",
-                         tpd_cur,
-                         tx_cons);
-            tx_fail_debug_left--;
+    WITH_LOCK(atl1c_tx_lock) {
+        const uint16_t tx_cons = (uint16_t)(atl1c_read32(REG_TPD_PRI0_CIDX) & 0xFFFFu);
+        const uint16_t next    = (uint16_t)((tpd_cur + 1) % ATL1C_TX_RING_SIZE);
+        if (next == tx_cons) {
+            if (tx_fail_debug_left > 0) {
+                boot_message(WARNING,
+                             "[ATL1C] tx fail: ring full pidx=%u cidx=%u",
+                             tpd_cur,
+                             tx_cons);
+                tx_fail_debug_left--;
+            }
+            return -1;
         }
-        SPIN_UNLOCK_INT_RESTORE(atl1c_tx_lock, flags);
-        return -1;
+
+        memcpy(tx_buffers[tpd_cur], data, len);
+
+        tpd_ring[tpd_cur].word1       = 0;
+        tpd_ring[tpd_cur].buffer_addr = tx_phys[tpd_cur];
+        tpd_ring[tpd_cur].buffer_len  = (uint16_t)len;
+        tpd_ring[tpd_cur].vlan_tag    = 0;
+        tpd_ring[tpd_cur].word1       = (1u << TPD_EOP_SHIFT) | (1u << TPD_ETHTYPE_SHIFT);
+
+        tpd_cur = next;
+        tx_packets++;
+        atl1c_mb();
+        atl1c_write32(REG_TPD_PRI0_PIDX, tpd_cur);
     }
-
-    memcpy(tx_buffers[tpd_cur], data, len);
-
-    tpd_ring[tpd_cur].word1       = 0;
-    tpd_ring[tpd_cur].buffer_addr = tx_phys[tpd_cur];
-    tpd_ring[tpd_cur].buffer_len  = (uint16_t)len;
-    tpd_ring[tpd_cur].vlan_tag    = 0;
-    tpd_ring[tpd_cur].word1       = (1u << TPD_EOP_SHIFT) | (1u << TPD_ETHTYPE_SHIFT);
-
-    tpd_cur = next;
-    tx_packets++;
-    atl1c_mb();
-    atl1c_write32(REG_TPD_PRI0_PIDX, tpd_cur);
-    SPIN_UNLOCK_INT_RESTORE(atl1c_tx_lock, flags);
 
     return 0;
 }

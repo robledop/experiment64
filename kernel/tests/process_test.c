@@ -197,10 +197,10 @@ TEST(test_scheduler_sleep_wakeup)
     bool blocked = false;
     for (int i = 0; i < 2000; i++)
     {
-        uint64_t flags;
-        SPIN_LOCK_INT_SAVE(scheduler_lock, flags);
-        thread_state_t state = t->state;
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, flags);
+        thread_state_t state;
+        WITH_LOCK(scheduler_lock) {
+            state = t->state;
+        }
 
         if (state == THREAD_BLOCKED)
         {

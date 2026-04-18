@@ -7,16 +7,12 @@ int sys_futex_wait(uint32_t *uaddr, uint32_t expected)
     if (!futex_addr_ok(uaddr, "sys_futex_wait"))
         return -1;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        const uint32_t value = __atomic_load_n(uaddr, __ATOMIC_RELAXED);
+        if (value != expected)
+            return -1;
 
-    const uint32_t value = __atomic_load_n(uaddr, __ATOMIC_RELAXED);
-    if (value != expected) {
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return -1;
+        thread_sleep(uaddr, &scheduler_lock);
     }
-
-    thread_sleep(uaddr, &scheduler_lock);
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
     return 0;
 }

@@ -142,33 +142,30 @@ size_t pmm_get_bitmap_size(void)
 void *pmm_alloc_page(void)
 {
     void *addr = nullptr;
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
+    WITH_LOCK(pmm_lock) {
+        size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
 
-    size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
+        // Scan from hint to end, then wrap around
+        for (int pass = 0; pass < 2 && !addr; pass++) {
+            size_t begin = (pass == 0) ? start : reserved_base_page;
+            size_t end   = (pass == 0) ? highest_page : start;
+            for (size_t i = begin; i < end; i++) {
+                if (!bitmap_test(i)) {
+                    uintptr_t phys = i * PAGE_SIZE;
 
-    // Scan from hint to end, then wrap around
-    for (int pass = 0; pass < 2 && !addr; pass++) {
-        size_t begin = (pass == 0) ? start : reserved_base_page;
-        size_t end   = (pass == 0) ? highest_page : start;
-        for (size_t i = begin; i < end; i++) {
-            if (!bitmap_test(i)) {
-                uintptr_t phys = i * PAGE_SIZE;
+                    if (heap_is_slab_page((void *)phys)) {
+                        boot_message(ERROR, "pmm_alloc_page: bitmap free but slab-tracked phys=%p", (void *)phys);
+                        continue;
+                    }
 
-                if (heap_is_slab_page((void *)phys)) {
-                    boot_message(ERROR, "pmm_alloc_page: bitmap free but slab-tracked phys=%p", (void *)phys);
-                    continue;
+                    bitmap_set(i);
+                    next_free_hint = i + 1;
+                    addr = (void *)phys;
+                    break;
                 }
-
-                bitmap_set(i);
-                next_free_hint = i + 1;
-                addr = (void *)phys;
-                break;
             }
         }
     }
-
-    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
     return addr; // nullptr when out of memory
 }
 
@@ -177,83 +174,77 @@ void pmm_free_page(void *ptr)
     if (!ptr)
         return;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
+    WITH_LOCK(pmm_lock) {
+        uint64_t addr = (uint64_t)ptr;
+        uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
+        size_t page = phys_ptr / PAGE_SIZE;
 
-    uint64_t addr = (uint64_t)ptr;
-    uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
-    size_t page = phys_ptr / PAGE_SIZE;
+        if (heap_is_slab_page((void *)phys_ptr))
+        {
+            boot_message(ERROR, "pmm_free_page: attempt to free slab page phys=%p", (void *)phys_ptr);
+            return; // Ignore to avoid reusing an active slab backing page
+        }
 
-    if (heap_is_slab_page((void *)phys_ptr))
-    {
-        boot_message(ERROR, "pmm_free_page: attempt to free slab page phys=%p", (void *)phys_ptr);
-        SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
-        return; // Ignore to avoid reusing an active slab backing page
+        bitmap_unset(page);
+        if (page < next_free_hint)
+            next_free_hint = page;
     }
-
-    bitmap_unset(page);
-    if (page < next_free_hint)
-        next_free_hint = page;
-    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
 }
 
 void *pmm_alloc_pages(size_t count)
 {
     void *addr = nullptr;
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
-
-    // First-fit search for contiguous pages, starting from hint
-    size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
-    for (int pass = 0; pass < 2 && !addr; pass++) {
-        size_t begin = (pass == 0) ? start : reserved_base_page;
-        size_t end   = (pass == 0) ? highest_page : start;
-    for (size_t i = begin; i < end; i++)
-    {
-        if (!bitmap_test(i))
-        {
-            size_t free_count = 0;
-            for (size_t j = 0; j < count; j++)
+    WITH_LOCK(pmm_lock) {
+        // First-fit search for contiguous pages, starting from hint
+        size_t start = (next_free_hint >= reserved_base_page) ? next_free_hint : reserved_base_page;
+        for (int pass = 0; pass < 2 && !addr; pass++) {
+            size_t begin = (pass == 0) ? start : reserved_base_page;
+            size_t end   = (pass == 0) ? highest_page : start;
+            for (size_t i = begin; i < end; i++)
             {
-                if (i + j < highest_page && !bitmap_test(i + j))
+                if (!bitmap_test(i))
                 {
-                    uintptr_t phys = (i + j) * PAGE_SIZE;
-
-                    // Skip ranges that overlap slab backing pages.
-                    if (heap_is_slab_page((void *)phys))
+                    size_t free_count = 0;
+                    for (size_t j = 0; j < count; j++)
                     {
-                        boot_message(ERROR, "pmm_alloc_pages: bitmap free but slab-tracked phys=%p count=%zu", (void *)phys, count);
-                        free_count = 0;
-                        break;
+                        if (i + j < highest_page && !bitmap_test(i + j))
+                        {
+                            uintptr_t phys = (i + j) * PAGE_SIZE;
+
+                            // Skip ranges that overlap slab backing pages.
+                            if (heap_is_slab_page((void *)phys))
+                            {
+                                boot_message(ERROR, "pmm_alloc_pages: bitmap free but slab-tracked phys=%p count=%zu", (void *)phys, count);
+                                free_count = 0;
+                                break;
+                            }
+
+                            free_count++;
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
 
-                    free_count++;
+                    if (free_count == count)
+                    {
+                        for (size_t j = 0; j < count; j++)
+                        {
+                            bitmap_set(i + j);
+                        }
+                        next_free_hint = i + count;
+                        addr = (void *)(i * PAGE_SIZE);
+                        break;
+                    }
+                    else
+                    {
+                        i += free_count; // Skip checked pages
+                    }
                 }
-                else
-                {
-                    break;
-                }
-            }
-
-            if (free_count == count)
-            {
-                for (size_t j = 0; j < count; j++)
-                {
-                    bitmap_set(i + j);
-                }
-                next_free_hint = i + count;
-                addr = (void *)(i * PAGE_SIZE);
-                break;
-            }
-            else
-            {
-                i += free_count; // Skip checked pages
             }
         }
     }
-    }
-
-    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
     return addr;
 }
 
@@ -262,23 +253,20 @@ void pmm_free_pages(void *ptr, size_t count)
     if (!ptr || count == 0)
         return;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(pmm_lock, rflags);
+    WITH_LOCK(pmm_lock) {
+        uint64_t addr = (uint64_t)ptr;
+        uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
+        size_t page = phys_ptr / PAGE_SIZE;
 
-    uint64_t addr = (uint64_t)ptr;
-    uintptr_t phys_ptr = (addr >= pmm_hhdm_offset) ? (addr - pmm_hhdm_offset) : addr;
-    size_t page = phys_ptr / PAGE_SIZE;
+        if (heap_is_slab_page((void *)phys_ptr))
+        {
+            boot_message(ERROR, "pmm_free_pages: attempt to free slab page phys=%p count=%zu", (void *)phys_ptr, count);
+            return; // Prevent reuse; likely a double free or corruption
+        }
 
-    if (heap_is_slab_page((void *)phys_ptr))
-    {
-        boot_message(ERROR, "pmm_free_pages: attempt to free slab page phys=%p count=%zu", (void *)phys_ptr, count);
-        SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
-        return; // Prevent reuse; likely a double free or corruption
+        for (size_t i = 0; i < count; i++)
+        {
+            bitmap_unset(page + i);
+        }
     }
-
-    for (size_t i = 0; i < count; i++)
-    {
-        bitmap_unset(page + i);
-    }
-    SPIN_UNLOCK_INT_RESTORE(pmm_lock, rflags);
 }

@@ -73,21 +73,26 @@ int sys_accept(const int fd, struct sockaddr* addr, socklen_t* addrlen)
     }
 
     socket_t* child = nullptr;
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(listener->accept_lock, rflags);
-    while (list_empty(&listener->accept_queue)) {
-        if (nonblock) {
-            SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
-            socket_put(listener);
-            return -EAGAIN;
+    bool nonblock_empty = false;
+    WITH_LOCK(listener->accept_lock) {
+        while (list_empty(&listener->accept_queue)) {
+            if (nonblock) {
+                nonblock_empty = true;
+                break;
+            }
+            thread_sleep(listener, &listener->accept_lock);
         }
-        thread_sleep(listener, &listener->accept_lock);
+        if (!nonblock_empty) {
+            child = list_entry(listener->accept_queue.next, socket_t, accept_list);
+            list_del(&child->accept_list);
+            if (listener->accept_queue_len > 0)
+                listener->accept_queue_len--;
+        }
     }
-    child = list_entry(listener->accept_queue.next, socket_t, accept_list);
-    list_del(&child->accept_list);
-    if (listener->accept_queue_len > 0)
-        listener->accept_queue_len--;
-    SPIN_UNLOCK_INT_RESTORE(listener->accept_lock, rflags);
+    if (nonblock_empty) {
+        socket_put(listener);
+        return -EAGAIN;
+    }
 
     auto const inode = (vfs_inode_t*)kzalloc(sizeof(vfs_inode_t));
     if (!inode)

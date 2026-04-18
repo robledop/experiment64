@@ -17,54 +17,49 @@ int sys_thread_join(int tid, int* status)
 
     for (;;)
     {
-        uint64_t rflags;
-        SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+        thread_t *target    = nullptr;
+        int exit_code       = 0;
+        enum { LOOP_RETRY, LOOP_YIELD_RETRY, LOOP_REAP } next;
 
-        thread_t* target = find_thread_by_tid(current_process, tid);
-        if (!target || !target->is_user)
-        {
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -ESRCH;
+        WITH_LOCK(scheduler_lock) {
+            target = find_thread_by_tid(current_process, tid);
+            if (!target || !target->is_user)
+                return -ESRCH;
+
+            if (target == current_thread)
+                return -EDEADLK;
+
+            if (target->state == THREAD_BLOCKED && target->chan == current_thread)
+                return -EDEADLK;
+
+            if (target->detached)
+                return -EINVAL;
+
+            if (target->state != THREAD_TERMINATED) {
+                thread_sleep(target, &scheduler_lock);
+                next = LOOP_RETRY;
+                break;
+            }
+
+            if (thread_active_on_any_cpu(target)) {
+                next = LOOP_YIELD_RETRY;
+                break;
+            }
+
+            exit_code       = target->exit_code;
+            list_del(&target->list);
+            target->process = nullptr;
+            next            = LOOP_REAP;
         }
 
-        if (target == current_thread)
-        {
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -EDEADLK;
-        }
-
-        if (target->state == THREAD_BLOCKED && target->chan == current_thread)
-        {
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -EDEADLK;
-        }
-
-        if (target->detached)
-        {
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-            return -EINVAL;
-        }
-
-        if (target->state != THREAD_TERMINATED)
-        {
-            thread_sleep(target, &scheduler_lock);
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        if (next == LOOP_RETRY)
             continue;
-        }
-
-        if (thread_active_on_any_cpu(target))
-        {
-            SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+        if (next == LOOP_YIELD_RETRY) {
             yield();
             continue;
         }
 
-        const int exit_code = target->exit_code;
-
-        list_del(&target->list);
-        target->process = nullptr;
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-
+        // LOOP_REAP: target dequeued, lock released, finish up.
         if (status)
         {
             int user_status = copy_to_user_checked(status, &exit_code, sizeof(exit_code), "sys_thread_join status",

@@ -169,11 +169,10 @@ static void mouse_handler(struct interrupt_frame *frame)
             mouse_device.packet.x = mouse_device.x;
             mouse_device.packet.y = mouse_device.y;
 
-            uint64_t rflags;
-            SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
-            mouse_buffer_push(mouse_device.packet);
-            thread_wakeup(&mouse_device);
-            SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
+            WITH_LOCK(mouse_lock) {
+                mouse_buffer_push(mouse_device.packet);
+                thread_wakeup(&mouse_device);
+            }
 
             mouse_device.cycle = 0;
             break;
@@ -279,11 +278,10 @@ void mouse_inject_event(int16_t dx, int16_t dy, uint8_t buttons)
         .y     = mouse_device.y,
     };
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
-    mouse_buffer_push(pkt);
-    thread_wakeup(&mouse_device);
-    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
+    WITH_LOCK(mouse_lock) {
+        mouse_buffer_push(pkt);
+        thread_wakeup(&mouse_device);
+    }
 }
 
 /** @brief Set the mouse cursor to an absolute screen position. */
@@ -317,19 +315,17 @@ void mouse_set_absolute(int16_t x, int16_t y, uint8_t buttons)
         .y     = mouse_device.y,
     };
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
-    mouse_buffer_push(pkt);
-    thread_wakeup(&mouse_device);
-    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
+    WITH_LOCK(mouse_lock) {
+        mouse_buffer_push(pkt);
+        thread_wakeup(&mouse_device);
+    }
 }
 
 void mouse_flush_pending_events(void)
 {
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
-    mouse_buf_head = mouse_buf_tail = 0;
-    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
+    WITH_LOCK(mouse_lock) {
+        mouse_buf_head = mouse_buf_tail = 0;
+    }
 }
 
 static struct inode_operations mouse_dev_ops = {

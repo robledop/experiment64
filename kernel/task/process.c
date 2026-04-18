@@ -182,11 +182,10 @@ process_t *process_create(const char *name)
         proc->cwd[1] = '\0';
     }
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    list_init_head(&proc->threads);
-    list_add_tail(&proc->list, &process_list);
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        list_init_head(&proc->threads);
+        list_add_tail(&proc->list, &process_list);
+    }
 
     return proc;
 }
@@ -194,14 +193,13 @@ process_t *process_create(const char *name)
 void process_copy_fds(process_t *dest, process_t *src)
 {
     file_descriptor_t *fds[MAX_FDS] = {nullptr};
-    uint64_t fd_flags;
-    SPIN_LOCK_INT_SAVE(src->fd_lock, fd_flags);
-    for (int i = 0; i < MAX_FDS; i++) {
-        fds[i] = src->fd_table[i];
-        if (fds[i])
-            __atomic_add_fetch(&fds[i]->ref, 1, __ATOMIC_RELAXED);
+    WITH_LOCK(src->fd_lock) {
+        for (int i = 0; i < MAX_FDS; i++) {
+            fds[i] = src->fd_table[i];
+            if (fds[i])
+                __atomic_add_fetch(&fds[i]->ref, 1, __ATOMIC_RELAXED);
+        }
     }
-    SPIN_UNLOCK_INT_RESTORE(src->fd_lock, fd_flags);
 
     for (int i = 0; i < MAX_FDS; i++) {
         file_descriptor_t *old_desc = fds[i];
@@ -247,13 +245,12 @@ void process_close_fds(process_t *proc)
         return;
 
     file_descriptor_t *fds[MAX_FDS] = {nullptr};
-    uint64_t fd_flags;
-    SPIN_LOCK_INT_SAVE(proc->fd_lock, fd_flags);
-    for (int i = 0; i < MAX_FDS; i++) {
-        fds[i]            = proc->fd_table[i];
-        proc->fd_table[i] = nullptr;
+    WITH_LOCK(proc->fd_lock) {
+        for (int i = 0; i < MAX_FDS; i++) {
+            fds[i]            = proc->fd_table[i];
+            proc->fd_table[i] = nullptr;
+        }
     }
-    SPIN_UNLOCK_INT_RESTORE(proc->fd_lock, fd_flags);
 
     for (int i = 0; i < MAX_FDS; i++) {
         if (fds[i])
@@ -264,22 +261,17 @@ void process_close_fds(process_t *proc)
 static void process_destroy_now(process_t *proc)
 {
     list_item_t free_list = LIST_HEAD_INIT(free_list);
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+    WITH_LOCK(scheduler_lock) {
+        // Re-verify that no thread is active on any CPU before destroying.
+        // The state could have changed between process_can_reap_locked() and now.
+        if (!process_can_reap_locked(proc))
+            return;
 
-    // Re-verify that no thread is active on any CPU before destroying.
-    // The state could have changed between process_can_reap_locked() and now.
-    if (!process_can_reap_locked(proc)) {
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
-        return;
+        if (process_in_list(proc))
+            list_del(&proc->list);
+
+        process_collect_threads_locked(proc, &free_list);
     }
-
-    if (process_in_list(proc))
-        list_del(&proc->list);
-
-    process_collect_threads_locked(proc, &free_list);
-
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
     thread_t *t, *next_t;
     list_foreach_entry_safe(t, next_t, &free_list, list)
@@ -314,17 +306,16 @@ void process_destroy(process_t *proc)
         return;
 
     for (;;) {
-        uint64_t rflags;
-        SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
+        bool can_reap = false;
+        WITH_LOCK(scheduler_lock) {
+            thread_t *t;
+            list_foreach_entry(t, &proc->threads, list)
+            {
+                thread_state_store(t, THREAD_TERMINATED);
+            }
 
-        thread_t *t;
-        list_foreach_entry(t, &proc->threads, list)
-        {
-            thread_state_store(t, THREAD_TERMINATED);
+            can_reap = process_can_reap_locked(proc);
         }
-
-        const bool can_reap = process_can_reap_locked(proc);
-        SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 
         if (can_reap)
             break;
@@ -392,24 +383,23 @@ static const char *thread_state_str(thread_state_t state)
 
 void process_dump(void)
 {
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(scheduler_lock, rflags);
-    printk("\n%-5s %-5s %-5s %-6s %s\n", "PID", "TID", "CPU", "STATE", "NAME");
-    process_t *p;
-    list_foreach_entry(p, &process_list, list)
-    {
-        thread_t *t;
-        list_foreach_entry(t, &p->threads, list)
+    WITH_LOCK(scheduler_lock) {
+        printk("\n%-5s %-5s %-5s %-6s %s\n", "PID", "TID", "CPU", "STATE", "NAME");
+        process_t *p;
+        list_foreach_entry(p, &process_list, list)
         {
-            uint32_t raw_state    = thread_state_load_raw(t);
-            const char *state_str = "BAD";
+            thread_t *t;
+            list_foreach_entry(t, &p->threads, list)
+            {
+                uint32_t raw_state    = thread_state_load_raw(t);
+                const char *state_str = "BAD";
 
-            if (thread_state_valid_raw(raw_state)) {
-                state_str = thread_state_str((thread_state_t)raw_state);
+                if (thread_state_valid_raw(raw_state)) {
+                    state_str = thread_state_str((thread_state_t)raw_state);
+                }
+
+                printk("%-5d %-5d %-5d %-6s %s\n", p->pid, t->tid, t->last_cpu, state_str, p->name);
             }
-
-            printk("%-5d %-5d %-5d %-6s %s\n", p->pid, t->tid, t->last_cpu, state_str, p->name);
         }
     }
-    SPIN_UNLOCK_INT_RESTORE(scheduler_lock, rflags);
 }

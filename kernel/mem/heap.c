@@ -427,19 +427,15 @@ void *kmalloc(size_t size)
     if (size == 0)
         return nullptr;
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(heap_lock, flags);
-
     void *result;
-    int index = get_cache_index(size);
-    if (index >= 0) {
-        result = alloc_slab(index);
-    } else {
-        result = alloc_big(size);
+    WITH_LOCK(heap_lock) {
+        int index = get_cache_index(size);
+        if (index >= 0) {
+            result = alloc_slab(index);
+        } else {
+            result = alloc_big(size);
+        }
     }
-
-    SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-
     return result;
 }
 
@@ -456,69 +452,60 @@ void kfree(void *ptr)
     if (!ptr)
         return;
 
-    uint64_t flags;
-    SPIN_LOCK_INT_SAVE(heap_lock, flags);
+    WITH_LOCK(heap_lock) {
+        // Find page start
+        uint64_t addr       = (uint64_t)ptr;
+        uint64_t page_start = addr & ~(PAGE_SIZE - 1);
+        auto header         = (slab_header_t *)page_start;
 
-    // Find page start
-    uint64_t addr       = (uint64_t)ptr;
-    uint64_t page_start = addr & ~(PAGE_SIZE - 1);
-    auto header         = (slab_header_t *)page_start;
+        if (header->magic != HEAP_MAGIC || header->guard_magic != HEAP_MAGIC)
+            panic("kfree: slab header corrupt at %p (magic=%lx guard=%lx expected=%lx)",
+                  ptr, header->magic, header->guard_magic, (uint64_t)HEAP_MAGIC);
 
-    if (header->magic != HEAP_MAGIC || header->guard_magic != HEAP_MAGIC) {
-        SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-        panic("kfree: slab header corrupt at %p (magic=%lx guard=%lx expected=%lx)",
-              ptr, header->magic, header->guard_magic, (uint64_t)HEAP_MAGIC);
-    }
-
-    if (header->is_slab) {
-        auto slot_base = (uint8_t *)ptr;
-        int index      = get_cache_index(header->obj_size);
-        if (index < 0) {
-            boot_message(ERROR, "heap: kfree invalid slab obj_size=%zu ptr=%p", header->obj_size, ptr);
-            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-            return;
-        }
-
-        slab_layout_t layout = slab_layout(header, header->obj_size);
-        if (slot_base < layout.slot_min || slot_base >= layout.page_end) {
-            boot_message(ERROR,
-                         "heap: kfree slot out of range (slot=%p start=%p end=%p)",
-                         slot_base,
-                         layout.page_start,
-                         layout.page_end);
-            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-            return;
-        }
-
-        *(void **)slot_base = header->free_list;
-        header->free_list   = slot_base;
-        header->free_count++;
-
-        // Re-poison the freed slot payload (skip the link pointer)
-        slab_poison_payload(slot_base, layout.payload_size, POISON_FREE);
-
-        // If the slab is completely free, release the page.
-        if (header->free_count == layout.capacity) {
-            if (index == 1) {
-                // Keep cache-1 slabs resident to simplify corruption tracking.
-                SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
+        if (header->is_slab) {
+            auto slot_base = (uint8_t *)ptr;
+            int index      = get_cache_index(header->obj_size);
+            if (index < 0) {
+                boot_message(ERROR, "heap: kfree invalid slab obj_size=%zu ptr=%p", header->obj_size, ptr);
                 return;
             }
 
-            list_del(&header->list);
-            slab_track_remove(header);
-            void *phys = virt_to_phys(layout.page_start);
-            pmm_free_pages(phys, 1);
-            SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
-            return;
-        }
-    } else {
-        // Big allocation
-        void *phys = virt_to_phys((void *)page_start);
-        pmm_free_pages(phys, header->page_count);
-    }
+            slab_layout_t layout = slab_layout(header, header->obj_size);
+            if (slot_base < layout.slot_min || slot_base >= layout.page_end) {
+                boot_message(ERROR,
+                             "heap: kfree slot out of range (slot=%p start=%p end=%p)",
+                             slot_base,
+                             layout.page_start,
+                             layout.page_end);
+                return;
+            }
 
-    SPIN_UNLOCK_INT_RESTORE(heap_lock, flags);
+            *(void **)slot_base = header->free_list;
+            header->free_list   = slot_base;
+            header->free_count++;
+
+            // Re-poison the freed slot payload (skip the link pointer)
+            slab_poison_payload(slot_base, layout.payload_size, POISON_FREE);
+
+            // If the slab is completely free, release the page.
+            if (header->free_count == layout.capacity) {
+                if (index == 1) {
+                    // Keep cache-1 slabs resident to simplify corruption tracking.
+                    return;
+                }
+
+                list_del(&header->list);
+                slab_track_remove(header);
+                void *phys = virt_to_phys(layout.page_start);
+                pmm_free_pages(phys, 1);
+                return;
+            }
+        } else {
+            // Big allocation
+            void *phys = virt_to_phys((void *)page_start);
+            pmm_free_pages(phys, header->page_count);
+        }
+    }
 }
 
 void *krealloc(void *ptr, const size_t new_size)
