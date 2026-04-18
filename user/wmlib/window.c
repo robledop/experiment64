@@ -71,6 +71,24 @@ window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint
     return window;
 }
 
+void *widget_new(size_t size, int16_t x, int16_t y, uint16_t width, uint16_t height,
+                 uint16_t flags, WindowPaintHandler paint)
+{
+    void *widget = malloc(size);
+    if (!widget)
+        return nullptr;
+
+    window_t *w = (window_t *)widget;
+    if (!window_init(w, x, y, width, height, flags, nullptr)) {
+        free(widget);
+        return nullptr;
+    }
+
+    if (paint)
+        w->paint_function = paint;
+    return widget;
+}
+
 int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags,
                 video_context_t *context)
 {

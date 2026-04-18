@@ -1,27 +1,16 @@
 #include <wm/button.h>
-#include <stdlib.h>
 #include <string.h>
 
 button_t *button_new(int16_t x, int16_t y, int16_t w, int16_t h)
 {
-    auto button = (button_t *)malloc(sizeof(button_t));
-    if (!button) {
-        return button;
-    }
-
-    if (!window_init((window_t *)button, x, y, w, h, WIN_NODECORATION | WIN_BUTTON, nullptr)) {
-
-        free(button);
+    button_t *button = widget_new(sizeof(button_t), x, y, (uint16_t)w, (uint16_t)h,
+                                  WIN_NODECORATION | WIN_BUTTON, button_paint);
+    if (!button)
         return nullptr;
-    }
 
-    button->window.paint_function     = button_paint;
     button->window.mousedown_function = button_mousedown_handler;
-
-    button->onmousedown = nullptr;
-
-    button->color_toggle = 0;
-
+    button->onmousedown               = nullptr;
+    button->color_toggle              = 0;
     return button;
 }
 

@@ -1,7 +1,6 @@
 #include <wm/textbox.h>
 #include <wm/window.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -15,20 +14,8 @@
  */
 textbox_t *textbox_new(int16_t x, int16_t y, int width, int height)
 {
-    auto text_box = (textbox_t *)malloc(sizeof(textbox_t));
-    if (!text_box) {
-        return text_box;
-    }
-
-    if (!window_init((window_t *)text_box, x, y, width, height, WIN_NODECORATION, nullptr)) {
-        free(text_box);
-        return nullptr;
-    }
-
-    // Override default window draw callback
-    text_box->window.paint_function = textbox_paint;
-
-    return text_box;
+    return widget_new(sizeof(textbox_t), x, y, (uint16_t)width, (uint16_t)height,
+                      WIN_NODECORATION, textbox_paint);
 }
 
 /**

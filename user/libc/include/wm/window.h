@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <wm/video_context.h>
 
@@ -64,6 +65,21 @@ typedef struct window {
 window_t *window_new(int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags, video_context_t *context);
 int window_init(window_t *window, int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t flags,
                 video_context_t *context);
+
+/**
+ * @brief Allocate and initialize a widget whose first member is a window_t.
+ *
+ * Performs the shared button/textbox/etc. factory pattern: allocate @p size
+ * bytes, run window_init() on the embedded window_t, install @p paint as the
+ * paint callback, and free on failure. The widget struct must start with a
+ * `window_t window;` field so the cast is valid.
+ *
+ * @param size  Total size of the widget struct (e.g. sizeof(button_t)).
+ * @param paint Custom paint handler; may be nullptr to keep the default.
+ * @return Pointer to the new widget, or nullptr on allocation failure.
+ */
+void *widget_new(size_t size, int16_t x, int16_t y, uint16_t width, uint16_t height,
+                 uint16_t flags, WindowPaintHandler paint);
 int window_screen_x(const window_t *window);
 int window_screen_y(const window_t *window);
 void window_paint(window_t *window, rect_t **dirty_regions, uint8_t paint_children);
