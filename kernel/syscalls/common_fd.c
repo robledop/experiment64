@@ -15,22 +15,29 @@ file_descriptor_t *fd_alloc(vfs_inode_t *inode, int flags)
     return desc;
 }
 
+/**
+ * @brief Check whether a file descriptor allows reading.
+ *
+ * Reading is blocked only when the descriptor was opened O_WRONLY.
+ * O_RDONLY (== 0) and O_RDWR both permit reading.
+ */
 bool fd_can_read(const file_descriptor_t *desc)
 {
     if (!desc)
         return false;
-
-    const int mode = desc->flags & (O_WRONLY | O_RDWR);
-    return mode != O_WRONLY;
+    return (desc->flags & (O_WRONLY | O_RDWR)) != O_WRONLY;
 }
 
+/**
+ * @brief Check whether a file descriptor allows writing.
+ *
+ * Writing is permitted when either O_WRONLY or O_RDWR is set in the flags.
+ */
 bool fd_can_write(const file_descriptor_t *desc)
 {
     if (!desc)
         return false;
-
-    const int mode = desc->flags & (O_WRONLY | O_RDWR);
-    return mode == O_WRONLY || mode == O_RDWR || mode == (O_WRONLY | O_RDWR);
+    return (desc->flags & (O_WRONLY | O_RDWR)) != 0;
 }
 
 file_descriptor_t *fd_get(int fd)

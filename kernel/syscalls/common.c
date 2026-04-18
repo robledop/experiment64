@@ -74,8 +74,23 @@ static bool user_range_access_ok(const uint64_t *pml4, uintptr_t addr, size_t si
     return true;
 }
 
+/**
+ * @brief Verify that a userland pointer range is safe to touch from kernel.
+ *
+ * The check is a four-step gauntlet; the range must survive every step:
+ *   1. Basic sanity     — non-null, no integer overflow in addr+size.
+ *   2. Canonical form   — both endpoints are x86_64 canonical addresses.
+ *   3. Boundary check   — range lies entirely below the kernel (HHDM top) and
+ *                         does not overlap this thread's kernel stack.
+ *   4. Page-table walk  — every covered page has PTE_PRESENT|PTE_USER (plus
+ *                         PTE_WRITABLE when @p write is true).
+ *
+ * Kernel threads (t->is_user == false) bypass the check; they trust their
+ * own pointers.
+ */
 static bool user_ptr_access_ok(const void *ptr, size_t size, bool write, const char *op)
 {
+    // Step 1: basic sanity.
     if (!ptr) {
         return false;
     }
@@ -89,11 +104,14 @@ static bool user_ptr_access_ok(const void *ptr, size_t size, bool write, const c
     if (end < addr) {
         return false;
     }
+
+    // Step 2: canonical form (both endpoints, to catch size that crosses the gap).
     const uintptr_t last = (size == 0) ? addr : (end - 1);
     if (!addr_is_canonical(addr) || !addr_is_canonical(last)) {
         return false;
     }
 
+    // Step 3: boundary check — range must not touch kernel space or kstack.
     const uintptr_t user_top = g_hhdm_offset ? g_hhdm_offset : 0x0000800000000000ull;
     const bool in_kernel     = (addr >= user_top) || (end > user_top);
 
@@ -115,6 +133,8 @@ static bool user_ptr_access_ok(const void *ptr, size_t size, bool write, const c
                __builtin_return_address(0));
         return false;
     }
+
+    // Step 4: page-table walk — every covered page must be user-accessible.
     if (!user_range_access_ok(current_process ? current_process->pml4 : nullptr, addr, size, write)) {
         return false;
     }

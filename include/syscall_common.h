@@ -73,3 +73,22 @@ bool thread_active_on_any_cpu(thread_t* t);
 void free_thread_resources(thread_t* t);
 /** Check whether a futex address points at a readable user `uint32_t`. */
 bool futex_addr_ok(const uint32_t* uaddr, const char* op);
+
+/**
+ * @brief Shared core of the wait(), waitpid(), and wait4() syscalls.
+ *
+ * Blocks or polls for a terminated child process, optionally a specific one,
+ * copies its exit code and (if @p info is non-null) its crash_info into user
+ * memory, and reaps it. Handles SIGCHLD=SIG_IGN / SA_NOCLDWAIT, WNOHANG,
+ * and the "zombie currently un-reapable" race by yielding.
+ *
+ * @param pid     -1 = any child; >0 = the specific child; other = -1.
+ * @param status  User pointer to receive the exit code, or null to skip.
+ * @param options Bitmask. Only WNOHANG is supported; others cause -1.
+ * @param info    User pointer to receive crash_info, or null to skip. Only
+ *                wait4() passes a non-null value here.
+ * @param op      Short label for TEST_SYSCALL_LOG messages ("sys_wait", ...).
+ * @return pid of the reaped child, 0 (WNOHANG and child still running),
+ *         or -1 on any form of failure.
+ */
+int wait_for_child(int pid, int *status, int options, crash_info_t *info, const char *op);
