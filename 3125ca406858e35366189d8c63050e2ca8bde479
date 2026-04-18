@@ -1,0 +1,108 @@
+{
+    "version": "0.1.0",
+    "id": "8b2674ce-4ce3-4428-9bca-f048950f2ed1",
+    "timestamp": "2026-04-18T20:56:00.394584420Z",
+    "vcs": {
+        "type": "git",
+        "revision": "3125ca406858e35366189d8c63050e2ca8bde479",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/libc/include/wm/window.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 3,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 69,
+                            "end_line": 70
+                        },
+                        {
+                            "start_line": 72,
+                            "end_line": 75
+                        },
+                        {
+                            "start_line": 77,
+                            "end_line": 79
+                        },
+                        {
+                            "start_line": 81,
+                            "end_line": 82
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wmlib/button.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 6,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 12,
+                            "end_line": 13
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wmlib/textbox.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 17,
+                            "end_line": 18
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wmlib/window.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f6ae8062e7dc022669a2b595f77671efc1701e23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 74,
+                            "end_line": 89
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
