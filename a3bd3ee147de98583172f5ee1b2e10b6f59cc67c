@@ -1,0 +1,244 @@
+{
+    "version": "0.1.0",
+    "id": "30ba8c59-746b-4ba5-a5b2-0b912179758a",
+    "timestamp": "2026-04-18T21:35:04.842223909Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a3bd3ee147de98583172f5ee1b2e10b6f59cc67c",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/task/spinlock.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 20,
+                            "end_line": 20
+                        },
+                        {
+                            "start_line": 22,
+                            "end_line": 23
+                        },
+                        {
+                            "start_line": 26,
+                            "end_line": 26
+                        },
+                        {
+                            "start_line": 28,
+                            "end_line": 30
+                        },
+                        {
+                            "start_line": 33,
+                            "end_line": 34
+                        },
+                        {
+                            "start_line": 36,
+                            "end_line": 37
+                        },
+                        {
+                            "start_line": 40,
+                            "end_line": 43
+                        },
+                        {
+                            "start_line": 47,
+                            "end_line": 51
+                        },
+                        {
+                            "start_line": 56,
+                            "end_line": 58
+                        },
+                        {
+                            "start_line": 61,
+                            "end_line": 62
+                        },
+                        {
+                            "start_line": 64,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 69,
+                            "end_line": 70
+                        },
+                        {
+                            "start_line": 72,
+                            "end_line": 75
+                        },
+                        {
+                            "start_line": 77,
+                            "end_line": 79
+                        },
+                        {
+                            "start_line": 81,
+                            "end_line": 81
+                        },
+                        {
+                            "start_line": 83,
+                            "end_line": 83
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/common_fd.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 50,
+                            "end_line": 54
+                        },
+                        {
+                            "start_line": 81,
+                            "end_line": 86
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_close.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 11,
+                            "end_line": 15
+                        },
+                        {
+                            "start_line": 17,
+                            "end_line": 18
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_dup2.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 26,
+                            "end_line": 28
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_sigaction.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 26,
+                            "end_line": 27
+                        },
+                        {
+                            "start_line": 29,
+                            "end_line": 31
+                        },
+                        {
+                            "start_line": 33,
+                            "end_line": 34
+                        },
+                        {
+                            "start_line": 36,
+                            "end_line": 37
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_sigprocmask.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 32,
+                            "end_line": 51
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_sigreturn.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 18,
+                            "end_line": 20
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_thread_detach.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9acd6224a3c9f2288350b478c81b74df41f3942a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.113"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 13,
+                            "end_line": 30
+                        },
+                        {
+                            "start_line": 33,
+                            "end_line": 33
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
