@@ -164,7 +164,7 @@ disk: bear
 	$(MAKE) image.hdd
 	./scripts/install-on-disk.sh
 
-.PHONE: qemu-nobuild
+.PHONY: qemu-nobuild
 qemu-nobuild:
 	$(QEMU_BASE) $(QEMU_DRIVES) $(QEMU_USB_TABLET) -serial stdio -display gtk,zoom-to-fit=on -cpu host -enable-kvm
 

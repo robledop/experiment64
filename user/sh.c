@@ -1,40 +1,39 @@
-#include <stdio.h>
 #include <fcntl.h>
+#include <path.h>
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <termcolors.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <string.h>
-#include <path.h>
 
 #define MAX_COMMAND_LENGTH 256
 #define COMMAND_HISTORY_SIZE 10
 #define COMMAND_HISTORY_ENTRY_SIZE 256
-
-// Parsed command representation
-#define EXEC 1
-#define REDIR 2
-#define PIPE 3
-#define LIST 4
-#define BACK 5
+#define SHELL_CTRL_C 0x03
 
 #define MAXARGS 10
 
-struct cmd
-{
-    int type;
+typedef enum {
+    CMD_EXEC = 1,
+    CMD_REDIR,
+    CMD_PIPE,
+    CMD_LIST,
+    CMD_BACK,
+} command_type_t;
+
+struct cmd {
+    command_type_t type;
 };
 
-struct execcmd
-{
-    int type;
+struct execcmd {
+    command_type_t type;
     char *argv[MAXARGS];
     char *eargv[MAXARGS];
 };
 
-struct redircmd
-{
-    int type;
+struct redircmd {
+    command_type_t type;
     struct cmd *cmd;
     char *file;
     char *efile;
@@ -42,28 +41,25 @@ struct redircmd
     int fd;
 };
 
-struct pipecmd
-{
-    int type;
+struct pipecmd {
+    command_type_t type;
     struct cmd *left;
     struct cmd *right;
 };
 
-struct listcmd
-{
-    int type;
+struct listcmd {
+    command_type_t type;
     struct cmd *left;
     struct cmd *right;
 };
 
-struct backcmd
-{
-    int type;
+struct backcmd {
+    command_type_t type;
     struct cmd *cmd;
 };
 
-static char command_history[COMMAND_HISTORY_SIZE][COMMAND_HISTORY_ENTRY_SIZE];
-static int history_count = 0;
+static char g_command_history[COMMAND_HISTORY_SIZE][COMMAND_HISTORY_ENTRY_SIZE];
+static int g_history_count = 0;
 
 static volatile sig_atomic_t g_winch_pending = 0;
 
@@ -74,8 +70,6 @@ static void shell_sigint_handler(const int sig)
 
 static void shell_sigchld_handler([[maybe_unused]] const int sig)
 {
-    // printf("Child process exited.\n");
-    // wait(nullptr);
 }
 
 static void shell_sigwinch_handler(const int sig)
@@ -84,11 +78,29 @@ static void shell_sigwinch_handler(const int sig)
     g_winch_pending = 1;
 }
 
-int fork1(void); // Fork but panics on failure.
-struct cmd *parsecmd(char *);
+static int fork_or_panic(void);
+static struct cmd *shell_parse_cmd(char *);
+[[noreturn]] static void shell_exec_cmd(struct cmd *cmd);
 
-// Execute cmd.  Never returns.
-[[noreturn]] void runcmd(struct cmd *cmd)
+static void shell_exec_program(struct execcmd *cmd)
+{
+    execve(cmd->argv[0], cmd->argv, nullptr);
+
+    if (cmd->argv[0][0] != '/' && !strchr(cmd->argv[0], '/')) {
+        char bin_path[256];
+        path_safe_copy(bin_path, sizeof(bin_path), "/bin/");
+        size_t idx = strlen(bin_path);
+        for (size_t i = 0; cmd->argv[0][i] && idx + 1 < sizeof(bin_path); i++)
+            bin_path[idx++] = cmd->argv[0][i];
+        bin_path[idx] = '\0';
+        cmd->argv[0]  = bin_path;
+        execve(bin_path, cmd->argv, nullptr);
+    }
+
+    printf("exec %s failed\n", cmd->argv[0]);
+}
+
+[[noreturn]] static void shell_exec_cmd(struct cmd *cmd)
 {
     int p[2];
     struct backcmd *bcmd;
@@ -104,63 +116,50 @@ struct cmd *parsecmd(char *);
 
     switch (cmd->type) {
     default:
-        panic("runcmd");
+        panic("shell_exec_cmd");
 
-    case EXEC:
+    case CMD_EXEC:
         ecmd = (struct execcmd *)cmd;
         if (ecmd->argv[0] == nullptr)
             exit();
-        // Try the command as given first
-        execve(ecmd->argv[0], ecmd->argv, nullptr);
-        // If that failed and it's not an absolute/relative path, try /bin/
-        if (ecmd->argv[0][0] != '/' && !strchr(ecmd->argv[0], '/')) {
-            char bin_path[256];
-            path_safe_copy(bin_path, sizeof(bin_path), "/bin/");
-            size_t idx = strlen(bin_path);
-            for (size_t i = 0; ecmd->argv[0][i] && idx + 1 < sizeof(bin_path); i++)
-                bin_path[idx++] = ecmd->argv[0][i];
-            bin_path[idx] = '\0';
-            ecmd->argv[0] = bin_path;
-            execve(bin_path, ecmd->argv, nullptr);
-        }
-        printf("exec %s failed\n", ecmd->argv[0]);
+        shell_exec_program(ecmd);
         break;
 
-    case REDIR:
+    case CMD_REDIR:
         rcmd = (struct redircmd *)cmd;
         close(rcmd->fd);
         if (open(rcmd->file, rcmd->mode) < 0) {
             printf("open %s failed\n", rcmd->file);
             exit();
         }
-        runcmd(rcmd->cmd);
+        shell_exec_cmd(rcmd->cmd);
         break;
 
-    case LIST:
+    case CMD_LIST:
         lcmd = (struct listcmd *)cmd;
-        if (fork1() == 0)
-            runcmd(lcmd->left);
+        if (fork_or_panic() == 0)
+            shell_exec_cmd(lcmd->left);
         wait(nullptr);
-        runcmd(lcmd->right);
+        shell_exec_cmd(lcmd->right);
         break;
 
-    case PIPE:
+    case CMD_PIPE:
         pcmd = (struct pipecmd *)cmd;
         if (pipe(p) < 0)
             panic("pipe");
-        if (fork1() == 0) {
+        if (fork_or_panic() == 0) {
             close(1);
             dup(p[1]);
             close(p[0]);
             close(p[1]);
-            runcmd(pcmd->left);
+            shell_exec_cmd(pcmd->left);
         }
-        if (fork1() == 0) {
+        if (fork_or_panic() == 0) {
             close(0);
             dup(p[0]);
             close(p[0]);
             close(p[1]);
-            runcmd(pcmd->right);
+            shell_exec_cmd(pcmd->right);
         }
         close(p[0]);
         close(p[1]);
@@ -168,53 +167,51 @@ struct cmd *parsecmd(char *);
         wait(nullptr);
         break;
 
-    case BACK:
+    case CMD_BACK:
         bcmd = (struct backcmd *)cmd;
-        if (fork1() == 0)
-            runcmd(bcmd->cmd);
+        if (fork_or_panic() == 0)
+            shell_exec_cmd(bcmd->cmd);
         break;
     }
     exit();
     __builtin_unreachable();
 }
 
-// Special key codes for internal use
-#define KEY_UP 256
-#define KEY_DOWN 257
-#define KEY_RIGHT 258
-#define KEY_LEFT 259
+typedef enum {
+    SHELL_KEY_UP = 256,
+    SHELL_KEY_DOWN,
+    SHELL_KEY_RIGHT,
+    SHELL_KEY_LEFT,
+} shell_key_t;
 
-// Read a key, handling ANSI escape sequences for arrow keys
 static int read_key(void)
 {
     int c = getchar_blocking();
     if (c == '\x1b') {
-        // Escape sequence - try to read more
         int c2 = getchar_blocking();
         if (c2 == '[') {
             int c3 = getchar_blocking();
             switch (c3) {
             case 'A':
-                return KEY_UP;
+                return SHELL_KEY_UP;
             case 'B':
-                return KEY_DOWN;
+                return SHELL_KEY_DOWN;
             case 'C':
-                return KEY_RIGHT;
+                return SHELL_KEY_RIGHT;
             case 'D':
-                return KEY_LEFT;
+                return SHELL_KEY_LEFT;
             default:
                 break;
             }
         }
-        // Not a recognized sequence, return ESC
         return '\x1b';
     }
     return c;
 }
 
-void shell_terminal_readline(char *out, const int max, const bool output_while_typing)
+static void shell_terminal_readline(char *out, const int max, const bool output_while_typing)
 {
-    int current_history_index = history_count;
+    int current_history_index = g_history_count;
     int i                     = 0;
     for (; i < max - 1; i++) {
         const int key = read_key();
@@ -232,75 +229,66 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
             continue;
         }
 
-        // CTRL+C
-        if (key == 0x03) {
+        if (key == SHELL_CTRL_C) {
             if (output_while_typing)
                 printf("^C\n");
             out[0] = '\0';
             return;
         }
 
-        // Up arrow
-        if (key == KEY_UP) {
+        if (key == SHELL_KEY_UP) {
             if (current_history_index == 0) {
                 i--;
                 continue;
             }
 
-            // Clear the current line
             for (int j = 0; j < i; j++) {
                 printf("\b \b");
             }
             current_history_index--;
-            strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
+            strncpy((char *)out, g_command_history[current_history_index], (uint32_t)max);
             i = (int)strnlen((char *)out, max) - 1;
             printf("%s", (char *)out);
             continue;
         }
 
-        // Down arrow
-        if (key == KEY_DOWN) {
-            // Clear the current line
+        if (key == SHELL_KEY_DOWN) {
             for (int j = 0; j < i; j++) {
                 printf("\b \b");
             }
 
-            if (current_history_index >= history_count - 1) {
-                // At the end of history, show an empty line
-                current_history_index = history_count;
+            if (current_history_index >= g_history_count - 1) {
+                current_history_index = g_history_count;
                 out[0]                = '\0';
                 i                     = -1;
                 continue;
             }
 
             current_history_index++;
-            strncpy((char *)out, command_history[current_history_index], (uint32_t)max);
+            strncpy((char *)out, g_command_history[current_history_index], (uint32_t)max);
             i = (int)strlen((char *)out) - 1;
             printf("%s", (char *)out);
             continue;
         }
 
-        // Left arrow key
-        if (key == KEY_LEFT) {
+        if (key == SHELL_KEY_LEFT) {
             if (i <= 0) {
                 i = -1;
                 continue;
             } else {
-                printf("\x1b[D"); // Move cursor left
+                printf("\x1b[D");
                 i -= 2;
                 continue;
             }
         }
 
-        // Right arrow key
-        if (key == KEY_RIGHT) {
-            // For now, just decrement to counteract the loop increment
+        if (key == SHELL_KEY_RIGHT) {
             i--;
             continue;
         }
 
         if (key == '\n' || key == '\r') {
-            putchar('\n'); // Echo the newline before executing the command
+            putchar('\n');
             break;
         }
 
@@ -324,11 +312,77 @@ void shell_terminal_readline(char *out, const int max, const bool output_while_t
     out[i] = 0x00;
 }
 
+static void shell_render_prompt(void)
+{
+    char cwd[256];
+    getcwd(cwd, sizeof(cwd));
+    printf("%s" KGRN "> " KWHT, cwd);
+}
+
+static void shell_append_history(const char *line)
+{
+    if (strlen(line) == 0)
+        return;
+
+    const uint32_t copy_len = sizeof(g_command_history[0]);
+
+    if (g_history_count == COMMAND_HISTORY_SIZE) {
+        memmove(g_command_history[0], g_command_history[1], (COMMAND_HISTORY_SIZE - 1) * sizeof(g_command_history[0]));
+        g_history_count = COMMAND_HISTORY_SIZE - 1;
+    }
+
+    strncpy(g_command_history[g_history_count], line, (int)copy_len);
+    g_command_history[g_history_count][copy_len - 1] = '\0';
+    g_history_count++;
+}
+
+static bool shell_is_exact_command(const char *command, const char *input)
+{
+    const uint32_t input_len = strnlen(input, MAX_COMMAND_LENGTH);
+    return strncmp(command, input, strlen(command)) == 0 && input_len == strlen(command);
+}
+
+static bool shell_run_builtin(char *buf)
+{
+    if (starts_with("cd ", buf)) {
+        size_t len = strlen(buf);
+        if (len > 0 && buf[len - 1] == '\n')
+            buf[len - 1] = '\0';
+        if (chdir(buf + 3) < 0)
+            printf("cannot cd %s\n", buf + 3);
+        return true;
+    }
+
+    if (shell_is_exact_command("exit", buf))
+        exit();
+
+    if (shell_is_exact_command("cls", buf)) {
+        printf("\033[2J\033[H");
+        return true;
+    }
+
+    if (shell_is_exact_command("reboot", buf)) {
+        reboot();
+        return false;
+    }
+
+    if (shell_is_exact_command("shutdown", buf)) {
+        shutdown();
+        return true;
+    }
+
+    return false;
+}
+
+static void shell_give_terminal_to(int pid)
+{
+    ioctl(STDIN_FILENO, TIOCSPGRP, &pid);
+}
+
 int main(void)
 {
     int fd;
 
-    // Ensure that three file descriptors are open.
     while ((fd = open("/dev/console", O_RDWR)) >= 0) {
         if (fd >= 3) {
             close(fd);
@@ -337,80 +391,34 @@ int main(void)
     }
 
     printf(KWHT "User mode shell started. Press CTRL + P to list active threads.\n");
-    // Set an empty signal handler for SIGINT so that CTRL+C doesn't interrupt the shell itself
     signal(SIGINT, shell_sigint_handler);
     signal(SIGCHLD, shell_sigchld_handler);
     signal(SIGWINCH, shell_sigwinch_handler);
 
-    // Read and run input commands.
     while (true) {
-        // Set shell as PTY foreground process so we receive SIGWINCH.
         int self_pid = getpid();
-        ioctl(STDIN_FILENO, TIOCSPGRP, &self_pid);
-        char cwd[256];
-        getcwd(cwd, sizeof(cwd));
-        printf("%s" KGRN "> " KWHT, cwd);
+        shell_give_terminal_to(self_pid);
+        shell_render_prompt();
 
         char buf[MAX_COMMAND_LENGTH] = {0};
         shell_terminal_readline(buf, sizeof(buf), true);
 
-        if (strlen((char *)buf) != 0) {
-            uint32_t copy_len = sizeof(command_history[0]);
-
-            if (history_count == COMMAND_HISTORY_SIZE) {
-                memmove(command_history[0],
-                        command_history[1],
-                        (COMMAND_HISTORY_SIZE - 1) * sizeof(command_history[0]));
-                history_count = COMMAND_HISTORY_SIZE - 1;
-            }
-
-            strncpy(command_history[history_count], (char *)buf, (int)copy_len);
-            command_history[history_count][copy_len - 1] = '\0';
-            history_count++;
-        }
-
-        if (starts_with("cd ", buf)) {
-            // Chdir must be called by the parent, not the child.
-            size_t len = strlen(buf);
-            if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
-            if (chdir(buf + 3) < 0)
-                printf("cannot cd %s\n", buf + 3);
+        shell_append_history(buf);
+        if (shell_run_builtin(buf))
             continue;
-        }
 
-        const uint32_t input_len = strnlen(buf, 100);
-        if (strncmp("exit", buf, 4) == 0 && input_len == 4) {
-            exit();
-        }
-
-        if (strncmp("cls", buf, 3) == 0 && input_len == 3) {
-            // Clear the screen
-            printf("\033[2J\033[H");
-            continue;
-        }
-
-        if (strncmp("reboot", buf, 6) == 0 && input_len == 6) {
-            reboot();
-        }
-
-        if (strncmp("shutdown", buf, 8) == 0 && input_len == 8) {
-            shutdown();
-            continue;
-        }
-
-        const int pid = fork1();
+        const int pid = fork_or_panic();
         if (pid == 0) {
-            runcmd(parsecmd(buf));
+            shell_exec_cmd(shell_parse_cmd(buf));
         }
-        int fg = pid;
-        ioctl(STDIN_FILENO, TIOCSPGRP, &fg);
+        shell_give_terminal_to(pid);
         wait(nullptr);
-        fg = getpid();
-        ioctl(STDIN_FILENO, TIOCSPGRP, &fg);
+        self_pid = getpid();
+        shell_give_terminal_to(self_pid);
     }
 }
 
-int fork1(void)
+static int fork_or_panic(void)
 {
     int pid = fork();
     if (pid == -1)
@@ -418,21 +426,19 @@ int fork1(void)
     return pid;
 }
 
-// Constructors
-
-struct cmd *execcmd(void)
+static struct cmd *cmd_new_exec(void)
 {
     struct execcmd *cmd = malloc(sizeof(*cmd));
     memset(cmd, 0, sizeof(*cmd));
-    cmd->type = EXEC;
+    cmd->type = CMD_EXEC;
     return (struct cmd *)cmd;
 }
 
-struct cmd *redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
+static struct cmd *cmd_new_redir(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
 {
     struct redircmd *cmd = malloc(sizeof(*cmd));
     memset(cmd, 0, sizeof(*cmd));
-    cmd->type  = REDIR;
+    cmd->type  = CMD_REDIR;
     cmd->cmd   = subcmd;
     cmd->file  = file;
     cmd->efile = efile;
@@ -441,44 +447,42 @@ struct cmd *redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int 
     return (struct cmd *)cmd;
 }
 
-struct cmd *pipecmd(struct cmd *left, struct cmd *right)
+static struct cmd *cmd_new_pipe(struct cmd *left, struct cmd *right)
 {
     struct pipecmd *cmd = malloc(sizeof(*cmd));
     memset(cmd, 0, sizeof(*cmd));
-    cmd->type  = PIPE;
+    cmd->type  = CMD_PIPE;
     cmd->left  = left;
     cmd->right = right;
     return (struct cmd *)cmd;
 }
 
-struct cmd *listcmd(struct cmd *left, struct cmd *right)
+static struct cmd *cmd_new_list(struct cmd *left, struct cmd *right)
 {
     struct listcmd *cmd = malloc(sizeof(*cmd));
     memset(cmd, 0, sizeof(*cmd));
-    cmd->type  = LIST;
+    cmd->type  = CMD_LIST;
     cmd->left  = left;
     cmd->right = right;
     return (struct cmd *)cmd;
 }
 
-struct cmd *backcmd(struct cmd *subcmd)
+static struct cmd *cmd_new_background(struct cmd *subcmd)
 {
     struct backcmd *cmd = malloc(sizeof(*cmd));
     memset(cmd, 0, sizeof(*cmd));
-    cmd->type = BACK;
+    cmd->type = CMD_BACK;
     cmd->cmd  = subcmd;
     return (struct cmd *)cmd;
 }
 
-// Parsing
+static const char shell_whitespace[] = " \t\r\n\v";
+static const char shell_symbols[]    = "<|>&;()";
 
-char whitespace[] = " \t\r\n\v";
-char symbols[]    = "<|>&;()";
-
-int gettoken(char **ps, const char *es, char **q, char **eq)
+static int gettoken(char **ps, const char *es, char **q, char **eq)
 {
     char *s = *ps;
-    while (s < es && strchr(whitespace, *s))
+    while (s < es && strchr(shell_whitespace, *s))
         s++;
     if (q)
         *q = s;
@@ -503,37 +507,37 @@ int gettoken(char **ps, const char *es, char **q, char **eq)
         break;
     default:
         ret = 'a';
-        while (s < es && !strchr(whitespace, *s) && !strchr(symbols, *s))
+        while (s < es && !strchr(shell_whitespace, *s) && !strchr(shell_symbols, *s))
             s++;
         break;
     }
     if (eq)
         *eq = s;
 
-    while (s < es && strchr(whitespace, *s))
+    while (s < es && strchr(shell_whitespace, *s))
         s++;
     *ps = s;
     return ret;
 }
 
-int peek(char **ps, const char *es, char *toks)
+static int peek(char **ps, const char *es, const char *toks)
 {
     char *s = *ps;
-    while (s < es && strchr(whitespace, *s))
+    while (s < es && strchr(shell_whitespace, *s))
         s++;
     *ps = s;
     return *s && strchr(toks, *s);
 }
 
-struct cmd *parseline(char **, char *);
-struct cmd *parsepipe(char **, char *);
-struct cmd *parseexec(char **, char *);
-struct cmd *nulterminate(struct cmd *);
+static struct cmd *parse_line(char **, char *);
+static struct cmd *parse_pipe(char **, char *);
+static struct cmd *parse_exec(char **, char *);
+static struct cmd *nulterminate(struct cmd *);
 
-struct cmd *parsecmd(char *s)
+static struct cmd *shell_parse_cmd(char *s)
 {
     char *es        = s + strlen(s);
-    struct cmd *cmd = parseline(&s, es);
+    struct cmd *cmd = parse_line(&s, es);
     peek(&s, es, "");
     if (s != es) {
         printf("leftovers: %s\n", s);
@@ -543,31 +547,31 @@ struct cmd *parsecmd(char *s)
     return cmd;
 }
 
-struct cmd *parseline(char **ps, char *es)
+static struct cmd *parse_line(char **ps, char *es)
 {
-    struct cmd *cmd = parsepipe(ps, es);
+    struct cmd *cmd = parse_pipe(ps, es);
     while (peek(ps, es, "&")) {
         gettoken(ps, es, nullptr, nullptr);
-        cmd = backcmd(cmd);
+        cmd = cmd_new_background(cmd);
     }
     if (peek(ps, es, ";")) {
         gettoken(ps, es, nullptr, nullptr);
-        cmd = listcmd(cmd, parseline(ps, es));
+        cmd = cmd_new_list(cmd, parse_line(ps, es));
     }
     return cmd;
 }
 
-struct cmd *parsepipe(char **ps, char *es)
+static struct cmd *parse_pipe(char **ps, char *es)
 {
-    struct cmd *cmd = parseexec(ps, es);
+    struct cmd *cmd = parse_exec(ps, es);
     if (peek(ps, es, "|")) {
         gettoken(ps, es, nullptr, nullptr);
-        cmd = pipecmd(cmd, parsepipe(ps, es));
+        cmd = cmd_new_pipe(cmd, parse_pipe(ps, es));
     }
     return cmd;
 }
 
-struct cmd *parseredirs(struct cmd *cmd, char **ps, char *es)
+static struct cmd *parse_redirs(struct cmd *cmd, char **ps, char *es)
 {
     char *q, *eq;
 
@@ -577,13 +581,13 @@ struct cmd *parseredirs(struct cmd *cmd, char **ps, char *es)
             panic("missing file for redirection");
         switch (tok) {
         case '<':
-            cmd = redircmd(cmd, q, eq, O_RDONLY, 0);
+            cmd = cmd_new_redir(cmd, q, eq, O_RDONLY, 0);
             break;
         case '>':
-            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREAT, 1);
+            cmd = cmd_new_redir(cmd, q, eq, O_WRONLY | O_CREAT, 1);
             break;
         case '+': // >>
-            cmd = redircmd(cmd, q, eq, O_WRONLY | O_CREAT | O_APPEND, 1);
+            cmd = cmd_new_redir(cmd, q, eq, O_WRONLY | O_CREAT | O_APPEND, 1);
             break;
         default:
             break;
@@ -592,32 +596,32 @@ struct cmd *parseredirs(struct cmd *cmd, char **ps, char *es)
     return cmd;
 }
 
-struct cmd *parseblock(char **ps, char *es)
+static struct cmd *parse_block(char **ps, char *es)
 {
     if (!peek(ps, es, "("))
-        panic("parseblock");
+        panic("parse_block");
     gettoken(ps, es, nullptr, nullptr);
-    struct cmd *cmd = parseline(ps, es);
+    struct cmd *cmd = parse_line(ps, es);
     if (!peek(ps, es, ")"))
         panic("syntax - missing )");
     gettoken(ps, es, nullptr, nullptr);
-    cmd = parseredirs(cmd, ps, es);
+    cmd = parse_redirs(cmd, ps, es);
     return cmd;
 }
 
-struct cmd *parseexec(char **ps, char *es)
+static struct cmd *parse_exec(char **ps, char *es)
 {
     char *q, *eq;
     int tok;
 
     if (peek(ps, es, "("))
-        return parseblock(ps, es);
+        return parse_block(ps, es);
 
-    struct cmd *ret     = execcmd();
+    struct cmd *ret     = cmd_new_exec();
     struct execcmd *cmd = (struct execcmd *)ret;
 
     int argc = 0;
-    ret      = parseredirs(ret, ps, es);
+    ret      = parse_redirs(ret, ps, es);
     while (!peek(ps, es, "|)&;")) {
         if ((tok = gettoken(ps, es, &q, &eq)) == 0)
             break;
@@ -628,15 +632,14 @@ struct cmd *parseexec(char **ps, char *es)
         argc++;
         if (argc >= MAXARGS)
             panic("too many args");
-        ret = parseredirs(ret, ps, es);
+        ret = parse_redirs(ret, ps, es);
     }
     cmd->argv[argc]  = nullptr;
     cmd->eargv[argc] = nullptr;
     return ret;
 }
 
-// NUL-terminate all the counted strings.
-struct cmd *nulterminate(struct cmd *cmd)
+static struct cmd *nulterminate(struct cmd *cmd)
 {
     int i;
     struct backcmd *bcmd;
@@ -649,31 +652,31 @@ struct cmd *nulterminate(struct cmd *cmd)
         return nullptr;
 
     switch (cmd->type) {
-    case EXEC:
+    case CMD_EXEC:
         ecmd = (struct execcmd *)cmd;
         for (i = 0; ecmd->argv[i]; i++)
             *ecmd->eargv[i] = 0;
         break;
 
-    case REDIR:
+    case CMD_REDIR:
         rcmd = (struct redircmd *)cmd;
         nulterminate(rcmd->cmd);
         *rcmd->efile = 0;
         break;
 
-    case PIPE:
+    case CMD_PIPE:
         pcmd = (struct pipecmd *)cmd;
         nulterminate(pcmd->left);
         nulterminate(pcmd->right);
         break;
 
-    case LIST:
+    case CMD_LIST:
         lcmd = (struct listcmd *)cmd;
         nulterminate(lcmd->left);
         nulterminate(lcmd->right);
         break;
 
-    case BACK:
+    case CMD_BACK:
         bcmd = (struct backcmd *)cmd;
         nulterminate(bcmd->cmd);
         break;

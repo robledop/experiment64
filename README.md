@@ -14,14 +14,14 @@ An x86_64 hobby kernel with a VFS layer, ext2/FAT32 support and a libc/tiny shel
 
 ## Common targets
 
-- `make image.hdd` – build kernel + userland and assemble disk images
-- `make small-image` – build a minimal bootable image (`small-image.hdd`) with ESP + ext2 root
-- `make run` – boot the kernel in QEMU with the generated image
-- `make run-small-image` – boot QEMU using `small-image.hdd`
-- `make run-nox` – boot headless (`-nographic`) with console I/O on serial
-- `make vbox` – boot the kernel in VirtualBox with the generated images (USB disk attached)
-- `make tests` – build a test image and run the in-kernel test suite (UBSan enabled)
-- `make clang-tidy` – lint/static-analysis
+- `make image.hdd` - build kernel + userland and assemble disk images
+- `make small-image` - build a minimal bootable image (`small-image.hdd`) with ESP + ext2 root
+- `make run` - boot the kernel in QEMU with the generated image
+- `make run-small-image` - boot QEMU using `small-image.hdd`
+- `make run-nox` - boot headless (`-nographic`) with console I/O on serial
+- `make vbox` - boot the kernel in VirtualBox with the generated images (USB disk attached)
+- `make tests` - build a test image and run the in-kernel test suite (UBSan enabled)
+- `make clang-tidy` - lint/static-analysis
 
 ## Tests
 
@@ -98,6 +98,16 @@ By default, the disk image is written to `/dev/sdb` so, **BE CAREFUL**!
 - `small-image.hdd`: GPT image with ESP (FAT32) and root ext2 only
 - `image2.ide`: secondary IDE disk with an ext2 partition
 - `image3.usb`: USB mass storage disk with an ext2 partition
+
+## Reading map
+
+- Boot and init: `kernel/boot.c`, `kernel/kernel.c`
+- CPU and interrupts: `kernel/arch/x86_64/`
+- Memory: `kernel/mem/`, with design notes in `docs/pmm.md`, `docs/vmm.md`, `docs/heap.md`, and `docs/address_space.md`
+- Storage and filesystems: `kernel/io/`, `kernel/fs/`, `docs/storage.md`, `docs/ext2.md`
+- Tasks and syscalls: `kernel/task/`, `kernel/syscalls/`, `docs/scheduler.md`, `docs/syscalls.md`
+- Userland and libc: `user/`, `user/libc/`
+- GUI: `user/wm/`, `user/wmlib/`, `user/libc/src/wmclient.c`, `docs/wm_protocol.md`
 
 ## License note
 

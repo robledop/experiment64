@@ -7,8 +7,8 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/signal.h>
-#include <termios.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <unistd.h>
 #include <wm/video_context.h>
 #include <wm/window.h>
@@ -22,8 +22,11 @@
 
 #define TERM_CURSOR_COLOR 0xFF63C6FFu
 #define TERM_STATUS_COLOR 0xFFFFAA66u
+#define TERM_TAB_WIDTH 8
 
 #define SCANCODE_TABLE_SIZE 84
+#define SCANCODE_EXTENDED_MASK 0x80u
+#define SCANCODE_VALUE_MASK 0x7Fu
 
 static constexpr char scancode_to_char[SCANCODE_TABLE_SIZE] = {
     0,    27,  '1', '2',  '3', '4', '5', '6', '7',  '8', '9', '0', '-', '=', '\b', '\t', 'q', 'w', 'e', 'r',
@@ -229,21 +232,18 @@ static int terminal_resize_grid_locked(uint16_t new_cols, uint16_t new_rows)
     if (new_cols == term.cols && new_rows == term.rows)
         return 0;
 
-    /* If the new dimensions fit within the current allocation, just
-     * update the visible size — content beyond the visible area is
-     * preserved so that growing back restores it. */
+    /* Preserve hidden cells when shrinking; growing back restores them. */
     if (new_cols <= term.alloc_cols && new_rows <= term.alloc_rows) {
         term.cols = new_cols;
         term.rows = new_rows;
     } else {
-        /* At least one dimension exceeds the allocation — grow. */
         const uint16_t target_cols = new_cols > term.alloc_cols ? new_cols : term.alloc_cols;
         const uint16_t target_rows = new_rows > term.alloc_rows ? new_rows : term.alloc_rows;
         const size_t new_total     = (size_t)target_cols * (size_t)target_rows;
 
-        char *new_cells    = malloc(new_total);
-        uint8_t *new_fg    = malloc(new_total);
-        uint8_t *new_bg    = malloc(new_total);
+        char *new_cells = malloc(new_total);
+        uint8_t *new_fg = malloc(new_total);
+        uint8_t *new_bg = malloc(new_total);
         if (!new_cells || !new_fg || !new_bg) {
             free(new_cells);
             free(new_fg);
@@ -412,6 +412,38 @@ static int csi_param_or_default(const int *params, int count, int index, int def
     return params[index];
 }
 
+static int csi_positive_param_or_default(const int *params, int count, int index, int default_value)
+{
+    int value = csi_param_or_default(params, count, index, default_value);
+    return value < 1 ? 1 : value;
+}
+
+static uint16_t terminal_clamp_cursor_value(int value, uint16_t limit)
+{
+    if (limit == 0 || value < 0)
+        return 0;
+    if (value >= limit)
+        return (uint16_t)(limit - 1);
+    return (uint16_t)value;
+}
+
+static void terminal_set_cursor_locked(int row, int col)
+{
+    term.cursor_row   = terminal_clamp_cursor_value(row, term.rows);
+    term.cursor_col   = terminal_clamp_cursor_value(col, term.cols);
+    term.wrap_pending = false;
+}
+
+static void terminal_move_cursor_locked(int row_delta, int col_delta)
+{
+    terminal_set_cursor_locked((int)term.cursor_row + row_delta, (int)term.cursor_col + col_delta);
+}
+
+static void terminal_restore_saved_cursor_locked()
+{
+    terminal_set_cursor_locked(term.saved_row, term.saved_col);
+}
+
 static void terminal_apply_sgr_code(int code)
 {
     if (code < 0)
@@ -465,67 +497,27 @@ static void terminal_apply_sgr_code(int code)
         term.current_bg = (uint8_t)(code - 100 + 8);
 }
 
-static void terminal_apply_csi_locked(char final_char)
+static void terminal_apply_ansi_csi_locked(char final_char)
 {
     int params[16]        = {0};
     const int param_count = csi_parse_params(term.csi_buf, params, 16);
 
     switch (final_char) {
     case 'A':
-        {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
-            if ((uint16_t)n > term.cursor_row)
-                term.cursor_row = 0;
-            else
-                term.cursor_row = (uint16_t)(term.cursor_row - n);
-            term.wrap_pending = false;
-            break;
-        }
+        terminal_move_cursor_locked(-csi_positive_param_or_default(params, param_count, 0, 1), 0);
+        break;
     case 'B':
-        {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
-            uint16_t next = (uint16_t)(term.cursor_row + n);
-            if (next >= term.rows)
-                term.cursor_row = term.rows - 1;
-            else
-                term.cursor_row = next;
-            term.wrap_pending = false;
-            break;
-        }
+        terminal_move_cursor_locked(csi_positive_param_or_default(params, param_count, 0, 1), 0);
+        break;
     case 'C':
-        {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
-            uint16_t next = (uint16_t)(term.cursor_col + n);
-            if (next >= term.cols)
-                term.cursor_col = term.cols - 1;
-            else
-                term.cursor_col = next;
-            term.wrap_pending = false;
-            break;
-        }
+        terminal_move_cursor_locked(0, csi_positive_param_or_default(params, param_count, 0, 1));
+        break;
     case 'D':
-        {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
-            if ((uint16_t)n > term.cursor_col)
-                term.cursor_col = 0;
-            else
-                term.cursor_col = (uint16_t)(term.cursor_col - n);
-            term.wrap_pending = false;
-            break;
-        }
+        terminal_move_cursor_locked(0, -csi_positive_param_or_default(params, param_count, 0, 1));
+        break;
     case 'E':
         {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
+            int n = csi_positive_param_or_default(params, param_count, 0, 1);
             for (int i = 0; i < n; i++)
                 terminal_newline_locked();
             term.cursor_col   = 0;
@@ -534,55 +526,28 @@ static void terminal_apply_csi_locked(char final_char)
         }
     case 'F':
         {
-            int n = csi_param_or_default(params, param_count, 0, 1);
-            if (n < 1)
-                n = 1;
-            if ((uint16_t)n > term.cursor_row)
-                term.cursor_row = 0;
-            else
-                term.cursor_row = (uint16_t)(term.cursor_row - n);
-            term.cursor_col   = 0;
-            term.wrap_pending = false;
+            int n = csi_positive_param_or_default(params, param_count, 0, 1);
+            terminal_set_cursor_locked((int)term.cursor_row - n, 0);
             break;
         }
     case 'G':
         {
-            int col = csi_param_or_default(params, param_count, 0, 1);
-            if (col < 1)
-                col = 1;
-            if (col > term.cols)
-                col = term.cols;
-            term.cursor_col   = (uint16_t)(col - 1);
-            term.wrap_pending = false;
+            int col = csi_positive_param_or_default(params, param_count, 0, 1);
+            terminal_set_cursor_locked(term.cursor_row, col - 1);
             break;
         }
     case 'd':
         {
-            int row = csi_param_or_default(params, param_count, 0, 1);
-            if (row < 1)
-                row = 1;
-            if (row > term.rows)
-                row = term.rows;
-            term.cursor_row   = (uint16_t)(row - 1);
-            term.wrap_pending = false;
+            int row = csi_positive_param_or_default(params, param_count, 0, 1);
+            terminal_set_cursor_locked(row - 1, term.cursor_col);
             break;
         }
     case 'H':
     case 'f':
         {
-            int row = csi_param_or_default(params, param_count, 0, 1);
-            int col = csi_param_or_default(params, param_count, 1, 1);
-            if (row < 1)
-                row = 1;
-            if (col < 1)
-                col = 1;
-            if (row > term.rows)
-                row = term.rows;
-            if (col > term.cols)
-                col = term.cols;
-            term.cursor_row   = (uint16_t)(row - 1);
-            term.cursor_col   = (uint16_t)(col - 1);
-            term.wrap_pending = false;
+            int row = csi_positive_param_or_default(params, param_count, 0, 1);
+            int col = csi_positive_param_or_default(params, param_count, 1, 1);
+            terminal_set_cursor_locked(row - 1, col - 1);
             break;
         }
     case 'J':
@@ -609,9 +574,7 @@ static void terminal_apply_csi_locked(char final_char)
         term.saved_col = term.cursor_col;
         break;
     case 'u':
-        term.cursor_row   = term.saved_row < term.rows ? term.saved_row : (uint16_t)(term.rows - 1);
-        term.cursor_col   = term.saved_col < term.cols ? term.saved_col : (uint16_t)(term.cols - 1);
-        term.wrap_pending = false;
+        terminal_restore_saved_cursor_locked();
         break;
     case 'm':
         {
@@ -628,87 +591,85 @@ static void terminal_apply_csi_locked(char final_char)
     }
 }
 
-static void terminal_process_byte_locked(terminal_state_t *term, uint8_t byte)
+static void terminal_process_byte_locked(terminal_state_t *terminal, uint8_t byte)
 {
-    if (term->parser_state == TERM_PARSER_ESC) {
+    if (terminal->parser_state == TERM_PARSER_ESC) {
         switch (byte) {
         case '[':
-            term->parser_state = TERM_PARSER_CSI;
-            term->csi_len      = 0;
-            term->csi_buf[0]   = '\0';
+            terminal->parser_state = TERM_PARSER_CSI;
+            terminal->csi_len      = 0;
+            terminal->csi_buf[0]   = '\0';
             return;
         case '7':
-            term->saved_row    = term->cursor_row;
-            term->saved_col    = term->cursor_col;
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal->saved_row    = terminal->cursor_row;
+            terminal->saved_col    = terminal->cursor_col;
+            terminal->parser_state = TERM_PARSER_NORMAL;
             return;
         case '8':
-            term->cursor_row   = term->saved_row < term->rows ? term->saved_row : (uint16_t)(term->rows - 1);
-            term->cursor_col   = term->saved_col < term->cols ? term->saved_col : (uint16_t)(term->cols - 1);
-            term->wrap_pending = false;
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal_restore_saved_cursor_locked();
+            terminal->parser_state = TERM_PARSER_NORMAL;
             return;
         case 'D':
-            term->wrap_pending = false;
+            terminal->wrap_pending = false;
             terminal_newline_locked();
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal->parser_state = TERM_PARSER_NORMAL;
             return;
         case 'E':
-            term->wrap_pending = false;
+            terminal->wrap_pending = false;
             terminal_newline_locked();
-            term->cursor_col   = 0;
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal->cursor_col   = 0;
+            terminal->parser_state = TERM_PARSER_NORMAL;
             return;
         case 'c':
             terminal_clear_locked();
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal->parser_state = TERM_PARSER_NORMAL;
             return;
         default:
-            term->parser_state = TERM_PARSER_NORMAL;
+            terminal->parser_state = TERM_PARSER_NORMAL;
             break;
         }
     }
 
-    if (term->parser_state == TERM_PARSER_CSI) {
+    if (terminal->parser_state == TERM_PARSER_CSI) {
         if (byte >= '@' && byte <= '~') {
-            terminal_apply_csi_locked((char)byte);
-            term->parser_state = TERM_PARSER_NORMAL;
-            term->csi_len      = 0;
-            term->csi_buf[0]   = '\0';
+            terminal_apply_ansi_csi_locked((char)byte);
+            terminal->parser_state = TERM_PARSER_NORMAL;
+            terminal->csi_len      = 0;
+            terminal->csi_buf[0]   = '\0';
             return;
         }
 
-        if (term->csi_len + 1 < sizeof(term->csi_buf)) {
-            term->csi_buf[term->csi_len++] = (char)byte;
-            term->csi_buf[term->csi_len]   = '\0';
+        if (terminal->csi_len + 1 < sizeof(terminal->csi_buf)) {
+            terminal->csi_buf[terminal->csi_len++] = (char)byte;
+            terminal->csi_buf[terminal->csi_len]   = '\0';
         }
         return;
     }
 
     switch (byte) {
     case 0x1B:
-        term->parser_state = TERM_PARSER_ESC;
+        terminal->parser_state = TERM_PARSER_ESC;
         return;
     case '\r':
-        term->cursor_col   = 0;
-        term->wrap_pending = false;
+        terminal->cursor_col   = 0;
+        terminal->wrap_pending = false;
         return;
     case '\n':
-        term->wrap_pending = false;
+        terminal->wrap_pending = false;
         terminal_newline_locked();
         return;
     case '\b':
-        if (term->cursor_col > 0) {
-            term->cursor_col--;
-            terminal_set_cell_locked(term->cursor_row, term->cursor_col, ' ');
+        if (terminal->cursor_col > 0) {
+            terminal->cursor_col--;
+            terminal_set_cell_locked(terminal->cursor_row, terminal->cursor_col, ' ');
         }
-        term->wrap_pending = false;
+        terminal->wrap_pending = false;
         return;
     case '\t':
         {
-            int spaces = 8 - (term->cursor_col % 8);
+            int spaces = TERM_TAB_WIDTH - (terminal->cursor_col % TERM_TAB_WIDTH);
             if (spaces <= 0)
-                spaces = 8;
+                spaces = TERM_TAB_WIDTH;
             for (int i = 0; i < spaces; i++)
                 terminal_put_char_locked(' ');
             return;
@@ -726,10 +687,7 @@ static void terminal_render_locked(terminal_state_t *term)
     if (!term->win)
         return;
 
-    /* Skip rendering when a resize is in flight: the WM event reader
-     * has already remapped the window buffers (potentially smaller)
-     * but this thread's context still carries the old dimensions.
-     * The main event loop will rebuild the context and re-render. */
+    /* Resize remaps buffers before the render context is rebuilt. */
     if (term->context->width != term->win->width || term->context->height != term->win->height)
         return;
 
@@ -820,8 +778,8 @@ static size_t terminal_translate_key(terminal_state_t *term, const wm_event_key_
     if (!term || !ev || !out || out_cap == 0)
         return 0;
 
-    const bool extended = (ev->keycode & 0x80u) != 0;
-    const uint8_t code  = (uint8_t)(ev->keycode & 0x7Fu);
+    const bool extended = (ev->keycode & SCANCODE_EXTENDED_MASK) != 0;
+    const uint8_t code  = (uint8_t)(ev->keycode & SCANCODE_VALUE_MASK);
     const bool pressed  = ev->pressed != 0;
 
     if (extended) {
@@ -1154,28 +1112,18 @@ int main(void)
         }
     }
 
-    // Revoke the PTY so in-progress reads/writes return immediately.
     ioctl(master_fd, TIOCHUP, nullptr);
 
     __atomic_store_n(&term.running, false, __ATOMIC_RELAXED);
 
-    // Mark the WM event stream as dead.  This wakes the reader thread
-    // if it is stuck inside wm_invalidate_region → pthread_cond_wait
-    // waiting for an INVALIDATED ack that the WM may never send (the
-    // window is already closed).  The condition variable checks
-    // g_reader_dead, so the reader thread will exit the wait, release
-    // g_present_lock and term.lock, and then exit its loop because
-    // running is false.
+    /* Wake a render thread blocked waiting for an invalidate ack. */
     wm_shutdown_events();
 
-    // Clear term.win under the lock so the reader thread's render path
-    // sees nullptr and bails out before touching the window.
     pthread_mutex_lock(&term.lock);
     wm_window_t *win_to_destroy = term.win;
-    term.win = nullptr;
+    term.win                    = nullptr;
     pthread_mutex_unlock(&term.lock);
 
-    // Kill shell and foreground processes.
     terminal_hangup_foreground(master_fd, shell_pid);
     kill(shell_pid, SIGTERM);
 
@@ -1189,7 +1137,6 @@ int main(void)
     close(master_fd);
     pthread_join(reader_thread, nullptr);
 
-    // Reader thread is dead — safe to destroy the window now.
     wm_destroy_window(win_to_destroy);
 
     free(term.cells);

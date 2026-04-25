@@ -1,4 +1,3 @@
-// ReSharper disable CppDFAConstantParameter
 #include <array.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -8,6 +7,8 @@
 #include <unistd.h>
 #include <wm/wm_protocol.h>
 #include <wm/wmclient.h>
+
+static_assert(WM_BUFFER_COUNT == 2, "wmclient assumes double buffering");
 
 static wm_window_t **g_windows = nullptr;
 
@@ -45,6 +46,20 @@ typedef struct {
         wm_event_invalidated_t invalidated;
     } payload;
 } wm_raw_event_t;
+
+static void wm_copy_title(char dst[WM_TITLE_MAX], const char *title)
+{
+    if (!title) {
+        dst[0] = '\0';
+        return;
+    }
+
+    size_t len = strlen(title);
+    if (len >= WM_TITLE_MAX)
+        len = WM_TITLE_MAX - 1;
+    memcpy(dst, title, len);
+    dst[len] = '\0';
+}
 
 static wm_window_t *wm_find_window_locked(uint32_t window_id)
 {
@@ -86,7 +101,7 @@ static int wm_read_exact(int fd, void *buf, size_t count)
 static void wm_unmap_window_buffers(wm_window_t *win)
 {
     const size_t buf_size = (size_t)win->width * (size_t)win->height * 4;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
         if (win->buffers[i] && buf_size)
             munmap(win->buffers[i], buf_size);
         if (win->shm_fds[i] >= 0)
@@ -118,6 +133,11 @@ static int wm_map_named_buffer(const char *shm_name, size_t size, uint32_t **out
     return 0;
 }
 
+static uint8_t wm_back_buffer_for(uint8_t front_buffer)
+{
+    return front_buffer == 0 ? 1 : 0;
+}
+
 /**
  * @brief Release previously retired window buffers.
  *
@@ -131,34 +151,34 @@ static void wm_release_retired_buffers_locked(wm_window_t *win)
         return;
 
     const size_t buf_size = (size_t)win->retired_width * (size_t)win->retired_height * 4;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
         if (win->retired_buffers[i] && buf_size)
             munmap(win->retired_buffers[i], buf_size);
         if (win->retired_shm_fds[i] >= 0)
             close(win->retired_shm_fds[i]);
-        win->retired_buffers[i]  = nullptr;
-        win->retired_shm_fds[i]  = -1;
+        win->retired_buffers[i] = nullptr;
+        win->retired_shm_fds[i] = -1;
     }
     win->retired_width  = 0;
     win->retired_height = 0;
 }
 
-static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[2][WM_SHM_NAME_MAX], uint8_t front_buffer,
-                                   uint16_t width, uint16_t height)
+static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[WM_BUFFER_COUNT][WM_SHM_NAME_MAX],
+                                   uint8_t front_buffer, uint16_t width, uint16_t height)
 {
     if (!win || !shm_names || width == 0 || height == 0)
         return -1;
 
-    if (front_buffer > 1)
+    if (front_buffer >= WM_BUFFER_COUNT)
         front_buffer = 0;
 
-    const size_t new_size    = (size_t)width * (size_t)height * 4;
-    uint32_t *new_buffers[2] = {nullptr};
-    int new_fds[2]           = {-1, -1};
+    const size_t new_size                  = (size_t)width * (size_t)height * 4;
+    uint32_t *new_buffers[WM_BUFFER_COUNT] = {nullptr};
+    int new_fds[WM_BUFFER_COUNT]           = {-1, -1};
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
         if (wm_map_named_buffer(shm_names[i], new_size, &new_buffers[i], &new_fds[i]) != 0) {
-            for (int j = 0; j < 2; j++) {
+            for (int j = 0; j < WM_BUFFER_COUNT; j++) {
                 if (new_buffers[j])
                     munmap(new_buffers[j], new_size);
                 if (new_fds[j] >= 0)
@@ -168,28 +188,23 @@ static int wm_remap_window_buffers(wm_window_t *win, const char shm_names[2][WM_
         }
     }
 
-    /* Release any previously retired buffers before retiring new ones. */
     wm_release_retired_buffers_locked(win);
 
-    /* Retire the current buffers instead of unmapping them immediately.
-     * A concurrent render thread may still be writing to the old buffer;
-     * the client must call wm_release_retired_buffers() once it has
-     * rebuilt its rendering context after the resize event. */
-    for (int i = 0; i < 2; i++) {
-        win->retired_buffers[i]  = win->buffers[i];
-        win->retired_shm_fds[i]  = win->shm_fds[i];
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
+        win->retired_buffers[i] = win->buffers[i];
+        win->retired_shm_fds[i] = win->shm_fds[i];
     }
     win->retired_width  = win->width;
     win->retired_height = win->height;
 
-    win->buffers[0]   = new_buffers[0];
-    win->buffers[1]   = new_buffers[1];
-    win->shm_fds[0]   = new_fds[0];
-    win->shm_fds[1]   = new_fds[1];
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
+        win->buffers[i] = new_buffers[i];
+        win->shm_fds[i] = new_fds[i];
+    }
     win->width        = width;
     win->height       = height;
     win->front_buffer = front_buffer;
-    win->back_buffer  = (uint8_t)(front_buffer ^ 1u);
+    win->back_buffer  = wm_back_buffer_for(front_buffer);
     win->buffer       = win->buffers[win->back_buffer];
 
     return 0;
@@ -268,6 +283,25 @@ static int wm_queue_take_next_visible_locked(wm_client_event_t *out)
     }
 
     return 0;
+}
+
+static void wm_apply_invalidated_event_locked(wm_window_t *win, uint8_t front_buffer)
+{
+    if (!win)
+        return;
+
+    uint8_t front = front_buffer;
+    if (front >= WM_BUFFER_COUNT)
+        front = win->front_buffer < WM_BUFFER_COUNT ? win->front_buffer : 0;
+
+    if (win->buffers[front]) {
+        win->front_buffer = front;
+        win->back_buffer  = wm_back_buffer_for(front);
+        win->buffer       = win->buffers[win->back_buffer];
+    }
+
+    if (win->presents_completed < win->presents_requested)
+        win->presents_completed++;
 }
 
 static int wm_read_raw_event(wm_raw_event_t *raw)
@@ -363,20 +397,7 @@ static int wm_process_raw_event_locked(const wm_raw_event_t *raw)
     case WM_EVENT_INVALIDATED:
         {
             wm_window_t *win = wm_find_window_locked(raw->payload.invalidated.window_id);
-            if (win) {
-                uint8_t front = raw->payload.invalidated.front_buffer;
-                if (front > 1)
-                    front = win->front_buffer <= 1 ? win->front_buffer : 0;
-
-                if (win->buffers[front]) {
-                    win->front_buffer = front;
-                    win->back_buffer  = (uint8_t)(front ^ 1u);
-                    win->buffer       = win->buffers[win->back_buffer];
-                }
-
-                if (win->presents_completed < win->presents_requested)
-                    win->presents_completed++;
-            }
+            wm_apply_invalidated_event_locked(win, raw->payload.invalidated.front_buffer);
 
             pthread_cond_broadcast(&g_state_cv);
             return 0;
@@ -481,14 +502,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
     msg.height                 = height;
     msg.flags                  = flags;
     msg.parent_id              = parent_id;
-
-    if (title) {
-        size_t len = strlen(title);
-        if (len >= WM_TITLE_MAX)
-            len = WM_TITLE_MAX - 1;
-        memcpy(msg.title, title, len);
-        msg.title[len] = '\0';
-    }
+    wm_copy_title(msg.title, title);
 
     pthread_mutex_lock(&g_create_lock);
 
@@ -512,12 +526,12 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
         return nullptr;
 
     memset(win, 0, sizeof(*win));
-    win->window_id          = resp.window_id;
-    win->shm_fds[0]         = -1;
-    win->shm_fds[1]         = -1;
-    win->retired_shm_fds[0] = -1;
-    win->retired_shm_fds[1] = -1;
-    win->flags              = flags;
+    win->window_id = resp.window_id;
+    for (int i = 0; i < WM_BUFFER_COUNT; i++) {
+        win->shm_fds[i]         = -1;
+        win->retired_shm_fds[i] = -1;
+    }
+    win->flags = flags;
 
     pthread_mutex_lock(&g_state_lock);
 
@@ -534,15 +548,7 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
         return nullptr;
     }
 
-    if (title) {
-        size_t len = strlen(title);
-        if (len >= WM_TITLE_MAX)
-            len = WM_TITLE_MAX - 1;
-        memcpy(win->title, title, len);
-        win->title[len] = '\0';
-    } else {
-        win->title[0] = '\0';
-    }
+    wm_copy_title(win->title, title);
 
     pthread_mutex_unlock(&g_state_lock);
 
@@ -562,8 +568,8 @@ void wm_invalidate_region(wm_window_t *win, int16_t x, int16_t y, uint16_t w, ui
     pthread_mutex_lock(&g_state_lock);
 
     uint8_t back = win->back_buffer;
-    if (back > 1 || !win->buffers[back])
-        back = (uint8_t)(win->front_buffer ^ 1u);
+    if (back >= WM_BUFFER_COUNT || !win->buffers[back])
+        back = wm_back_buffer_for(win->front_buffer);
 
     const uint32_t wait_for = ++win->presents_requested;
 

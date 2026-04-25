@@ -30,8 +30,7 @@ static void parse_mode(const char *mode, bool *out_read, bool *out_write, bool *
         *out_create = w || a;
 }
 
-// NOLINTBEGIN(misc-non-copyable-objects): Intentional FILE objects for standard streams
-FILE __stdin_file_obj = {
+struct stdio_file __stdin_file_obj = {
     .fd         = 0,
     .readable   = true,
     .writable   = false,
@@ -46,7 +45,7 @@ FILE __stdin_file_obj = {
     .wbuf_pos   = 0,
     .buf_mode   = _IONBF,
 };
-FILE __stdout_file_obj = {
+struct stdio_file __stdout_file_obj = {
     .fd         = 1,
     .readable   = false,
     .writable   = true,
@@ -61,7 +60,7 @@ FILE __stdout_file_obj = {
     .wbuf_pos   = 0,
     .buf_mode   = _IOLBF,
 };
-FILE __stderr_file_obj = {
+struct stdio_file __stderr_file_obj = {
     .fd         = 2,
     .readable   = false,
     .writable   = true,
@@ -76,13 +75,17 @@ FILE __stderr_file_obj = {
     .wbuf_pos   = 0,
     .buf_mode   = _IONBF,
 };
-// NOLINTEND(misc-non-copyable-objects)
 FILE *__stdin_file  = &__stdin_file_obj;
 FILE *__stdout_file = &__stdout_file_obj;
 FILE *__stderr_file = &__stderr_file_obj;
 
 #undef stdout
 FILE *const stdout = &__stdout_file_obj;
+
+static bool stdio_is_standard_stream(const FILE *stream)
+{
+    return stream == __stdin_file || stream == __stdout_file || stream == __stderr_file;
+}
 
 /// @brief Flush the write buffer of a FILE stream to its fd.
 /// @return 0 on success, EOF on error.
@@ -102,6 +105,16 @@ static int __flush_wbuf(FILE *f)
     }
     f->wbuf_pos = 0;
     return 0;
+}
+
+static int stdio_flush_standard_outputs(void)
+{
+    int result = 0;
+    if (__flush_wbuf(__stdout_file) != 0)
+        result = EOF;
+    if (__flush_wbuf(__stderr_file) != 0)
+        result = EOF;
+    return result;
 }
 
 /// @brief Write bytes through the FILE's write buffer.
@@ -318,7 +331,7 @@ int fclose(FILE *stream)
     if (!stream)
         return -1;
     __flush_wbuf(stream);
-    if (stream == __stdin_file || stream == __stdout_file || stream == __stderr_file)
+    if (stdio_is_standard_stream(stream))
         return 0;
     if (stream->fd >= 0)
         close(stream->fd);
@@ -551,7 +564,7 @@ FILE *freopen(const char *path, const char *mode, FILE *stream)
     if (!path || !mode || !stream)
         return nullptr;
     __flush_wbuf(stream);
-    if (stream->fd >= 0 && stream != __stdin_file && stream != __stdout_file && stream != __stderr_file)
+    if (stream->fd >= 0 && !stdio_is_standard_stream(stream))
         close(stream->fd);
     stream->fd = -1;
     if (stream->data) {
@@ -600,13 +613,7 @@ int ferror_unlocked(FILE *stream)
 int fflush(FILE *stream)
 {
     if (!stream) {
-        // POSIX: fflush(NULL) flushes all open output streams
-        int r = 0;
-        if (__flush_wbuf(__stdout_file) != 0)
-            r = EOF;
-        if (__flush_wbuf(__stderr_file) != 0)
-            r = EOF;
-        return r;
+        return stdio_flush_standard_outputs();
     }
     return __flush_wbuf(stream);
 }

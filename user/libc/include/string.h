@@ -5,7 +5,6 @@
 #endif
 
 #include <stddef.h>
-#include <stdbool.h>
 
 size_t strlen(const char *s);
 size_t strnlen(const char *s, size_t maxlen);

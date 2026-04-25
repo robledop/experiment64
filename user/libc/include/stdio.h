@@ -1,15 +1,14 @@
 #pragma once
-#include <stddef.h>
-#include <stdarg.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <termcolors.h>
 #include <dirent.h>
-#include <time.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <termcolors.h>
+#include <time.h>
+#include <unistd.h>
 
 #define EOF (-1)
 #define SEEK_SET 0
@@ -21,8 +20,7 @@
 #define _IOLBF 1 // Line buffered
 #define _IOFBF 2 // Fully buffered
 
-typedef struct FILE
-{
+typedef struct stdio_file {
     int fd;
     bool readable;
     bool writable;
@@ -40,9 +38,9 @@ typedef struct FILE
     char wbuf_static[BUFSIZ];
 } FILE;
 
-extern FILE __stdin_file_obj;  // NOLINT(misc-non-copyable-objects)
-extern FILE __stdout_file_obj; // NOLINT(misc-non-copyable-objects)
-extern FILE __stderr_file_obj; // NOLINT(misc-non-copyable-objects)
+extern struct stdio_file __stdin_file_obj;
+extern struct stdio_file __stdout_file_obj;
+extern struct stdio_file __stderr_file_obj;
 extern FILE *__stdin_file;
 extern FILE *__stdout_file;
 extern FILE *__stderr_file;
