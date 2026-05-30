@@ -1,0 +1,78 @@
+{
+    "version": "0.1.0",
+    "id": "18608329-4062-460e-88a1-7b233dc3811f",
+    "timestamp": "2026-05-30T16:43:15.250374245Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a8d23d38ea251ddf6a288223c0c5b883cfb92d16",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/net/dhcp.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9986a26ea156412a1ba912d92b20351d4101faee",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 86,
+                            "end_line": 87
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/net/dhcp.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9986a26ea156412a1ba912d92b20351d4101faee",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 165,
+                            "end_line": 186
+                        },
+                        {
+                            "start_line": 218,
+                            "end_line": 218
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/network_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9986a26ea156412a1ba912d92b20351d4101faee",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 293,
+                            "end_line": 293
+                        },
+                        {
+                            "start_line": 295,
+                            "end_line": 310
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
