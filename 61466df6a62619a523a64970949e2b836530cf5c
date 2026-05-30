@@ -1,0 +1,204 @@
+{
+    "version": "0.1.0",
+    "id": "2f679842-4bee-4b1a-80aa-e5277a092640",
+    "timestamp": "2026-05-30T19:51:52.381294115Z",
+    "vcs": {
+        "type": "git",
+        "revision": "61466df6a62619a523a64970949e2b836530cf5c",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/arch/x86_64/cpu.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f9b1fdaa068e272228c12b9ee266572dd8947c01",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 38,
+                            "end_line": 40
+                        },
+                        {
+                            "start_line": 53,
+                            "end_line": 56
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "include/sys/syscall.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f9b1fdaa068e272228c12b9ee266572dd8947c01",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 13,
+                            "end_line": 15
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/arch/x86_64/idt.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e71b7936d38edfd6e0e97739600d91dea97bc72c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 8,
+                            "end_line": 13
+                        },
+                        {
+                            "start_line": 171,
+                            "end_line": 173
+                        },
+                        {
+                            "start_line": 180,
+                            "end_line": 181
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/ide.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e71b7936d38edfd6e0e97739600d91dea97bc72c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 8,
+                            "end_line": 11
+                        },
+                        {
+                            "start_line": 175,
+                            "end_line": 177
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/keyboard.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e71b7936d38edfd6e0e97739600d91dea97bc72c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 8,
+                            "end_line": 11
+                        },
+                        {
+                            "start_line": 325,
+                            "end_line": 325
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_device.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2c82d568769d38df794571a7948284bede41df23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 353,
+                            "end_line": 357
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_accept.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e0d46f5a304c2e64ee5886b1b62ef42854d14c9a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 83,
+                            "end_line": 85
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_mmap.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:3f52094380d4059463bca51f9ede800b2a916e13",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 203,
+                            "end_line": 203
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
