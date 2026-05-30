@@ -1,0 +1,66 @@
+{
+    "version": "0.1.0",
+    "id": "7c698398-0a82-49c6-ae6d-1220ba2c9fee",
+    "timestamp": "2026-05-30T17:11:25.904411457Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a2e8286b99b52fd5d478bc121a73e2870ab7e19f",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/drivers/usb/xhci_device.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2ff5efff2b43ae8d8c86be70eeb8be21f28788e8",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 372,
+                            "end_line": 372
+                        },
+                        {
+                            "start_line": 380,
+                            "end_line": 380
+                        },
+                        {
+                            "start_line": 387,
+                            "end_line": 387
+                        },
+                        {
+                            "start_line": 395,
+                            "end_line": 395
+                        },
+                        {
+                            "start_line": 401,
+                            "end_line": 401
+                        },
+                        {
+                            "start_line": 408,
+                            "end_line": 408
+                        },
+                        {
+                            "start_line": 416,
+                            "end_line": 416
+                        },
+                        {
+                            "start_line": 422,
+                            "end_line": 422
+                        },
+                        {
+                            "start_line": 429,
+                            "end_line": 429
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
