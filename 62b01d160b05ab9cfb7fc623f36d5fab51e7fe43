@@ -1,0 +1,108 @@
+{
+    "version": "0.1.0",
+    "id": "b74839cc-2993-4b50-8b53-a53e15061f75",
+    "timestamp": "2026-05-30T18:13:38.514918518Z",
+    "vcs": {
+        "type": "git",
+        "revision": "62b01d160b05ab9cfb7fc623f36d5fab51e7fe43",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/drivers/usb/xhci_internal.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:fb3503f851a1da8996da2ccb8d7bbbe21001ab72",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 9,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 480,
+                            "end_line": 480
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_core.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:fb3503f851a1da8996da2ccb8d7bbbe21001ab72",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 490,
+                            "end_line": 490
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_hid_mouse.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:fb3503f851a1da8996da2ccb8d7bbbe21001ab72",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 255,
+                            "end_line": 257
+                        },
+                        {
+                            "start_line": 260,
+                            "end_line": 261
+                        },
+                        {
+                            "start_line": 263,
+                            "end_line": 263
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_msc.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:fb3503f851a1da8996da2ccb8d7bbbe21001ab72",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 290,
+                            "end_line": 295
+                        },
+                        {
+                            "start_line": 367,
+                            "end_line": 372
+                        },
+                        {
+                            "start_line": 374,
+                            "end_line": 380
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
