@@ -126,6 +126,11 @@ void *malloc(size_t nbytes)
 {
     Header *prevp;
 
+    // Reject sizes so large the unit computation below would overflow and
+    // wrap around to a small allocation.
+    if (nbytes > (size_t)-1 - sizeof(Header))
+        return nullptr;
+
     // Convert byte size to Header-sized units
     // +1 for the header itself and round up for any remainder
     const size_t nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
