@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 
 /**
@@ -11,6 +12,9 @@
  *   1 = malloc did not reject an overflowing size request
  *   2 = malloc did not reject a near-overflow size request
  *   3 = normal malloc failed
+ *   4 = could not allocate a setvbuf buffer
+ *   5 = could not open a scratch file
+ *   6 = fclose wrongly freed the caller-provided setvbuf buffer
  */
 int main(void)
 {
@@ -26,6 +30,26 @@ int main(void)
     if (!p)
         return 3;
     free(p);
+
+    // fclose must not free a caller-provided setvbuf buffer. Detect a wrongful
+    // free by checking the allocator does not immediately hand the buffer back.
+    char *ubuf = malloc(BUFSIZ);
+    if (!ubuf)
+        return 4;
+    FILE *f = fopen("/libc_test.tmp", "w");
+    if (!f) {
+        free(ubuf);
+        return 5;
+    }
+    setvbuf(f, ubuf, _IOFBF, BUFSIZ);
+    fwrite("hello", 1, 5, f);
+    fclose(f);
+
+    char *again = malloc(BUFSIZ);
+    if (again == ubuf)
+        return 6;
+    free(again);
+    free(ubuf);
 
     return 0;
 }

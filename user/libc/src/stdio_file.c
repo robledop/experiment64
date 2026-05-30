@@ -337,8 +337,9 @@ int fclose(FILE *stream)
         close(stream->fd);
     if (stream->data)
         free(stream->data);
-    if (stream->wbuf && stream->wbuf != stream->wbuf_static)
-        free(stream->wbuf);
+    // Do not free stream->wbuf: it is either wbuf_static (embedded in this
+    // struct) or a caller-owned setvbuf buffer. The library never heap-
+    // allocates it, so freeing here would free memory it does not own.
     free(stream);
     return 0;
 }
