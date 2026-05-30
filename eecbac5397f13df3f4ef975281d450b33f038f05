@@ -1,0 +1,15 @@
+{
+    "version": "0.1.0",
+    "id": "3599b0e2-ce9d-4be5-9a4e-d7b025989f46",
+    "timestamp": "2026-05-30T19:34:14.835118887Z",
+    "vcs": {
+        "type": "git",
+        "revision": "eecbac5397f13df3f4ef975281d450b33f038f05",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": []
+}
