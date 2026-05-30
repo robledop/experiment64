@@ -15,6 +15,8 @@
  *   4 = could not allocate a setvbuf buffer
  *   5 = could not open a scratch file
  *   6 = fclose wrongly freed the caller-provided setvbuf buffer
+ *   7 = could not open a scratch file for the zero-buffer check
+ *   8 = a fully-buffered write with a zero-size buffer did not complete
  */
 int main(void)
 {
@@ -50,6 +52,18 @@ int main(void)
         return 6;
     free(again);
     free(ubuf);
+
+    // A fully-buffered stream given a zero-size buffer must not spin forever on
+    // a write; the write should complete (falling back to unbuffered).
+    char zero_buf[1];
+    FILE *zf = fopen("/libc_test.tmp", "w");
+    if (!zf)
+        return 7;
+    setvbuf(zf, zero_buf, _IOFBF, 0);
+    size_t n = fwrite("x", 1, 1, zf);
+    fclose(zf);
+    if (n != 1)
+        return 8;
 
     return 0;
 }

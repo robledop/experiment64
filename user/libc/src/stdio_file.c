@@ -124,8 +124,9 @@ static size_t __buffered_write(FILE *f, const char *src, size_t len)
     if (!f || !f->writable || len == 0)
         return 0;
 
-    // Unbuffered: write directly
-    if (f->buf_mode == _IONBF || !f->wbuf) {
+    // Unbuffered, no buffer, or a zero-size buffer: write directly. A zero-size
+    // buffer would otherwise make the loop below spin without making progress.
+    if (f->buf_mode == _IONBF || !f->wbuf || f->wbuf_size == 0) {
         ssize_t w = write(f->fd, src, len);
         if (w <= 0)
             return 0;
