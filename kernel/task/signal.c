@@ -229,8 +229,11 @@ int signal_send_pid(int pid, int sig)
         thread_wakeup(parent);
     }
 
-    // Close FDs eagerly so pipe readers see EOF without waiting for reap.
-    if (target->terminated)
+    // Close FDs eagerly so pipe readers see EOF without waiting for reap, but
+    // only when we killed ourselves: a foreign target may already have been
+    // reaped and freed on another CPU once scheduler_lock was dropped. For
+    // cross-process kills the reaper closes the FDs itself.
+    if (killed_self && target->terminated)
         process_close_fds(target);
 
     if (killed_self) {
