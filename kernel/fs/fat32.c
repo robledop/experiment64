@@ -145,6 +145,14 @@ int fat32_init(fat32_fs_t *fs, uint8_t drive_index, uint32_t partition_lba)
 
 static int fat32_read_cluster(fat32_fs_t *fs, uint32_t cluster, uint8_t *buffer)
 {
+    // Valid data clusters are numbered 2 .. total_clusters+1. cluster_to_lba()
+    // computes first_data_sector + (cluster - 2) * sectors_per_cluster, so a
+    // cluster outside this range (from a corrupt or malicious FAT entry) would
+    // resolve to an arbitrary LBA and read sectors outside the partition.
+    // Reject it before touching the disk.
+    if (cluster < 2 || cluster >= fs->total_clusters + 2) {
+        return 1;
+    }
     uint32_t lba = cluster_to_lba(fs, cluster);
     for (uint32_t i = 0; i < fs->sectors_per_cluster; i++) {
         buffer_head_t *bh = bread(fs->drive_index, lba + i);
@@ -158,6 +166,12 @@ static int fat32_read_cluster(fat32_fs_t *fs, uint32_t cluster, uint8_t *buffer)
 
 static int fat32_write_cluster(fat32_fs_t *fs, uint32_t cluster, uint8_t *buffer)
 {
+    // Same bounds guard as fat32_read_cluster: an out-of-range cluster would
+    // make cluster_to_lba() point at sectors outside the partition, so a
+    // corrupt FAT could otherwise drive writes to arbitrary disk locations.
+    if (cluster < 2 || cluster >= fs->total_clusters + 2) {
+        return 1;
+    }
     uint32_t lba = cluster_to_lba(fs, cluster);
     for (uint32_t i = 0; i < fs->sectors_per_cluster; i++) {
         buffer_head_t *bh = bread(fs->drive_index, lba + i);
