@@ -133,7 +133,10 @@ pml4_t vmm_new_pml4(void)
     return (pml4_t)phys;
 }
 
-static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_table, int level)
+// Returns false if any allocation failed; the caller must tear down the
+// partially-built address space (every allocated table is linked into the
+// tree, so vmm_destroy_pml4 reclaims it).
+static bool copy_page_table_level(uint64_t *dest_table, const uint64_t *src_table, int level)
 {
     for (int i = 0; i < 512; i++)
     {
@@ -157,7 +160,7 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
 
                 void *new_phys = pmm_alloc_page();
                 if (!new_phys)
-                    continue;
+                    return false;
 
                 void *src_phys = (void *)(src_table[i] & PTE_ADDR_MASK);
 
@@ -173,7 +176,7 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
                 // Allocate new table
                 void *new_table_phys = pmm_alloc_page();
                 if (!new_table_phys)
-                    continue;
+                    return false;
 
                 uint64_t *new_table_virt = (uint64_t *)((uint64_t)new_table_phys + g_hhdm_offset);
                 memset(new_table_virt, 0, PAGE_SIZE);
@@ -183,10 +186,12 @@ static void copy_page_table_level(uint64_t *dest_table, const uint64_t *src_tabl
                 uint64_t src_next_phys = src_table[i] & PTE_ADDR_MASK;
                 uint64_t *src_next_virt = (uint64_t *)(src_next_phys + g_hhdm_offset);
 
-                copy_page_table_level(new_table_virt, src_next_virt, level - 1);
+                if (!copy_page_table_level(new_table_virt, src_next_virt, level - 1))
+                    return false;
             }
         }
     }
+    return true;
 }
 
 pml4_t vmm_copy_pml4(pml4_t src_pml4)
@@ -205,7 +210,10 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
         {
             void *new_pdpt_phys = pmm_alloc_page();
             if (!new_pdpt_phys)
-                continue;
+            {
+                vmm_destroy_pml4(new_pml4);
+                return nullptr;
+            }
 
             uint64_t *new_pdpt_virt = (uint64_t *)((uint64_t)new_pdpt_phys + g_hhdm_offset);
             memset(new_pdpt_virt, 0, PAGE_SIZE);
@@ -215,7 +223,11 @@ pml4_t vmm_copy_pml4(pml4_t src_pml4)
             uint64_t src_pdpt_phys = src_virt[i] & PTE_ADDR_MASK;
             uint64_t *src_pdpt_virt = (uint64_t *)(src_pdpt_phys + g_hhdm_offset);
 
-            copy_page_table_level(new_pdpt_virt, src_pdpt_virt, 3);
+            if (!copy_page_table_level(new_pdpt_virt, src_pdpt_virt, 3))
+            {
+                vmm_destroy_pml4(new_pml4);
+                return nullptr;
+            }
         }
     }
 
