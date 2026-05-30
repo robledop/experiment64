@@ -1,0 +1,266 @@
+{
+    "version": "0.1.0",
+    "id": "2eb76172-117a-458c-950b-6fc1c771917a",
+    "timestamp": "2026-05-30T19:51:48.951499177Z",
+    "vcs": {
+        "type": "git",
+        "revision": "507f5e729792bba38a66231bdece87e7650605f4",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/drivers/usb/xhci_internal.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2c82d568769d38df794571a7948284bede41df23",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 3,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 13
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/framebuffer.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f62774fded02807ed637f98b9ffc62b57997ea4",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 11
+                        },
+                        {
+                            "start_line": 13,
+                            "end_line": 16
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/terminal.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:2f62774fded02807ed637f98b9ffc62b57997ea4",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 8,
+                            "end_line": 18
+                        },
+                        {
+                            "start_line": 20,
+                            "end_line": 21
+                        },
+                        {
+                            "start_line": 176,
+                            "end_line": 178
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/fs/ext2.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:615d4e1e317b0b943ae7ca03c249e044bd6f171b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 11,
+                            "end_line": 18
+                        },
+                        {
+                            "start_line": 20,
+                            "end_line": 21
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/kernel.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:738e07128cce5344d162b7b5a08f64f05fe2cb98",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 11
+                        },
+                        {
+                            "start_line": 13,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 132,
+                            "end_line": 133
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/mem/vmm.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:40b62d37ebc21b1aebea690a8bb09ca77708fa19",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 11,
+                            "end_line": 15
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/net/tcp.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e0d46f5a304c2e64ee5886b1b62ef42854d14c9a",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 11,
+                            "end_line": 17
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/common.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:3f52094380d4059463bca51f9ede800b2a916e13",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 4
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 15
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/syscall_entry.S",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f9b1fdaa068e272228c12b9ee266572dd8947c01",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 2,
+                            "end_line": 2
+                        },
+                        {
+                            "start_line": 4,
+                            "end_line": 10
+                        },
+                        {
+                            "start_line": 12,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 19,
+                            "end_line": 24
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
