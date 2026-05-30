@@ -78,8 +78,10 @@ syscall_return:
 
 	.global fork_child_trampoline
 	fork_child_trampoline:
-	    # RSP points to syscall_regs
-	    sti
+	    # RSP points to syscall_regs.
+	    # No sti here: syscall_return restores RFLAGS (including IF) from the
+	    # child's saved r11 via sysretq, so enabling interrupts early would only
+	    # open a window where an IRQ is taken mid-return with the user GS/RSP.
 	    jmp fork_return
 
 .global fork_return
