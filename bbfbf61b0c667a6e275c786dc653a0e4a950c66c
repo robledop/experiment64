@@ -1,0 +1,38 @@
+{
+    "version": "0.1.0",
+    "id": "71e2c9ff-aa22-43c2-9f9c-06c901ad2154",
+    "timestamp": "2026-05-30T18:12:57.209581463Z",
+    "vcs": {
+        "type": "git",
+        "revision": "bbfbf61b0c667a6e275c786dc653a0e4a950c66c",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/drivers/usb/xhci_msc.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:b6f05e3e69f07278ec9fd1b8de0db7ac8d9d5a10",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 21,
+                            "end_line": 23
+                        },
+                        {
+                            "start_line": 99,
+                            "end_line": 99
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
