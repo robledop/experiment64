@@ -1,0 +1,100 @@
+{
+    "version": "0.1.0",
+    "id": "363ac63c-fb1a-4827-af71-ff7607da8b9b",
+    "timestamp": "2026-05-30T18:38:15.261459290Z",
+    "vcs": {
+        "type": "git",
+        "revision": "bf05a1b2b7aa90f9e5719bc8fae56967badaeb98",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/drivers/usb/xhci_internal.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:625c131b63d4633a8445b6e352b7169b8aae8bf2",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 739,
+                            "end_line": 741
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_core.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:625c131b63d4633a8445b6e352b7169b8aae8bf2",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 253,
+                            "end_line": 253
+                        },
+                        {
+                            "start_line": 261,
+                            "end_line": 261
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/usb/xhci_device.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:625c131b63d4633a8445b6e352b7169b8aae8bf2",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 140,
+                            "end_line": 165
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/xhci_leak_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:625c131b63d4633a8445b6e352b7169b8aae8bf2",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 4
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 11,
+                            "end_line": 36
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
