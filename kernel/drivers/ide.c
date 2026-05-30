@@ -62,6 +62,16 @@ static void ide_swap_and_trim_model(char *dst, const uint8_t *src)
     }
 }
 
+void ide_parse_identify(const uint8_t *id, ide_device_t *dev)
+{
+    // IDENTIFY positions are word indices; the byte offset is the index * 2.
+    dev->signature    = *((const uint16_t *)(id + 0 * 2));
+    dev->capabilities = *((const uint16_t *)(id + 49 * 2));
+    dev->command_sets = *((const uint32_t *)(id + 82 * 2));
+    dev->size         = *((const uint32_t *)(id + 60 * 2)); // Total sectors (LBA28)
+    ide_swap_and_trim_model(dev->model, id + 27 * 2);
+}
+
 static void ide_log_devices(void)
 {
     boot_message(INFO, "IDE Initialized.");
@@ -137,17 +147,11 @@ void ide_init(void)
             // Read Identification Data
             insw(ide_channels[i] + 0, (void *)ide_buf, 256);
 
-            ide_devices[idx].exists       = 1;
-            ide_devices[idx].type         = type;
-            ide_devices[idx].channel      = i;
-            ide_devices[idx].drive        = j;
-            ide_devices[idx].signature    = *((uint16_t *)(ide_buf + 0));
-            ide_devices[idx].capabilities = *((uint16_t *)(ide_buf + 49));
-            ide_devices[idx].command_sets = *((uint32_t *)(ide_buf + 82));
-            ide_devices[idx].size         = *((uint32_t *)(ide_buf + 60)); // Total sectors (LBA28)
-
-            // Model string needs byte swapping
-            ide_swap_and_trim_model(ide_devices[idx].model, ide_buf + 27 * 2);
+            ide_devices[idx].exists  = 1;
+            ide_devices[idx].type    = type;
+            ide_devices[idx].channel = i;
+            ide_devices[idx].drive   = j;
+            ide_parse_identify(ide_buf, &ide_devices[idx]);
         }
     }
     ide_log_devices();

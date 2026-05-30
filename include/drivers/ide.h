@@ -20,6 +20,18 @@ typedef struct
 
 extern ide_device_t ide_devices[4];
 
+/**
+ * @brief Parse an ATA IDENTIFY data block into a device descriptor.
+ *
+ * Fills the IDENTIFY-derived fields (signature, capabilities, command sets,
+ * sector count and model string) of @p dev from the @p identify buffer.
+ * IDENTIFY positions are word indices, so byte offsets are twice the index.
+ *
+ * @param identify Pointer to the 512-byte IDENTIFY data block.
+ * @param dev      Device descriptor to populate.
+ */
+void ide_parse_identify(const uint8_t *identify, ide_device_t *dev);
+
 void ide_init(void);
 int ide_read_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *buffer);
 int ide_write_sectors(uint8_t drive_index, uint32_t lba, uint8_t count, uint8_t *buffer);
