@@ -1,0 +1,110 @@
+{
+    "version": "0.1.0",
+    "id": "bbc569f5-5ca1-45de-a9dc-1964688e2b5e",
+    "timestamp": "2026-05-30T18:54:16.149130266Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a24a9179b8a4c3c1d228f76fc471f1b9aaaa2e53",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/lib/elf.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:1136f8b529d04f178def15df1ce8f78acc7d418f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 206,
+                            "end_line": 207
+                        },
+                        {
+                            "start_line": 209,
+                            "end_line": 214
+                        },
+                        {
+                            "start_line": 216,
+                            "end_line": 218
+                        },
+                        {
+                            "start_line": 220,
+                            "end_line": 220
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/lib/elf.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:1136f8b529d04f178def15df1ce8f78acc7d418f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 59,
+                            "end_line": 59
+                        },
+                        {
+                            "start_line": 61,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 69,
+                            "end_line": 73
+                        },
+                        {
+                            "start_line": 76,
+                            "end_line": 82
+                        },
+                        {
+                            "start_line": 85,
+                            "end_line": 88
+                        },
+                        {
+                            "start_line": 112,
+                            "end_line": 118
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/elf_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:1136f8b529d04f178def15df1ce8f78acc7d418f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 7,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 12
+                        },
+                        {
+                            "start_line": 14,
+                            "end_line": 23
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
