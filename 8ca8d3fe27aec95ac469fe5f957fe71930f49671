@@ -1,0 +1,34 @@
+{
+    "version": "0.1.0",
+    "id": "1194be58-10bd-4a5c-84df-211ce20ef34b",
+    "timestamp": "2026-05-30T16:54:38.343439491Z",
+    "vcs": {
+        "type": "git",
+        "revision": "8ca8d3fe27aec95ac469fe5f957fe71930f49671",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/fs/ext2.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:f0c273eaa95444950c9ab1736772f7b9fa3b6881",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 127,
+                            "end_line": 130
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
