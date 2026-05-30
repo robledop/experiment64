@@ -1,0 +1,90 @@
+{
+    "version": "0.1.0",
+    "id": "139f88e0-2aa3-4cc5-ab3c-1bf02261d484",
+    "timestamp": "2026-05-30T16:45:39.844025454Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a9d8f6fe05a52dbda9520a2e946113bb11a7112e",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/net/arp.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:e6dd299872ded0bded51a613323ee87b99087bac",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 6,
+                            "end_line": 6
+                        },
+                        {
+                            "start_line": 17,
+                            "end_line": 19
+                        },
+                        {
+                            "start_line": 23,
+                            "end_line": 23
+                        },
+                        {
+                            "start_line": 27,
+                            "end_line": 27
+                        },
+                        {
+                            "start_line": 41,
+                            "end_line": 41
+                        },
+                        {
+                            "start_line": 43,
+                            "end_line": 43
+                        },
+                        {
+                            "start_line": 45,
+                            "end_line": 46
+                        },
+                        {
+                            "start_line": 54,
+                            "end_line": 56
+                        },
+                        {
+                            "start_line": 58,
+                            "end_line": 58
+                        },
+                        {
+                            "start_line": 60,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 62,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 67,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 74,
+                            "end_line": 75
+                        },
+                        {
+                            "start_line": 77,
+                            "end_line": 77
+                        },
+                        {
+                            "start_line": 79,
+                            "end_line": 82
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
