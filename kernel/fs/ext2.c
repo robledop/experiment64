@@ -124,6 +124,11 @@ static struct ext2_inode *iget(uint32_t dev, uint32_t inum)
 {
     struct ext2_inode *ip;
 
+    // Reject out-of-range inode numbers (e.g. from a corrupt directory entry)
+    // before they drive group-descriptor and inode-table offset math.
+    if (inum == 0 || inum > ext2_get_sb(dev)->s_inodes_count)
+        return nullptr;
+
     spinlock_acquire(&icache.lock);
 
     // Is the inode already cached?
