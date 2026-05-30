@@ -1,3 +1,20 @@
+/**
+ * @file framebuffer.c
+ * @brief The /dev/fb0 char device plus raw framebuffer drawing primitives.
+ *
+ * Two roles:
+ *   - Char device: framebuffer_init() registers "fb0" with devfs, exposing
+ *     the linear framebuffer to userspace via read/write/ioctl (the WM and
+ *     other userland renderers map it through /dev/fb0).
+ *   - In-kernel primitives: fill_span32 / copy_span32 / fill_rect32 /
+ *     blit_span32 / put_bitmap_32 / putpixel draw directly to the live
+ *     framebuffer (no back buffer, no clipping beyond bounds checks).
+ *
+ * The only significant in-kernel caller of those primitives is the boot
+ * splash (kernel_splash() in kernel/kernel.c), which blits /var/logo.bmp.
+ * The text console (kernel/drivers/terminal.c) does NOT use them — it keeps
+ * its own back buffer and draws glyphs itself.
+ */
 #include <drivers/framebuffer.h>
 #include <lib/string.h>
 #include <lib/assert.h>

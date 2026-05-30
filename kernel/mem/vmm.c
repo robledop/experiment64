@@ -1,3 +1,19 @@
+/**
+ * @file vmm.c
+ * @brief Virtual memory manager: 4-level (PML4 -> PDPT -> PD -> PT) page tables.
+ *
+ * Walks/builds page tables for both kernel and user address spaces, reaching
+ * physical frames through the HHDM. This file is the definition site of the
+ * global g_hhdm_offset (declared extern in mem/vmm.h); it is initialized in
+ * vmm_init() at boot. heap_init() later re-assigns the same value, so vmm.c is
+ * the owner but not the only writer.
+ *
+ * Defining design choice: user memory is mapped EAGERLY — there is no demand
+ * paging. No handler is registered on vector 14, so a user-space page fault to
+ * an unmapped address is always fatal: it falls through to interrupt_handler()
+ * in kernel/arch/x86_64/idt.c, which kills the offending process (a kernel-mode
+ * fault panics). Nothing here ever faults a page in on access.
+ */
 #include <mem/vmm.h>
 #include <mem/pmm.h>
 #include <lib/string.h>

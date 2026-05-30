@@ -1,3 +1,21 @@
+/**
+ * @file kernel.c
+ * @brief Post-Limine C entry point (_start) and the master init sequence.
+ *
+ * Limine hands control to _start() in the higher half. From here the kernel
+ * brings each subsystem up in a deliberate, load-bearing order: CPU features,
+ * per-CPU/GDT/IDT, APIC + timing, SMP, memory (PMM/VMM/heap), input, the VFS
+ * and devices, then the root mount. It ends by either spawning the first
+ * userland process (process_spawn_init(), see kernel/task/init.c) or, under
+ * -DTEST_MODE, running the in-kernel test suite (run_tests(), see
+ * kernel/tests/test_runner.c) before halting forever.
+ *
+ * The ordering caveat that bites readers: smp_init_cpu0() must precede
+ * gdt_init(). smp_init_cpu0() (kernel/arch/x86_64/smp.c) writes MSR_GS_BASE so
+ * get_cpu() resolves; gdt_init() then loads a null GS selector which zeroes the
+ * GS base, and re-establishes it via wrmsr afterward. See gdt_init() in
+ * kernel/arch/x86_64/gdt.c.
+ */
 #include <stdint.h>
 #include <arch/x86_64/gdt.h>
 #include <arch/x86_64/idt.h>
@@ -111,8 +129,8 @@ void _start(void)
     uart_init();
     boot_init();
     boot_init_terminal();
-    smp_init_cpu0();
-    gdt_init();
+    smp_init_cpu0(); // sets MSR_GS_BASE; MUST precede gdt_init (kernel/arch/x86_64/smp.c)
+    gdt_init();      // null GS selector zeroes GS base, then re-set via wrmsr (kernel/arch/x86_64/gdt.c)
     idt_init();
     debug_init();
     apic_init();

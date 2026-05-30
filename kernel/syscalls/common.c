@@ -1,3 +1,19 @@
+/**
+ * @file common.c
+ * @brief Syscall support core: user-pointer validation, user/kernel copies,
+ *        and the eager anonymous page mapper.
+ *
+ * Despite the generic filename, this file holds subsystem-critical mmap logic.
+ * Two distinct duties live here:
+ *
+ *   - Trust boundary: user_ptr_read_ok()/user_ptr_write_ok() (via the four-step
+ *     user_ptr_access_ok() gauntlet) plus copy_to_user()/copy_from_user() and
+ *     their _str/_checked variants — every syscall touching user memory routes
+ *     through these.
+ *   - Backing memory: map_user_anonymous_range() — the eager, per-page
+ *     allocate/zero/map/record/unwind routine that actually backs anonymous
+ *     mmap (kernel/syscalls/sys_mmap.c) as well as thread/exec stack setup.
+ */
 #include <drivers/terminal.h>
 #include <lib/string.h>
 #include <mem/pmm.h>

@@ -1,3 +1,28 @@
+/*
+ * syscall_entry.S - the ring3->ring0 syscall trampoline (MSR_LSTAR target).
+ *
+ * The `syscall` instruction jumps straight here; LSTAR is pointed at
+ * syscall_entry by syscall_init() in kernel/syscalls/syscall.c. On entry we
+ * are still on the user stack with the user GS base, so we:
+ *   1. swapgs to the kernel cpu_t (set up during bring-up, see cpu.h),
+ *   2. stash the user RSP at gs:8 (cpu_t.user_rsp) and load the kernel RSP
+ *      from gs:16 (cpu_t.kernel_rsp) -- hardcoded byte offsets into struct cpu
+ *      (include/arch/x86_64/cpu.h); they must stay in sync with that layout.
+ *
+ * The register push block is the exact REVERSE of the field order in
+ * struct syscall_regs (include/sys/syscall.h): r11 is pushed first and rdi
+ * last, so after the pushes RSP points at a valid `struct syscall_regs *`
+ * (rdi at the lowest address == first struct field). That pointer is handed
+ * to syscall_handler in r8, letting fork/sigreturn/signal-delivery edit the
+ * saved register frame in place.
+ *
+ * Returns leave through syscall_return, which pops the frame in struct order,
+ * restores user RSP from gs:8, swapgs's back and sysretq's. Other paths
+ * re-enter here too: fork's child resumes at fork_child_trampoline ->
+ * fork_return -> syscall_return (kernel/syscalls/sys_fork.c builds the frame),
+ * and signal return (kernel/syscalls/sys_sigreturn.c, kernel/task/signal.c)
+ * rewrites the syscall_regs frame and falls out through syscall_return.
+ */
 .intel_syntax noprefix
 .section .text
 .global syscall_entry

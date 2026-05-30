@@ -1,3 +1,25 @@
+/**
+ * @file terminal.c
+ * @brief Framebuffer text console — and the home of printk().
+ *
+ * Despite the "terminal" name, this file owns more than a text console.
+ * If you came looking for kernel logging, it lives here:
+ *
+ *   - printk() / vprintk() — the kernel's only formatted-output path
+ *     (renders via vcbprintf + terminal_putc_callback).
+ *   - boot_message() and the boot log: every line is also mirrored to
+ *     /var/log/boot through boot_log_record() / boot_log_flush().
+ *   - Back buffer: text is drawn into a private kmalloc'd back_buffer and
+ *     blitted to the real framebuffer by terminal_flush() (dirty-line range).
+ *   - ANSI/CSI escape parser: terminal_process_ansi() + the state machine
+ *     in terminal_putc() (colors, cursor moves, erase).
+ *   - UART mirroring: terminal_putc() also echoes every byte to the serial
+ *     port via uart_putc() (kernel/drivers/uart.c), so the headless console
+ *     and the framebuffer console stay in sync.
+ *
+ * Pixel drawing is done locally (terminal_draw_char, terminal_rect_fill,
+ * cursor save/restore); see the note at the framebuffer_init() call below.
+ */
 #include <drivers/terminal.h>
 #include <lib/font.h>
 #include <drivers/uart.h>
@@ -151,6 +173,9 @@ static void cursor_save_and_draw(void)
 void terminal_init(struct limine_framebuffer *fb)
 {
     terminal_fb = fb;
+    // Only registers /dev/fb0 and stashes the framebuffer. The text console
+    // draws its own pixels into back_buffer and deliberately does NOT use
+    // framebuffer.c's span/blit/fill primitives.
     framebuffer_init(fb);
     terminal_x              = terminal_left();
     terminal_y              = terminal_top();

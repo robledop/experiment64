@@ -1,3 +1,25 @@
+/**
+ * @file ext2.c
+ * @brief ext2 filesystem driver: VFS vtable + xv6-style inode cache.
+ *
+ * ext2_mount() reads the superblock, brings up the inode cache (icache), and
+ * returns a root vfs_inode_t whose ->iops points at ext2_vfs_ops — the
+ * inode_operations vtable (read/write/lookup/readdir/mknod/link/unlink/rename/
+ * etc., defined near the bottom of this file) through which the VFS layer
+ * (kernel/fs/vfs.c) drives this filesystem.
+ *
+ * Inode lifecycle (xv6-derived) is the part worth understanding first:
+ *   - iget(dev, inum)      reserves/recycles an icache slot and bumps ->ref,
+ *                          but does NOT touch the disk; the slot is valid == 0.
+ *   - ext2fs_ilock(ip)     takes ip->lock and, the first time (valid == 0),
+ *                          LAZILY loads the on-disk inode into the slot.
+ *   - ext2fs_iput/iunlock  release the reference / sleeplock.
+ * So a cached, referenced inode may exist with no disk contents loaded until
+ * the first ilock — keep that in mind when reading ->size/->type/->addrs.
+ *
+ * All disk access goes through the io/bio block cache: bread() to fetch a
+ * buffer_head_t, brelse() to release it (see kernel/io/bio.c).
+ */
 #include <debug.h>
 #include <drivers/terminal.h>
 #include <fs/ext2.h>

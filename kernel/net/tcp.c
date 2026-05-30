@@ -1,3 +1,21 @@
+/**
+ * @file tcp.c
+ * @brief Server-side-only TCP: passive open, data transfer, teardown.
+ *
+ * There is no client path here -- no tcp_connect(), no active open. The only
+ * way a connection comes into being is a remote peer initiating the handshake
+ * against a listening socket. The public surface is just three functions
+ * (see include/net/tcp.h): tcp_receive() (inbound), tcp_send_segment() (raw
+ * segment TX) and tcp_sendto() (send on an established connection).
+ *
+ * The connection state machine lives entirely inside tcp_receive(), which runs
+ * in NIC IRQ context (e1000_interrupt_handler -> network_receive ->
+ * tcp_receive, see kernel/net/network.c). On an inbound SYN it allocates a
+ * child socket in SYN_RCVD and replies SYN|ACK; the final ACK flips the child
+ * SYN_RCVD -> ESTABLISHED, links it onto the listener's accept_queue, and wakes
+ * the thread blocked in sys_accept() via thread_wakeup(listener) (see
+ * kernel/syscalls/sys_accept.c).
+ */
 #include <net/tcp.h>
 #include <arpa/inet.h>
 #include <net/ipv4.h>

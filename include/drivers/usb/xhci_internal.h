@@ -1,5 +1,18 @@
 #pragma once
 
+/**
+ * @file xhci_internal.h
+ * @brief One-stop reference for the xHCI driver: register offsets, TRB/context
+ *        structs, USB descriptor layouts, and the prototypes implemented across
+ *        xhci_device.c / xhci_msc.c / xhci_hid_mouse.c / xhci_ring.c.
+ *
+ * Surprising for a header: a fair amount of real, executable logic lives here
+ * as static inline helpers, not just declarations. Notably xhci_map_mmio_range()
+ * (walks the current PML4 and maps HHDM pages for the controller MMIO window) and
+ * xhci_endpoint_id() (maps a USB endpoint address to an xHCI Device Context
+ * Index). If you go looking for that code in a .c file, it isn't there.
+ */
+
 #include <drivers/pci.h>
 #include <drivers/tsc.h>
 #include <mem/pmm.h>
