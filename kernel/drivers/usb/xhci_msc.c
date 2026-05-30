@@ -287,12 +287,12 @@ static bool xhci_msc_bulk_wait(struct xhci_controller *xhci,
                                         true);
 }
 
-static bool xhci_msc_transfer(struct xhci_controller *xhci,
-                              struct xhci_msc_device *msc,
-                              const uint8_t *cb,
-                              const uint8_t cb_len,
-                              const bool data_in,
-                              const uint32_t data_len)
+static bool xhci_msc_transfer_locked(struct xhci_controller *xhci,
+                                     struct xhci_msc_device *msc,
+                                     const uint8_t *cb,
+                                     const uint8_t cb_len,
+                                     const bool data_in,
+                                     const uint32_t data_len)
 {
     if (!msc || !msc->dev || !msc->cbw_buf || !msc->csw_buf || (data_len > 0 && !msc->data_buf)) {
         return false;
@@ -362,6 +362,22 @@ static bool xhci_msc_transfer(struct xhci_controller *xhci,
     }
 
     return true;
+}
+
+static bool xhci_msc_transfer(struct xhci_controller *xhci,
+                              struct xhci_msc_device *msc,
+                              const uint8_t *cb,
+                              const uint8_t cb_len,
+                              const bool data_in,
+                              const uint32_t data_len)
+{
+    // Serialize the whole BOT transaction against the HID poll thread: both
+    // drain the shared event ring and would otherwise consume each other's
+    // transfer-completion events.
+    sleeplock_acquire(&xhci->io_lock);
+    const bool ok = xhci_msc_transfer_locked(xhci, msc, cb, cb_len, data_in, data_len);
+    sleeplock_release(&xhci->io_lock);
+    return ok;
 }
 
 static bool xhci_msc_inquiry(struct xhci_controller *xhci, struct xhci_msc_device *msc)

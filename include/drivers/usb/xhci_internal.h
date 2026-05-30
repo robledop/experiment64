@@ -6,6 +6,7 @@
 #include <mem/vmm.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <task/sleeplock.h>
 
 #define XHCI_CAPLENGTH 0x00u // Capability register length offset.
 #define XHCI_HCSPARAMS1 0x04u // HCS parameters 1 offset.
@@ -476,6 +477,7 @@ struct xhci_controller
     volatile uint8_t *rt_base;         // Runtime registers base.
     struct xhci_ring cmd_ring;         // Command ring state.
     struct xhci_event_ring event_ring; // Event ring state.
+    sleeplock_t io_lock;               // Serializes event-ring consumers (MSC I/O vs HID poll).
 };
 
 extern struct xhci_controller g_xhci;

@@ -252,10 +252,15 @@ static void xhci_hid_mouse_poll_thread(void)
         trb.control.ioc      = 1;
         trb.control.isp      = 1;
 
+        // Hold io_lock across enqueue + doorbell + drain so the poll does not
+        // consume MSC transfer-completion events from the shared event ring.
+        sleeplock_acquire(&xhci->io_lock);
         const uintptr_t trb_phys = xhci_ring_enqueue(&hid->int_in_ring, &trb);
         xhci_ring_doorbell(xhci, hid->dev->slot_id, hid->int_in_id);
+        const bool got = xhci_wait_for_transfer_event(xhci, trb_phys, hid->dev->slot_id, hid->int_in_id, true, false);
+        sleeplock_release(&xhci->io_lock);
 
-        if (!xhci_wait_for_transfer_event(xhci, trb_phys, hid->dev->slot_id, hid->int_in_id, true, false)) {
+        if (!got) {
             tsc_sleep_ms(XHCI_HID_POLL_INTERVAL_MS);
             continue;
         }

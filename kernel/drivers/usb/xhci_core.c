@@ -487,6 +487,7 @@ void xhci_init(struct pci_device device)
     uint32_t dboff  = 0;
     uint32_t rtsoff = 0;
     xhci_init_registers(&g_xhci, &device, mmio_phys, &hcs, &dboff, &rtsoff);
+    sleeplock_init(&g_xhci.io_lock, "xhci_io");
     if (!xhci_setup_command_ring(&g_xhci)) {
         return;
     }
