@@ -1,0 +1,1126 @@
+{
+    "version": "0.1.0",
+    "id": "0ef8c320-4e5d-4df2-a9eb-3f343c69a0a4",
+    "timestamp": "2026-05-30T20:01:01.856048939Z",
+    "vcs": {
+        "type": "git",
+        "revision": "4163e3d8556165ed3bcde1b0436348eef0a0e750",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "docs/README.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:8049712b7e5399cc6c8e51f1c4823e11af8b48cf",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 74
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/01-boot-to-userland.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:d1fd4e121ee1005763c543dd7347ae4ab7bb10e3",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 50,
+                            "end_line": 51
+                        },
+                        {
+                            "start_line": 56,
+                            "end_line": 57
+                        },
+                        {
+                            "start_line": 91,
+                            "end_line": 100
+                        },
+                        {
+                            "start_line": 125,
+                            "end_line": 126
+                        },
+                        {
+                            "start_line": 145,
+                            "end_line": 149
+                        },
+                        {
+                            "start_line": 175,
+                            "end_line": 175
+                        },
+                        {
+                            "start_line": 208,
+                            "end_line": 209
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:4983957dd2f1fb0a3242c0ddba982825210e6c36",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 49
+                        },
+                        {
+                            "start_line": 52,
+                            "end_line": 54
+                        },
+                        {
+                            "start_line": 58,
+                            "end_line": 89
+                        },
+                        {
+                            "start_line": 102,
+                            "end_line": 124
+                        },
+                        {
+                            "start_line": 127,
+                            "end_line": 144
+                        },
+                        {
+                            "start_line": 150,
+                            "end_line": 174
+                        },
+                        {
+                            "start_line": 176,
+                            "end_line": 207
+                        },
+                        {
+                            "start_line": 210,
+                            "end_line": 254
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/02-timer-tick-to-context-switch.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:21ecd0e534441fdae6879deada97c8ad51e30ec7",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 17,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 46,
+                            "end_line": 46
+                        },
+                        {
+                            "start_line": 55,
+                            "end_line": 58
+                        },
+                        {
+                            "start_line": 60,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 75,
+                            "end_line": 75
+                        },
+                        {
+                            "start_line": 204,
+                            "end_line": 204
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:d25174872224f4a9af3c80fda8f6b58b89c5672f",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 16
+                        },
+                        {
+                            "start_line": 18,
+                            "end_line": 45
+                        },
+                        {
+                            "start_line": 47,
+                            "end_line": 54
+                        },
+                        {
+                            "start_line": 61,
+                            "end_line": 74
+                        },
+                        {
+                            "start_line": 76,
+                            "end_line": 77
+                        },
+                        {
+                            "start_line": 79,
+                            "end_line": 202
+                        },
+                        {
+                            "start_line": 205,
+                            "end_line": 213
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/03-syscall-roundtrip.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:fc83a23bb86f982047b7e4ad68cb036d358c4f9e",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 70,
+                            "end_line": 71
+                        },
+                        {
+                            "start_line": 85,
+                            "end_line": 86
+                        },
+                        {
+                            "start_line": 98,
+                            "end_line": 99
+                        },
+                        {
+                            "start_line": 108,
+                            "end_line": 109
+                        },
+                        {
+                            "start_line": 114,
+                            "end_line": 114
+                        },
+                        {
+                            "start_line": 118,
+                            "end_line": 118
+                        },
+                        {
+                            "start_line": 136,
+                            "end_line": 137
+                        },
+                        {
+                            "start_line": 146,
+                            "end_line": 146
+                        },
+                        {
+                            "start_line": 207,
+                            "end_line": 208
+                        },
+                        {
+                            "start_line": 216,
+                            "end_line": 217
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:e85a86a3e5afa91446bb7c1b0883863cc1504690",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 68
+                        },
+                        {
+                            "start_line": 72,
+                            "end_line": 84
+                        },
+                        {
+                            "start_line": 87,
+                            "end_line": 97
+                        },
+                        {
+                            "start_line": 100,
+                            "end_line": 107
+                        },
+                        {
+                            "start_line": 111,
+                            "end_line": 113
+                        },
+                        {
+                            "start_line": 115,
+                            "end_line": 117
+                        },
+                        {
+                            "start_line": 119,
+                            "end_line": 135
+                        },
+                        {
+                            "start_line": 138,
+                            "end_line": 145
+                        },
+                        {
+                            "start_line": 147,
+                            "end_line": 191
+                        },
+                        {
+                            "start_line": 193,
+                            "end_line": 206
+                        },
+                        {
+                            "start_line": 209,
+                            "end_line": 215
+                        },
+                        {
+                            "start_line": 218,
+                            "end_line": 248
+                        },
+                        {
+                            "start_line": 250,
+                            "end_line": 261
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/04-open-to-disk-bytes.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:955e7ac7601de31accf81511139b7d9cf8caa107",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 65,
+                            "end_line": 65
+                        },
+                        {
+                            "start_line": 71,
+                            "end_line": 71
+                        },
+                        {
+                            "start_line": 77,
+                            "end_line": 80
+                        },
+                        {
+                            "start_line": 87,
+                            "end_line": 93
+                        },
+                        {
+                            "start_line": 96,
+                            "end_line": 117
+                        },
+                        {
+                            "start_line": 122,
+                            "end_line": 125
+                        },
+                        {
+                            "start_line": 133,
+                            "end_line": 136
+                        },
+                        {
+                            "start_line": 146,
+                            "end_line": 147
+                        },
+                        {
+                            "start_line": 150,
+                            "end_line": 157
+                        },
+                        {
+                            "start_line": 160,
+                            "end_line": 168
+                        },
+                        {
+                            "start_line": 171,
+                            "end_line": 173
+                        },
+                        {
+                            "start_line": 177,
+                            "end_line": 181
+                        },
+                        {
+                            "start_line": 183,
+                            "end_line": 186
+                        },
+                        {
+                            "start_line": 189,
+                            "end_line": 193
+                        },
+                        {
+                            "start_line": 197,
+                            "end_line": 208
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:8561bcd4b61ebc09794cfab1b84fd781ad3cf04d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 61,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 66,
+                            "end_line": 69
+                        },
+                        {
+                            "start_line": 72,
+                            "end_line": 76
+                        },
+                        {
+                            "start_line": 81,
+                            "end_line": 86
+                        },
+                        {
+                            "start_line": 94,
+                            "end_line": 95
+                        },
+                        {
+                            "start_line": 119,
+                            "end_line": 121
+                        },
+                        {
+                            "start_line": 126,
+                            "end_line": 132
+                        },
+                        {
+                            "start_line": 137,
+                            "end_line": 144
+                        },
+                        {
+                            "start_line": 148,
+                            "end_line": 149
+                        },
+                        {
+                            "start_line": 158,
+                            "end_line": 159
+                        },
+                        {
+                            "start_line": 169,
+                            "end_line": 170
+                        },
+                        {
+                            "start_line": 174,
+                            "end_line": 176
+                        },
+                        {
+                            "start_line": 182,
+                            "end_line": 182
+                        },
+                        {
+                            "start_line": 187,
+                            "end_line": 188
+                        },
+                        {
+                            "start_line": 194,
+                            "end_line": 195
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/05-mmap-to-pages.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:26ccf7ac13d239ce573aad49f873721887ef2d5d",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 55
+                        },
+                        {
+                            "start_line": 64,
+                            "end_line": 67
+                        },
+                        {
+                            "start_line": 74,
+                            "end_line": 75
+                        },
+                        {
+                            "start_line": 79,
+                            "end_line": 82
+                        },
+                        {
+                            "start_line": 88,
+                            "end_line": 91
+                        },
+                        {
+                            "start_line": 99,
+                            "end_line": 99
+                        },
+                        {
+                            "start_line": 108,
+                            "end_line": 109
+                        },
+                        {
+                            "start_line": 112,
+                            "end_line": 118
+                        },
+                        {
+                            "start_line": 123,
+                            "end_line": 126
+                        },
+                        {
+                            "start_line": 133,
+                            "end_line": 139
+                        },
+                        {
+                            "start_line": 141,
+                            "end_line": 143
+                        },
+                        {
+                            "start_line": 145,
+                            "end_line": 149
+                        },
+                        {
+                            "start_line": 151,
+                            "end_line": 155
+                        },
+                        {
+                            "start_line": 158,
+                            "end_line": 171
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:55f5248cad5ac2cf168634c1f2a39ee0c476c48b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 56,
+                            "end_line": 58
+                        },
+                        {
+                            "start_line": 60,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 68,
+                            "end_line": 72
+                        },
+                        {
+                            "start_line": 76,
+                            "end_line": 78
+                        },
+                        {
+                            "start_line": 83,
+                            "end_line": 87
+                        },
+                        {
+                            "start_line": 92,
+                            "end_line": 97
+                        },
+                        {
+                            "start_line": 100,
+                            "end_line": 106
+                        },
+                        {
+                            "start_line": 110,
+                            "end_line": 111
+                        },
+                        {
+                            "start_line": 119,
+                            "end_line": 122
+                        },
+                        {
+                            "start_line": 127,
+                            "end_line": 132
+                        },
+                        {
+                            "start_line": 140,
+                            "end_line": 140
+                        },
+                        {
+                            "start_line": 144,
+                            "end_line": 144
+                        },
+                        {
+                            "start_line": 150,
+                            "end_line": 150
+                        },
+                        {
+                            "start_line": 156,
+                            "end_line": 157
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/06-tcp-connection-life.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:82ef6ac83b5c735aceda0ab093ed6865b50fd985",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 70
+                        },
+                        {
+                            "start_line": 74,
+                            "end_line": 74
+                        },
+                        {
+                            "start_line": 76,
+                            "end_line": 78
+                        },
+                        {
+                            "start_line": 81,
+                            "end_line": 87
+                        },
+                        {
+                            "start_line": 89,
+                            "end_line": 90
+                        },
+                        {
+                            "start_line": 94,
+                            "end_line": 94
+                        },
+                        {
+                            "start_line": 104,
+                            "end_line": 113
+                        },
+                        {
+                            "start_line": 115,
+                            "end_line": 118
+                        },
+                        {
+                            "start_line": 124,
+                            "end_line": 127
+                        },
+                        {
+                            "start_line": 132,
+                            "end_line": 132
+                        },
+                        {
+                            "start_line": 134,
+                            "end_line": 136
+                        },
+                        {
+                            "start_line": 139,
+                            "end_line": 139
+                        },
+                        {
+                            "start_line": 142,
+                            "end_line": 145
+                        },
+                        {
+                            "start_line": 147,
+                            "end_line": 155
+                        },
+                        {
+                            "start_line": 157,
+                            "end_line": 157
+                        },
+                        {
+                            "start_line": 160,
+                            "end_line": 167
+                        },
+                        {
+                            "start_line": 174,
+                            "end_line": 178
+                        },
+                        {
+                            "start_line": 183,
+                            "end_line": 185
+                        },
+                        {
+                            "start_line": 188,
+                            "end_line": 191
+                        },
+                        {
+                            "start_line": 193,
+                            "end_line": 205
+                        },
+                        {
+                            "start_line": 207,
+                            "end_line": 233
+                        },
+                        {
+                            "start_line": 235,
+                            "end_line": 239
+                        },
+                        {
+                            "start_line": 245,
+                            "end_line": 247
+                        },
+                        {
+                            "start_line": 249,
+                            "end_line": 253
+                        },
+                        {
+                            "start_line": 255,
+                            "end_line": 257
+                        },
+                        {
+                            "start_line": 260,
+                            "end_line": 266
+                        },
+                        {
+                            "start_line": 269,
+                            "end_line": 271
+                        },
+                        {
+                            "start_line": 274,
+                            "end_line": 289
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:1273a155a00bdaee182cfec9c57151635d9eacbe",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 72,
+                            "end_line": 73
+                        },
+                        {
+                            "start_line": 80,
+                            "end_line": 80
+                        },
+                        {
+                            "start_line": 88,
+                            "end_line": 88
+                        },
+                        {
+                            "start_line": 92,
+                            "end_line": 93
+                        },
+                        {
+                            "start_line": 96,
+                            "end_line": 103
+                        },
+                        {
+                            "start_line": 114,
+                            "end_line": 114
+                        },
+                        {
+                            "start_line": 120,
+                            "end_line": 122
+                        },
+                        {
+                            "start_line": 129,
+                            "end_line": 131
+                        },
+                        {
+                            "start_line": 138,
+                            "end_line": 138
+                        },
+                        {
+                            "start_line": 140,
+                            "end_line": 140
+                        },
+                        {
+                            "start_line": 159,
+                            "end_line": 159
+                        },
+                        {
+                            "start_line": 169,
+                            "end_line": 173
+                        },
+                        {
+                            "start_line": 179,
+                            "end_line": 181
+                        },
+                        {
+                            "start_line": 187,
+                            "end_line": 187
+                        },
+                        {
+                            "start_line": 234,
+                            "end_line": 234
+                        },
+                        {
+                            "start_line": 240,
+                            "end_line": 244
+                        },
+                        {
+                            "start_line": 248,
+                            "end_line": 248
+                        },
+                        {
+                            "start_line": 254,
+                            "end_line": 254
+                        },
+                        {
+                            "start_line": 258,
+                            "end_line": 259
+                        },
+                        {
+                            "start_line": 267,
+                            "end_line": 268
+                        },
+                        {
+                            "start_line": 272,
+                            "end_line": 273
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/07-pci-to-usb-disk.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:cbf2952f1124de83b35238901ba0f7ccc7325cb3",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 30,
+                            "end_line": 30
+                        },
+                        {
+                            "start_line": 53,
+                            "end_line": 53
+                        },
+                        {
+                            "start_line": 102,
+                            "end_line": 102
+                        },
+                        {
+                            "start_line": 231,
+                            "end_line": 234
+                        },
+                        {
+                            "start_line": 240,
+                            "end_line": 240
+                        },
+                        {
+                            "start_line": 308,
+                            "end_line": 308
+                        },
+                        {
+                            "start_line": 324,
+                            "end_line": 324
+                        },
+                        {
+                            "start_line": 350,
+                            "end_line": 351
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:e86d340647eb073fc71ebcd572435cc75f663e9b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 29
+                        },
+                        {
+                            "start_line": 31,
+                            "end_line": 51
+                        },
+                        {
+                            "start_line": 54,
+                            "end_line": 63
+                        },
+                        {
+                            "start_line": 65,
+                            "end_line": 91
+                        },
+                        {
+                            "start_line": 93,
+                            "end_line": 101
+                        },
+                        {
+                            "start_line": 104,
+                            "end_line": 109
+                        },
+                        {
+                            "start_line": 111,
+                            "end_line": 144
+                        },
+                        {
+                            "start_line": 146,
+                            "end_line": 158
+                        },
+                        {
+                            "start_line": 160,
+                            "end_line": 174
+                        },
+                        {
+                            "start_line": 177,
+                            "end_line": 228
+                        },
+                        {
+                            "start_line": 236,
+                            "end_line": 239
+                        },
+                        {
+                            "start_line": 242,
+                            "end_line": 259
+                        },
+                        {
+                            "start_line": 261,
+                            "end_line": 307
+                        },
+                        {
+                            "start_line": 310,
+                            "end_line": 322
+                        },
+                        {
+                            "start_line": 325,
+                            "end_line": 340
+                        },
+                        {
+                            "start_line": 342,
+                            "end_line": 349
+                        },
+                        {
+                            "start_line": 353,
+                            "end_line": 367
+                        },
+                        {
+                            "start_line": 370,
+                            "end_line": 382
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "docs/walkthroughs/08-wm-present-frame.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:441f85997a172fc7cdfe87e0ecf14384e1fa4ec5",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 38
+                        },
+                        {
+                            "start_line": 41,
+                            "end_line": 44
+                        },
+                        {
+                            "start_line": 46,
+                            "end_line": 48
+                        },
+                        {
+                            "start_line": 54,
+                            "end_line": 60
+                        },
+                        {
+                            "start_line": 65,
+                            "end_line": 72
+                        },
+                        {
+                            "start_line": 74,
+                            "end_line": 78
+                        },
+                        {
+                            "start_line": 89,
+                            "end_line": 102
+                        },
+                        {
+                            "start_line": 117,
+                            "end_line": 119
+                        },
+                        {
+                            "start_line": 123,
+                            "end_line": 123
+                        },
+                        {
+                            "start_line": 129,
+                            "end_line": 139
+                        },
+                        {
+                            "start_line": 143,
+                            "end_line": 155
+                        },
+                        {
+                            "start_line": 158,
+                            "end_line": 161
+                        },
+                        {
+                            "start_line": 169,
+                            "end_line": 169
+                        },
+                        {
+                            "start_line": 174,
+                            "end_line": 174
+                        },
+                        {
+                            "start_line": 176,
+                            "end_line": 178
+                        },
+                        {
+                            "start_line": 182,
+                            "end_line": 186
+                        },
+                        {
+                            "start_line": 189,
+                            "end_line": 200
+                        }
+                    ]
+                },
+                {
+                    "url": "git+CLAUDE_CODE:blob:1d46615fee9a30aa24aa847f205646327321f3ff",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 40,
+                            "end_line": 40
+                        },
+                        {
+                            "start_line": 45,
+                            "end_line": 45
+                        },
+                        {
+                            "start_line": 49,
+                            "end_line": 53
+                        },
+                        {
+                            "start_line": 61,
+                            "end_line": 64
+                        },
+                        {
+                            "start_line": 73,
+                            "end_line": 73
+                        },
+                        {
+                            "start_line": 79,
+                            "end_line": 87
+                        },
+                        {
+                            "start_line": 104,
+                            "end_line": 116
+                        },
+                        {
+                            "start_line": 120,
+                            "end_line": 121
+                        },
+                        {
+                            "start_line": 124,
+                            "end_line": 128
+                        },
+                        {
+                            "start_line": 140,
+                            "end_line": 141
+                        },
+                        {
+                            "start_line": 156,
+                            "end_line": 157
+                        },
+                        {
+                            "start_line": 163,
+                            "end_line": 167
+                        },
+                        {
+                            "start_line": 170,
+                            "end_line": 172
+                        },
+                        {
+                            "start_line": 175,
+                            "end_line": 175
+                        },
+                        {
+                            "start_line": 180,
+                            "end_line": 181
+                        },
+                        {
+                            "start_line": 187,
+                            "end_line": 188
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
