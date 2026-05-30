@@ -202,3 +202,19 @@ typedef struct
  * @return true on success, false on failure.
  */
 bool elf_load(const char* path, elf_load_result_t* result, pml4_t pml4);
+
+/**
+ * @brief Check that an ELF segment maps only into the user half of the address space.
+ *
+ * The kernel lives in PML4 entries 256-511, which every process shares by
+ * reference, so a segment placed in the kernel half would corrupt the kernel
+ * for all processes when mapped. This predicate (used by the loader and
+ * exercised directly by the test suite) returns true only when the entire
+ * page-rounded segment lies below the first kernel-half address and the size
+ * arithmetic does not overflow.
+ *
+ * @param start_addr First virtual byte of the segment (p_vaddr plus load bias).
+ * @param mem_size   In-memory size of the segment (p_memsz).
+ * @return true if the segment maps only user-half pages, false otherwise.
+ */
+bool elf_segment_in_user_space(uint64_t start_addr, uint64_t mem_size);

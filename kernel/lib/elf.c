@@ -56,6 +56,38 @@ static Elf64_Phdr *elf_read_program_headers(vfs_inode_t *node, const elf64_ehdr 
     return phdrs;
 }
 
+bool elf_segment_in_user_space(uint64_t start_addr, uint64_t mem_size)
+{
+    // PML4 entries 0-255 cover [0, 0x0000800000000000); entries 256-511 are the
+    // kernel half (HHDM + kernel image) and are shared by reference with every
+    // address space. vmm_map_page() selects the PML4 entry purely from the
+    // virtual address, so any segment that reaches this boundary or beyond would
+    // install mappings into the shared kernel tables. Everything below this
+    // address is private, per-process user space.
+    constexpr uint64_t user_addr_end = 0x0000800000000000ULL;
+
+    // Reject sizes so large that start + size wraps past the end of the 64-bit
+    // address space (an attacker-controlled p_memsz could do this).
+    const uint64_t end_addr = start_addr + mem_size;
+    if (end_addr < start_addr) {
+        return false;
+    }
+
+    // Round to the page range the loader will actually map, matching the
+    // rounding in elf_load_segment so the check covers exactly those pages.
+    const uint64_t page_start = start_addr & ~(uint64_t)(PAGE_SIZE - 1);
+    const uint64_t page_end   = (end_addr + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
+    if (page_end < page_start) {
+        // The page-end rounding itself overflowed (start_addr near UINT64_MAX).
+        return false;
+    }
+
+    // The whole page range must sit strictly inside the user half. page_end is
+    // exclusive, so it may equal the boundary (the last mapped page is then the
+    // final user page); page_start must be strictly below it.
+    return page_start < user_addr_end && page_end <= user_addr_end;
+}
+
 /**
  * @brief Load a single PT_LOAD segment into an address space.
  *
@@ -76,6 +108,15 @@ static bool elf_load_segment(vfs_inode_t *node, const Elf64_Phdr *ph,
 {
     uint64_t start_addr = ph->p_vaddr + bias;
     uint64_t end_addr   = start_addr + ph->p_memsz;
+
+    // Refuse to map a segment that does not lie entirely in user space. Without
+    // this, a crafted ELF (executable or interpreter — both load through here)
+    // could place a PT_LOAD segment in the kernel half and corrupt the shared
+    // kernel page tables for every process.
+    if (!elf_segment_in_user_space(start_addr, ph->p_memsz)) {
+        printk("ELF: segment at 0x%lx (size 0x%lx) lies outside user space\n", start_addr, ph->p_memsz);
+        return false;
+    }
 
     uint64_t page_start = start_addr & ~(PAGE_SIZE - 1);
     uint64_t page_end   = (end_addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);

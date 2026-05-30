@@ -4,6 +4,25 @@
 #include <lib/string.h>
 #include <tests/test_util.h>
 
+TEST(test_elf_segment_user_range)
+{
+    // A normal user binary segment (loads near 0x400000) must be accepted.
+    TEST_ASSERT(elf_segment_in_user_space(0x400000, 0x1000));
+    // The last page of the user half is still valid.
+    TEST_ASSERT(elf_segment_in_user_space(0x00007FFFFFFFF000ULL, 0x1000));
+
+    // A p_vaddr in the kernel's higher half must be rejected — mapping it would
+    // corrupt the shared kernel page tables.
+    TEST_ASSERT(!elf_segment_in_user_space(0xFFFFFFFF80000000ULL, 0x1000));
+    // The very first kernel-half address (PML4 entry 256) must be rejected too.
+    TEST_ASSERT(!elf_segment_in_user_space(0x0000800000000000ULL, 0x1000));
+    // A segment that starts in the user half but spills across the boundary.
+    TEST_ASSERT(!elf_segment_in_user_space(0x00007FFFFFFFF000ULL, 0x2000));
+    // A size so large the address arithmetic overflows must be rejected.
+    TEST_ASSERT(!elf_segment_in_user_space(0xFFFFFFFFFFFFF000ULL, 0x4000));
+    return true;
+}
+
 TEST(test_elf_load_nonexistent_file)
 {
     pml4_t pml4 = vmm_new_pml4();
