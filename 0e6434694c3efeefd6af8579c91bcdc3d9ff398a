@@ -1,0 +1,74 @@
+{
+    "version": "0.1.0",
+    "id": "7fa84287-ad67-4d1a-8632-f0706e5381ee",
+    "timestamp": "2026-05-30T16:13:52.423493370Z",
+    "vcs": {
+        "type": "git",
+        "revision": "0e6434694c3efeefd6af8579c91bcdc3d9ff398a",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/syscall_common.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9a7e2d8904a2ed2e5d35f326c2b047ed749145f7",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 22,
+                            "end_line": 26
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/syscalls/sys_sigreturn.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9a7e2d8904a2ed2e5d35f326c2b047ed749145f7",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 16,
+                            "end_line": 19
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/syscall_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9a7e2d8904a2ed2e5d35f326c2b047ed749145f7",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 2394,
+                            "end_line": 2394
+                        },
+                        {
+                            "start_line": 2396,
+                            "end_line": 2422
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
