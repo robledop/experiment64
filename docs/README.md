@@ -16,6 +16,7 @@ files — and keep [glossary.md](glossary.md) open for the acronyms.
   - [06 — Life of a TCP connection](walkthroughs/06-tcp-connection-life.md)
   - [07 — From PCI probe to a USB disk sector](walkthroughs/07-pci-to-usb-disk.md)
   - [08 — A WM client presents a frame](walkthroughs/08-wm-present-frame.md)
+  - [09 — Installing, raising, and delivering a signal](walkthroughs/09-signal-delivery.md)
 
 The README's "Reading map" section lists the matching source directories.
 

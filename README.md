@@ -105,7 +105,7 @@ New here? [`docs/README.md`](docs/README.md) indexes every design doc, the
 [glossary](docs/glossary.md) of acronyms, and a set of end-to-end
 [walkthroughs](docs/walkthroughs/) that trace one real flow each (boot, a
 syscall, a context switch, `open()` to disk, `mmap`, a TCP connection, a USB
-read, a WM frame).
+read, a WM frame, signal delivery).
 
 - Boot and init: `kernel/boot.c`, `kernel/kernel.c`
 - CPU, interrupts, SMP: `kernel/arch/x86_64/`, with design notes in `docs/x86_64/` (`cpu.md`, `gdt.md`, `idt.md`, `apic.md`, `smp.md`, `acpi.md`)
