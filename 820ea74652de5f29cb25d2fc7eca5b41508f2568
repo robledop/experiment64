@@ -1,0 +1,94 @@
+{
+    "version": "0.1.0",
+    "id": "bb3ca01a-dbb0-4843-8fb8-04790a2a3087",
+    "timestamp": "2026-05-30T16:21:11.534477031Z",
+    "vcs": {
+        "type": "git",
+        "revision": "820ea74652de5f29cb25d2fc7eca5b41508f2568",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "include/drivers/ide.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:6d7876335c959cb66b0cb3bb518cda9e2e7f6f16",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 23,
+                            "end_line": 24
+                        },
+                        {
+                            "start_line": 26,
+                            "end_line": 28
+                        },
+                        {
+                            "start_line": 30,
+                            "end_line": 31
+                        },
+                        {
+                            "start_line": 33,
+                            "end_line": 33
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/drivers/ide.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:6d7876335c959cb66b0cb3bb518cda9e2e7f6f16",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 65,
+                            "end_line": 65
+                        },
+                        {
+                            "start_line": 67,
+                            "end_line": 72
+                        },
+                        {
+                            "start_line": 150,
+                            "end_line": 154
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/ide_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:6d7876335c959cb66b0cb3bb518cda9e2e7f6f16",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 8,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 10,
+                            "end_line": 35
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
