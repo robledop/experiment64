@@ -1,0 +1,38 @@
+{
+    "version": "0.1.0",
+    "id": "e362711a-13d4-4da8-a0ad-c088a959edc2",
+    "timestamp": "2026-05-30T18:20:15.590601738Z",
+    "vcs": {
+        "type": "git",
+        "revision": "a9cfd3760cacca3c5633eca66f695b1a6ea4ba2b",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/drivers/usb/xhci_hid_mouse.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:9f01a49a9ec20c4679c68e150e2580d649a27fd5",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 32,
+                            "end_line": 34
+                        },
+                        {
+                            "start_line": 92,
+                            "end_line": 93
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
