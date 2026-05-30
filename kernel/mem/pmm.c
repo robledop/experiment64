@@ -139,6 +139,18 @@ size_t pmm_get_bitmap_size(void)
     return bitmap_size;
 }
 
+size_t pmm_count_free_pages(void)
+{
+    size_t free = 0;
+    WITH_LOCK(pmm_lock) {
+        for (size_t page = 0; page < highest_page; page++) {
+            if (!bitmap_test(page))
+                free++;
+        }
+    }
+    return free;
+}
+
 void *pmm_alloc_page(void)
 {
     void *addr = nullptr;

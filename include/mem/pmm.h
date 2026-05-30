@@ -14,3 +14,5 @@ uint64_t pmm_get_highest_addr(void);
 size_t pmm_get_reserved_base_page(void);
 uint64_t pmm_get_bitmap_phys(void);
 size_t pmm_get_bitmap_size(void);
+/** Count currently-free physical pages (scans the bitmap; for tests/diagnostics). */
+size_t pmm_count_free_pages(void);
