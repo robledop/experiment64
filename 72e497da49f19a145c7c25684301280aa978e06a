@@ -1,0 +1,42 @@
+{
+    "version": "0.1.0",
+    "id": "b385d273-c5d7-4d9c-a6b9-e0b0c57d536f",
+    "timestamp": "2026-05-30T19:43:43.908932354Z",
+    "vcs": {
+        "type": "git",
+        "revision": "72e497da49f19a145c7c25684301280aa978e06a",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "docs/glossary.md",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:56db98028cbadb6801c3b11e27b4561174e4f07c",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 10,
+                            "end_line": 154
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
