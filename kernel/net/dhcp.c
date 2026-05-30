@@ -162,6 +162,30 @@ uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LE
     return 0;
 }
 
+uint8_t dhcp_options_get_message_type(const uint8_t options[static DHCP_OPTIONS_LEN])
+{
+    int offset = 0;
+    while (offset < DHCP_OPTIONS_LEN)
+    {
+        uint8_t option_code = options[offset++];
+        if (option_code == DHCP_OPT_END)
+            break;
+        if (option_code == DHCP_OPT_PAD)
+            continue;
+        if (offset >= DHCP_OPTIONS_LEN)
+            break;
+
+        uint8_t option_length = options[offset++];
+        if (offset + option_length > DHCP_OPTIONS_LEN)
+            break;
+
+        if (option_code == DHCP_OPT_DHCP_MESSAGE_TYPE && option_length >= 1)
+            return options[offset];
+        offset += option_length;
+    }
+    return 0;
+}
+
 void set_discover_dhcp_options(uint8_t* options)
 {
     int offset = 0;
@@ -191,7 +215,7 @@ void dhcp_receive(uint8_t* packet, uint16_t len)
         return;
 
     auto dhcp_packet = (struct dhcp_header*)(packet + headers_len);
-    const uint16_t dhcp_message_type = dhcp_packet->options[2];
+    const uint16_t dhcp_message_type = dhcp_options_get_message_type(dhcp_packet->options);
 
     // A response to our DHCP Discover (Offer)
     if (dhcp_packet->op == DHCP_OP_OFFER && dhcp_message_type == DHCP_MESSAGE_TYPE_OFFER &&

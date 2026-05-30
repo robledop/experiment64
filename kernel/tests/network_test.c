@@ -290,6 +290,26 @@ TEST(test_dhcp_options_get_dns_servers_clamped)
     return true;
 }
 
+TEST(test_dhcp_options_get_message_type_not_first)
+{
+    // Option 53 (message type) need not be the first option; the parser must
+    // locate it by walking options, not assume a fixed byte offset.
+    uint8_t options[DHCP_OPTIONS_LEN] = {0};
+    options[0] = DHCP_OPT_ROUTER;             // a different option first
+    options[1] = 4;                           // length
+    options[2] = 192;                         // decoy byte at the old fixed offset
+    options[3] = 168;
+    options[4] = 1;
+    options[5] = 1;
+    options[6] = DHCP_OPT_DHCP_MESSAGE_TYPE;  // option 53
+    options[7] = 1;                           // length
+    options[8] = DHCP_MESSAGE_TYPE_OFFER;     // value
+    options[9] = DHCP_OPT_END;
+
+    TEST_ASSERT(dhcp_options_get_message_type(options) == DHCP_MESSAGE_TYPE_OFFER);
+    return true;
+}
+
 TEST(test_dhcp_options_with_padding)
 {
     uint8_t options[DHCP_OPTIONS_LEN] = {0};

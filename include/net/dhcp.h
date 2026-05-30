@@ -83,4 +83,6 @@ void dhcp_send_request(uint8_t mac[static 6], const uint8_t ip[static 4], const 
 uint32_t dhcp_options_get_ip_option(const uint8_t options[static DHCP_OPTIONS_LEN], int option);
 int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN],
                                  uint32_t dns_servers[static 1], size_t *dns_server_count);
+/** Return the DHCP message type (option 53), or 0 if the option is absent. */
+uint8_t dhcp_options_get_message_type(const uint8_t options[static DHCP_OPTIONS_LEN]);
 void dhcp_receive(uint8_t *packet, uint16_t len);
