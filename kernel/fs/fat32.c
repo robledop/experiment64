@@ -437,7 +437,10 @@ static int fat32_find_entry(fat32_fs_t *fs, uint32_t dir_cluster, const char *na
         return 1;
     defer(cleanup_kfree, &cluster_buf);
 
+    uint32_t walked = 0;
     while (current_cluster < FAT32_EOC && current_cluster != 0) {
+        if (++walked > fs->total_clusters)
+            return 1; // cyclic/corrupt chain
         if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
             return 1;
 
@@ -540,7 +543,10 @@ void fat32_list_dir(fat32_fs_t *fs, const char *path)
 
     printk("Directory Listing of %s:\n", path ? path : "/");
 
+    uint32_t walked = 0;
     while (1) {
+        if (++walked > fs->total_clusters)
+            break; // cyclic/corrupt chain
         if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
             break;
 
@@ -772,7 +778,10 @@ static vfs_dirent_t *fat32_vfs_readdir(const vfs_inode_t *node, uint32_t index)
     uint32_t count       = 0;
     vfs_dirent_t *dirent = nullptr;
 
+    uint32_t walked = 0;
     while (1) {
+        if (++walked > fs->total_clusters)
+            goto end; // cyclic/corrupt chain
         if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
             break;
 
@@ -1214,7 +1223,10 @@ static int fat32_add_entry(fat32_fs_t *fs, uint32_t dir_cluster, const char *nam
         return 1;
     defer(cleanup_kfree, &cluster_buf);
 
+    uint32_t walked = 0;
     while (1) {
+        if (++walked > fs->total_clusters)
+            return 1; // cyclic/corrupt chain
         if (fat32_read_cluster(fs, current_cluster, cluster_buf) != 0)
             return 1;
 
