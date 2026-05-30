@@ -1,3 +1,15 @@
+/**
+ * @file ide.c
+ * @brief Legacy ATA/IDE PIO disk driver (primary + secondary channels).
+ *
+ * Probes the four legacy drives, parses IDENTIFY data, and does PIO sector
+ * reads/writes serialized per channel by a sleeplock so IRQ handlers can run.
+ *
+ * IRQ wiring is split across two files: ide_init() below unmasks IRQ 14/15 via
+ * apic_enable_irq(), but the registered interrupt handlers ide_primary_isr /
+ * ide_secondary_isr live in kernel/arch/x86_64/idt.c. Those thin wrappers call
+ * back into ide_irq_handler() in this file.
+ */
 #include <drivers/ide.h>
 #include <arch/x86_64/port_io.h>
 #include <lib/string.h>
@@ -160,6 +172,9 @@ void ide_init(void)
     outb(ide_control[0], 0);
     outb(ide_control[1], 0);
 
+    // Unmask the IRQ lines here, but vectors 46/47 are dispatched by
+    // ide_primary_isr / ide_secondary_isr in kernel/arch/x86_64/idt.c,
+    // which call ide_irq_handler() above.
     apic_enable_irq(14, 46);
     apic_enable_irq(15, 47);
 }

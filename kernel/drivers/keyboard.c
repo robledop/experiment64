@@ -1,3 +1,15 @@
+/**
+ * @file keyboard.c
+ * @brief PS/2 keyboard driver: scancode decoding, line buffering, SIGINT.
+ *
+ * Decodes Scancode Set 1, tracks modifier state, feeds a per-foreground-pid
+ * input buffer, and registers a /dev/keyboard char device via keyboard_init().
+ *
+ * Note the unusual IRQ wiring: this driver does NOT enable its own IRQ line.
+ * IRQ 1 is unmasked in the IOAPIC init in kernel/arch/x86_64/apic.c, and the
+ * registered interrupt handler keyboard_isr lives in kernel/arch/x86_64/idt.c;
+ * it calls keyboard_handler_main() in this file.
+ */
 #include <drivers/keyboard.h>
 #include <arch/x86_64/port_io.h>
 #include <task/process.h>
@@ -310,6 +322,7 @@ static void keyboard_process_scancode(uint8_t scancode)
     }
 }
 
+// Invoked from keyboard_isr in kernel/arch/x86_64/idt.c (the actual IRQ 1 ISR).
 void keyboard_handler_main(void)
 {
     uint8_t status = inb(KEYBOARD_STATUS_PORT);

@@ -350,6 +350,11 @@ bool xhci_get_device_descriptor(struct xhci_controller *xhci, struct xhci_device
     return true;
 }
 
+// Despite the name, this does more than fetch the configuration descriptor: it
+// also performs device-CLASS dispatch. After reading the full descriptor it tries
+// xhci_msc_parse_config() then xhci_hid_mouse_parse_config(), and on the first
+// match runs SET_CONFIGURATION + that class's endpoint setup and init
+// (xhci_msc_init in xhci_msc.c, or xhci_hid_mouse_init in xhci_hid_mouse.c).
 bool xhci_get_config_descriptor(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     uintptr_t desc_phys = 0;

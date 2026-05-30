@@ -35,6 +35,9 @@ struct Thread;
 
 typedef struct cpu
 {
+    // self / user_rsp / kernel_rsp are addressed by HARDCODED byte offset
+    // (gs:[0], gs:8, gs:16) from the swapgs paths in
+    // kernel/syscalls/syscall_entry.S; do not reorder without updating those.
     struct cpu* self;
     uint64_t user_rsp;
     uint64_t kernel_rsp;
@@ -47,6 +50,10 @@ typedef struct cpu
     uint32_t interrupt_depth;
 } cpu_t;
 
+// Reads gs:[0] (cpu_t.self). The GS base is established in three phases during
+// bring-up: smp_init_cpu0()/ap_main() (kernel/arch/x86_64/smp.c) first
+// wrmsr(MSR_GS_BASE, cpu), then gdt_init() (kernel/arch/x86_64/gdt.c) re-writes
+// it because loading a null GS data selector there zeroes the GS-base MSR.
 cpu_t* get_cpu(void);
 void cpu_interrupt_enter(void);
 void cpu_interrupt_exit(void);

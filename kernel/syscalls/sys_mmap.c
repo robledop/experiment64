@@ -200,6 +200,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, size_t of
             return (void *)base;
         }
 
+        // The per-page allocate/zero/map/record/unwind loop lives in kernel/syscalls/common.c (map_user_anonymous_range).
         if (!map_user_anonymous_range(current_process, current_process->pml4, base, total_len, vma_flags))
             return MAP_FAILED;
         return (void *)base;

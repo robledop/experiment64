@@ -1,3 +1,17 @@
+/**
+ * @file idt.c
+ * @brief Interrupt Descriptor Table setup, CPU exception handlers, and IRQ ISRs.
+ *
+ * Builds the IDT, installs exception/fault handlers, and registers the device
+ * IRQ handlers (timer, keyboard, IDE, reschedule IPI) via register_interrupt_handler().
+ *
+ * Heads-up on the device-IRQ split: a few drivers keep both their IRQ-enable
+ * and their ISR in one file (see mouse.c / e1000.c / atl1c.c), but the keyboard
+ * and IDE ISR bodies live HERE while their IRQ lines are unmasked elsewhere.
+ * keyboard_isr / ide_primary_isr / ide_secondary_isr below are thin wrappers
+ * that delegate to keyboard_handler_main() (kernel/drivers/keyboard.c) and
+ * ide_irq_handler() (kernel/drivers/ide.c).
+ */
 #include <arch/x86_64/apic.h>
 #include <arch/x86_64/idt.h>
 #include <debug.h>
@@ -154,12 +168,17 @@ static void timer_isr([[maybe_unused]] struct interrupt_frame *frame)
     }
 }
 
+// The IRQ 1 line is unmasked in the IOAPIC init in kernel/arch/x86_64/apic.c,
+// not in the keyboard driver; the work runs in keyboard_handler_main()
+// (kernel/drivers/keyboard.c).
 static void keyboard_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     keyboard_handler_main();
     apic_send_eoi();
 }
 
+// IRQ 14/15 are unmasked from ide_init() via apic_enable_irq() in
+// kernel/drivers/ide.c, where ide_irq_handler() is also defined.
 static void ide_primary_isr([[maybe_unused]] struct interrupt_frame *frame)
 {
     ide_irq_handler(0);

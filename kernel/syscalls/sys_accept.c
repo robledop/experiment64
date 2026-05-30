@@ -80,6 +80,9 @@ int sys_accept(const int fd, struct sockaddr* addr, socklen_t* addrlen)
                 nonblock_empty = true;
                 break;
             }
+            // Rendezvous: the matching thread_wakeup(listener) fires from
+            // tcp_receive() in kernel/net/tcp.c once the 3-way handshake
+            // completes and the new child socket is queued on accept_queue.
             thread_sleep(listener, &listener->accept_lock);
         }
         if (!nonblock_empty) {

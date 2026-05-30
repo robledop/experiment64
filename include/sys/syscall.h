@@ -10,6 +10,9 @@
 #include <sys/wait.h>
 #include <sys/poll.h>
 
+// Field order mirrors (reversed) the register push sequence in
+// kernel/syscalls/syscall_entry.S: it pushes r11 first and rdi last, so the
+// post-push RSP is a valid `struct syscall_regs *`. Keep the two in sync.
 struct syscall_regs
 {
     uint64_t rdi, rsi, rdx, r10, r8, r9;
