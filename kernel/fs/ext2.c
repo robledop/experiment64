@@ -1659,6 +1659,13 @@ vfs_inode_t *ext2_mount(uint8_t drive_index, uint32_t partition_lba)
     first_partition_blocks[drive_index] = partition_lba;
     ext2fs_readsb(drive_index, ext2_get_sb(drive_index));
 
+    // Reject a corrupt superblock: these are divisors throughout the driver.
+    const struct ext2_super_block *sb = ext2_get_sb(drive_index);
+    if (sb->s_blocks_per_group == 0 || sb->s_inodes_per_group == 0 || sb->s_inode_size == 0) {
+        printk("ext2_mount: invalid superblock (zero per-group count or inode size)\n");
+        return nullptr;
+    }
+
     struct ext2_inode *root_ip = iget(drive_index, 2);
     if (ext2fs_ilock(root_ip) != 0) {
         ext2fs_iput(root_ip);
