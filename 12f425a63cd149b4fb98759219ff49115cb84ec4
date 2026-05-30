@@ -1,0 +1,106 @@
+{
+    "version": "0.1.0",
+    "id": "548a26c3-1733-4ffe-9e7c-1494e1daabe8",
+    "timestamp": "2026-05-30T17:26:37.425486169Z",
+    "vcs": {
+        "type": "git",
+        "revision": "12f425a63cd149b4fb98759219ff49115cb84ec4",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/tests/libc_userland_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:96be9033f33962653377add8b6c1d55949c33f11",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 2
+                        },
+                        {
+                            "start_line": 4,
+                            "end_line": 5
+                        },
+                        {
+                            "start_line": 7,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 10,
+                            "end_line": 19
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/malloc.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:96be9033f33962653377add8b6c1d55949c33f11",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 129,
+                            "end_line": 132
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/tests/libc_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:96be9033f33962653377add8b6c1d55949c33f11",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 3,
+                            "end_line": 4
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 13
+                        },
+                        {
+                            "start_line": 15,
+                            "end_line": 15
+                        },
+                        {
+                            "start_line": 17,
+                            "end_line": 22
+                        },
+                        {
+                            "start_line": 24,
+                            "end_line": 30
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
