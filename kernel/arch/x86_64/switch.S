@@ -13,6 +13,10 @@
  *     uint64_t rsp;          // 1032
  *     ...
  * }
+ *
+ * THREAD_RSP_OFFSET is checked at compile time by a static_assert next to the
+ * thread_t definition in include/task/process.h; if the struct layout changes,
+ * the build fails there rather than corrupting context switches at runtime.
  */
 #define THREAD_RSP_OFFSET 1032
 switch_to:

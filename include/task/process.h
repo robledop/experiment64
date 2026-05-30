@@ -120,6 +120,15 @@ typedef struct Thread
     bool detached; // User thread detached from join
 } thread_t;
 
+/*
+ * kernel/arch/x86_64/switch.S reads thread_t.rsp through a hardcoded byte
+ * offset (THREAD_RSP_OFFSET). This guard fails the build if the layout drifts
+ * (e.g. a new field before `rsp`, or a change to fpu_state_t's size), so the
+ * two stay in sync instead of silently corrupting every context switch.
+ */
+static_assert(__builtin_offsetof(thread_t, rsp) == 1032,
+              "thread_t.rsp moved; update THREAD_RSP_OFFSET in kernel/arch/x86_64/switch.S");
+
 USED static inline bool thread_state_valid_raw(uint32_t raw_state)
 {
     return raw_state <= THREAD_TERMINATED;
