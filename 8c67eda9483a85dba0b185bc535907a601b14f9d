@@ -1,0 +1,68 @@
+{
+    "version": "0.1.0",
+    "id": "f23330f9-3c43-4666-86e0-dfb8c9722a7e",
+    "timestamp": "2026-05-30T17:29:54.938331153Z",
+    "vcs": {
+        "type": "git",
+        "revision": "8c67eda9483a85dba0b185bc535907a601b14f9d",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/libc/src/stdio_file.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:461bd979a92cd48c87b6da3c7f79876856b2f690",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 340,
+                            "end_line": 342
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/tests/libc_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:461bd979a92cd48c87b6da3c7f79876856b2f690",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 1
+                        },
+                        {
+                            "start_line": 15,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 34,
+                            "end_line": 42
+                        },
+                        {
+                            "start_line": 44,
+                            "end_line": 46
+                        },
+                        {
+                            "start_line": 48,
+                            "end_line": 52
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
