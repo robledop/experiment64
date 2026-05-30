@@ -18,6 +18,10 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
         return false;
     }
 
+    // Preserve any already-configured MSC device: probing a non-MSC config
+    // (e.g. a HID mouse on another slot) must not wipe working storage state.
+    const struct xhci_msc_device saved = g_xhci_msc;
+
     g_xhci_msc.dev                 = (struct xhci_device *)dev;
     g_xhci_msc.active              = false;
     g_xhci_msc.config_value        = ((const struct usb_config_descriptor *)cfg_buf)->b_configuration_value;
@@ -92,6 +96,7 @@ bool xhci_msc_parse_config(const struct xhci_device *dev,
     }
 
     if (!saw_msc_interface) {
+        g_xhci_msc = saved; // not an MSC device — leave the prior state intact
         return false;
     }
 
