@@ -1,0 +1,62 @@
+{
+    "version": "0.1.0",
+    "id": "723501e2-d270-49e4-85be-c075198873bd",
+    "timestamp": "2026-05-30T19:35:25.309706790Z",
+    "vcs": {
+        "type": "git",
+        "revision": "68ce2474afe62b2de933274954223b30d0119d21",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/task/scheduler.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:1a01adc5b45d7b3ffe93d22dc978f3d7a7fa7554",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 14
+                        },
+                        {
+                            "start_line": 16,
+                            "end_line": 17
+                        },
+                        {
+                            "start_line": 32,
+                            "end_line": 32
+                        },
+                        {
+                            "start_line": 47,
+                            "end_line": 53
+                        },
+                        {
+                            "start_line": 285,
+                            "end_line": 287
+                        },
+                        {
+                            "start_line": 290,
+                            "end_line": 632
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
