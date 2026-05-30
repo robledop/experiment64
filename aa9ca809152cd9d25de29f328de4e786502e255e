@@ -1,0 +1,56 @@
+{
+    "version": "0.1.0",
+    "id": "ebc4ba68-8b13-49ab-beca-6181173fca9b",
+    "timestamp": "2026-05-30T16:10:47.257384488Z",
+    "vcs": {
+        "type": "git",
+        "revision": "aa9ca809152cd9d25de29f328de4e786502e255e",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/net/dhcp.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:6ac1a838d1cb0df7e3c6277d037ece4d01941419",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 91,
+                            "end_line": 92
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/network_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:6ac1a838d1cb0df7e3c6277d037ece4d01941419",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 272,
+                            "end_line": 272
+                        },
+                        {
+                            "start_line": 274,
+                            "end_line": 290
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
