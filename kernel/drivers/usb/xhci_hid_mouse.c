@@ -29,6 +29,10 @@ bool xhci_hid_mouse_parse_config(const struct xhci_device *dev,
     if (!dev || !cfg_buf || total_len < sizeof(struct usb_config_descriptor))
         return false;
 
+    // Preserve any already-configured HID device: probing a non-HID config on
+    // another slot must not wipe a working mouse/tablet's state.
+    const struct xhci_hid_mouse_device saved = g_xhci_hid_mouse;
+
     g_xhci_hid_mouse.dev               = (struct xhci_device *)dev;
     g_xhci_hid_mouse.active            = false;
     g_xhci_hid_mouse.is_tablet         = false;
@@ -85,8 +89,10 @@ bool xhci_hid_mouse_parse_config(const struct xhci_device *dev,
         buf += len;
     }
 
-    if (!saw_hid || g_xhci_hid_mouse.int_in_ep == 0)
+    if (!saw_hid || g_xhci_hid_mouse.int_in_ep == 0) {
+        g_xhci_hid_mouse = saved; // not a HID device — leave the prior state intact
         return false;
+    }
 
     g_xhci_hid_mouse.is_tablet = !is_boot_mouse;
     g_xhci_hid_mouse.int_in_id = xhci_endpoint_id(g_xhci_hid_mouse.int_in_ep);
