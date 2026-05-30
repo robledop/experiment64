@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <fs/vfs.h>
 
-extern struct ext2_inode_operations ext2fs_inode_ops;
+// The VFS vtable for ext2 is `static struct inode_operations ext2_vfs_ops`,
+// installed by ext2_mount() in kernel/fs/ext2.c.
 extern struct icache icache;
 
 // Block size for ext2
