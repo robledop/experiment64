@@ -88,6 +88,8 @@ int dhcp_options_get_dns_servers(const uint8_t options[static DHCP_OPTIONS_LEN],
                 }
 
                 size_t num_servers = option_length / 4;
+                if (num_servers > MAX_DNS_SERVERS)
+                    num_servers = MAX_DNS_SERVERS;
 
                 for (size_t i = 0; i < num_servers && i < MAX_DNS_SERVERS; i++)
                 {

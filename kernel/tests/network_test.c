@@ -269,6 +269,27 @@ TEST(test_dhcp_options_get_dns_servers_none)
     return true;
 }
 
+TEST(test_dhcp_options_get_dns_servers_clamped)
+{
+    // Advertise more DNS servers than the destination array can hold. The
+    // returned count must not exceed MAX_DNS_SERVERS (5), otherwise the caller
+    // reads past the end of its dns_servers buffer.
+    uint8_t options[DHCP_OPTIONS_LEN] = {0};
+    options[0] = DHCP_OPT_DNS;
+    options[1] = 32;  // 8 servers * 4 bytes
+    for (int i = 0; i < 32; i++)
+        options[2 + i] = (uint8_t)(i + 1);
+    options[34] = DHCP_OPT_END;
+
+    uint32_t dns_servers[8];
+    size_t count = 0;
+    const int result = dhcp_options_get_dns_servers(options, dns_servers, &count);
+
+    TEST_ASSERT(result == 0);
+    TEST_ASSERT(count <= 5);  // MAX_DNS_SERVERS
+    return true;
+}
+
 TEST(test_dhcp_options_with_padding)
 {
     uint8_t options[DHCP_OPTIONS_LEN] = {0};
