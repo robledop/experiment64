@@ -1,0 +1,200 @@
+{
+    "version": "0.1.0",
+    "id": "cf854c18-67d8-4bd3-8ce4-c1b5d027f992",
+    "timestamp": "2026-05-30T19:51:55.866752467Z",
+    "vcs": {
+        "type": "git",
+        "revision": "4a8758b681b4a643a714c18a246b7a22e44e33bc",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "user/libc/include/wm/window.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 38,
+                            "end_line": 39
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/include/wm/wm_protocol.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 8
+                        },
+                        {
+                            "start_line": 10,
+                            "end_line": 18
+                        },
+                        {
+                            "start_line": 20,
+                            "end_line": 22
+                        },
+                        {
+                            "start_line": 24,
+                            "end_line": 30
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/include/wm/wmclient.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 7,
+                            "end_line": 8
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/stdio.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:0b0e80aad8cf079194bc397e20d2144ed4f3d7e9",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 3
+                        },
+                        {
+                            "start_line": 5,
+                            "end_line": 7
+                        },
+                        {
+                            "start_line": 9,
+                            "end_line": 11
+                        },
+                        {
+                            "start_line": 13,
+                            "end_line": 15
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/stdio_file.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:0b0e80aad8cf079194bc397e20d2144ed4f3d7e9",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 1,
+                            "end_line": 4
+                        },
+                        {
+                            "start_line": 6,
+                            "end_line": 9
+                        },
+                        {
+                            "start_line": 11,
+                            "end_line": 14
+                        },
+                        {
+                            "start_line": 16,
+                            "end_line": 18
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/libc/src/wmclient.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 558,
+                            "end_line": 562
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wm/wm_client.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 476,
+                            "end_line": 479
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "user/wm/wm_client.h",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:61acf9a56b09011bb2690013f6b89b0064f32997",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 8,
+                            "end_line": 9
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
