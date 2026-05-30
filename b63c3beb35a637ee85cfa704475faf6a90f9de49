@@ -1,0 +1,56 @@
+{
+    "version": "0.1.0",
+    "id": "f0815402-b15b-4c91-90c3-ab3506780269",
+    "timestamp": "2026-05-30T16:16:19.651495050Z",
+    "vcs": {
+        "type": "git",
+        "revision": "b63c3beb35a637ee85cfa704475faf6a90f9de49",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/syscalls/sys_arch_prctl.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:a2b1435461926fe17ec2b147614e5c0a6e38649b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 19,
+                            "end_line": 20
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "kernel/tests/syscall_test.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:a2b1435461926fe17ec2b147614e5c0a6e38649b",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 2425,
+                            "end_line": 2425
+                        },
+                        {
+                            "start_line": 2427,
+                            "end_line": 2441
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
