@@ -250,6 +250,7 @@ static bool xhci_attempt_enumeration(struct xhci_controller *xhci,
         boot_message(WARNING, "[xHCI] Slot %u input context prep failed", slot_id);
         dev->active = false;
         xhci_disable_slot(xhci, slot_id);
+        xhci_free_device_context(xhci, dev);
         return false;
     }
 
@@ -257,6 +258,7 @@ static bool xhci_attempt_enumeration(struct xhci_controller *xhci,
     if (!ok) {
         dev->active = false;
         xhci_disable_slot(xhci, slot_id);
+        xhci_free_device_context(xhci, dev);
     }
 
     return ok;

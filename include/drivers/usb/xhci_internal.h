@@ -736,6 +736,9 @@ bool xhci_disable_slot(struct xhci_controller *xhci,
                        uint8_t slot_id);
 bool xhci_alloc_device_context(const struct xhci_controller *xhci,
                                struct xhci_device *dev);
+/** Free a device's contexts and ep0 ring, clearing its DCBAA slot. */
+void xhci_free_device_context(const struct xhci_controller *xhci,
+                              struct xhci_device *dev);
 bool xhci_prepare_slot_context(struct xhci_controller *xhci,
                                struct xhci_device *dev);
 bool xhci_address_device(struct xhci_controller *xhci,

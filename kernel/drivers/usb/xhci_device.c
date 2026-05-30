@@ -137,6 +137,35 @@ bool xhci_alloc_device_context(const struct xhci_controller *xhci, struct xhci_d
     return true;
 }
 
+void xhci_free_device_context(const struct xhci_controller *xhci, struct xhci_device *dev)
+{
+    if (!dev) {
+        return;
+    }
+
+    if (dev->device_ctx) {
+        dma_free_pages(dev->device_ctx_phys, (size_t)XHCI_MAX_CONTEXTS * xhci->context_size);
+        dev->device_ctx      = nullptr;
+        dev->device_ctx_phys = 0;
+        xhci->dcbaa[dev->slot_id] = 0;
+    }
+
+    if (dev->input_ctx) {
+        const size_t ctx_size     = xhci->context_size;
+        const size_t input_offset = (ctx_size == 64u) ? 64u : 32u;
+        dma_free_pages(dev->input_ctx_phys, input_offset + (XHCI_MAX_CONTEXTS * ctx_size));
+        dev->input_ctx      = nullptr;
+        dev->input_ctx_phys = 0;
+    }
+
+    if (dev->ep0_ring.trbs) {
+        dma_free_pages(dev->ep0_ring.phys, (size_t)dev->ep0_ring.trb_count * sizeof(struct xhci_trb));
+        dev->ep0_ring.trbs      = nullptr;
+        dev->ep0_ring.trb_count = 0;
+        dev->ep0_ring.phys      = 0;
+    }
+}
+
 bool xhci_prepare_slot_context(struct xhci_controller *xhci, struct xhci_device *dev)
 {
     if (!dev) {
