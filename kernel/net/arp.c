@@ -3,6 +3,7 @@
 #include <net/network.h>
 #include <mem/heap.h>
 #include <task/process.h>
+#include <task/spinlock.h>
 #include <drivers/terminal.h>
 #include <lib/string.h>
 #include <arpa/inet.h>
@@ -13,15 +14,18 @@ uint8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 struct arp_cache_entry* arp_cache;
 
+// Guards arp_cache against concurrent access from the receive path
+// (arp_receive_reply runs in network/ISR context) and the send path.
+static spinlock_t arp_cache_lock;
+
 void arp_init(void)
 {
+    spinlock_init(&arp_cache_lock);
     arp_cache = kzalloc(sizeof(struct arp_cache_entry) * ARP_CACHE_SIZE);
 }
 
-void arp_cache_remove_expired_entries(void)
+static void arp_cache_remove_expired_entries_locked(void)
 {
-    if (!arp_cache) return;
-
     const uint32_t current_time = scheduler_ticks;
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
@@ -34,34 +38,49 @@ void arp_cache_remove_expired_entries(void)
     }
 }
 
+void arp_cache_remove_expired_entries(void)
+{
+    if (!arp_cache) return;
+
+    WITH_LOCK(arp_cache_lock) {
+        arp_cache_remove_expired_entries_locked();
+    }
+}
+
 struct arp_cache_entry arp_cache_find(const uint8_t ip[static 4])
 {
     if (!arp_cache) return (struct arp_cache_entry){0};
 
-    arp_cache_remove_expired_entries();
+    struct arp_cache_entry result = {0};
+    WITH_LOCK(arp_cache_lock) {
+        arp_cache_remove_expired_entries_locked();
 
-    for (int i = 0; i < ARP_CACHE_SIZE; i++)
-    {
-        if (network_compare_ip_addresses(arp_cache[i].ip, ip))
+        for (int i = 0; i < ARP_CACHE_SIZE; i++)
         {
-            return arp_cache[i];
+            if (network_compare_ip_addresses(arp_cache[i].ip, ip))
+            {
+                result = arp_cache[i];
+                break;
+            }
         }
     }
-    return (struct arp_cache_entry){0};
+    return result;
 }
 
 void arp_cache_add(uint8_t ip[static 4], uint8_t mac[static 6])
 {
     if (!arp_cache) return;
 
-    for (int i = 0; i < ARP_CACHE_SIZE; i++)
-    {
-        if (arp_cache[i].ip[0] == 0)
+    WITH_LOCK(arp_cache_lock) {
+        for (int i = 0; i < ARP_CACHE_SIZE; i++)
         {
-            memcpy(arp_cache[i].ip, ip, 4);
-            memcpy(arp_cache[i].mac, mac, 6);
-            arp_cache[i].timestamp = scheduler_ticks;
-            return;
+            if (arp_cache[i].ip[0] == 0)
+            {
+                memcpy(arp_cache[i].ip, ip, 4);
+                memcpy(arp_cache[i].mac, mac, 6);
+                arp_cache[i].timestamp = scheduler_ticks;
+                break;
+            }
         }
     }
 }
