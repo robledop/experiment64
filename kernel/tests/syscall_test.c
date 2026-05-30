@@ -2421,3 +2421,22 @@ TEST(test_sigreturn_rejects_noncanonical_rip)
     TEST_ASSERT(regs.rcx == 0xDEADBEEFULL);
     return true;
 }
+
+TEST(test_arch_prctl_rejects_noncanonical_fs)
+{
+    // ARCH_SET_FS must reject a non-canonical base before executing WRFSBASE,
+    // which raises #GP in the kernel on a non-canonical value.
+    thread_t *t = current_thread;
+    if (!t)
+        return false;
+    const uint64_t saved = t->fs_base;
+
+    const uint64_t canonical = 0x7000000000ULL;
+    const uint64_t noncanon  = 0x0000800000000000ULL;  // bit 47 set, 63:48 clear
+
+    TEST_ASSERT(sys_arch_prctl(ARCH_SET_FS, canonical) == 0);
+    TEST_ASSERT(sys_arch_prctl(ARCH_SET_FS, noncanon) == -1);
+
+    sys_arch_prctl(ARCH_SET_FS, saved);  // restore the runner's fs base
+    return true;
+}

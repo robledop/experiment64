@@ -16,6 +16,8 @@ int sys_arch_prctl(int code, uint64_t addr)
 
     switch (code) {
     case ARCH_SET_FS:
+        if (!addr_is_canonical(addr))
+            return -1;
         t->fs_base = addr;
         wrfsbase(addr);
         return 0;
