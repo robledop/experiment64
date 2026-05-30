@@ -5,12 +5,6 @@
 #include <status.h>
 #include <syscall_common.h>
 
-static inline bool addr_is_canonical(uintptr_t addr)
-{
-    const uintptr_t upper = addr >> 47;
-    return upper == 0 || upper == 0x1ffff;
-}
-
 static inline bool user_entry_ok(uint64_t entry, bool write)
 {
     if ((entry & PTE_PRESENT) == 0)

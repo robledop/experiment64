@@ -2390,3 +2390,34 @@ TEST(test_syscall_accept_nonblock_empty_queue)
     TEST_ASSERT(sys_close(listen_fd) == 0);
     return true;
 }
+
+TEST(test_sigreturn_rejects_noncanonical_rip)
+{
+    // A crafted sigcontext with a non-canonical return RIP must be rejected
+    // before it reaches the syscall return path, where SYSRET would #GP in
+    // ring 0. sys_sigreturn must return -1 and leave the saved RIP (rcx)
+    // untouched.
+    void *phys = pmm_alloc_page();
+    if (!phys)
+        return false;
+
+    const uint64_t uaddr = 0x10000000;
+    uint64_t cr3;
+    __asm__ volatile("mov %0, cr3" : "=r"(cr3));
+    vmm_map_page((pml4_t)cr3, uaddr, (uint64_t)phys, PTE_PRESENT | PTE_WRITABLE | PTE_USER);
+
+    sigcontext_t *ctx = (sigcontext_t *)((uint64_t)phys + g_hhdm_offset);
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->rip    = 0x0000800000000000ULL;  // non-canonical (bit 47 set, 63:48 clear)
+    ctx->rflags = 0x202;
+
+    struct syscall_regs regs;
+    memset(&regs, 0, sizeof(regs));
+    regs.rcx = 0xDEADBEEFULL;  // sentinel: must survive a rejected sigreturn
+
+    const uint64_t ret = sys_sigreturn((const sigcontext_t *)uaddr, &regs);
+
+    TEST_ASSERT(ret == (uint64_t)-1);
+    TEST_ASSERT(regs.rcx == 0xDEADBEEFULL);
+    return true;
+}

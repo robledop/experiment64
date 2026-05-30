@@ -19,6 +19,13 @@ extern void (*syscall_exit_hook)(int);
 #define TEST_SYSCALL_LOG(fmt, ...) ((void)0)
 #endif
 
+/** Return whether @p addr is a canonical x86_64 address (bits 63:47 all equal). */
+static inline bool addr_is_canonical(uintptr_t addr)
+{
+    const uintptr_t upper = addr >> 47;
+    return upper == 0 || upper == 0x1ffff;
+}
+
 /** Check whether a user destination range is writable for the current syscall context. */
 bool user_ptr_write_ok(const void *dst, size_t size, const char *op);
 /** Check whether a user source range is readable for the current syscall context. */

@@ -13,6 +13,11 @@ uint64_t sys_sigreturn(const sigcontext_t* user_ctx, struct syscall_regs* regs)
     if (!copy_from_user(&ctx, user_ctx, sizeof(ctx)))
         return -1;
 
+    // Reject a non-canonical return address before touching any state: SYSRET
+    // with a non-canonical RIP raises #GP while still in ring 0.
+    if (!addr_is_canonical(ctx.rip))
+        return -1;
+
     constexpr sigset_t valid_mask = (SIG_MAX >= 64) ? ~((sigset_t)0) : (((sigset_t)1 << SIG_MAX) - 1);
 
     WITH_LOCK(scheduler_lock) {
