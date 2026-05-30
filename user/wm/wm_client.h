@@ -5,6 +5,8 @@
 #include <wm/wm_protocol.h>
 #include <stdint.h>
 
+// Server-side per-client window. Embeds window_t as its first member, so a
+// window_t* into the scene graph can be cast back to client_window_t*.
 typedef struct
 {
     window_t window;

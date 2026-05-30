@@ -1,3 +1,34 @@
+/**
+ * @file wm_protocol.h
+ * @brief Wire format shared by the WM client library and the WM server.
+ *
+ * This header is the keystone contract between the two halves of the window
+ * system: the client side (user/libc/src/wmclient.c) and the server side
+ * (user/wm/wm_client.c). Every struct here is __attribute__((packed)) so the
+ * same bytes mean the same thing on both ends.
+ *
+ * Two-pipe IPC model. A launched client inherits two inherited file
+ * descriptors:
+ *   - WM_CMD_FD (4): client -> server. Carries enum wm_msg_type requests
+ *     (CREATE_WINDOW, INSERT_CHILD, INVALIDATE, DESTROY_WINDOW). The server
+ *     reads this as cmd_fd in wm_client.c's command loop.
+ *   - WM_EVT_FD (3): server -> client. Carries enum wm_event_type messages
+ *     (WINDOW_CREATED, MOUSE, KEY, RESIZED, CLOSED, INVALIDATED). The client's
+ *     reader thread (wm_event_reader_thread) reads this; the server writes it
+ *     as cw->evt_fd.
+ *
+ * WM_MSG_INVALIDATE is a SYNCHRONOUS present: the client blocks in
+ * wm_invalidate_region() until the matching WM_EVENT_INVALIDATED acks the
+ * composite. Round trip:
+ *
+ *   client                              server
+ *     |  WM_MSG_INVALIDATE (CMD_FD) ------> |
+ *     |  (blocks on present cond var)       | composite back buffer to screen
+ *     | <----- WM_EVENT_INVALIDATED (EVT_FD)|
+ *     |  (reader thread wakes the waiter)   |
+ *     v                                     v
+ *   returns
+ */
 #pragma once
 
 #include <stdint.h>

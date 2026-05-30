@@ -1,3 +1,19 @@
+/**
+ * @file stdio.c
+ * @brief The printf/scanf formatting engine.
+ *
+ * vformat() is the core conversion loop (flags, width, precision, length
+ * modifiers, %d/u/x/p/s/c/f); format_uint()/format_double() do the numeric
+ * rendering. Everything funnels through it:
+ *
+ *   - vsnprintf()/snprintf()/sprintf()/vasprintf() format into a caller buffer
+ *   - printf()/vprintf()/dprintf() format to a stream/fd
+ *   - sscanf() is the matching input parser
+ *
+ * This file does no buffering of its own. Output to a FILE is forwarded into
+ * stdio_file.c: vprintf() -> vfprintf(), and the char-level helpers
+ * (out_char/putchar/puts) reach fputc()/fputs_unlocked() there.
+ */
 #include <stdio.h>
 #include <unistd.h>
 #include <stdarg.h>

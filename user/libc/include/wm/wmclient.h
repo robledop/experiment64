@@ -4,6 +4,8 @@
 #include <wm/window.h>
 #include <wm/wm_protocol.h>
 
+// Client-side window handle (libc): owns the mmap'd shared buffers and the
+// present counters that wm_invalidate_region() spins on.
 typedef struct {
     uint32_t window_id;
     uint16_t width;

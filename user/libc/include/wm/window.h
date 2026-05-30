@@ -35,6 +35,8 @@ typedef void (*WindowMousedownHandler)(struct window *, int16_t, int16_t);
 typedef void (*WindowResizeHandler)(const struct window *, uint16_t, uint16_t);
 typedef void (*WindowCloseHandler)(const struct window *);
 
+// Scene-graph node: a node in the WM's window tree (parent/children, geometry,
+// paint/input callbacks). Used by both the server and in-process widgets.
 typedef struct window {
     struct window *parent;
     int16_t x;

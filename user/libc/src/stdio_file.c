@@ -1,3 +1,22 @@
+/**
+ * @file stdio_file.c
+ * @brief Buffered FILE streams: stream objects, the three standard streams,
+ *        and all write buffering.
+ *
+ * The FILE type (struct stdio_file) is declared in <stdio.h>; this file defines
+ * the storage for the standard streams (__stdin/out/err_file_obj plus the
+ * stdout alias) and the open/close/read/write/seek operations over them. The
+ * write path is the interesting part:
+ *
+ *   - __buffered_write() copies into the per-stream wbuf honoring buf_mode
+ *     (_IONBF direct, _IOLBF flush-on-newline, _IOFBF flush-when-full)
+ *   - __flush_wbuf() drains the buffer to the fd; __init_wbuf()/setvbuf() set
+ *     buffering policy (line-buffered iff isatty)
+ *
+ * Formatting is NOT here: vfprintf() renders into a stack buffer via
+ * vsnprintf() (the engine in stdio.c) and then hands the bytes to fwrite(), so
+ * the whole printf family ultimately bottoms out in __buffered_write() here.
+ */
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>

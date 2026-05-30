@@ -473,6 +473,10 @@ static void client_window_resize_handler(const window_t *window, uint16_t old_wi
     write(cw->evt_fd, &ev, sizeof(ev));
 }
 
+// Server side of the synchronous present. Composites the client's chosen
+// buffer, then writes WM_EVENT_INVALIDATED back so the waiter in
+// wm_invalidate_region() (user/libc/src/wmclient.c) unblocks. Each ack lets
+// the client advance presents_completed up to its presents_requested.
 static void handle_invalidate([[maybe_unused]] window_t *parent, const wm_msg_invalidate_t *msg)
 {
     client_window_t *cw = find_client_by_window_id(msg->window_id);

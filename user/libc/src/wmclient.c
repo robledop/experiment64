@@ -555,6 +555,11 @@ wm_window_t *wm_create_window(int16_t x, int16_t y, uint16_t width, uint16_t hei
     return win;
 }
 
+// Synchronous present (client side). Bumps win->presents_requested, sends
+// WM_MSG_INVALIDATE, then blocks until win->presents_completed catches up.
+// The ack (WM_EVENT_INVALIDATED) is produced by handle_invalidate() in
+// user/wm/wm_client.c and bumps presents_completed via
+// wm_apply_invalidated_event_locked() above.
 void wm_invalidate_region(wm_window_t *win, int16_t x, int16_t y, uint16_t w, uint16_t h)
 {
     if (!win)
