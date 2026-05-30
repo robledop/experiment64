@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* ── ELF types (self-contained, no libc dependency) ────────────────────── */
 
 typedef uint64_t elf64_addr;
 typedef uint64_t elf64_off;
@@ -144,8 +143,6 @@ typedef struct
 
 #define RTLD_PAGE_SIZE 4096
 
-/* ── DSO (Dynamic Shared Object) descriptor ────────────────────────────── */
-
 /** @brief Maximum number of shared libraries that can be loaded. */
 #define RTLD_MAX_DSO 16
 
@@ -185,8 +182,6 @@ typedef struct
     uint64_t at_entry;  /**< Program entry point */
 } rtld_auxv_t;
 
-/* ── Syscall wrappers (defined in rtld_syscall.S) ──────────────────────── */
-
 /**
  * @brief Perform a raw syscall with the given number and arguments.
  *
@@ -199,8 +194,6 @@ __attribute__((visibility("hidden"))) long rtld_syscall1(long n, long a1);
 __attribute__((visibility("hidden"))) long rtld_syscall2(long n, long a1, long a2);
 __attribute__((visibility("hidden"))) long rtld_syscall3(long n, long a1, long a2, long a3);
 __attribute__((visibility("hidden"))) long rtld_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6);
-
-/* ── Minimal libc replacements ─────────────────────────────────────────── */
 
 /** @brief Write a string to stdout (fd 1). */
 void rtld_puts(const char *s);

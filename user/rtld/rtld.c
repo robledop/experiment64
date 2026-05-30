@@ -6,7 +6,6 @@
  * dependency, then applies R_X86_64_RELATIVE relocations to fix the GOT.
  */
 
-/* ── Minimal string/memory helpers (no libc) ───────────────────────────── */
 
 static size_t rtld_strlen(const char *s)
 {
@@ -35,8 +34,6 @@ static void *rtld_memset(void *dst, int c, size_t n)
     while (n--) *d++ = (unsigned char)c;
     return dst;
 }
-
-/* ── Syscall convenience wrappers ──────────────────────────────────────── */
 
 /**
  * @brief Write a buffer to a file descriptor.
@@ -159,8 +156,6 @@ static void dso_append(dso_t *d)
     tail->next = d;
 }
 
-/* ── Auxiliary vector parsing ──────────────────────────────────────────── */
-
 /**
  * @brief Parse the auxiliary vector from the initial stack pointer.
  *
@@ -201,8 +196,6 @@ static void rtld_parse_auxv(uint64_t *sp, rtld_auxv_t *out)
         }
     }
 }
-
-/* ── Dynamic section parsing ───────────────────────────────────────────── */
 
 /**
  * @brief Parse the PT_DYNAMIC entries of a DSO and populate its metadata fields.
@@ -249,8 +242,6 @@ static void dso_parse_dynamic(dso_t *d)
     }
 }
 
-/* ── Symbol resolution ─────────────────────────────────────────────────── */
-
 /**
  * @brief Look up a symbol by name across all loaded DSOs.
  *
@@ -289,8 +280,6 @@ static uint64_t rtld_resolve_symbol(const char *name, const dso_t *skip,
     }
     return 0;
 }
-
-/* ── Relocation processing ─────────────────────────────────────────────── */
 
 /**
  * @brief Process a single RELA relocation entry for a DSO.
@@ -415,8 +404,6 @@ static void rtld_relocate(dso_t *d)
     for (size_t i = 0; i < d->jmprel_count; i++)
         rtld_apply_rela(d, &d->jmprel[i]);
 }
-
-/* ── Library loading ───────────────────────────────────────────────────── */
 
 /**
  * @brief Load a shared library from /lib/<name> into memory.
@@ -567,8 +554,6 @@ static dso_t *rtld_load_library(const char *name)
     dso_append(d);
     return d;
 }
-
-/* ── Main entry point ──────────────────────────────────────────────────── */
 
 /**
  * @brief Runtime linker main function.
