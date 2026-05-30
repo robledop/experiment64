@@ -101,11 +101,21 @@ By default, the disk image is written to `/dev/sdb` so, **BE CAREFUL**!
 
 ## Reading map
 
+New here? [`docs/README.md`](docs/README.md) indexes every design doc, the
+[glossary](docs/glossary.md) of acronyms, and a set of end-to-end
+[walkthroughs](docs/walkthroughs/) that trace one real flow each (boot, a
+syscall, a context switch, `open()` to disk, `mmap`, a TCP connection, a USB
+read, a WM frame).
+
 - Boot and init: `kernel/boot.c`, `kernel/kernel.c`
-- CPU and interrupts: `kernel/arch/x86_64/`
-- Memory: `kernel/mem/`, with design notes in `docs/pmm.md`, `docs/vmm.md`, `docs/heap.md`, and `docs/address_space.md`
+- CPU, interrupts, SMP: `kernel/arch/x86_64/`, with design notes in `docs/x86_64/` (`cpu.md`, `gdt.md`, `idt.md`, `apic.md`, `smp.md`, `acpi.md`)
+- Memory: `kernel/mem/`, with design notes in `docs/pmm.md`, `docs/vmm.md`, `docs/heap.md`, `docs/dma.md`, and `docs/address_space.md`
 - Storage and filesystems: `kernel/io/`, `kernel/fs/`, `docs/storage.md`, `docs/ext2.md`
-- Tasks and syscalls: `kernel/task/`, `kernel/syscalls/`, `docs/scheduler.md`, `docs/syscalls.md`
+- Tasks and syscalls: `kernel/task/`, `kernel/syscalls/`, `docs/scheduler.md`, `docs/syscalls.md`, `docs/signals.md`
+- Networking: `kernel/net/`, `docs/networking.md`
+- IPC: `kernel/ipc/`, with `docs/shm.md` and `docs/futex.md`
+- Dynamic linking: `kernel/lib/elf.c`, `user/rtld/`, `docs/dynamic_linking.md`
+- Debug and symbolization: `kernel/debug/`
 - Userland and libc: `user/`, `user/libc/`
 - GUI: `user/wm/`, `user/wmlib/`, `user/libc/src/wmclient.c`, `docs/wm_protocol.md`
 
