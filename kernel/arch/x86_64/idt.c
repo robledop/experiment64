@@ -381,7 +381,9 @@ void interrupt_handler(struct interrupt_frame *frame)
         shutdown();
 #endif
         hcf();
-    } else {
+    } else if (frame->int_no != 0xFF) {
+        // Vector 0xFF is the LAPIC spurious vector; it must not be acknowledged
+        // with an EOI (no in-service bit is set for it).
         apic_send_eoi();
     }
 
