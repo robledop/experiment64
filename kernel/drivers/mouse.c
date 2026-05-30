@@ -92,21 +92,17 @@ static uint64_t mouse_dev_read(const vfs_inode_t *node, uint64_t offset, uint64_
     if (!buffer || size == 0)
         return 0;
 
-    uint64_t rflags;
-    SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
-
-    while (mouse_buffer_empty()) {
-        SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
-        thread_sleep(&mouse_device, nullptr);
-        SPIN_LOCK_INT_SAVE(mouse_lock, rflags);
+    struct ps2_mouse_packet packet;
+    WITH_LOCK(mouse_lock) {
+        // Hold mouse_lock across the sleep and let thread_sleep release it
+        // atomically; releasing first would let the ISR's wakeup be lost.
+        while (mouse_buffer_empty())
+            thread_sleep(&mouse_device, &mouse_lock);
+        mouse_buffer_pop(&packet);
     }
 
-    struct ps2_mouse_packet packet;
-    mouse_buffer_pop(&packet);
     const uint64_t bytes = (size < sizeof(packet)) ? size : sizeof(packet);
     memcpy(buffer, &packet, (size_t)bytes);
-
-    SPIN_UNLOCK_INT_RESTORE(mouse_lock, rflags);
 
     return bytes;
 }
