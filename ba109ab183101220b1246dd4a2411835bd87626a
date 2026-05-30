@@ -1,0 +1,62 @@
+{
+    "version": "0.1.0",
+    "id": "a81cde7d-7e46-40b5-92d0-e096a50dade1",
+    "timestamp": "2026-05-30T16:39:57.700986429Z",
+    "vcs": {
+        "type": "git",
+        "revision": "ba109ab183101220b1246dd4a2411835bd87626a",
+        "origin": "github",
+        "repository": "https://github.com/robledop/experiment64.git"
+    },
+    "tool": {
+        "name": "chatter-cli"
+    },
+    "files": [
+        {
+            "path": "kernel/fs/fat32.c",
+            "conversations": [
+                {
+                    "url": "git+CLAUDE_CODE:blob:b3fe0c59c378a33b366f5e74c0857033134c55d1",
+                    "contributor": {
+                        "type": "ai",
+                        "model_id": "2.1.157"
+                    },
+                    "ranges": [
+                        {
+                            "start_line": 440,
+                            "end_line": 440
+                        },
+                        {
+                            "start_line": 442,
+                            "end_line": 443
+                        },
+                        {
+                            "start_line": 546,
+                            "end_line": 546
+                        },
+                        {
+                            "start_line": 548,
+                            "end_line": 549
+                        },
+                        {
+                            "start_line": 781,
+                            "end_line": 781
+                        },
+                        {
+                            "start_line": 783,
+                            "end_line": 784
+                        },
+                        {
+                            "start_line": 1226,
+                            "end_line": 1226
+                        },
+                        {
+                            "start_line": 1228,
+                            "end_line": 1229
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
