@@ -245,6 +245,11 @@ bool elf_load(const char *path, elf_load_result_t *result, pml4_t pml4)
     if (result->phdr_vaddr == 0 && result->interp[0] != '\0') {
         uint64_t phdr_map_addr = INTERP_LOAD_BASE - PAGE_SIZE;
         uint64_t ph_total = (uint64_t)header.e_phnum * header.e_phentsize;
+        if (ph_total > PAGE_SIZE) {  // would overflow the single page mapped below
+            kfree(phdrs);
+            vfs_release(node);
+            return false;
+        }
 
         void *phys = pmm_alloc_page();
         if (!phys) {
